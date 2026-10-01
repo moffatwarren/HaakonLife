@@ -393,6 +393,259 @@
     return self;
   }
 
+  // ---------- office computers: a desktop with the SDG program on it ----------
+  const sdgIcon = new Image();
+  sdgIcon.src = 'assets/sdg.png';
+  function ComputerScreen() {
+    let sel = 0, state = 'desktop', t = 0;
+    const OPTIONS = ['Open SDG', 'Exit'];
+    const self = {
+      update() {
+        t++;
+        if (state === 'loading') {
+          if (t > 90) { state = 'desktop'; ui.push(SdgApp()); }
+          return;
+        }
+        if (['left', 'right', 'up', 'down'].some((k) => pressed.has(k))) { sel ^= 1; sfx('select'); }
+        if (pressed.has('b')) { sfx('select'); remove(self); return; }
+        if (pressed.has('a')) {
+          sfx('select');
+          if (sel === 1) remove(self);
+          else { state = 'loading'; t = 0; }
+        }
+      },
+      draw() {
+        ctx.fillStyle = col.dark; ctx.fillRect(0, 0, SW, SH);
+        // monitor
+        ctx.fillStyle = '#181820'; ctx.fillRect(22, 6, 276, 192);
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(24, 8, 272, 188);
+        ctx.fillStyle = '#181820'; ctx.fillRect(34, 18, 252, 164);
+        ctx.fillStyle = '#2f6ea8'; ctx.fillRect(36, 20, 248, 160);
+        ctx.fillStyle = '#58a848'; ctx.fillRect(280, 188, 4, 3); // power light
+        // stand
+        ctx.fillStyle = '#181820'; ctx.fillRect(138, 196, 44, 8); ctx.fillRect(112, 204, 96, 4);
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(140, 196, 40, 7); ctx.fillRect(114, 204, 92, 3);
+        // taskbar
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(36, 168, 248, 12);
+        ctx.fillStyle = '#181820'; ctx.fillRect(36, 168, 248, 1);
+        text('START', 40, 170); text('9:41', 254, 170);
+        // SDG icon
+        const ix = 129, iy = 54;
+        if (sdgIcon.complete && sdgIcon.naturalWidth) ctx.drawImage(sdgIcon, ix, iy, 62, 64);
+        if (sel === 0 && state === 'desktop' && (tick >> 4) & 1) {
+          ctx.fillStyle = '#f8f8f8'; ring(ix - 3, iy - 3, 68, 70);
+        }
+        text('SDG', ix + 22, iy + 70, 1, '#f8f8f8');
+        if (state === 'loading') {
+          box(80, 76, 160, 48);
+          text('Starting SDG...', 80 + 35, 88);
+          ctx.fillStyle = col.dark; ring(96, 104, 128, 10);
+          ctx.fillStyle = '#58a848'; ctx.fillRect(98, 106, Math.round(124 * Math.min(1, t / 80)), 6);
+        }
+        // options
+        box(0, SH - 28, SW, 28);
+        OPTIONS.forEach((o, i) => {
+          const x = i === 0 ? 40 : 200;
+          text(o, x, SH - 18);
+          if (sel === i) text('>', x - 10, SH - 18);
+        });
+      },
+    };
+    return self;
+  }
+
+  // ---------- SDG: lay out an air handling unit, component by component ----------
+  const sdgComps = []; // kept while the game is open, so your unit is still there next time
+  const COMP_TYPES = ['Wall', 'Space', 'Fan', 'Coil'];
+  const COMP_W = { Wall: 6, Space: 18, Fan: 34, Coil: 16 };
+  const WIN = '#c8ccd8', WIN_DARK = '#8890a0', TITLE = '#2850a0', INK = '#181820';
+
+  // Draw one component's slice of the unit (including its bit of the top and
+  // bottom casing) with its left edge at x. y0/h are the unit's outer box.
+  function drawComp(type, x, y0, h) {
+    const w = COMP_W[type], CAS = 6, top = y0 + CAS, bot = y0 + h - CAS;
+    // casing
+    ctx.fillStyle = INK; ctx.fillRect(x, y0, w, CAS); ctx.fillRect(x, bot, w, CAS);
+    ctx.fillStyle = '#a8b0c0'; ctx.fillRect(x, y0 + 1, w, CAS - 2); ctx.fillRect(x, bot + 1, w, CAS - 2);
+    if (type === 'Wall') {
+      ctx.fillStyle = INK; ctx.fillRect(x, top, w, bot - top);
+      ctx.fillStyle = '#a8b0c0'; ctx.fillRect(x + 1, top, w - 2, bot - top);
+    } else if (type === 'Fan') {
+      // motor on a tall pedestal so the fan sits in the middle of the unit
+      const cy = Math.round((top + bot) / 2), motorY = cy - 6;
+      // pedestal + motor
+      ctx.fillStyle = INK; ctx.fillRect(x + 4, motorY + 10, 9, bot - motorY - 10);
+      ctx.fillStyle = '#686878'; ctx.fillRect(x + 5, motorY + 11, 7, bot - motorY - 11);
+      ctx.fillStyle = INK; ctx.fillRect(x + 2, motorY, 14, 12);
+      ctx.fillStyle = '#585868'; ctx.fillRect(x + 3, motorY + 1, 12, 10);
+      ctx.fillStyle = '#8890a0'; ctx.fillRect(x + 4, motorY + 2, 10, 2);
+      // shaft
+      ctx.fillStyle = INK; ctx.fillRect(x + 16, cy - 1, 4, 2);
+      // fan housing flaring out to the right
+      for (let i = 0; i < 14; i++) {
+        const hh = 8 + i * 2, xx = x + 20 + i;
+        ctx.fillStyle = INK; ctx.fillRect(xx, cy - hh / 2, 1, hh);
+        if (i > 0 && i < 13) { ctx.fillStyle = '#d8dce8'; ctx.fillRect(xx, cy - hh / 2 + 1, 1, hh - 2); }
+      }
+    } else if (type === 'Coil') {
+      const cTop = top + 4, cBot = bot - 4;
+      ctx.fillStyle = INK; ctx.fillRect(x + 1, cTop, w - 2, cBot - cTop);
+      ctx.fillStyle = '#e0c898'; ctx.fillRect(x + 2, cTop + 1, w - 4, cBot - cTop - 2);
+      ctx.fillStyle = '#9a6434';
+      for (let fx = x + 4; fx < x + w - 3; fx += 3) ctx.fillRect(fx, cTop + 3, 1, cBot - cTop - 14);
+      // pipe connections near the bottom
+      ctx.fillStyle = INK; ctx.fillRect(x + 4, cBot - 8, 3, 3); ctx.fillRect(x + 8, cBot - 9, 4, 5);
+      ctx.fillStyle = '#c87830'; ctx.fillRect(x + 9, cBot - 8, 2, 3);
+    }
+  }
+
+  function SdgApp() {
+    // sel: highlighted component. mode: 'main' | 'add' | 'insert' | 'move'
+    let btn = 0, mode = 'main', addSel = 0, sel = sdgComps.length - 1;
+    const BUTTONS = ['Add', 'Insert', 'Move', 'Delete', 'Exit'];
+    const LIST = { x: 6, y: 20, w: 82, h: 186 };
+    const VIEW = { x: 94, y: 20, w: 220, h: 186 };
+    function bevel(x, y, w, h, pressedIn) {
+      ctx.fillStyle = INK; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = pressedIn ? WIN_DARK : '#f8f8f8'; ctx.fillRect(x, y, w - 1, h - 1);
+      ctx.fillStyle = pressedIn ? '#f8f8f8' : WIN_DARK; ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+      ctx.fillStyle = WIN; ctx.fillRect(x + 1, y + 1, w - 3, h - 3);
+    }
+    function moveSel(d) {
+      if (!sdgComps.length) return;
+      const n = Math.max(0, Math.min(sdgComps.length - 1, sel + d));
+      if (n === sel) return;
+      if (mode === 'move') [sdgComps[sel], sdgComps[n]] = [sdgComps[n], sdgComps[sel]];
+      sel = n; sfx('select');
+    }
+    const self = {
+      update() {
+        if (mode === 'add' || mode === 'insert') {
+          if (pressed.has('up')) { addSel = (addSel + COMP_TYPES.length - 1) % COMP_TYPES.length; sfx('select'); }
+          if (pressed.has('down')) { addSel = (addSel + 1) % COMP_TYPES.length; sfx('select'); }
+          if (pressed.has('a')) {
+            const c = COMP_TYPES[addSel];
+            if (mode === 'insert' && sel >= 0) sdgComps.splice(sel, 0, c);
+            else { sdgComps.push(c); sel = sdgComps.length - 1; }
+            mode = 'main'; sfx('menu');
+          } else if (pressed.has('b')) { mode = 'main'; sfx('select'); }
+          return;
+        }
+        if (pressed.has('up')) moveSel(-1);
+        if (pressed.has('down')) moveSel(1);
+        if (mode === 'move') {
+          if (pressed.has('a') || pressed.has('b')) { mode = 'main'; sfx('menu'); }
+          return;
+        }
+        if (pressed.has('left')) { btn = (btn + BUTTONS.length - 1) % BUTTONS.length; sfx('select'); }
+        if (pressed.has('right')) { btn = (btn + 1) % BUTTONS.length; sfx('select'); }
+        if (pressed.has('b')) { remove(self); sfx('select'); return; }
+        if (pressed.has('a')) {
+          const b = BUTTONS[btn];
+          sfx('select');
+          if (b === 'Add') mode = 'add';
+          else if (b === 'Insert') mode = 'insert';
+          else if (b === 'Move') { if (sdgComps.length > 1) mode = 'move'; }
+          else if (b === 'Delete') {
+            if (sel >= 0) { sdgComps.splice(sel, 1); sel = Math.min(sel, sdgComps.length - 1); }
+          } else remove(self);
+        }
+      },
+      draw() {
+        // window + title bar
+        ctx.fillStyle = WIN; ctx.fillRect(0, 0, SW, SH);
+        ctx.fillStyle = TITLE; ctx.fillRect(0, 0, SW, 14);
+        if (sdgIcon.complete && sdgIcon.naturalWidth) ctx.drawImage(sdgIcon, 3, 1, 12, 12);
+        text('SDG - Unit Design', 19, 3, 1, '#f8f8f8');
+        ctx.fillStyle = INK; ctx.fillRect(SW - 13, 2, 10, 10);
+        ctx.fillStyle = WIN; ctx.fillRect(SW - 12, 3, 8, 8);
+        text('x', SW - 11, 1, 1, INK);
+
+        // component list, scrolled to keep the selection visible
+        const L = LIST;
+        ctx.fillStyle = INK; ctx.fillRect(L.x, L.y, L.w, L.h);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(L.x + 1, L.y + 1, L.w - 2, L.h - 2);
+        text('Comps', L.x + 6, L.y + 4);
+        ctx.fillStyle = INK; ctx.fillRect(L.x + 1, L.y + 15, L.w - 2, 1);
+        const rows = Math.floor((L.h - 20) / 11);
+        const first = Math.max(0, Math.min(sel - Math.floor(rows / 2), sdgComps.length - rows));
+        sdgComps.slice(first, first + rows).forEach((c, i) => {
+          const idx = first + i, yy = L.y + 20 + i * 11;
+          let ink = INK;
+          if (idx === sel) {
+            ctx.fillStyle = mode === 'move' ? '#c03030' : TITLE;
+            ctx.fillRect(L.x + 3, yy - 2, L.w - 6, 11);
+            ink = '#f8f8f8';
+          }
+          text((idx + 1) + ' ' + c, L.x + 5, yy, 1, ink);
+        });
+        if (!sdgComps.length) text('(empty)', L.x + 5, L.y + 20, 1, WIN_DARK);
+
+        // graphical view
+        const V = VIEW;
+        ctx.fillStyle = INK; ctx.fillRect(V.x, V.y, V.w, V.h);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(V.x + 1, V.y + 1, V.w - 2, V.h - 2);
+        if (!sdgComps.length) {
+          text('Add a component', V.x + 65, V.y + 82, 1, WIN_DARK);
+          text('to start your unit', V.x + 59, V.y + 94, 1, WIN_DARK);
+        } else {
+          const total = sdgComps.reduce((n, c) => n + COMP_W[c], 0);
+          const pad = 8, room = V.w - pad * 2, H = 80;
+          const k = total * 2 <= room ? 2 : 1; // draw big while it fits
+          const w = total * k;
+          // offset of the selected component, so it can be kept in view
+          let selX = 0;
+          for (let i = 0; i < sel; i++) selX += COMP_W[sdgComps[i]];
+          let x0 = V.x + pad + (w <= room ? Math.floor((room - w) / 2) : 0);
+          if (w > room) x0 -= Math.max(0, Math.min(w - room, (selX + COMP_W[sdgComps[sel]] / 2) * k - room / 2));
+          const y0 = V.y + Math.floor((V.h - 12 - H * k) / 2);
+          ctx.save();
+          ctx.beginPath(); ctx.rect(V.x + 1, V.y + 1, V.w - 2, V.h - 2); ctx.clip();
+          ctx.translate(x0, y0); ctx.scale(k, k);
+          let x = 0;
+          sdgComps.forEach((c, i) => {
+            drawComp(c, x, 0, H);
+            if (i === sel && (mode !== 'move' || (tick >> 3) & 1)) {
+              ctx.fillStyle = mode === 'move' ? '#c03030' : '#3060d0';
+              const cw = COMP_W[c];
+              ctx.fillRect(x, -4, cw, 1); ctx.fillRect(x, H + 3, cw, 1);
+              ctx.fillRect(x, -4, 1, H + 8); ctx.fillRect(x + cw - 1, -4, 1, H + 8);
+            }
+            x += COMP_W[c];
+          });
+          ctx.restore();
+          text(mode === 'move' ? 'Up/Down: move  Space: done' : 'Up/Down: select',
+            V.x + 6, V.y + V.h - 12, 1, mode === 'move' ? '#c03030' : WIN_DARK);
+        }
+
+        // buttons
+        let bx = 6;
+        BUTTONS.forEach((b, i) => {
+          const bw = b.length * 6 + 14;
+          bevel(bx, 214, bw, 18, false);
+          text(b, bx + 7, 219, 1, mode === 'move' ? WIN_DARK : INK);
+          if (i === btn && mode === 'main') { ctx.fillStyle = INK; ring(bx + 3, 217, bw - 6, 12); }
+          bx += bw + 6;
+        });
+
+        // add / insert popup
+        if (mode === 'add' || mode === 'insert') {
+          const px = 104, py = 56, pw = 112, ph = 30 + COMP_TYPES.length * 14;
+          ctx.fillStyle = 'rgba(24,24,32,0.35)'; ctx.fillRect(0, 14, SW, SH - 14);
+          bevel(px, py, pw, ph, false);
+          ctx.fillStyle = TITLE; ctx.fillRect(px + 2, py + 2, pw - 5, 12);
+          text(mode === 'insert' && sel >= 0 ? 'INSERT COMP' : 'ADD COMP', px + 6, py + 4, 1, '#f8f8f8');
+          COMP_TYPES.forEach((c, i) => {
+            const yy = py + 20 + i * 14;
+            if (i === addSel) { ctx.fillStyle = TITLE; ctx.fillRect(px + 6, yy - 2, pw - 14, 12); }
+            text('- ' + c.toLowerCase(), px + 10, yy, 1, i === addSel ? '#f8f8f8' : INK);
+          });
+        }
+      },
+    };
+    return self;
+  }
+
   // ---------- coffee mini-game: move the cup to catch falling coffee ----------
   let coffeesToday = 0;
   function CoffeeGame() {
@@ -654,6 +907,11 @@
         sfx('ding');
         warpTo(ends.find((e) => e.floor === i));
       });
+      return;
+    }
+    if (t === 'm' || t === 'R') {
+      sfx('menu');
+      ui.push(ComputerScreen());
       return;
     }
     if (t === 'P') {
