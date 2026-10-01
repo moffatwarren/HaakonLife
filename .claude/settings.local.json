@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pdftoppm -r 100 -png \"/home/warren/Games/Haakon/Richmond Floor Map.pdf\" floor)",
+      "Bash(pdftotext -layout \"/home/warren/Games/Haakon/Richmond Floor Map.pdf\" -)",
+      "Bash(cd *)"
+    ]
+  }
+}
