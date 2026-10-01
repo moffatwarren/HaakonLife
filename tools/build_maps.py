@@ -26,6 +26,9 @@ Room options: 'dark': True draws the room with the lights off,
 'say': '...' shows a line of dialogue every time you walk in, and
 'gender': 'male'/'female' keeps the other gender out (bathrooms), and
 'curtain': True marks the room behind a curtain, and
+'people': [names] adds extra NPCs (repeats allowed),
+'person': name (+ optional 'area': [x1, y1, x2, y2]) puts someone in a room
+that isn't named after them, and
 'parent' marks a cubicle inside an open office (no banner when stepping
 back out into the parent area).
 """
@@ -327,7 +330,8 @@ f1.room('West Stairwell', 27, 20, 31, 26, ',')
 f1.fill(27, 21, 28, 25, 'S'); f1.door((30, 27), (31, 27))
 
 # --- reception / lobby ---
-f1.rooms.append({'name': '101 Reception', 'x1': 19, 'y1': 28, 'x2': 31, 'y2': 37})
+f1.rooms.append({'name': '101 Reception', 'x1': 19, 'y1': 28, 'x2': 31, 'y2': 37,
+                 'person': 'Kiki', 'area': [20, 28, 25, 31]})  # Kiki paces behind the desk
 f1.fill(21, 32, 26, 32, 'r'); f1.fill(26, 28, 26, 31, 'r'); f1.put(26, 28, 'R')  # desk runs up to the wall, PC on top
 f1.fill(31, 33, 31, 35, 'Z')  # candy table on the right wall
 f1.put(23, 31, 'c')
@@ -390,7 +394,8 @@ f2.put(27, 4, 'x'); f2.put(28, 4, 'x'); f2.put(30, 4, 'b'); f2.put(24, 4, 'b')
 f2.room('193 Engraver', 32, 4, 35, 8)
 f2.hline(31, 36, 9); f2.vline(36, 3, 9); f2.door((31, 5))
 f2.put(33, 4, 'M'); f2.put(34, 4, 'M'); f2.put(35, 8, 'b')
-f2.office('### NAME', 37, 4, 44, 8, 'S')
+f2.office('Ghosts', 37, 4, 44, 8, 'S')
+f2.rooms[-1]['people'] = ['Ghost', 'Ghost']  # two ghosts haunt the rack room
 f2.clear((40, 5)); f2.fill(37, 4, 44, 4, 'y')  # racks of computers along the top
 f2.hline(36, 45, 9); f2.vline(45, 3, 10); f2.door((43, 9), (44, 9))
 

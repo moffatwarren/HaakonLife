@@ -23,6 +23,13 @@ and the `js/` folder together.
 - Character colours live in `LOOKS` at the top of `js/art.js` if you want to
   add or tweak outfits.
 
+## People
+
+Everyone with an office or cubicle wanders around it. Walk up to someone and
+press A (E / Space) to talk. Their appearance and what they say live in
+`js/people.js`: set `body` to `'male'` or `'female'`, change the colours, and
+add your own `lines`. The starting appearances are random placeholders.
+
 ## Editing the map
 
 `js/maps.js` is generated. To change it, edit the coordinates in

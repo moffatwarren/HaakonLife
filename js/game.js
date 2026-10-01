@@ -40,6 +40,91 @@
   });
   let curtainOpen = null; // floor index whose curtains are open
 
+  // ---------- NPCs: one per person, pacing around their own office ----------
+  const NPC_LINES = [
+    "Hi! I'm {n}.",
+    "Oh, hey! I'm {n}. Welcome to the office!",
+    "I'm {n}. Busy day today!",
+    "Hey, I'm {n}. Have you tried the candy at reception?",
+    "I'm {n}. Don't tell anyone, but this is my third coffee.",
+  ];
+  const NOT_PEOPLE = ['Meeting Room', 'First Aid Station', 'Ansys Station', 'Reception', 'Engraver'];
+  const NPC_FLOOR = '.,:_j';
+  const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
+  function hash(str) {
+    let h = 2166136261;
+    for (const ch of str) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  const npcs = [];
+  function npcAt(fi, x, y) {
+    return npcs.find((n) => n.floor === fi &&
+      ((n.x === x && n.y === y) || (n.moving && n.x + n.mdx === x && n.y + n.mdy === y))) || null;
+  }
+  function playerAt(x, y) {
+    return (P.x === x && P.y === y) || (P.moving && P.x + P.mdx === x && P.y + P.mdy === y);
+  }
+  (function spawnNpcs() {
+    const placed = new Set();
+    MAPS.floors.forEach((f, fi) => {
+      // offices first, so someone with an office isn't placed in a cubicle too
+      const rooms = f.rooms.filter((r) => !r.parent).concat(f.rooms.filter((r) => r.parent));
+      for (const room of rooms) {
+        const m = /^\d+ (.+)$/.exec(room.name);
+        let names, area = room;
+        if (room.people) {
+          names = room.people;
+        } else if (room.person) {
+          names = [room.person];
+          if (room.area) area = { x1: room.area[0], y1: room.area[1], x2: room.area[2], y2: room.area[3] };
+        } else {
+          if (!m || NOT_PEOPLE.includes(m[1]) || m[1].startsWith('/')) continue;
+          names = m[1].split(' / ');
+        }
+        for (const name of names) {
+          if (placed.has(name) && !room.people) continue;
+          const spots = [];
+          for (let y = area.y1; y <= area.y2; y++)
+            for (let x = area.x1; x <= area.x2; x++)
+              if (NPC_FLOOR.includes(tileAt(fi, x, y)) && !npcAt(fi, x, y)) spots.push([x, y]);
+          if (!spots.length) continue;
+          placed.add(name);
+          const p = (window.PEOPLE || {})[name] || {};
+          const body = ['female', 'ghost'].includes(p.body) ? p.body : 'male';
+          const looks = Art.LOOKS[body] || Art.LOOKS.male;
+          const def = looks[hash(name) % looks.length];
+          const look = { h: p.hair || def.h, s: p.skin || def.s, w: p.top || def.w, u: p.accent || def.u, K: p.pants || def.K };
+          const [x, y] = spots[(hash(name) + npcs.length * 7) % spots.length];
+          npcs.push({
+            name, floor: fi, room: area, x, y, dir: 'down', moving: false, prog: 0, mdx: 0, mdy: 0, step: 0,
+            wait: 30 + ((hash(name) + npcs.length * 37) % 120), sprites: Art.renderSprites(body, look),
+            ghost: body === 'ghost',
+            lines: p.lines && p.lines.length ? p.lines : [NPC_LINES[hash(name) % NPC_LINES.length].replace('{n}', name)],
+          });
+        }
+      }
+    });
+  })();
+
+  function updateNpcs() {
+    for (const n of npcs) {
+      if (n.floor !== P.floor) continue;
+      if (n.moving) {
+        if (++n.prog >= 16) { n.x += n.mdx; n.y += n.mdy; n.moving = false; n.prog = 0; }
+        continue;
+      }
+      if (--n.wait > 0) continue;
+      n.wait = 40 + Math.floor(Math.random() * 140);
+      n.dir = ['up', 'down', 'left', 'right'][Math.floor(Math.random() * 4)];
+      if (Math.random() < 0.25) continue; // sometimes just look around
+      const [dx, dy] = DIRS[n.dir], tx = n.x + dx, ty = n.y + dy, r = n.room;
+      if (tx < r.x1 || tx > r.x2 || ty < r.y1 || ty > r.y2) continue;
+      if (!NPC_FLOOR.includes(tileAt(n.floor, tx, ty)) || npcAt(n.floor, tx, ty) || playerAt(tx, ty)) continue;
+      Object.assign(n, { moving: true, prog: 0, mdx: dx, mdy: dy });
+      n.step ^= 1;
+    }
+  }
+
   const area = (r) => (r.x2 - r.x1 + 1) * (r.y2 - r.y1 + 1);
   MAPS.floors.forEach((f) => f.rooms.sort((a, b) => area(a) - area(b)));
 
@@ -285,7 +370,7 @@
         const ty = my + m.height * k + 12;
         text(r ? r.name : fi === P.floor ? 'Hallway' : '', 10, ty);
         text('Arrows: other floor', 10, ty + 20);
-        text('A: close', 10, ty + 34);
+        text('Space: close', 10, ty + 34);
       },
     };
     return self;
@@ -414,7 +499,7 @@
     const [dx, dy] = DIRS[d];
     const blocked = genderBlock(P.x + dx, P.y + dy, dx, dy);
     if (blocked) { P.walked = false; say(blocked); return; }
-    if (walkable(P.floor, P.x + dx, P.y + dy)) {
+    if (walkable(P.floor, P.x + dx, P.y + dy) && !npcAt(P.floor, P.x + dx, P.y + dy)) {
       Object.assign(P, { moving: true, prog: 0, mdx: dx, mdy: dy, speed: held.b ? 2 : 1, bump: 0 });
       P.step ^= 1;
     } else {
@@ -427,6 +512,13 @@
   function interact() {
     const [dx, dy] = DIRS[P.dir];
     const tx = P.x + dx, ty = P.y + dy, t = tileAt(P.floor, tx, ty);
+    const npc = npcAt(P.floor, tx, ty);
+    if (npc) {
+      if (!npc.moving) npc.dir = OPPOSITE[P.dir];
+      sfx('select');
+      say(npc.lines[Math.floor(Math.random() * npc.lines.length)]);
+      return;
+    }
     if (t === 'E') {
       const ends = findLink(P.floor, tx, ty);
       const names = MAPS.floors.map((f, i) => (i === 0 ? 'GROUND' : i + 1 + 'F'));
@@ -488,6 +580,7 @@
       top().update();
     } else {
       updatePlayer();
+      updateNpcs();
     }
     if (banner && ++banner.t > 150) banner = null;
     pressed.clear();
@@ -550,7 +643,25 @@
     if (w > 0 && h > 0) ctx.drawImage(cv, sx, sy, w, h, dx, dy, w, h);
     if (curtainOpen === P.floor)
       for (const c of curtains[P.floor]) ctx.drawImage(c.open, c.x * 16 - cx, c.y * 16 - cy);
-    ctx.drawImage(sprites[P.dir][frameIndex()], ox, oy - 4);
+    // people, drawn back to front so nearer ones overlap farther ones
+    const actors = [{ x: px, y: py, img: sprites[P.dir][frameIndex()] }];
+    for (const n of npcs) {
+      if (n.floor !== P.floor) continue;
+      const frame = n.moving && n.prog < 8 ? (n.step ? 1 : 2) : 0;
+      actors.push({ x: n.x * 16 + (n.moving ? n.mdx * n.prog : 0), y: n.y * 16 + (n.moving ? n.mdy * n.prog : 0),
+        img: n.sprites[n.dir][frame], ghost: n.ghost });
+    }
+    actors.sort((a, b) => a.y - b.y);
+    for (const a of actors) {
+      const sx = a.x - cx, sy = a.y - cy - 4;
+      if (!(sx > -16 && sx < SW && sy > -20 && sy < SH)) continue;
+      if (a.ghost) {
+        // ghosts are see-through and bob up and down
+        ctx.globalAlpha = 0.75;
+        ctx.drawImage(a.img, sx, sy - 2 + Math.round(Math.sin(tick / 12 + a.x) * 2));
+        ctx.globalAlpha = 1;
+      } else ctx.drawImage(a.img, sx, sy);
+    }
     // rooms with the lights off (drawn over the player too)
     ctx.fillStyle = 'rgba(8, 8, 28, 0.78)';
     for (const r of MAPS.floors[P.floor].rooms)
@@ -655,5 +766,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo };
+  window.GAME = { P, MAPS, warpTo, npcs };
 })();

@@ -699,6 +699,21 @@ window.Art = (function () {
       FEMALE.left.concat(['...kswwwwwwk....', '....kwwwwwsk....', '....kKKKKKKk....', '...kKKk..kKKk...', '...kkk....kkk...']),
     ],
   };
+  // Ghost: a floating sheet. Walking frames ripple the hem.
+  const GHOST_TOP = ['................', '.....kkkkkk.....', '....kwwwwwwk....', '...kwwwwwwwwk...', '...kwwwwwwwwk...'];
+  const GHOST_BODY = ['..kwwwwwwwwwGk..', '..kwwwwwwwwwGk..', '..kWwwwwwwwwGk..', '..kWWwwwwwwGGk..', '..kWWWwwwwGGGk..'];
+  const HEM_A = ['..kwkWWkkWWkwk..', '..k.k..kk..k.k..'];
+  const HEM_B = ['..kkWWkwwkWWkk..', '...kk..kk..kk...'];
+  const GHOST_FACE_DOWN = ['..kwwkkwwkkwwk..', '..kwwkkwwkkwwk..', '..kwwwwwwwwwwk..', '..kwwwwkkwwwwk..'];
+  const GHOST_FACE_UP = ['..kwwwwwwwwwwk..', '..kwwwwwwwwwwk..', '..kwwwwwwwwwwk..', '..kwwwwwwwwwwk..'];
+  const GHOST_FACE_LEFT = ['..kwkkwwkkwwwk..', '..kwkkwwkkwwwk..', '..kwwwwwwwwwwk..', '..kwkkwwwwwwwk..'];
+  const ghost = (face, hem) => GHOST_TOP.concat(face, GHOST_BODY.slice(0, 5), hem).slice(0, 16);
+  const SPRITES_GHOST = {
+    down: [ghost(GHOST_FACE_DOWN, HEM_A), ghost(GHOST_FACE_DOWN, HEM_B)],
+    up: [ghost(GHOST_FACE_UP, HEM_A), ghost(GHOST_FACE_UP, HEM_B)],
+    left: [ghost(GHOST_FACE_LEFT, HEM_A), ghost(GHOST_FACE_LEFT, HEM_B)],
+  };
+
   const SPRITES = {
     down: [
       HEAD_DOWN.concat(['....kwwuuwwk....', '...kswwuuwwsk...', '...kswwwwwwsk...', '....kKKKKKKk....', '....kKKkkKKk....', '.....kk..kk.....']),
@@ -1022,7 +1037,8 @@ window.Art = (function () {
 
   // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look.
   function renderSprites(gender, look) {
-    const pal = palette(look), out = {}, SP = gender === 'female' ? SPRITES_F : SPRITES;
+    const pal = palette(gender === 'ghost' ? {} : look), out = {};
+    const SP = gender === 'female' ? SPRITES_F : gender === 'ghost' ? SPRITES_GHOST : SPRITES;
     const make = (art, flip) => {
       const cv = document.createElement('canvas');
       cv.width = cv.height = 16;

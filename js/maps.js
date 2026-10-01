@@ -401,7 +401,14 @@ window.OFFICE_MAPS = {
      "x1": 19,
      "y1": 28,
      "x2": 31,
-     "y2": 37
+     "y2": 37,
+     "person": "Kiki",
+     "area": [
+      20,
+      28,
+      25,
+      31
+     ]
     },
     {
      "name": "152 Max",
@@ -588,11 +595,15 @@ window.OFFICE_MAPS = {
      "y2": 8
     },
     {
-     "name": "### NAME",
+     "name": "Ghosts",
      "x1": 37,
      "y1": 4,
      "x2": 44,
-     "y2": 8
+     "y2": 8,
+     "people": [
+      "Ghost",
+      "Ghost"
+     ]
     },
     {
      "name": "162 Michael Tam",
