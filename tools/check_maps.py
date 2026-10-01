@@ -6,7 +6,7 @@ import json, os
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 src = open(os.path.join(root, 'js', 'maps.js')).read()
 d = json.loads(src[src.index('{'):src.rindex('}') + 1])
-WALK = '.,:_DSj'
+WALK = '.,:_DSjC'  # curtains can be opened
 
 
 def warp(f, x, y):

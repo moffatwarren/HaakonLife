@@ -29,6 +29,17 @@
   pick.index = Math.min(+store.get('look') || 0, Art.LOOKS[pick.gender].length - 1);
   let sprites = charSprites[pick.gender][pick.index];
 
+  // Curtains ('C' tiles): closed until the player peeks around them, then
+  // walkable until they leave the curtained room. Pre-render the open look.
+  const curtains = MAPS.floors.map((f) => {
+    const list = [];
+    f.tiles.forEach((rowStr, y) => [...rowStr].forEach((c, x) => {
+      if (c === 'C') list.push({ x, y, open: Art.renderTileAs(f, x, y, '~') });
+    }));
+    return list;
+  });
+  let curtainOpen = null; // floor index whose curtains are open
+
   const area = (r) => (r.x2 - r.x1 + 1) * (r.y2 - r.y1 + 1);
   MAPS.floors.forEach((f) => f.rooms.sort((a, b) => area(a) - area(b)));
 
@@ -310,6 +321,11 @@
     x: ['The photocopier blinks: PC LOAD LETTER'],
     T: ['A big table. Good for meetings.'],
     q: ['A treadmill. Maybe after work...'],
+    z: ['A server rack. The fans are roaring.', 'Rows of blinking lights. Something is definitely computing.'],
+    y: ['A rack of computers crunching numbers.'],
+    u: ['A stretcher, freshly made up. Hopefully nobody needs it today.'],
+    l: ['A sturdy railing. Watch your step!'],
+    g: ['Shelves stocked with chips, granola bars and pop. Snack heaven!'],
     W: ['A washing machine. Someone left their gym towels in it.'],
     O: ['A dryer. Still warm.'],
     A: ['A squat rack loaded with heavy plates. Not today.'],
@@ -372,6 +388,11 @@
       const other = ends && ends.find((e) => e.floor !== P.floor);
       if (other) { sfx('stairs'); warpTo(other); return; }
     }
+    // the curtain swings shut once you've left the room behind it
+    if (curtainOpen === P.floor && tileAt(P.floor, P.x, P.y) !== 'C') {
+      const r = roomAt(P.floor, P.x, P.y);
+      if (!(r && r.curtain)) curtainOpen = null;
+    }
     updateRoom();
   }
 
@@ -384,11 +405,16 @@
     return 'You can\'t go into the ' + (r.gender === 'male' ? 'boys\'' : 'girls\'') + ' bathroom!';
   }
 
+  function walkable(fi, x, y) {
+    const t = tileAt(fi, x, y);
+    return WALKABLE.includes(t) || (t === 'C' && curtainOpen === fi);
+  }
+
   function tryMove(d) {
     const [dx, dy] = DIRS[d];
     const blocked = genderBlock(P.x + dx, P.y + dy, dx, dy);
     if (blocked) { P.walked = false; say(blocked); return; }
-    if (WALKABLE.includes(tileAt(P.floor, P.x + dx, P.y + dy))) {
+    if (walkable(P.floor, P.x + dx, P.y + dy)) {
       Object.assign(P, { moving: true, prog: 0, mdx: dx, mdy: dy, speed: held.b ? 2 : 1, bump: 0 });
       P.step ^= 1;
     } else {
@@ -410,6 +436,14 @@
         if (i === P.floor) { say('You\'re already on this floor.'); return; }
         sfx('ding');
         warpTo(ends.find((e) => e.floor === i));
+      });
+      return;
+    }
+    if (t === 'C') {
+      if (curtainOpen === P.floor) return;
+      sfx('select');
+      ask('Peek around the curtain?', ['YES', 'NO'], (i) => {
+        if (i === 0) { curtainOpen = P.floor; sfx('menu'); }
       });
       return;
     }
@@ -514,6 +548,8 @@
     if (sy < 0) { dy = -sy; h += sy; sy = 0; }
     w = Math.min(w, cv.width - sx); h = Math.min(h, cv.height - sy);
     if (w > 0 && h > 0) ctx.drawImage(cv, sx, sy, w, h, dx, dy, w, h);
+    if (curtainOpen === P.floor)
+      for (const c of curtains[P.floor]) ctx.drawImage(c.open, c.x * 16 - cx, c.y * 16 - cy);
     ctx.drawImage(sprites[P.dir][frameIndex()], ox, oy - 4);
     // rooms with the lights off (drawn over the player too)
     ctx.fillStyle = 'rgba(8, 8, 28, 0.78)';

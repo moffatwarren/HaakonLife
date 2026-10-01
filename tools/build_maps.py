@@ -17,12 +17,15 @@ Map glyphs
              F fan unit  L cooling coil  K electrical control panel
              R reception desk with PC  Z table with candy
              W washer  O dryer  A squat rack  G punching bag  N locker
-             I lat pulldown machine  e dumbbell rack
+             I lat pulldown machine  e dumbbell rack  g shelf of snacks  l railing
+             z server rack  y rack of computers  u stretcher
+             C curtain (opened from the game; closes when you leave the room)
   walkable:  j computer parts scattered on the floor
 
 Room options: 'dark': True draws the room with the lights off,
 'say': '...' shows a line of dialogue every time you walk in, and
 'gender': 'male'/'female' keeps the other gender out (bathrooms), and
+'curtain': True marks the room behind a curtain, and
 'parent' marks a cubicle inside an open office (no banner when stepping
 back out into the parent area).
 """
@@ -100,6 +103,17 @@ class Floor:
         self.put(dx, my, 'd')
         cx = dx + 1 if desk_side == 'W' else dx - 1
         self.put(cx, my - 1, 'c')
+
+    def l_desk(self, cells, mon, chair):
+        """Desk made of the given tiles, a computer at `mon` and a chair."""
+        for x, y in cells:
+            self.put(x, y, 'd')
+        self.put(*mon, 'm')
+        self.put(*chair, 'c')
+
+    def clear(self, *cells, floor='.'):
+        for x, y in cells:
+            self.put(x, y, floor)
 
     def out(self):
         return {
@@ -279,7 +293,7 @@ f1.room('Electrical Room', 56, 26, 59, 37); f1.door((60, 26), (60, 27))
 # storage space above Sidney's office, opening on its left side
 f1.hline(51, 55, 25); f1.vline(51, 25, 28)
 f1.room('Storage', 52, 26, 54, 28); f1.door((51, 27))
-f1.fill(52, 26, 54, 26, 'b'); f1.put(54, 28, 'B'); f1.put(53, 28, 'B'); f1.put(54, 27, 'B')
+f1.fill(52, 26, 54, 26, 'g'); f1.fill(54, 27, 54, 28, 'g')  # snack shelves
 f1.fill(56, 37, 59, 37, 'M'); f1.fill(56, 26, 57, 26, 'b')
 f1.office('149 Troy', 61, 31, 65, 37, 'N'); f1.door((61, 30), (62, 30))
 f1.office('163 Eugene', 67, 31, 72, 37, 'N'); f1.door((67, 30), (68, 30))
@@ -295,18 +309,19 @@ f1.office('118 Jhonna', 39, 21, 45, 25, 'S'); f1.door((44, 26), (45, 26))
 
 # copy room between the west stairwell and Jhonna: supply cupboards on the
 # left, printers and copiers on the right, open at the top and bottom
-f1.hline(33, 34, 19); f1.hline(33, 35, 27)
-f1.room('Copy Room', 33, 20, 37, 26, ',')
+f1.hline(33, 34, 19)
+f1.room('Copy Room', 33, 20, 37, 25, ',')
+f1.hline(33, 35, 26)  # bottom wall lines up with Jhonna's office
 f1.put(37, 20, '#'); f1.put(37, 26, '#')
-f1.fill(33, 20, 33, 26, 'U')
+f1.fill(33, 20, 33, 25, 'U')
 for y, ch in zip(range(21, 26), 'xYxYx'):
     f1.put(37, y, ch)
 
 # --- meeting room + west stairwell ---
 f1.vline(20, 19, 26); f1.vline(26, 19, 27); f1.hline(20, 26, 19); f1.hline(20, 26, 26)
-f1.room('166 Meeting Room', 21, 20, 25, 25, '_'); f1.door((21, 26), (22, 26))
+f1.room('166 Meeting Room', 21, 20, 25, 25, '_'); f1.door((20, 21), (20, 22))  # opening on the left wall
 f1.fill(22, 22, 24, 23, 'T')
-f1.put(21, 22, 'c'); f1.put(21, 23, 'c'); f1.put(25, 20, 'p')
+f1.put(23, 21, 'c'); f1.put(23, 24, 'c'); f1.put(25, 20, 'p')
 f1.hline(26, 32, 19); f1.hline(26, 32, 27)
 f1.room('West Stairwell', 27, 20, 31, 26, ',')
 f1.fill(27, 21, 28, 25, 'S'); f1.door((30, 27), (31, 27))
@@ -325,7 +340,7 @@ f1.office('152 Max', 3, 17, 8, 25, 'E'); f1.door((9, 24), (9, 25))
 f1.office('104 Jack', 3, 27, 8, 37, 'E'); f1.door((9, 28), (9, 29))
 f1.hline(9, 18, 29); f1.vline(18, 29, 37)
 f1.room('154 / 105', 10, 30, 17, 37)
-f1.door((10, 29), (11, 29), (18, 31), (18, 32))
+f1.door((10, 29), (11, 29))
 f1.put(12, 36, 'm'); f1.put(13, 36, 'd'); f1.put(12, 35, 'c')
 f1.put(15, 36, 'm'); f1.put(16, 36, 'd'); f1.put(15, 35, 'c'); f1.put(17, 30, 'p')
 
@@ -352,20 +367,20 @@ f2.hline(0, 106, 3); f2.hline(0, 106, 36); f2.vline(0, 3, 36); f2.vline(106, 3, 
 f2.vline(7, 3, 10); f2.hline(0, 7, 10)
 f2.office('130 Davisson', 1, 4, 6, 9, 'E'); f2.door((7, 9))
 # Davisson's room is a mess of computer parts and boxes
-for row, line in enumerate(('HmdHHB',
-                            'Bcj.JB',
-                            'Hj.j.j',
-                            'BJj.BB',
-                            'Hj.jj.',
-                            'BBJ.j.')):
+for row, line in enumerate(('HddmHB',   # L-shaped desk: along the top, then down
+                            'BjcdJB',
+                            'Hj.d.j',
+                            'BJjd.B',
+                            'Hj.dj.',
+                            'BBj.j.')):
     for col, ch in enumerate(line):
         f2.put(1 + col, 4 + row, ch)
-f2.room('Computer Room', 8, 4, 18, 7)
+f2.room('Server Room', 8, 4, 18, 7)
 f2.hline(7, 19, 8); f2.vline(19, 3, 8); f2.door((15, 8), (16, 8))
 for x in range(9, 18):
-    f2.put(x, 4, 'm' if x % 2 else 'd')
-for x in range(9, 18, 2):
-    f2.put(x, 5, 'c')
+    f2.put(x, 4, 'zzyzzyzzy'[x - 9])   # server racks and computer racks
+for x in range(9, 14):
+    f2.put(x, 6, 'yzzyz'[x - 9])
 f2.vline(23, 3, 8)
 f2.rooms.append({'name': 'Exit Stairs', 'x1': 20, 'y1': 4, 'x2': 22, 'y2': 7})
 f2.exit((21, 3), (22, 3))
@@ -376,6 +391,7 @@ f2.room('193 Engraver', 32, 4, 35, 8)
 f2.hline(31, 36, 9); f2.vline(36, 3, 9); f2.door((31, 5))
 f2.put(33, 4, 'M'); f2.put(34, 4, 'M'); f2.put(35, 8, 'b')
 f2.office('### NAME', 37, 4, 44, 8, 'S')
+f2.clear((40, 5)); f2.fill(37, 4, 44, 4, 'y')  # racks of computers along the top
 f2.hline(36, 45, 9); f2.vline(45, 3, 10); f2.door((43, 9), (44, 9))
 
 # --- north offices ---
@@ -385,7 +401,7 @@ for x in (51, 57, 63):
 f2.vline(72, 3, 11)
 f2.office('162 Michael Tam', 46, 4, 50, 9, 'S'); f2.door((46, 10), (47, 10))
 f2.office('161 Lauren', 52, 4, 56, 9, 'S'); f2.door((52, 10), (53, 10))
-f2.office('Office 159', 58, 4, 62, 9, 'S'); f2.door((61, 10), (62, 10))
+f2.office('159 Gigi', 58, 4, 62, 9, 'S'); f2.door((61, 10), (62, 10))
 f2.office('146 Joe', 64, 4, 71, 9, 'S'); f2.door((64, 10), (65, 10))
 f2.hline(72, 106, 11)
 for x in (80, 89, 97):
@@ -400,22 +416,34 @@ f2.put(103, 4, 'd'); f2.put(102, 4, 'm'); f2.put(102, 5, 'c')
 # --- west ---
 f2.vline(7, 10, 19); f2.hline(0, 7, 19)
 f2.office('129 Rob', 1, 11, 6, 18, 'E'); f2.door((7, 11), (7, 12))
+f2.clear((2, 11), (3, 11), (2, 12))
+f2.l_desk([(x, 13) for x in range(1, 5)] + [(1, y) for y in range(14, 18)], (2, 13), (2, 14))
 f2.vline(7, 19, 27); f2.hline(0, 10, 27)
 f2.office('110 Warren', 1, 20, 6, 26, 'E'); f2.door((7, 25), (7, 26))
+f2.clear((2, 20), (3, 20), (2, 21))
+f2.l_desk([(6, y) for y in range(21, 25)] + [(x, 24) for x in range(3, 6)], (5, 24), (5, 23))
 f2.vline(10, 27, 35)
 f2.office('125 Bob', 1, 28, 9, 35, 'E'); f2.door((10, 28), (10, 29))
+f2.fill(4, 28, 6, 28, 'd'); f2.fill(6, 29, 6, 33, 'd')  # Bob's L-shaped desk
 
 # open pod (Jordan / Jimmy / Kyle / Maya / Tainah / Diane)
 f2.rooms.append({'name': 'Open Office', 'x1': 8, 'y1': 9, 'x2': 24, 'y2': 26})
 f2.fill(11, 11, 19, 24, '.')
-f2.vline(15, 11, 24, '=')
-for y in (11, 15, 19, 24):
+f2.vline(15, 12, 24, '=')
+for y in (15, 19, 24):
     f2.hline(11, 19, y, '=')
 for (y1, y2), left, right in (((12, 14), '111 Jordan', '138 Jimmy'),
                                ((16, 18), '180 Kyle', '127 Maya'),
                                ((20, 23), '124 Tainah', '158 Diane')):
-    f2.cubicle(left, 11, y1, 14, y2, 'E')
-    f2.cubicle(right, 16, y1, 19, y2, 'W')
+    for name, x1, x2 in ((left, 11, 14), (right, 16, 19)):
+        f2.rooms.append({'name': name, 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2, 'parent': 'Open Office'})
+# L-shaped desks running along the centre partition
+f2.l_desk([(x, 12) for x in range(11, 15)] + [(14, 13), (14, 14)], (14, 12), (13, 13))  # Jordan
+f2.l_desk([(16, 12), (16, 13)] + [(x, 14) for x in range(16, 20)], (16, 14), (17, 13))  # Jimmy
+f2.l_desk([(x, 16) for x in range(11, 15)] + [(14, 17), (14, 18)], (14, 16), (13, 17))  # Kyle
+f2.l_desk([(x, 16) for x in range(16, 20)] + [(16, 17), (16, 18)], (16, 16), (17, 17))  # Maya
+f2.l_desk([(14, y) for y in range(20, 23)] + [(x, 23) for x in range(11, 15)], (14, 23), (13, 22))  # Tainah
+f2.l_desk([(16, y) for y in range(20, 23)] + [(x, 23) for x in range(16, 20)], (16, 23), (17, 22))  # Diane
 f2.vline(22, 12, 16, '=')
 
 # washroom / Walker / Hudson
@@ -427,8 +455,11 @@ f2.put(29, 9, 'w'); f2.put(29, 11, 'n')
 f2.put(29, 13, 'n'); f2.put(29, 15, 'w')
 f2.vline(30, 9, 16)
 f2.office('154 Walker', 31, 10, 35, 15, 'S'); f2.door((34, 16), (35, 16))
+f2.clear((32, 10), (33, 10), (32, 11))
+f2.l_desk([(x, 14) for x in range(31, 35)], (32, 14), (32, 13))
 f2.vline(36, 9, 16); f2.vline(42, 9, 16); f2.hline(36, 42, 16)
 f2.office('178 Hudson', 37, 10, 41, 15, 'E'); f2.door((42, 14), (42, 15))
+f2.fill(39, 11, 39, 13, 'd')  # desk turns down the room
 
 # Jenn + west stairwell + electrical / Zin / Jules
 f2.hline(19, 25, 26)
@@ -438,12 +469,15 @@ f2.put(22, 25, 'm'); f2.put(23, 25, 'd'); f2.put(22, 24, 'c'); f2.put(24, 20, 'p
 f2.hline(25, 30, 19); f2.vline(25, 19, 26); f2.vline(30, 19, 26)
 f2.room('West Stairwell', 26, 20, 29, 25, ',')
 f2.fill(26, 20, 28, 22, 'S')
+f2.fill(26, 26, 27, 26, 'l')  # railing across part of the stairwell opening
 f2.hline(30, 42, 19); f2.hline(30, 42, 26)
 for x in (33, 37, 42):
     f2.vline(x, 19, 26)
 f2.room('Electrical', 31, 20, 32, 25); f2.door((32, 19)); f2.fill(31, 25, 32, 25, 'M')
 f2.office('126 Zin', 34, 20, 36, 25, 'N'); f2.door((35, 19))
+f2.fill(36, 22, 36, 25, 'd')  # L-shaped desk up the right wall
 f2.office('133 Jules', 38, 20, 41, 25, 'N'); f2.door((39, 19), (40, 19))
+f2.fill(38, 22, 38, 25, 'd'); f2.put(39, 25, 'd'); f2.put(38, 25, 'm')  # L-shaped desk up the left wall
 
 # centre pod (Raymond / Avery / Nikola / Muhammad)
 f2.rooms.append({'name': 'Open Office', 'x1': 43, 'y1': 14, 'x2': 63, 'y2': 26})
@@ -506,7 +540,9 @@ for x in (18, 27, 36, 45, 55, 64, 72, 79, 88, 96):
     f2.vline(x, 29, 36)
 f2.rooms.append({'name': '123 Leon', 'x1': 11, 'y1': 28, 'x2': 17, 'y2': 35})
 f2.fill(12, 33, 15, 35, '.')
-f2.put(13, 35, 'm'); f2.put(14, 35, 'd'); f2.put(13, 34, 'c'); f2.put(11, 35, 'p')
+# Leon's desk runs along the meeting room wall, with two computers
+f2.fill(17, 30, 17, 35, 'd'); f2.put(17, 31, 'm'); f2.put(17, 34, 'm')
+f2.put(16, 32, 'c'); f2.put(11, 35, 'p')
 f2.room('179 Meeting Room', 19, 30, 26, 35, '_'); f2.door((25, 29), (26, 29))
 f2.fill(21, 32, 24, 33, 'T')
 for x in (21, 23):
@@ -522,6 +558,130 @@ f2.office('119 Kim', 80, 30, 87, 35, 'N'); f2.door((80, 29), (81, 29))
 f2.office('143 Matthew', 89, 30, 95, 35, 'N'); f2.door((89, 29), (90, 29))
 f2.office('122 Richard', 97, 30, 105, 35, 'N'); f2.door((97, 29), (98, 29))
 
+
+
+# ---------------------------------------------------------------------
+# Second-floor desk layouts (traced from the reference sketches)
+# ---------------------------------------------------------------------
+def col(x, y1, y2):
+    return [(x, y) for y in range(y1, y2 + 1)]
+
+def row(y, x1, x2):
+    return [(x, y) for x in range(x1, x2 + 1)]
+
+# south offices: desks run along the bottom wall and turn up the room
+f2.l_desk(col(28, 31, 35) + row(35, 28, 33), (31, 35), (31, 34))        # Mike Friesen
+f2.l_desk(col(37, 31, 35) + row(35, 37, 42), (40, 35), (40, 34))        # Stephen
+f2.l_desk(col(49, 31, 35) + row(35, 49, 53), (49, 35), (50, 34))        # Dave
+f2.l_desk(col(58, 31, 35) + row(35, 58, 62), (59, 35), (59, 34))        # Desirae
+f2.l_desk(col(67, 31, 35) + row(35, 67, 70), (67, 35), (68, 34))        # Wade
+f2.l_desk(col(78, 31, 35) + row(35, 75, 78), (75, 35), (75, 34))        # Jillian
+f2.l_desk(col(82, 31, 35) + row(35, 82, 86), (83, 35), (83, 34))        # Kim
+f2.l_desk(col(95, 31, 35) + row(35, 91, 95), (91, 35), (91, 34))        # Matthew
+f2.clear((100, 35), (101, 35), (100, 34))
+f2.l_desk(row(32, 99, 105), (101, 32), (101, 33))                        # Richard
+
+# north offices
+f2.clear((47, 4), (48, 4), (47, 5))
+f2.l_desk(col(50, 5, 8) + row(8, 48, 49), (50, 8), (49, 7))             # Michael Tam
+f2.clear((53, 4), (54, 4), (53, 5))
+f2.l_desk(col(56, 5, 8) + row(8, 54, 55), (56, 8), (55, 7))             # Lauren
+f2.clear((59, 4), (60, 4), (59, 5))
+f2.l_desk(col(58, 6, 9) + row(9, 59, 60), (58, 9), (59, 8))             # Gigi
+f2.clear((67, 4), (68, 4), (67, 5))
+f2.fill(66, 7, 71, 8, 'd'); f2.put(68, 7, 'm'); f2.put(68, 6, 'c')      # Joe
+f2.clear((77, 5))
+f2.l_desk(row(4, 73, 78) + col(77, 5, 9), (75, 4), (75, 5))             # Mauro / Alyssa
+f2.put(77, 7, 'm'); f2.put(76, 7, 'c')
+f2.clear((84, 4), (85, 4), (84, 5))
+f2.l_desk(col(83, 6, 9) + row(9, 84, 88), (83, 9), (84, 8))             # JP
+f2.clear((92, 4), (93, 4), (92, 5))
+f2.l_desk(col(92, 6, 10) + row(10, 93, 96), (92, 10), (93, 9))          # James
+f2.l_desk(row(4, 101, 105) + col(105, 5, 9), (101, 4), (101, 5))       # Raegan / Patrick
+f2.put(102, 4, 'm')
+f2.l_desk(col(98, 5, 9), (98, 7), (99, 7))
+
+# Daphne / Nik
+f2.l_desk(row(15, 66, 70), (69, 15), (69, 16))                           # Daphne
+f2.clear((69, 21), (70, 21), (69, 22))
+f2.l_desk(col(67, 23, 25), (67, 24), (68, 24))                           # Nik
+
+# centre pod
+f2.l_desk(col(52, 16, 19) + row(19, 48, 51), (52, 16), (51, 16))        # Raymond
+f2.l_desk(col(54, 16, 19) + row(19, 55, 57), (54, 16), (55, 16))        # Avery
+f2.l_desk(row(21, 48, 52) + col(52, 22, 24), (52, 21), (51, 22))        # Nikola
+f2.l_desk(col(54, 21, 24) + row(21, 55, 57), (54, 21), (55, 22))        # Muhammad
+
+# east pod
+f2.clear((82, 16), (88, 16), (92, 16), (93, 16), (92, 17),
+         (82, 24), (87, 24), (88, 24), (87, 23), (92, 24), (93, 24), (92, 23))
+f2.l_desk(col(81, 16, 19) + row(19, 82, 85), (81, 16), (82, 17))        # Cody
+f2.l_desk(col(87, 16, 19) + row(19, 88, 90), (87, 16), (88, 17))        # John
+f2.l_desk(col(96, 16, 19) + row(19, 92, 95), (96, 19), (95, 18))        # Dmitriy
+f2.l_desk(row(21, 81, 85) + col(81, 22, 24), (81, 24), (82, 23))        # Leo
+f2.l_desk(row(21, 87, 90) + col(90, 22, 24), (90, 21), (89, 22))        # Sayyada
+f2.l_desk(row(21, 92, 96) + col(96, 22, 24), (96, 21), (95, 22))        # Gigi (cubicle)
+
+
+# ---------------------------------------------------------------------
+# Ground-floor desk layouts (traced from the reference sketches)
+# ---------------------------------------------------------------------
+# south offices
+f1.clear((35, 37), (36, 37), (35, 36))
+f1.l_desk(row(30, 34, 37) + col(37, 31, 33), (37, 30), (36, 31))       # Howard
+f1.clear((43, 37), (44, 37), (43, 36))
+f1.l_desk(row(31, 43, 47) + col(47, 32, 35), (47, 31), (46, 32))       # Nathan
+f1.put(46, 32, 'o')                                                     # ...on his exercise ball
+f1.l_desk(col(49, 32, 37) + row(37, 50, 53), (51, 37), (51, 36))       # Sidney
+f1.clear((62, 37), (63, 37), (62, 36), (65, 37))
+f1.l_desk(col(65, 33, 37), (65, 35), (64, 35))                          # Troy
+f1.l_desk(col(67, 33, 37) + row(37, 68, 70), (69, 37), (69, 36))       # Eugene
+f1.clear((76, 37), (77, 37), (76, 36))
+f1.l_desk(row(33, 74, 77) + col(74, 34, 37), (74, 33), (75, 34))       # Damir
+f1.clear((83, 36))
+f1.l_desk(col(83, 32, 36) + row(37, 83, 87), (83, 37), (84, 36))       # Derek
+f1.l_desk(col(94, 33, 37) + row(37, 92, 93), (91, 37), (91, 36))       # Tho
+f1.put(92, 37, 'd')
+f1.clear((97, 37), (98, 37), (97, 36))
+f1.l_desk(col(100, 32, 37), (100, 34), (99, 34))                        # Mike H.
+
+# Jhonna
+f1.l_desk(row(21, 40, 43) + col(43, 22, 24), (41, 21), (41, 22))
+
+# cubicle-walled offices
+f1.l_desk(row(17, 52, 55) + col(55, 18, 21), (53, 17), (53, 18))       # Eric
+f1.l_desk(row(17, 57, 60) + col(60, 18, 21), (58, 17), (58, 18))       # Carlos
+f1.clear((62, 12))
+f1.l_desk(col(62, 11, 15) + row(15, 63, 64), (62, 11), (63, 12))       # Lam
+f1.put(63, 11, 'd')
+f1.clear((62, 18))
+f1.l_desk(col(62, 17, 21) + row(21, 63, 64), (62, 17), (63, 18))       # Lia
+f1.put(63, 17, 'd')
+f1.l_desk(col(72, 11, 15) + row(15, 69, 71), (70, 11), (70, 12))       # Charles
+f1.l_desk(col(72, 17, 21) + row(21, 69, 71), (70, 17), (70, 18))       # Yeunie
+f1.clear((63, 4), (64, 4), (63, 5))
+f1.l_desk(col(62, 6, 9) + row(9, 63, 65), (62, 9), (63, 8))            # Jonathan
+f1.l_desk(row(4, 69, 72) + col(72, 5, 8), (69, 4), (69, 5))            # Sharon
+
+# first aid station: curtain across the doorway, stretcher instead of a desk
+f1.put(83, 15, 'C'); f1.put(84, 15, 'C')
+f1.clear((83, 19), (84, 19), (83, 18))
+f1.fill(83, 19, 85, 19, 'u')
+next(r for r in f1.rooms if r['name'] == '170 First Aid Station')['curtain'] = True
+
+# the centre cluster (first aid, Ansys, D&P closet, Romano, Nicholas, Marcus)
+# uses cubicle-style partitions instead of solid walls
+for y in range(15, 27):
+    for x in range(81, 99):
+        if f1.g[y][x] == '#':
+            f1.g[y][x] = '='
+        elif f1.g[y][x] == 'D':
+            f1.g[y][x] = ','
+
+# centre cluster, bottom row
+f1.l_desk(row(21, 82, 85) + col(82, 22, 25), (83, 21), (83, 22))       # Romano
+f1.l_desk(row(21, 88, 91) + col(91, 22, 25), (89, 21), (89, 22))       # Nicholas
+f1.l_desk(row(21, 94, 97) + col(97, 22, 25), (94, 21), (94, 22))       # Marcus
 
 # =====================================================================
 # Links between floors: stepping on an S tile (or using an E tile) in a

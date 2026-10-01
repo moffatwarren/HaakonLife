@@ -533,6 +533,60 @@ window.Art = (function () {
       '....kKkgggggkKk.',
       '....kkk.....kkk.',
     ],
+    snackShelf: [
+      'kkkkkkkkkkkkkkkk',
+      'knnnnnnnnnnnnnnk',
+      'knkkkkkkkkkkkknk',
+      'knooDRRDuuDooRnk',
+      'knoyDRwDUUDoyRnk',
+      'knooDRRDuuDooRnk',
+      'knnnnnnnnnnnnnnk',
+      'knrDrDEEDyyDrDnk',
+      'knrDrDElDyyDrDnk',
+      'knrDrDEEDooDrDnk',
+      'knnnnnnnnnnnnnnk',
+      'knNNNNNNNNNNNNnk',
+      'knNNNNNNNNNNNNnk',
+      'knnnnnnnnnnnnnnk',
+      'kkkkkkkkkkkkkkkk',
+      '................',
+    ],
+    serverRack: [
+      '..kkkkkkkkkkkk..',
+      '..kKKKKKKKKKKk..',
+      '..kKkkkkkkkkKk..',
+      '..kKkgggggEkKk..',
+      '..kKkkkkkkkkKk..',
+      '..kKkgggggokKk..',
+      '..kKkkkkkkkkKk..',
+      '..kKkggggEEkKk..',
+      '..kKkkkkkkkkKk..',
+      '..kKkgggggEkKk..',
+      '..kKkkkkkkkkKk..',
+      '..kKkgggggrkKk..',
+      '..kKkkkkkkkkKk..',
+      '..kKKKKKKKKKKk..',
+      '..kkkkkkkkkkkk..',
+      '................',
+    ],
+    computerRack: [
+      '.kkkkkkkkkkkkkk.',
+      '.kg..........gk.',
+      '.kg.kkkk.kkk.gk.',
+      '.kg.kiik.kEk.gk.',
+      '.kg.kkkk.kKk.gk.',
+      '.kg..kk..kkk.gk.',
+      '.kkkkkkkkkkkkkk.',
+      '.kg..........gk.',
+      '.kg.kkk.kkk..gk.',
+      '.kg.kEk.koK..gk.',
+      '.kg.kKk.kKk..gk.',
+      '.kg.kkk.kkk..gk.',
+      '.kkkkkkkkkkkkkk.',
+      '.kg..........gk.',
+      '.kk..........kk.',
+      '................',
+    ],
     papers: [
       '................',
       '................',
@@ -816,6 +870,51 @@ window.Art = (function () {
     for (let i = 0; i < 256; i++) if (b[i] === '.') b[i] = null;
   }
 
+  // Metal railing running left-right; joins neighbouring railings and walls.
+  function paintRailing(b, get, x, y) {
+    const joins = (c) => c === 'l' || c === '#';
+    const x0 = joins(get(x - 1, y)) ? 0 : 1, x1 = joins(get(x + 1, y)) ? 15 : 14;
+    rect(b, x0, 5, x1 - x0 + 1, 3, 'k');
+    rect(b, x0, 6, x1 - x0 + 1, 1, 'G');
+    for (const px of [3, 12]) { rect(b, px - 1, 7, 3, 7, 'k'); rect(b, px, 7, 1, 6, 'g'); }
+    if (x0) rect(b, 1, 5, 1, 9, 'k');
+    if (x1 < 15) rect(b, 14, 5, 1, 9, 'k');
+  }
+
+  // Hospital curtain across a doorway. 'C' is drawn closed, '~' drawn open
+  // (fabric bunched against the outer edge of the doorway).
+  function paintCurtain(b, get, x, y, open) {
+    const isC = (c) => c === 'C' || c === '~';
+    const l = isC(get(x - 1, y)), r = isC(get(x + 1, y));
+    if (!open) {
+      for (let yy = 3; yy < 16; yy++)
+        for (let xx = 0; xx < 16; xx++)
+          set(b, xx, yy, yy === 15 ? 'e' : xx % 4 === 0 ? 'E' : 'l');
+    } else {
+      const bx = r && !l ? 0 : 11;
+      rect(b, bx, 3, 5, 13, 'l');
+      rect(b, bx + 1, 3, 1, 12, 'E'); rect(b, bx + 3, 3, 1, 12, 'E');
+      rect(b, bx, 15, 5, 1, 'e');
+    }
+    rect(b, 0, 1, 16, 2, 'K'); rect(b, 0, 1, 16, 1, 'g');
+    for (let xx = 2; xx < 16; xx += 4) if (!open || (xx >= (r && !l ? 0 : 11) && xx < (r && !l ? 5 : 16))) set(b, xx, 3, 'k');
+  }
+
+  // Stretcher / hospital bed running left-right, pillow on the left end.
+  function paintStretcher(b, get, x, y) {
+    const l = get(x - 1, y) === 'u', r = get(x + 1, y) === 'u';
+    const x0 = l ? 0 : 1, x1 = r ? 15 : 14;
+    rect(b, x0, 4, x1 - x0 + 1, 7, 'k');
+    const m0 = l ? 0 : 2, m1 = r ? 15 : 13;
+    rect(b, m0, 5, m1 - m0 + 1, 5, 'w');
+    if (!l) { rect(b, 3, 5, 4, 5, 'W'); rect(b, 3, 5, 4, 1, 'G'); }
+    const b0 = l ? 0 : 8;
+    rect(b, b0, 6, m1 - b0 + 1, 4, 'U'); rect(b, b0, 6, m1 - b0 + 1, 1, 'i');
+    rect(b, x0, 11, x1 - x0 + 1, 1, 'g');
+    if (!l) { rect(b, 2, 12, 1, 2, 'K'); set(b, 2, 14, 'k'); }
+    if (!r) { rect(b, 13, 12, 1, 2, 'K'); set(b, 13, 14, 'k'); }
+  }
+
   // Build the 16x16 buffer for map tile (x, y).
   function tile(get, floorCh, x, y) {
     const b = buf();
@@ -834,7 +933,7 @@ window.Art = (function () {
       case 'S': paintStairs(b, get, x, y); break;
       case 'd': case 'm':
         block(b, con('dm'), 'N', 'n', 'y');
-        stamp(b, t === 'm' ? ART.monitor : ((x * 7 + y * 3) % 3 === 0 ? ART.papers : []));
+        stamp(b, t === 'm' ? ART.monitor : ((x * 7 + y * 5) % 3 === 0 ? ART.papers : []));
         break;
       case 'T': block(b, con('T'), 'y', 'N', 'w'); break;
       case 'k': case 'M': block(b, con('kMn'), 'W', 'g', 'w'); if (t === 'M') stamp(b, ART.appliance); break;
@@ -853,6 +952,13 @@ window.Art = (function () {
       case 'h': paintShower(b); break;
       case 'o': stamp(b, ART.ball); break;
       case 'W': stamp(b, ART.washer); break;
+      case 'g': stamp(b, ART.snackShelf); break;
+      case 'l': paintRailing(b, get, x, y); break;
+      case 'C': paintCurtain(b, get, x, y, false); break;
+      case '~': paintCurtain(b, get, x, y, true); break;
+      case 'u': paintStretcher(b, get, x, y); break;
+      case 'z': stamp(b, ART.serverRack); break;
+      case 'y': stamp(b, ART.computerRack); break;
       case 'O': stamp(b, ART.dryer); break;
       case 'G': stamp(b, ART.punchingBag); break;
       case 'N': stamp(b, ART.locker); break;
@@ -900,6 +1006,20 @@ window.Art = (function () {
     return cv;
   }
 
+  // One tile drawn as if it were `ch` (used for things that change at runtime,
+  // like a curtain being pulled open).
+  function renderTileAs(floor, x, y, ch) {
+    const H = floor.tiles.length, W = floor.tiles[0].length;
+    const get = (xx, yy) => (xx === x && yy === y) ? ch
+      : (xx < 0 || yy < 0 || xx >= W || yy >= H) ? ' ' : floor.tiles[yy][xx];
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 16;
+    const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16);
+    blit(img, tile(get, floor.floor[y][x], x, y), 0, 0, palette(), false);
+    ctx.putImageData(img, 0, 0);
+    return cv;
+  }
+
   // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look.
   function renderSprites(gender, look) {
     const pal = palette(look), out = {}, SP = gender === 'female' ? SPRITES_F : SPRITES;
@@ -936,5 +1056,5 @@ window.Art = (function () {
     return cv;
   }
 
-  return { LOOKS, UI, renderFloor, renderSprites, renderMini };
+  return { LOOKS, UI, renderFloor, renderSprites, renderMini, renderTileAs };
 })();
