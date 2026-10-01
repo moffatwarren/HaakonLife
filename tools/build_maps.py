@@ -18,8 +18,8 @@ Map glyphs
              R reception desk with PC  Z table with candy
              W washer  O dryer  A squat rack  G punching bag  N locker
              I lat pulldown machine  e dumbbell rack  g shelf of snacks  l railing
-             z server rack  y rack of computers  u stretcher
-             C curtain (opened from the game; closes when you leave the room)
+             z server rack  y rack of computers  u stretcher  t trophy shelf
+             P coffee machine (two tiles tall)  C curtain (opened from the game; closes when you leave the room)
   walkable:  j computer parts scattered on the floor
 
 Room options: 'dark': True draws the room with the lights off,
@@ -220,7 +220,8 @@ f1.fill(75, 4, 79, 4, 'k'); f1.put(76, 4, 'n')
 for x in (80, 81, 82, 83):
     f1.put(x, 4, 'f')
 f1.put(84, 4, 'v'); f1.put(85, 4, 'v')
-f1.fill(74, 4, 74, 10, 'k'); f1.put(74, 7, 'n'); f1.put(74, 8, 'n')
+f1.fill(74, 4, 74, 10, 'k'); f1.put(74, 6, 'n'); f1.put(74, 7, 'n')
+f1.put(74, 8, 'P'); f1.put(74, 9, 'P')  # big coffee machine (mini-game)
 f1.fill(75, 10, 85, 10, 'k')
 for x in (78, 79, 81, 82):
     f1.put(x, 10, 'M')
@@ -554,7 +555,7 @@ for x in (21, 23):
     f2.put(x, 31, 'c'); f2.put(x + 1, 34, 'c')
 f2.put(19, 35, 'p'); f2.fill(19, 31, 19, 34, 'Q')  # TV on the left wall
 f2.office('148 Mike Friesen', 28, 30, 35, 35, 'N'); f2.door((34, 29), (35, 29))
-f2.office('147 Stephen', 37, 30, 44, 35, 'N'); f2.door((43, 29), (44, 29))
+f2.office('147 STEPHEN', 37, 30, 44, 35, 'N'); f2.door((43, 29), (44, 29))
 f2.office('145 Dave', 46, 30, 54, 35, 'N'); f2.door((46, 29), (47, 29))
 f2.office('144 Desirae', 56, 30, 63, 35, 'N'); f2.door((56, 29), (57, 29))
 f2.office('137 Wade', 65, 30, 71, 35, 'N'); f2.door((65, 29), (66, 29))
@@ -637,6 +638,7 @@ f1.l_desk(row(30, 34, 37) + col(37, 31, 33), (37, 30), (36, 31))       # Howard
 f1.clear((43, 37), (44, 37), (43, 36))
 f1.l_desk(row(31, 43, 47) + col(47, 32, 35), (47, 31), (46, 32))       # Nathan
 f1.put(46, 32, 'o')                                                     # ...on his exercise ball
+f1.fill(44, 30, 47, 30, 't')                                            # Nathan's trophy shelves
 f1.l_desk(col(49, 32, 37) + row(37, 50, 53), (51, 37), (51, 36))       # Sidney
 f1.clear((62, 37), (63, 37), (62, 36), (65, 37))
 f1.l_desk(col(65, 33, 37), (65, 35), (64, 35))                          # Troy

@@ -587,6 +587,57 @@ window.Art = (function () {
       '.kk..........kk.',
       '................',
     ],
+    coffeeTop: [
+      '................',
+      '..kkkkkkkkkkkk..',
+      '..kKKKKKKKKKKk..',
+      '..kKkkkkkkkkKk..',
+      '..kKknnnnnnkKk..',
+      '..kKknNnnNnkKk..',
+      '..kKknnnnnnkKk..',
+      '..kKkkkkkkkkKk..',
+      '..kKKKKKKKKKKk..',
+      '..kKkiiiiiikKk..',
+      '..kKkiUiiiikKk..',
+      '..kKkkkkkkkkKk..',
+      '..kKKoKKrKKKKk..',
+      '..kKKKKKKKKKKk..',
+      '..kKKKKKKKKKKk..',
+      '..kKKKKKKKKKKk..',
+    ],
+    coffeeBottom: [
+      '..kKKKKKKKKKKk..',
+      '..kKKkkkkkkKKk..',
+      '..kKKkgggkkKKk..',
+      '..kKkkkgkkkkKk..',
+      '..kKk..g...kKk..',
+      '..kKk..n...kKk..',
+      '..kKk.kwwk.kKk..',
+      '..kKk.kwwk.kKk..',
+      '..kKk.kkkk.kKk..',
+      '..kKkkkkkkkkKk..',
+      '..kKggggggggKk..',
+      '..kKKKKKKKKKKk..',
+      '..kkkkkkkkkkkk..',
+    ],
+    trophies: [
+      'kkkkkkkkkkkkkkkk',
+      'knnnnnnnnnnnnnnk',
+      'knDDDDDDDDDDDDnk',
+      'knDoooDDDGGGDDnk',
+      'knDoyoDDDGWGDDnk',
+      'knDDoDDDDDGDDDnk',
+      'knDoooDDDGGGDDnk',
+      'knnnnnnnnnnnnnnk',
+      'knDDDDDDDDDDDDnk',
+      'knDDDooooDDDDDnk',
+      'knDDDoyooDGGGDnk',
+      'knDDDDooDDDGDDnk',
+      'knDDDooooDGGGDnk',
+      'knnnnnnnnnnnnnnk',
+      'kkkkkkkkkkkkkkkk',
+      '................',
+    ],
     papers: [
       '................',
       '................',
@@ -951,7 +1002,11 @@ window.Art = (function () {
         stamp(b, t === 'm' ? ART.monitor : ((x * 7 + y * 5) % 3 === 0 ? ART.papers : []));
         break;
       case 'T': block(b, con('T'), 'y', 'N', 'w'); break;
-      case 'k': case 'M': block(b, con('kMn'), 'W', 'g', 'w'); if (t === 'M') stamp(b, ART.appliance); break;
+      case 'k': case 'M': block(b, con('kMnP'), 'W', 'g', 'w'); if (t === 'M') stamp(b, ART.appliance); break;
+      case 'P':
+        block(b, con('kMnP'), 'W', 'g', 'w');
+        stamp(b, get(x, y + 1) === 'P' ? ART.coffeeTop : ART.coffeeBottom);
+        break;
       case 'r': case 'R': block(b, con('rR'), 'y', 'u', 'w'); if (t === 'R') stamp(b, ART.monitor); break;
       case 'Z': block(b, con('Z'), 'y', 'N', 'w'); stamp(b, (y & 1) ? ART.candyB : ART.candy); break;
       case '=': partition(b, con('=#')); break;
@@ -967,6 +1022,7 @@ window.Art = (function () {
       case 'h': paintShower(b); break;
       case 'o': stamp(b, ART.ball); break;
       case 'W': stamp(b, ART.washer); break;
+      case 't': stamp(b, ART.trophies); break;
       case 'g': stamp(b, ART.snackShelf); break;
       case 'l': paintRailing(b, get, x, y); break;
       case 'C': paintCurtain(b, get, x, y, false); break;

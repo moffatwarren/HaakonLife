@@ -163,14 +163,31 @@
     o.connect(g); g.connect(actx.destination);
     o.start(t); o.stop(t + dur + 0.02);
   }
+  // Short burst of filtered noise (the "splash" part of a pour).
+  function noise(dur, freq, vol) {
+    const t = actx.currentTime, n = Math.floor(actx.sampleRate * dur);
+    const buf = actx.createBuffer(1, n, actx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    const src = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+    src.buffer = buf; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = 1.5;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(actx.destination);
+    src.start(t);
+  }
   const SFX = {
+    // liquid pouring into a cup: a rising "glug" that gets higher as it fills
+    pour: (level) => {
+      const base = 240 + (level || 0) * 4;
+      tone(base, 0.08, 'sine', 0.07, 180);
+      noise(0.06, 900 + (level || 0) * 12, 0.05);
+    },
     bump: () => tone(90, 0.08, 'square', 0.05),
     select: () => tone(1320, 0.05),
     menu: () => { tone(880, 0.04); tone(1320, 0.05, 'square', 0.04, 0, 0.05); },
     stairs: () => tone(700, 0.3, 'square', 0.03, -450),
     ding: () => { tone(1568, 0.35, 'triangle', 0.08); tone(1319, 0.5, 'triangle', 0.08, 0, 0.2); },
   };
-  function sfx(name) { if (soundOn && actx) SFX[name](); }
+  function sfx(name, arg) { if (soundOn && actx) SFX[name](arg); }
 
   // ---------- input ----------
   const held = { up: false, down: false, left: false, right: false, a: false, b: false, start: false, map: false };
@@ -376,6 +393,113 @@
     return self;
   }
 
+  // ---------- coffee mini-game: move the cup to catch falling coffee ----------
+  let coffeesToday = 0;
+  function CoffeeGame() {
+    const AX = 12, AW = 248, HEAD = 18, CUP_Y = 184, CUP_W = 44, CUP_H = 34, FLOOR = 220;
+    const COFFEE = '#6b3a1e', CREMA = '#b07040';
+    const METER = { x: 280, y: 40, w: 24, h: 168 };
+    let cup = AX + AW / 2 - CUP_W / 2, fill = 0, caught = 0, missed = 0, t = 0, state = 'ready';
+    let nozzle = AX + AW / 2, target = nozzle, drops = [], splashes = [];
+    const self = {
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            coffeesToday++;
+            say(coffeesToday === 1
+              ? 'You made a cup of coffee. Ahh, that hits the spot!'
+              : 'Another cup of coffee! That\'s ' + coffeesToday + ' today...');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You leave the coffee for later.'); return; }
+        if (held.left) cup = Math.max(AX, cup - 3);
+        if (held.right) cup = Math.min(AX + AW - CUP_W, cup + 3);
+        // the nozzle wanders back and forth, faster as the cup fills
+        if (Math.abs(target - nozzle) < 2) target = AX + 12 + Math.random() * (AW - 24);
+        nozzle += Math.sign(target - nozzle) * Math.min(Math.abs(target - nozzle), 1 + fill / 40);
+        if (t % 8 === 0) drops.push({ x: nozzle - 1 + (Math.random() * 4 - 2), y: HEAD + 22, vy: 1 });
+        for (const d of drops) { d.vy = Math.min(d.vy + 0.08, 4); d.y += d.vy; }
+        drops = drops.filter((d) => {
+          if (d.y + 6 >= CUP_Y && d.y < CUP_Y + 8 && d.x + 3 > cup + 3 && d.x < cup + CUP_W - 3) {
+            fill = Math.min(100, fill + 2); caught++;
+            sfx('pour', fill);
+            splashes.push({ x: d.x, y: CUP_Y + 2, t: 0 });
+            return false;
+          }
+          if (d.y > FLOOR - 4) { missed++; splashes.push({ x: d.x, y: FLOOR - 2, t: 0 }); return false; }
+          return true;
+        });
+        splashes.forEach((sp) => sp.t++);
+        splashes = splashes.filter((sp) => sp.t < 12);
+        if (fill >= 100) { state = 'done'; t = 0; drops = []; sfx('ding'); }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('Catch the coffee!', AX + 4, 6);
+        // machine head + nozzle
+        ctx.fillStyle = col.dark; ctx.fillRect(AX, HEAD, AW, 14);
+        ctx.fillStyle = '#585868'; ctx.fillRect(AX + 1, HEAD + 1, AW - 2, 12);
+        ctx.fillStyle = col.dark; ctx.fillRect(Math.round(nozzle) - 6, HEAD + 13, 12, 8);
+        ctx.fillStyle = '#8890a0'; ctx.fillRect(Math.round(nozzle) - 5, HEAD + 14, 10, 6);
+        if (state === 'play') { ctx.fillStyle = COFFEE; ctx.fillRect(Math.round(nozzle) - 1, HEAD + 21, 2, 3); }
+        // falling coffee
+        for (const d of drops) {
+          ctx.fillStyle = COFFEE; ctx.fillRect(Math.round(d.x), Math.round(d.y), 3, 6);
+          ctx.fillStyle = CREMA; ctx.fillRect(Math.round(d.x), Math.round(d.y), 1, 2);
+        }
+        // counter
+        ctx.fillStyle = col.dark; ctx.fillRect(AX, FLOOR, AW, 1);
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(AX, FLOOR + 1, AW, 5);
+        // cup, filling up as you catch coffee
+        const cx0 = Math.round(cup), inner = CUP_H - 4, lvl = Math.round(inner * fill / 100);
+        ctx.fillStyle = col.dark; ctx.fillRect(cx0, CUP_Y, CUP_W, CUP_H);
+        ctx.fillRect(cx0 + CUP_W, CUP_Y + 8, 7, 16);
+        ctx.fillStyle = col.light; ctx.fillRect(cx0 + CUP_W, CUP_Y + 11, 4, 10);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(cx0 + 2, CUP_Y + 2, CUP_W - 4, CUP_H - 4);
+        ctx.fillStyle = COFFEE; ctx.fillRect(cx0 + 2, CUP_Y + 2 + inner - lvl, CUP_W - 4, lvl);
+        if (lvl) { ctx.fillStyle = CREMA; ctx.fillRect(cx0 + 2, CUP_Y + 2 + inner - lvl, CUP_W - 4, 1); }
+        // name on a sleeve around the cup
+        ctx.fillStyle = col.dark; ctx.fillRect(cx0, CUP_Y + 12, CUP_W, 13);
+        ctx.fillStyle = '#e8d4b0'; ctx.fillRect(cx0 + 1, CUP_Y + 13, CUP_W - 2, 11);
+        text('Haakon', cx0 + 4, CUP_Y + 15, 1, '#5a3420');
+        // splashes
+        for (const sp of splashes) {
+          ctx.fillStyle = COFFEE;
+          const dx = 2 + sp.t, dy = Math.round(sp.t * 0.8) - Math.round(sp.t * sp.t * 0.06);
+          ctx.fillRect(Math.round(sp.x) - dx, sp.y - dy, 2, 2);
+          ctx.fillRect(Math.round(sp.x) + dx, sp.y - dy, 2, 2);
+        }
+        // fill meter
+        const m = METER, mh = Math.round((m.h - 4) * fill / 100);
+        text('FILL', m.x, m.y - 12);
+        ctx.fillStyle = col.dark; ctx.fillRect(m.x, m.y, m.w, m.h);
+        ctx.fillStyle = col.light; ctx.fillRect(m.x + 2, m.y + 2, m.w - 4, m.h - 4);
+        ctx.fillStyle = COFFEE; ctx.fillRect(m.x + 2, m.y + m.h - 2 - mh, m.w - 4, mh);
+        ctx.fillStyle = CREMA;
+        for (let yy = m.y + m.h - 2 - mh; yy < m.y + m.h - 2; yy += 8) ctx.fillRect(m.x + 2, yy, m.w - 4, 1);
+        text(Math.floor(fill) + '%', m.x, m.y + m.h + 4);
+        // messages
+        if (state === 'ready') {
+          box(70, 92, 180, 48);
+          text(t < 50 ? 'Get ready...' : 'GO!', 70 + (t < 50 ? 54 : 81), 104);
+          text('Left/Right: move cup', 70 + 30, 120);
+        } else if (state === 'done') {
+          box(50, 76, 220, 72);
+          text("Coffee's ready!", 50 + 65, 88);
+          text('Caught ' + caught + '   Spilled ' + missed, 50 + 110 - (('Caught ' + caught + '   Spilled ' + missed).length * 3), 108);
+          if (t > 30 && (tick >> 4) & 1) text('Press Space', 50 + 77, 128);
+        } else {
+          text('X: give up', AX + 4, SH - 16);
+        }
+      },
+    };
+    return self;
+  }
+
   function openStartMenu() {
     sfx('menu');
     const labels = () => ['MAP', soundOn ? 'SOUND ON' : 'SOUND OFF', 'CLOSE'];
@@ -408,6 +532,7 @@
     q: ['A treadmill. Maybe after work...'],
     z: ['A server rack. The fans are roaring.', 'Rows of blinking lights. Something is definitely computing.'],
     y: ['A rack of computers crunching numbers.'],
+    t: ['Cookie monster champion!'],
     u: ['A stretcher, freshly made up. Hopefully nobody needs it today.'],
     l: ['A sturdy railing. Watch your step!'],
     g: ['Shelves stocked with chips, granola bars and pop. Snack heaven!'],
@@ -531,6 +656,13 @@
       });
       return;
     }
+    if (t === 'P') {
+      sfx('select');
+      ask('A big coffee machine. It smells amazing.', ['MAKE COFFEE', 'CANCEL'], (i) => {
+        if (i === 0) { sfx('menu'); ui.push(CoffeeGame()); }
+      });
+      return;
+    }
     if (t === 'C') {
       if (curtainOpen === P.floor) return;
       sfx('select');
@@ -619,7 +751,7 @@
         if (sel) { ctx.fillStyle = col.dark; ring(x - 6, y + 6, 60, 60); ring(x - 5, y + 7, 58, 58); }
       });
     });
-    text('Arrows: choose    A: start', (SW - 26 * 6) >> 1, SH - 24);
+    text('Arrows: choose   Space: start', (SW - 29 * 6) >> 1, SH - 24);
   }
 
   // ---------- render ----------
@@ -680,11 +812,11 @@
     ctx.fillStyle = col.light; ctx.fillRect(0, 0, SW, SH);
     ctx.fillStyle = col.dark; ring(4, 4, SW - 8, SH - 8); ring(6, 6, SW - 12, SH - 12);
     const t0 = (SH - 144) >> 1;
-    text('RICHMOND', (SW - 8 * 12) >> 1, t0 + 22, 2);
-    text('OFFICE', (SW - 6 * 12) >> 1, t0 + 44, 2);
+    text('HAAKON', (SW - 6 * 12) >> 1, t0 + 22, 2);
+    text('LIFE', (SW - 4 * 12) >> 1, t0 + 44, 2);
     ctx.drawImage(charSprites.male[0].down[(tick >> 4) & 1 ? 1 : 2], (SW >> 1) - 36, t0 + 70, 32, 32);
     ctx.drawImage(charSprites.female[0].down[(tick >> 4) & 1 ? 2 : 1], (SW >> 1) + 4, t0 + 70, 32, 32);
-    if ((tick >> 5) & 1) text('PRESS START', (SW - 11 * 6) >> 1, t0 + 118);
+    if ((tick >> 5) & 1) text('PRESS ENTER', (SW - 11 * 6) >> 1, t0 + 118);
   }
 
   function draw() {
