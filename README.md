@@ -13,8 +13,8 @@ and the `js/` folder together.
 | --- | --- | --- |
 | Move | Arrows / WASD | D-pad |
 | A: interact, confirm | E / Space | A |
-| B: back, hold to run | X / Shift | B |
-| Start menu (map, sound) | Enter / Esc | START |
+| B: back, cancel, hold to run | Esc / X / Shift | B |
+| Start menu (map, sound) | Enter (or Esc while walking) | START |
 | Map | M | (Start → Map) |
 
 - Walk onto a staircase to change floors, or face the elevator doors and press A.
@@ -22,6 +22,20 @@ and the `js/` folder together.
   The game remembers your last pick.
 - Character colours live in `LOOKS` at the top of `js/art.js` if you want to
   add or tweak outfits.
+
+## Mini-games
+
+Walk up to these and press A:
+
+- **Office computers**: SDG, lay out an air handling unit
+- **Coffee machine** (lunch room): catch the coffee in your cup
+- **Recycling bin** (lunch room): toss crumpled paper into the bin; watch the wind
+- **Punching bag** (fitness room): punch when the marker hits the green zone
+- **Treadmill** (fitness room): jump over the gym clutter (hold A to jump higher) and duck under hanging stuff with Down
+- **Big TVs**: play Pong against the TV, first to 5
+
+Best scores are saved in the browser. For testing, `index.html#play&game=punch`
+(or `run`, `pong`, `toss`, `coffee`) opens a game straight away.
 
 ## People
 

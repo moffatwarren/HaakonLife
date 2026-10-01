@@ -186,6 +186,10 @@
     menu: () => { tone(880, 0.04); tone(1320, 0.05, 'square', 0.04, 0, 0.05); },
     stairs: () => tone(700, 0.3, 'square', 0.03, -450),
     ding: () => { tone(1568, 0.35, 'triangle', 0.08); tone(1319, 0.5, 'triangle', 0.08, 0, 0.2); },
+    hit: (pts) => { noise(0.14, 260 + (pts || 0) * 2, 0.08 + (pts || 0) / 1200); tone(120, 0.15, 'square', 0.06, -70); },
+    jump: () => tone(320, 0.12, 'square', 0.035, 380),
+    blip: (hi) => tone(hi ? 880 : 440, 0.04, 'square', 0.05),
+    swish: () => { noise(0.25, 2200, 0.06); tone(600, 0.15, 'triangle', 0.05, 500, 0.1); },
   };
   function sfx(name, arg) { if (soundOn && actx) SFX[name](arg); }
 
@@ -211,15 +215,18 @@
     ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
     KeyE: 'a', Space: 'a', KeyJ: 'a',
     KeyX: 'b', ShiftLeft: 'b', ShiftRight: 'b', KeyK: 'b', Backspace: 'b',
-    Enter: 'start', Escape: 'start', KeyM: 'map',
+    Enter: 'start', KeyM: 'map',
   };
+  // Esc backs out of any menu or mini-game (like B); while walking around it opens the start menu.
+  let escAs = 'b';
   addEventListener('keydown', (e) => {
-    const k = KEYS[e.code];
+    if (e.code === 'Escape' && !e.repeat) escAs = mode === 'play' && !ui.length && !fade ? 'start' : 'b';
+    const k = e.code === 'Escape' ? escAs : KEYS[e.code];
     if (!k) return;
     e.preventDefault();
     if (!e.repeat) press(k);
   });
-  addEventListener('keyup', (e) => { const k = KEYS[e.code]; if (k) release(k); });
+  addEventListener('keyup', (e) => { const k = e.code === 'Escape' ? escAs : KEYS[e.code]; if (k) release(k); });
   addEventListener('blur', () => { for (const k in held) release(k); });
 
   // Touch / mouse controls
@@ -387,7 +394,7 @@
         const ty = my + m.height * k + 12;
         text(r ? r.name : fi === P.floor ? 'Hallway' : '', 10, ty);
         text('Arrows: other floor', 10, ty + 20);
-        text('Space: close', 10, ty + 34);
+        text('Esc: close', 10, ty + 34);
       },
     };
     return self;
@@ -746,8 +753,399 @@
           text('Caught ' + caught + '   Spilled ' + missed, 50 + 110 - (('Caught ' + caught + '   Spilled ' + missed).length * 3), 108);
           if (t > 30 && (tick >> 4) & 1) text('Press Space', 50 + 77, 128);
         } else {
-          text('X: give up', AX + 4, SH - 16);
+          text('Esc: give up', AX + 4, SH - 16);
         }
+      },
+    };
+    return self;
+  }
+
+  // ---------- shared bits for the arcade mini-games ----------
+  const ctext = (str, y, color) => text(str, (SW - str.length * 6) >> 1, y, 1, color);
+  // Save a high score; returns true if it's a new record.
+  function saveBest(key, score) {
+    if (score <= (+store.get('best.' + key) || 0)) return false;
+    store.set('best.' + key, score);
+    return true;
+  }
+  const getBest = (key) => +store.get('best.' + key) || 0;
+  function readyBox(t, hint) {
+    box(60, 92, 200, 48);
+    ctext(t < 50 ? 'Get ready...' : 'GO!', 104);
+    ctext(hint, 120);
+  }
+  function doneBox(lines, t) {
+    box(40, 72, 240, 84);
+    lines.forEach((l, i) => ctext(l, 86 + i * 16));
+    if (t > 30 && (tick >> 4) & 1) ctext('Press Space', 136);
+  }
+
+  // ---------- punching bag: hit A when the marker is in the middle ----------
+  function PunchGame() {
+    const BAR = { x: 40, y: 200, w: 240, h: 12 }, BAG_X = 160, BAG_TOP = 50, BAG_W = 44, BAG_H = 96;
+    const PUNCHES = 3;
+    let state = 'ready', t = 0, p = 0, dir = 1, n = 0, total = 0, last = null, swing = 0, shake = 0, record = false;
+    const self = {
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say('You hit the bag for ' + total + ' points.' + (record ? ' A new record!' : ''));
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You hang up the gloves.'); return; }
+        swing *= 0.97; shake *= 0.85;
+        if (state === 'hit') {
+          if (t > 60) {
+            if (n >= PUNCHES) { state = 'done'; record = saveBest('punch', total); sfx('ding'); }
+            else state = 'play';
+            t = 0;
+          }
+          return;
+        }
+        // the marker gets faster with every punch
+        p += dir * (0.014 + n * 0.007);
+        if (p >= 1) { p = 1; dir = -1; }
+        if (p <= 0) { p = 0; dir = 1; }
+        if (pressed.has('a')) {
+          const d = Math.abs(p - 0.5);
+          const pts = d < 0.04 ? 100 : d < 0.12 ? 60 : Math.max(5, Math.round(40 * (1 - d * 2)));
+          last = { pts, label: pts === 100 ? 'PERFECT!' : pts === 60 ? 'GOOD!' : 'WEAK...' };
+          total += pts; n++;
+          swing = pts / 3; shake = pts / 12;
+          sfx('hit', pts);
+          state = 'hit'; t = 0;
+        }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('Punch the bag!', 16, 10);
+        text('Punch ' + Math.min(n + (state === 'play' ? 1 : 0), PUNCHES) + '/' + PUNCHES, 16, 22);
+        text('Score ' + total, SW - 16 - ('Score ' + total).length * 6, 10);
+        text('Best ' + getBest('punch'), SW - 16 - ('Best ' + getBest('punch')).length * 6, 22);
+        ctx.save();
+        if (shake > 0.5) ctx.translate(Math.round((Math.random() - 0.5) * shake), Math.round((Math.random() - 0.5) * shake));
+        // ceiling hook and chain
+        const off = Math.round(Math.sin(tick / 6) * swing);
+        ctx.fillStyle = col.dark; ctx.fillRect(BAG_X - 10, 36, 20, 4);
+        for (let i = 0; i < 6; i++) ctx.fillRect(BAG_X - 1 + Math.round(off * i / 6), 40 + i * 2, 2, 2);
+        // bag
+        const bx = BAG_X - BAG_W / 2 + off;
+        ctx.fillRect(bx, BAG_TOP, BAG_W, BAG_H);
+        ctx.fillStyle = '#b03030'; ctx.fillRect(bx + 2, BAG_TOP + 2, BAG_W - 4, BAG_H - 4);
+        ctx.fillStyle = '#d85050'; ctx.fillRect(bx + 6, BAG_TOP + 4, 4, BAG_H - 8);
+        ctx.fillStyle = col.dark;
+        ctx.fillRect(bx + 2, BAG_TOP + 14, BAG_W - 4, 3); ctx.fillRect(bx + 2, BAG_TOP + BAG_H - 17, BAG_W - 4, 3);
+        // glove shoots in from the left right after a punch
+        if (state === 'hit' && t < 12) {
+          const gx = bx - 34 + Math.min(t, 4) * 2;
+          ctx.fillStyle = col.dark; ctx.fillRect(gx - 40, BAG_TOP + 40, 40, 10); ctx.fillRect(gx, BAG_TOP + 34, 26, 22);
+          ctx.fillStyle = '#c02828'; ctx.fillRect(gx + 2, BAG_TOP + 36, 22, 18);
+          ctx.fillStyle = '#e8b890'; ctx.fillRect(gx - 38, BAG_TOP + 42, 38, 6);
+        }
+        ctx.restore();
+        if (state === 'hit' && last) ctext(last.label + '  +' + last.pts, 168);
+        // power bar: centre zone is the sweet spot
+        const B = BAR;
+        ctx.fillStyle = col.dark; ctx.fillRect(B.x, B.y, B.w, B.h);
+        ctx.fillStyle = '#e8e8e8'; ctx.fillRect(B.x + 2, B.y + 2, B.w - 4, B.h - 4);
+        ctx.fillStyle = '#f0d060'; ctx.fillRect(B.x + B.w * 0.38, B.y + 2, B.w * 0.24, B.h - 4);
+        ctx.fillStyle = '#58b058'; ctx.fillRect(B.x + B.w * 0.46, B.y + 2, B.w * 0.08, B.h - 4);
+        const mx = Math.round(B.x + 2 + p * (B.w - 6));
+        ctx.fillStyle = col.dark; ctx.fillRect(mx, B.y - 5, 2, B.h + 10);
+        if (state === 'ready') readyBox(t, 'Space: punch');
+        else if (state === 'done') doneBox(['Workout done!', 'Total ' + total + ' / ' + PUNCHES * 100, record ? 'New record!' : 'Best ' + getBest('punch')], t);
+        else text('Esc: give up', 16, SH - 14);
+      },
+    };
+    return self;
+  }
+
+  // ---------- treadmill runner: jump over the gym clutter ----------
+  function RunGame() {
+    const FLOOR = 196, PX = 56, STAND = 28, DUCK = 14, CEIL = 36;
+    // Things on the belt to jump over (h = how tall)...
+    const LOW = [
+      { w: 18, h: 8, draw: (x, y) => { ctx.fillStyle = col.dark; ctx.fillRect(x, y, 18, 8); ctx.fillStyle = '#58b8a8'; ctx.fillRect(x + 1, y + 1, 16, 6); ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 1, y + 3, 16, 1); } },
+      { w: 16, h: 12, draw: (x, y) => { ctx.fillStyle = col.dark; ctx.fillRect(x, y, 5, 12); ctx.fillRect(x + 11, y, 5, 12); ctx.fillRect(x + 4, y + 5, 8, 2); } },
+      { w: 10, h: 22, draw: (x, y) => {
+        ctx.fillStyle = col.dark; ctx.fillRect(x, y + 3, 10, 19); ctx.fillRect(x + 3, y, 4, 4);
+        ctx.fillStyle = '#58a8e0'; ctx.fillRect(x + 1, y + 6, 8, 15);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 2, y + 7, 2, 6);
+      } },
+      { w: 18, h: 32, draw: (x, y) => { // a stack of weight plates
+        for (let i = 0; i < 4; i++) {
+          ctx.fillStyle = col.dark; ctx.fillRect(x + (i & 1), y + i * 8, 17, 8);
+          ctx.fillStyle = i & 1 ? '#585868' : '#c03838'; ctx.fillRect(x + 1 + (i & 1), y + i * 8 + 1, 15, 6);
+        }
+      } },
+    ];
+    // ...and things hanging from above to duck under (gap = clearance above the belt)
+    const HIGH = [
+      { w: 16, gap: 20, draw: (x, y) => { // punching bag on a chain
+        ctx.fillStyle = col.dark; ctx.fillRect(x + 7, CEIL, 2, y - 30 - CEIL); ctx.fillRect(x, y - 30, 16, 30);
+        ctx.fillStyle = '#b03030'; ctx.fillRect(x + 1, y - 29, 14, 28);
+        ctx.fillStyle = col.dark; ctx.fillRect(x + 1, y - 24, 14, 2); ctx.fillRect(x + 1, y - 7, 14, 2);
+      } },
+      { w: 26, gap: 20, draw: (x, y) => { // towel over a pull-up bar
+        ctx.fillStyle = col.dark; ctx.fillRect(x + 2, CEIL, 2, y - 18 - CEIL); ctx.fillRect(x + 22, CEIL, 2, y - 18 - CEIL);
+        ctx.fillRect(x, y - 20, 26, 3); ctx.fillRect(x + 6, y - 17, 14, 17);
+        ctx.fillStyle = '#e8c048'; ctx.fillRect(x + 7, y - 17, 12, 16);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 7, y - 5, 12, 2);
+      } },
+    ];
+    let state = 'ready', t = 0, h = 0, vy = 0, speed = 3, dist = 0, nextAt = 220, obs = [], record = false, ducking = false;
+    const metres = () => Math.floor(dist / 16);
+    const self = {
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say('You ran ' + metres() + 'm on the treadmill.' + (record ? ' A new record!' : ' Phew!'));
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You step off the treadmill. Enough cardio for today.'); return; }
+        // jump: tap for a hop, hold for a big jump; down ducks (or drops you faster mid-air)
+        ducking = held.down && h === 0;
+        if (pressed.has('a') && h === 0) { vy = 5.8; ducking = false; sfx('jump'); }
+        if (!held.a && vy > 1.5) vy = 1.5;
+        if (h > 0 || vy > 0) { h += vy; vy -= held.down ? 0.9 : 0.3; if (h <= 0) { h = 0; vy = 0; } }
+        speed = Math.min(7.5, speed + 0.003);
+        dist += speed;
+        if (dist >= nextAt) {
+          const pool = dist > 400 && Math.random() < 0.35 ? HIGH : LOW;
+          obs.push({ x: SW, k: pool[Math.floor(Math.random() * pool.length)] });
+          nextAt = dist + 40 + speed * 34 + Math.random() * 90;
+        }
+        for (const o of obs) o.x -= speed;
+        obs = obs.filter((o) => o.x + o.k.w > 0);
+        // hit box is the body, a bit narrower than the 32px sprite
+        const top = h + (ducking ? DUCK : STAND);
+        if (obs.some((o) => o.x < PX + 24 && o.x + o.k.w > PX + 9 && (o.k.gap ? top > o.k.gap + 1 : h < o.k.h - 1))) {
+          state = 'done'; t = 0; record = saveBest('run', metres()); sfx('bump');
+        }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('Treadmill run!', 16, 10);
+        const m = metres() + 'm', b = 'Best ' + getBest('run') + 'm';
+        text(m, SW - 16 - m.length * 6, 10);
+        text(b, SW - 16 - b.length * 6, 22);
+        // gym wall: windows scroll past slowly
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(8, 36, SW - 16, FLOOR - 36);
+        for (let i = 0; i < 4; i++) {
+          const wx = 8 + ((i * 110 - Math.floor(dist / 3)) % 440 + 440) % 440 - 60;
+          if (wx > SW - 8 || wx + 50 < 8) continue;
+          const cx = Math.max(8, wx), cw = Math.min(SW - 8, wx + 50) - cx;
+          ctx.fillStyle = col.dark; ctx.fillRect(cx, 60, cw, 50);
+          ctx.fillStyle = '#a8d8f0'; ctx.fillRect(Math.max(9, wx + 2), 62, Math.max(0, Math.min(SW - 9, wx + 48) - Math.max(9, wx + 2)), 46);
+        }
+        // treadmill belt with moving stripes
+        ctx.fillStyle = col.dark; ctx.fillRect(8, FLOOR, SW - 16, 14);
+        ctx.fillStyle = '#585868';
+        for (let x = 8 - Math.floor(dist) % 24; x < SW - 8; x += 24) if (x >= 8) ctx.fillRect(x, FLOOR + 4, 12, 3);
+        for (const o of obs) o.k.draw(Math.round(o.x), FLOOR - (o.k.gap || o.k.h));
+        const frame = h > 0 || state !== 'play' ? 0 : (t >> 3) & 1 ? 1 : 2;
+        if (ducking) ctx.drawImage(sprites.right[frame], PX, FLOOR - 17, 32, 17);
+        else ctx.drawImage(sprites.right[frame], PX, FLOOR - 32 - Math.round(h), 32, 32);
+        if (state === 'ready') readyBox(t, 'Space: jump  Down: duck');
+        else if (state === 'done') doneBox(['Wipeout!', 'You ran ' + metres() + 'm', record ? 'New record!' : 'Best ' + getBest('run') + 'm'], t);
+        else text('Esc: give up', 16, SH - 14);
+      },
+    };
+    return self;
+  }
+
+  // ---------- Pong on the big TV ----------
+  function PongGame() {
+    const L = 12, R = SW - 12, TOP = 34, BOT = SH - 22, PW = 4, PH = 28, BS = 4, WIN = 5;
+    const me = { x: L + 4, y: (TOP + BOT - PH) / 2 }, cpu = { x: R - 8, y: (TOP + BOT - PH) / 2 };
+    let state = 'ready', t = 0, mine = 0, theirs = 0, ball = null, wait = 0;
+    function serve(toCpu) {
+      ball = { x: SW / 2, y: (TOP + BOT) / 2, vx: toCpu ? 2.2 : -2.2, vy: (Math.random() * 2 - 1) * 1.5 };
+      wait = 40;
+    }
+    function bounce(pad, dirOut) {
+      const off = (ball.y + BS / 2 - (pad.y + PH / 2)) / (PH / 2);
+      ball.vx = dirOut * Math.min(6, Math.abs(ball.vx) * 1.07);
+      ball.vy = off * 3;
+      ball.x = dirOut > 0 ? pad.x + PW : pad.x - BS;
+      sfx('blip', true);
+    }
+    serve(Math.random() < 0.5);
+    const self = {
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(mine > theirs ? 'You beat the TV at Pong! The news can wait.' : 'The TV beat you. Maybe just watch the news.');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You switch the TV back to the news.'); return; }
+        if (held.up) me.y -= 3.5;
+        if (held.down) me.y += 3.5;
+        me.y = Math.max(TOP, Math.min(BOT - PH, me.y));
+        // the TV only watches the ball when it's coming its way, and can't move very fast
+        const aim = ball.vx > 0 ? ball.y + BS / 2 - PH / 2 : (TOP + BOT - PH) / 2;
+        cpu.y += Math.sign(aim - cpu.y) * Math.min(Math.abs(aim - cpu.y), 2.3);
+        cpu.y = Math.max(TOP, Math.min(BOT - PH, cpu.y));
+        if (wait > 0) { wait--; return; }
+        ball.x += ball.vx; ball.y += ball.vy;
+        if (ball.y < TOP) { ball.y = TOP; ball.vy = -ball.vy; sfx('blip'); }
+        if (ball.y > BOT - BS) { ball.y = BOT - BS; ball.vy = -ball.vy; sfx('blip'); }
+        const overlap = (pad) => ball.y + BS > pad.y && ball.y < pad.y + PH;
+        if (ball.vx < 0 && ball.x <= me.x + PW && ball.x + BS >= me.x - 4 && overlap(me)) bounce(me, 1);
+        if (ball.vx > 0 && ball.x + BS >= cpu.x && ball.x <= cpu.x + PW + 4 && overlap(cpu)) bounce(cpu, -1);
+        if (ball.x < L - 8 || ball.x > R + 8) {
+          const meScored = ball.x > R;
+          if (meScored) mine++; else theirs++;
+          sfx(meScored ? 'ding' : 'bump');
+          if (mine >= WIN || theirs >= WIN) { state = 'done'; t = 0; }
+          else serve(!meScored);
+        }
+      },
+      draw() {
+        // TV bezel around a dark screen
+        ctx.fillStyle = '#303038'; ctx.fillRect(0, 0, SW, SH);
+        ctx.fillStyle = col.dark; ctx.fillRect(L - 4, TOP - 8, R - L + 8, BOT - TOP + 16);
+        ctx.fillStyle = '#f8f8f8';
+        for (let y = TOP; y < BOT; y += 10) ctx.fillRect(SW / 2 - 1, y, 2, 5);
+        text(String(mine), SW / 2 - 30, TOP + 4, 2, '#f8f8f8');
+        text(String(theirs), SW / 2 + 20, TOP + 4, 2, '#f8f8f8');
+        ctx.fillStyle = '#f8f8f8';
+        ctx.fillRect(me.x, Math.round(me.y), PW, PH);
+        ctx.fillRect(cpu.x, Math.round(cpu.y), PW, PH);
+        if (state === 'play' && (wait === 0 || (wait >> 2) & 1)) ctx.fillRect(Math.round(ball.x), Math.round(ball.y), BS, BS);
+        text('YOU', L, 10, 1, '#f8f8f8');
+        text('TV', R - 12, 10, 1, '#f8f8f8');
+        text('First to ' + WIN, SW / 2 - 27, 10, 1, '#f8f8f8');
+        if (state === 'ready') readyBox(t, 'Up/Down: move paddle');
+        else if (state === 'done') doneBox([mine > theirs ? 'You win!' : 'The TV wins.', mine + ' - ' + theirs, ''], t);
+        else text('Esc: give up', L, SH - 12, 1, '#f8f8f8');
+      },
+    };
+    return self;
+  }
+
+  // ---------- paper toss: lock the angle, then the power, and throw ----------
+  function TossGame() {
+    const FLOOR = 204, HAND = { x: 46, y: FLOOR - 24 }, BIN_W = 30, BIN_H = 36, PAPERS = 10, G = 0.2;
+    let state = 'ready', t = 0, ang = 0.6, angDir = 1, pow = 0, powDir = 1, thrown = 0, scored = 0, record = false;
+    let binX = 0, wind = 0, ball = null, msg = '', floorPapers = [];
+    function nextPaper() {
+      binX = 170 + Math.floor(Math.random() * 100);
+      wind = Math.round((Math.random() * 2 - 1) * 3) / 100;
+      ball = null; state = 'aim';
+    }
+    const result = (inBin) => {
+      thrown++;
+      if (inBin) { scored++; msg = 'Swish!'; sfx('swish'); }
+      else { msg = 'Missed!'; sfx('bump'); floorPapers.push({ x: Math.round(ball.x), y: FLOOR - 5 }); }
+      state = 'result'; t = 0;
+    };
+    const self = {
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { nextPaper(); t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(scored === PAPERS ? 'Every single paper in the bin. Spotless!'
+              : scored === 0 ? 'Somehow it\'s messier than before you started...'
+              : 'You got ' + scored + ' of ' + PAPERS + ' papers in the bin.' + (record ? ' A new record!' : ''));
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You\'ll clean up later. Probably.'); return; }
+        if (state === 'aim') {
+          ang += angDir * 0.025;
+          if (ang > 1.35) { ang = 1.35; angDir = -1; }
+          if (ang < 0.2) { ang = 0.2; angDir = 1; }
+          if (pressed.has('a')) { state = 'power'; pow = 0; powDir = 1; sfx('select'); }
+        } else if (state === 'power') {
+          pow += powDir * 0.02;
+          if (pow > 1) { pow = 1; powDir = -1; }
+          if (pow < 0) { pow = 0; powDir = 1; }
+          if (pressed.has('a')) {
+            const v = 3 + pow * 6.5;
+            ball = { x: HAND.x, y: HAND.y, vx: Math.cos(ang) * v, vy: -Math.sin(ang) * v, spin: 0 };
+            state = 'fly'; sfx('jump');
+          }
+        } else if (state === 'fly') {
+          const b = ball, top = FLOOR - BIN_H, prevY = b.y;
+          b.vx += wind; b.vy += G; b.x += b.vx; b.y += b.vy; b.spin++;
+          // dropping in through the opening
+          if (prevY <= top && b.y > top && b.vy > 0 && b.x > binX + 3 && b.x + 6 < binX + BIN_W - 3) { result(true); return; }
+          // the rim and outside walls knock it back
+          const hitWall = b.y + 6 > top && (
+            (b.vx > 0 && b.x + 6 >= binX && b.x + 6 - b.vx < binX + 1) ||
+            (b.vx < 0 && b.x <= binX + BIN_W && b.x - b.vx > binX + BIN_W - 1));
+          if (hitWall) { b.vx = -b.vx * 0.5; b.x += b.vx * 2; b.vy *= 0.5; sfx('blip'); }
+          if (b.y >= FLOOR - 6 || b.x > SW || b.x < -10) { b.y = FLOOR - 6; result(false); }
+        } else if (state === 'result' && t > 45) {
+          if (thrown >= PAPERS) { state = 'done'; t = 0; record = saveBest('toss', scored); if (scored) sfx('ding'); }
+          else nextPaper();
+        }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('Clean up the papers!', 16, 10);
+        const s = 'In bin ' + scored + '/' + PAPERS;
+        text(s, SW - 16 - s.length * 6, 10);
+        text('Best ' + getBest('toss'), SW - 16 - ('Best ' + getBest('toss')).length * 6, 22);
+        // wind
+        if (state !== 'ready') {
+          const w = wind === 0 ? 'No wind' : 'Wind ' + (wind > 0 ? '>' : '<').repeat(Math.round(Math.abs(wind) * 100));
+          text(w, 16, 22);
+        }
+        // floor
+        ctx.fillStyle = col.dark; ctx.fillRect(8, FLOOR, SW - 16, 1);
+        ctx.fillStyle = '#c8b898'; ctx.fillRect(8, FLOOR + 1, SW - 16, 12);
+        const paper = (x, y) => {
+          ctx.fillStyle = col.dark; ctx.fillRect(x, y, 6, 6);
+          ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 1, y + 1, 4, 4);
+          ctx.fillStyle = '#b8b8c0'; ctx.fillRect(x + 2, y + 2, 1, 1); ctx.fillRect(x + 3, y + 4, 1, 1);
+        };
+        // missed papers stay on the floor
+        floorPapers.forEach((p) => paper(Math.max(8, Math.min(SW - 14, p.x)), p.y));
+        // you, plus the pile you still have to throw
+        ctx.drawImage(sprites.right[0], 14, FLOOR - 32, 32, 32);
+        for (let i = 0; i < PAPERS - thrown - (ball ? 1 : 0); i++) paper(50 + (i % 4) * 5, FLOOR - 6 - Math.floor(i / 4) * 5);
+        // recycling bin
+        if (state !== 'ready') {
+          const bx = binX, by = FLOOR - BIN_H;
+          ctx.fillStyle = col.dark; ctx.fillRect(bx, by, BIN_W, BIN_H);
+          ctx.fillStyle = '#3878c8'; ctx.fillRect(bx + 2, by + 2, BIN_W - 4, BIN_H - 3);
+          ctx.fillStyle = col.dark; ctx.fillRect(bx - 2, by, BIN_W + 4, 3);
+          ctx.fillStyle = '#f8f8f8'; ctx.fillRect(bx + 11, by + 14, 8, 8);
+          ctx.fillStyle = '#3878c8'; ctx.fillRect(bx + 13, by + 16, 4, 4);
+        }
+        // aim arrow and power bar
+        if (state === 'aim' || state === 'power') {
+          ctx.fillStyle = col.dark;
+          for (let i = 2; i < 12; i++) ctx.fillRect(Math.round(HAND.x + Math.cos(ang) * i * 4), Math.round(HAND.y - Math.sin(ang) * i * 4), 2, 2);
+          text(state === 'aim' ? 'Space: set angle' : 'Space: throw!', 16, SH - 14);
+        }
+        if (state === 'power' || state === 'fly') {
+          text('POWER', 70, 40);
+          ctx.fillStyle = col.dark; ctx.fillRect(106, 39, 100, 9);
+          ctx.fillStyle = '#e8e8e8'; ctx.fillRect(107, 40, 98, 7);
+          ctx.fillStyle = '#d86030'; ctx.fillRect(107, 40, Math.round(98 * pow), 7);
+        }
+        if (ball && state === 'fly') paper(Math.round(ball.x), Math.round(ball.y));
+        if (state === 'result') ctext(msg, 100);
+        if (state === 'ready') readyBox(t, 'Space twice: aim, then throw');
+        else if (state === 'done') doneBox(['All thrown!', 'Cleaned up ' + scored + '/' + PAPERS, record ? 'New record!' : 'Best ' + getBest('toss')], t);
+        else if (state !== 'aim' && state !== 'power') text('Esc: give up', 16, SH - 14);
       },
     };
     return self;
@@ -779,10 +1177,8 @@
     n: ['A sink. The water is freezing!'],
     w: ['It\'s a toilet. Nothing to see here.'],
     f: ['A fridge. One lunch is labelled DO NOT EAT.'],
-    v: ['A recycling bin stuffed with pop cans.'],
     x: ['The photocopier blinks: PC LOAD LETTER'],
     T: ['A big table. Good for meetings.'],
-    q: ['A treadmill. Maybe after work...'],
     z: ['A server rack. The fans are roaring.', 'Rows of blinking lights. Something is definitely computing.'],
     y: ['A rack of computers crunching numbers.'],
     t: ['Cookie monster champion!'],
@@ -792,7 +1188,6 @@
     W: ['A washing machine. Someone left their gym towels in it.'],
     O: ['A dryer. Still warm.'],
     A: ['A squat rack loaded with heavy plates. Not today.'],
-    G: ['A punching bag. You give it a light jab. Ow.'],
     N: ['A row of lockers. Most of them are locked.'],
     I: ['A lat pulldown machine.'],
     e: ['A rack of dumbbells, neatly sorted by weight.'],
@@ -809,7 +1204,6 @@
     Z: ['A table full of candy! You sneak one. Shh...'],
     L: ['A cooling coil. Cold air is blowing off it.'],
     K: ['An electrical control panel full of blinking lights.', 'A panel of switches. Best not to flip any.'],
-    V: ['A big TV. Someone left the news on.'],
     Q: ['A TV for video calls. The remote is missing.'],
     U: ['Cupboards stocked with paper, pens and sticky notes.', 'Boxes of staples, binder clips and printer paper.'],
     Y: ['A printer. It\'s out of toner. Again.', 'The printer is warming up...'],
@@ -918,6 +1312,20 @@
       sfx('select');
       ask('A big coffee machine. It smells amazing.', ['MAKE COFFEE', 'CANCEL'], (i) => {
         if (i === 0) { sfx('menu'); ui.push(CoffeeGame()); }
+      });
+      return;
+    }
+    const GAMES = {
+      G: ['A punching bag. Want to throw a few?', 'PUNCH IT', PunchGame],
+      q: ['A treadmill. Maybe after work...', 'GO FOR A RUN', RunGame],
+      V: ['A big TV. Someone left the news on.', 'PLAY PONG', PongGame],
+      v: ['A recycling bin. Crumpled paper everywhere around it...', 'CLEAN UP', TossGame],
+    };
+    if (GAMES[t]) {
+      const [msg, opt, Game] = GAMES[t];
+      sfx('select');
+      ask(msg, [opt, 'CANCEL'], (i) => {
+        if (i === 0) { sfx('menu'); ui.push(Game()); }
       });
       return;
     }
@@ -1116,7 +1524,7 @@
   addEventListener('resize', layout);
   addEventListener('orientationchange', layout);
 
-  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2
+  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|coffee)
   if (location.hash.startsWith('#play')) {
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
@@ -1128,6 +1536,8 @@
     if (q.has('say')) ask('The elevator. Which floor?', ['GROUND', '2F', 'CANCEL'], () => {});
     if (q.has('menu')) openStartMenu();
     if (q.has('map')) ui.push(MapView());
+    const GAME = { coffee: CoffeeGame, punch: PunchGame, run: RunGame, pong: PongGame, toss: TossGame }[q.get('game')];
+    if (GAME) ui.push(GAME());
   }
 
   // ---------- main loop ----------

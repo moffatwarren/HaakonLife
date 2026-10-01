@@ -199,23 +199,24 @@ window.Art = (function () {
       'kkkkkkkkkkkkkkkk',
       '................',
     ],
+    // One treadmill seen from the side, 3 tiles wide (console on the left).
     treadmill: [
-      '................',
-      '...kkkkkkkkkk...',
-      '...kKKKKKKKKk...',
-      '...kKuUuUuKKk...',
-      '...kkkkkkkkkk...',
-      '...krkkkkkkrk...',
-      '...krKggggKrk...',
-      '...krKKKKKKrk...',
-      '...krKggggKrk...',
-      '...krKKKKKKrk...',
-      '...krKggggKrk...',
-      '...krKKKKKKrk...',
-      '...krKggggKrk...',
-      '...krkkkkkkrk...',
-      '...kkkkkkkkkk...',
-      '................',
+      '................................................',
+      '.kkkkkkkk.......................................',
+      '.kiiiiiUk.......................................',
+      '.kUiiiiik.......................................',
+      '.kkkkkkkk.......................................',
+      '...kKkgggggggkk.................................',
+      '...kKkkkkkkkkKk.................................',
+      '....kKk......kk.................................',
+      '....kKk......kk.................................',
+      '.kkkkkkkkkk.....................................',
+      '.kRRRRRRRRkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.',
+      '.krrrrrrrrggKgggggKgggggKgggggKgggggKgggggKgGGk.',
+      '.krrrrrrrrkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.',
+      '.kkkkkkkkkkKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKk.',
+      '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.',
+      '..kkk.....................................kkk...',
     ],
     appliance: [
       '................',
@@ -1018,7 +1019,12 @@ window.Art = (function () {
       case 'v': stamp(b, ART.recycling); break;
       case 'x': stamp(b, ART.copier); break;
       case 'b': stamp(b, ART.shelf); break;
-      case 'q': stamp(b, ART.treadmill); break;
+      case 'q': { // each 'q' tile shows its third of the treadmill, counting from the left
+        let i = 0;
+        while (get(x - 1 - i, y) === 'q') i++;
+        stamp(b, ART.treadmill.map((row) => row.substr((i % 3) * 16, 16)));
+        break;
+      }
       case 'h': paintShower(b); break;
       case 'o': stamp(b, ART.ball); break;
       case 'W': stamp(b, ART.washer); break;

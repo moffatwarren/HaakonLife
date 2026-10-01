@@ -142,7 +142,7 @@ f1.put(4, 4, 'W'); f1.put(5, 4, 'O')            # washer / dryer
 f1.fill(8, 4, 10, 4, 'A')                       # squat rack
 f1.put(12, 6, 'G')                              # punching bag
 for x in (3, 4, 5):
-    f1.put(x, 8, 'q')                           # treadmills
+    f1.put(x, 8, 'q')                           # one treadmill, drawn side-on across 3 tiles
 f1.fill(13, 8, 13, 13, 'N')                     # lockers on the right wall
 f1.put(4, 14, 'I')                              # lat pulldown machine
 f1.fill(8, 15, 12, 15, 'e')                     # dumbbell rack
