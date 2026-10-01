@@ -449,6 +449,90 @@ window.Art = (function () {
       '...E.r..........',
       '........U.......',
     ],
+    washer: [
+      '................',
+      '.kkkkkkkkkkkkkk.',
+      '.kWWWWWWWWoKWWk.',
+      '.kGGGGGGGGGGGGk.',
+      '.kwwwwkkkkwwwwk.',
+      '.kwwwkiiiikwwwk.',
+      '.kwwkiUiiiikwwk.',
+      '.kwwkiiUiiikwwk.',
+      '.kwwkiiiiiikwwk.',
+      '.kwwwkiiiikwwwk.',
+      '.kwwwwkkkkwwwwk.',
+      '.kwwwwwwwwwwwwk.',
+      '.kGGGGGGGGGGGGk.',
+      '.kkkkkkkkkkkkkk.',
+      '................',
+      '................',
+    ],
+    punchingBag: [
+      '.......kk.......',
+      '.......Kk.......',
+      '.......kK.......',
+      '.....kkkkkk.....',
+      '....kRRRRRrk....',
+      '....kRwRRRrk....',
+      '....kRwRRRrk....',
+      '....kRRRRRrk....',
+      '....kkkkkkkk....',
+      '....kRRRRRrk....',
+      '....kRRRRRrk....',
+      '....kRRRRRrk....',
+      '....krrrrrrk....',
+      '.....kkkkkk.....',
+      '....KKKKKKKK....',
+      '................',
+    ],
+    locker: [
+      'kkkkkkkkkkkkkkkk',
+      'kuUUUUUUUUUUUUuk',
+      'kuUkkkkkkkkkkUuk',
+      'kuUUUUUUUUUUUUuk',
+      'kuUkkkkkkkkkkUuk',
+      'kuUUUUUUUUUUUUuk',
+      'kuUUUUUUUUUUUUuk',
+      'kuUUUUUUUUUkUUuk',
+      'kuUUUUUUUUUkUUuk',
+      'kuUUUUUUUUUUUUuk',
+      'kuUUUUUUUUUUUUuk',
+      'kuUUUUUUUUUUUUuk',
+      'kuUUUUUUUUUUUUuk',
+      'kuUUUUUUUUUUUUuk',
+      'kuuuuuuuuuuuuuuk',
+      'kkkkkkkkkkkkkkkk',
+    ],
+    pulldown: [
+      '..kkkkkkkkkkkk..',
+      '..kKKKKKKKKKKk..',
+      '..kKkkkkkkkkKk..',
+      '..kKk..g...kKk..',
+      '..kKk..g...kKk..',
+      '.kkkkkkkkkkkkkk.',
+      '..kKk..g...kKk..',
+      '..kKk.kKKk.kKk..',
+      '..kKk.kggk.kKk..',
+      '..kKk.kKKk.kKk..',
+      '..kKk.kggk.kKk..',
+      '..kKkkkkkkkkKk..',
+      '..kKkuUUUukkKk..',
+      '..kKkkkkkkkkKk..',
+      '..kkk......kkk..',
+      '................',
+    ],
+    dumbbells: [
+      '................',
+      '................',
+      '................',
+      '.kkk.....kkk....',
+      '.kKkgggggkKk....',
+      '.kkk.....kkk....',
+      '................',
+      '....kkk.....kkk.',
+      '....kKkgggggkKk.',
+      '....kkk.....kkk.',
+    ],
     papers: [
       '................',
       '................',
@@ -463,6 +547,7 @@ window.Art = (function () {
     ],
   };
 
+  ART.dryer = ART.washer.map((row) => row.replace(/i/g, 'K').replace(/U/g, 'g'));
   ART.floorPartsB = ART.floorParts.map((row) => row.split('').reverse().join(''));
 
   // ---------- player sprite (office new-hire) ----------
@@ -712,6 +797,25 @@ window.Art = (function () {
     rect(b, t === 'V' ? 15 : 0, 7, 1, 2, 'K');
   }
 
+  // Squat rack: uprights at the ends, barbell with plates across the middle.
+  function paintSquatRack(b, get, x, y) {
+    const l = get(x - 1, y) === 'A', r = get(x + 1, y) === 'A';
+    rect(b, l ? 0 : 3, 13, (l ? 3 : 0) + (r ? 16 : 13) - 3, 2, 'K');
+    rect(b, 0, 7, 16, 1, 'g');
+    rect(b, 0, 6, 16, 1, 'k'); rect(b, 0, 8, 16, 1, 'k');
+    if (!l) {
+      rect(b, 0, 6, 3, 3, '.'); rect(b, 2, 1, 3, 14, 'k'); rect(b, 3, 2, 1, 12, 'K');
+      for (let i = 3; i < 13; i += 3) set(b, 3, i, 'g');
+      rect(b, 6, 3, 2, 9, 'k'); rect(b, 6, 4, 1, 7, 'r');
+    }
+    if (!r) {
+      rect(b, 11, 1, 3, 14, 'k'); rect(b, 12, 2, 1, 12, 'K');
+      for (let i = 3; i < 13; i += 3) set(b, 12, i, 'g');
+      rect(b, 8, 3, 2, 9, 'k'); rect(b, 9, 4, 1, 7, 'r');
+    }
+    for (let i = 0; i < 256; i++) if (b[i] === '.') b[i] = null;
+  }
+
   // Build the 16x16 buffer for map tile (x, y).
   function tile(get, floorCh, x, y) {
     const b = buf();
@@ -748,6 +852,13 @@ window.Art = (function () {
       case 'q': stamp(b, ART.treadmill); break;
       case 'h': paintShower(b); break;
       case 'o': stamp(b, ART.ball); break;
+      case 'W': stamp(b, ART.washer); break;
+      case 'O': stamp(b, ART.dryer); break;
+      case 'G': stamp(b, ART.punchingBag); break;
+      case 'N': stamp(b, ART.locker); break;
+      case 'I': stamp(b, ART.pulldown); break;
+      case 'A': paintSquatRack(b, get, x, y); break;
+      case 'e': block(b, con('e'), 'g', 'K', 'G'); stamp(b, ART.dumbbells); break;
       case 'F': stamp(b, ART.fan); break;
       case 'L': stamp(b, ART.coil); break;
       case 'K': stamp(b, ART.panel); break;

@@ -16,6 +16,8 @@ Map glyphs
              V TV on a right-hand wall  Q TV on a left-hand wall
              F fan unit  L cooling coil  K electrical control panel
              R reception desk with PC  Z table with candy
+             W washer  O dryer  A squat rack  G punching bag  N locker
+             I lat pulldown machine  e dumbbell rack
   walkable:  j computer parts scattered on the floor
 
 Room options: 'dark': True draws the room with the lights off,
@@ -118,9 +120,15 @@ f1.hline(2, 107, 3); f1.hline(2, 107, 38); f1.vline(2, 3, 38); f1.vline(107, 3, 
 # --- north-west: fitness, instrument, showers, washrooms ---
 f1.room('Fitness Room', 3, 4, 13, 15)
 f1.vline(14, 3, 16); f1.hline(2, 14, 16); f1.door((14, 14), (14, 15))
-for x in (4, 6, 8, 10):
-    f1.put(x, 5, 'q')
-f1.put(4, 11, 'q'); f1.put(5, 11, 'q'); f1.put(13, 4, 'p')
+f1.put(13, 4, 'p')
+f1.put(4, 4, 'W'); f1.put(5, 4, 'O')            # washer / dryer
+f1.fill(8, 4, 10, 4, 'A')                       # squat rack
+f1.put(12, 6, 'G')                              # punching bag
+for x in (3, 4, 5):
+    f1.put(x, 8, 'q')                           # treadmills
+f1.fill(13, 8, 13, 13, 'N')                     # lockers on the right wall
+f1.put(4, 14, 'I')                              # lat pulldown machine
+f1.fill(8, 15, 12, 15, 'e')                     # dumbbell rack
 
 f1.room('Instrument Room 168', 15, 4, 26, 10)
 f1.vline(27, 3, 16); f1.hline(14, 27, 11); f1.door((17, 11), (18, 11))
