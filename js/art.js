@@ -410,6 +410,44 @@ window.Art = (function () {
       '................',
       '................',
     ],
+    // A damper: angled louvre blades in a frame, with a linkage rod down the side.
+    damper: [
+      '................',
+      '.kkkkkkkkkkkkkk.',
+      '.kKKKKKKKKKKKKk.',
+      '.kGGgkGGGgkGGKk.',
+      '.kGgkGGgkGGgkKk.',
+      '.kgkGGgkGGgkGKk.',
+      '.kKKKKKKKKKKKKk.',
+      '.kGGgkGGGgkGGKk.',
+      '.kGgkGGgkGGgkKk.',
+      '.kgkGGgkGGgkGKk.',
+      '.kKKKKKKKKKKKKk.',
+      '.kGGgkGGGgkGGKk.',
+      '.kGgkGGgkGGgkKk.',
+      '.kkkkkkkkkkkkkk.',
+      '................',
+      '................',
+    ],
+    // An engraving machine: a gantry over a bed, with a nameplate under the head.
+    engraver: [
+      '................',
+      '..kkkkkkkkkkkk..',
+      '..kKKKKKKKKKKk..',
+      '..kKGGGGGGGGKk..',
+      '..kKGkkkkkkGKk..',
+      '..kKGkooooKGKk..',
+      '..kKGkkkkkkGKk..',
+      '..kKGGGGGGGGKk..',
+      '..kKKKkwwkKKKk..',
+      '..kGGGkwwkGGGk..',
+      '..kGwwwwwwwwGk..',
+      '..kGwkkkkkkwGk..',
+      '..kKKKKKKKKKKk..',
+      '..kkkkkkkkkkkk..',
+      '................',
+      '................',
+    ],
     // Status lights at (4,3), (7,3), (10,3) are drawn dark here; game.js blinks them.
     panel: [
       '.kkkkkkkkkkkkkk.',
@@ -1066,6 +1104,8 @@ window.Art = (function () {
       case 'i': paintGreen(b, get, x, y); break;
       case 'e': block(b, con('e'), 'g', 'K', 'G'); stamp(b, ART.dumbbells); break;
       case 'F': stamp(b, ART.fan); break;
+      case 'a': stamp(b, ART.damper); break;
+      case 's': stamp(b, ART.engraver); break;
       case 'L': stamp(b, ART.coil); break;
       case 'K': stamp(b, ART.panel); break;
       case 'V': case 'Q': paintTV(b, get, x, y, t); break;

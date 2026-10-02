@@ -39,6 +39,21 @@ Walk up to these and press A:
 - **Treadmill** (fitness room): jump over the gym clutter (hold A to jump higher) and duck under hanging stuff with Down
 - **Big TVs**: play Pong against the TV, first to 5
 - **Wade's putting green** (2nd floor, office 137): 5 holes of top-down mini golf with sand and water
+- **Air handling fan** (Boardroom 114): hold the wheel inside the target CFM band without tripping the motor
+- **Cooling coil** (Boardroom 114): hold the superheat in the green while the load wanders; frost it or flood it and you lose
+- **Dampers** (Boardroom 114): three branches share one fan, so balancing them is a puzzle, not three dials
+- **Supply cupboard**: match filter sizes before the pressure-drop alarm tops out
+- **The other TVs** (the left-hand sets): Snake, so they aren't all Pong
+- **Parts on the floor** (2nd floor): sort them into bins as they come past on the belt
+- **Server racks**: patch every port to its matching colour
+- **First aid dummy** (170 First Aid Station): compressions at 110 bpm, scored on timing
+- **Engraver** (2nd floor, room 193): trace the nameplate without straying off the line
+- **Lat pulldown** (fitness room): pull and release on the beat
+- **Exercise ball** (fitness room): shift your weight and stay on it
+- **Front desk** (Reception): send each visitor to the right office; you have to know the building
+- **Printer**: ease the jammed sheet out — pull too hard and it tears
+- **Washer and dryer** (fitness room): catch the load the machine is asking for, let the rest drop
+- **Elevator**: about one ride in three, a coworker gets in and makes conversation
 
 Talk to **Damir** (office 108, with the lights off) if you dare: he cuts the
 power, and you have to find three fuses with only a flashlight while shadows
@@ -49,8 +64,22 @@ knowledge: a turn-based duel where you and Richard each pick a move and the
 winner knocks 1 off the other's 3 HP. Fan Gust beats Coil Freeze, Coil Freeze
 beats Damper Block, and Damper Block beats Fan Gust.
 
+Other people worth talking to:
+
+- **Nathan** (office 115): grab the trophy he names off a crowded shelf, before the sweeping hand runs away with you
+- **Wade** (2nd floor, office 137): a three-hole putting grudge match
+- **Kiki** (Reception): guess how many sweets are in the jar, closer than she does
+- **Jhonna** (office 118): her Manulife dependant forms, at last
+
 Best scores are saved in the browser. For testing, `index.html#play&game=punch`
-(or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`, `dark`, `coffee`, `battle`) opens a game straight away.
+(or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
+`dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
+`cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
+`forms`, `nathan`, `wade`, `jar`) opens a game straight away.
+
+`tools/shot.sh out.png "play&game=snake&ticks=60"` screenshots a game headlessly
+(it uses `tools/test.html`, which stubs the audio and can pin `Math.random` with
+`&rand=0.4` so a run is repeatable).
 
 ## People
 

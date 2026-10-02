@@ -197,4 +197,31 @@ window.MUSIC = {
       { type: 'drums', vol: 0.5, notes: 'k h s h k h s h | k h s h k k s h' },
     ],
   },
+  // the air handling gear: a slow machine hum you work over the top of
+  plant: {
+    bpm: 96,
+    voices: [
+      { type: 'square', vol: 0.026, notes:
+        'D4 - . . A4 - . . | F4 - . . D4 - . . | C4 - . . G4 - . . | E4 - . . C4 - . . |' +
+        'D4 - . . F4 - . . | A4 - . . D5 - . . | C5 - . . A4 - . . | D4 - - - - - . .' },
+      { type: 'triangle', vol: 0.095, notes:
+        'D2 - - - - - - - | D2 - - - - - - - | C2 - - - - - - - | C2 - - - - - - - |' +
+        'Bb2 - - - - - - - | Bb2 - - - - - - - | A2 - - - - - - - | A2 - - - - - - -' },
+      { type: 'drums', vol: 0.4, notes: 'k . h . k . h . | k . h . k . h h' },
+    ],
+  },
+
+  // compressions: locked to 110 bpm, because that is the whole point
+  cpr: {
+    bpm: 110,
+    voices: [
+      { type: 'square', vol: 0.03, notes:
+        'A4 . A4 . C5 . A4 . | G4 . G4 . E4 . G4 . | F4 . F4 . A4 . F4 . | E4 . E4 . G4 . E4 . |' +
+        'A4 . A4 . C5 . E5 . | D5 . D5 . B4 . D5 . | C5 . C5 . A4 . C5 . | A4 . . . . . . .' },
+      { type: 'triangle', vol: 0.085, notes:
+        'A2 . . . E3 . . . | G2 . . . D3 . . . | F2 . . . C3 . . . | E2 . . . B2 . . . |' +
+        'A2 . . . E3 . . . | G2 . . . D3 . . . | F2 . . . C3 . . . | E2 . . . E2 . . .' },
+      { type: 'drums', vol: 0.55, notes: 'k . s . k . s . | k . s . k . s .' },
+    ],
+  },
 };

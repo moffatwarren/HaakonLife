@@ -14,12 +14,12 @@ Map glyphs
              H shelf of computer parts  J pile of computer junk
              U supply cupboard  Y printer
              V TV on a right-hand wall  Q TV on a left-hand wall
-             F fan unit  L cooling coil  K electrical control panel
+             F fan unit  L cooling coil  a damper  K electrical control panel
              R reception desk with PC  Z table with candy
              W washer  O dryer  A squat rack  G punching bag  N locker
              I lat pulldown machine  e dumbbell rack  g shelf of snacks  l railing
              z server rack  y rack of computers  u stretcher  t trophy shelf
-             i putting green
+             i putting green  s engraving machine
              P coffee machine (two tiles tall)  C curtain (opened from the game; closes when you leave the room)
   walkable:  j computer parts scattered on the floor
 
@@ -191,9 +191,9 @@ f1.fill(42, 15, 45, 15, 'k'); f1.put(45, 15, 'f'); f1.fill(50, 15, 53, 15, 'b')
 f1.put(41, 4, 'p'); f1.put(60, 4, 'p')
 # air handling gear along the top and bottom walls, TV on the right wall
 for x in range(42, 60):
-    f1.put(x, 4, 'FLLLFLLFFLFLLLFFLF'[x - 42])
+    f1.put(x, 4, 'FLLaLLFLaFLFLLaLFF'[x - 42])
 for x in range(54, 61):
-    f1.put(x, 15, 'LFLLFLF'[x - 54])
+    f1.put(x, 15, 'LFLaFLF'[x - 54])
 f1.fill(60, 6, 60, 13, 'V')
 
 # --- offices east of boardroom ---
@@ -399,7 +399,7 @@ f2.hline(23, 31, 8); f2.vline(31, 3, 9); f2.door((24, 8), (25, 8))
 f2.put(27, 4, 'x'); f2.put(28, 4, 'x'); f2.put(30, 4, 'b'); f2.put(24, 4, 'b')
 f2.room('193 Engraver', 32, 4, 35, 8)
 f2.hline(31, 36, 9); f2.vline(36, 3, 9); f2.door((31, 5))
-f2.put(33, 4, 'M'); f2.put(34, 4, 'M'); f2.put(35, 8, 'b')
+f2.put(33, 4, 's'); f2.put(34, 4, 'M'); f2.put(35, 8, 'b')
 f2.office('Ghosts', 37, 4, 44, 8, 'S')
 f2.rooms[-1]['people'] = ['Ghost', 'Ghost']  # two ghosts haunt the rack room
 f2.clear((40, 5)); f2.fill(37, 4, 44, 4, 'y')  # racks of computers along the top
