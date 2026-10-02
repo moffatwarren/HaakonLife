@@ -65,6 +65,22 @@
     return h >>> 0;
   }
   const npcs = [];
+  // Someone's body type and colours: from js/people.js, with a random-but-stable
+  // look filling in anything they don't set.
+  function lookFor(name) {
+    const p = (window.PEOPLE || {})[name] || {};
+    const body = ['female', 'ghost'].includes(p.body) ? p.body : 'male';
+    const looks = Art.LOOKS[body] || Art.LOOKS.male;
+    const def = looks[hash(name) % looks.length];
+    return { body, look: { h: p.hair || def.h, s: p.skin || def.s, w: p.top || def.w, u: p.accent || def.u, K: p.pants || def.K } };
+  }
+  // The sprite sheet for a person, reusing the one their NPC already has.
+  function spritesFor(name) {
+    const n = npcs.find((p) => p.name === name);
+    if (n) return n.sprites;
+    const { body, look } = lookFor(name);
+    return Art.renderSprites(body, look);
+  }
   function npcAt(fi, x, y) {
     return npcs.find((n) => n.floor === fi &&
       ((n.x === x && n.y === y) || (n.moving && n.x + n.mdx === x && n.y + n.mdy === y))) || null;
@@ -98,10 +114,7 @@
           if (!spots.length) continue;
           placed.add(name);
           const p = (window.PEOPLE || {})[name] || {};
-          const body = ['female', 'ghost'].includes(p.body) ? p.body : 'male';
-          const looks = Art.LOOKS[body] || Art.LOOKS.male;
-          const def = looks[hash(name) % looks.length];
-          const look = { h: p.hair || def.h, s: p.skin || def.s, w: p.top || def.w, u: p.accent || def.u, K: p.pants || def.K };
+          const { body, look } = lookFor(name);
           const [x, y] = spots[(hash(name) + npcs.length * 7) % spots.length];
           npcs.push({
             name, floor: fi, room: area, x, y, dir: 'down', moving: false, prog: 0, mdx: 0, mdy: 0, step: 0,
@@ -2079,6 +2092,166 @@
     return self;
   }
 
+  // ---------- Richard's air handling duel: rock-paper-scissors as a retro battle ----------
+  // Fan beats coil, coil beats damper, damper beats fan. First one down to 0 HP loses.
+  const MOVES = [
+    { key: 'fan', label: 'FAN GUST', said: 'Fan Gust' },
+    { key: 'coil', label: 'COIL FREEZE', said: 'Coil Freeze' },
+    { key: 'damper', label: 'DAMPER BLOCK', said: 'Damper Block' },
+  ];
+  const BEATS = { fan: 'coil', coil: 'damper', damper: 'fan' };
+  // What it looks like when that move wins the round.
+  const WIN_TEXT = {
+    fan: 'Fan blows cold air away!',
+    coil: 'Coil freezes damper immobile!',
+    damper: 'Damper blocks fan air!',
+  };
+  const MOVE_SFX = { fan: 'swish', coil: 'note', damper: 'bump' };
+
+  function BattleGame() {
+    const MAX_HP = 3;
+    const RX = 230, RY = 38, RS = 64;      // Richard, top right
+    const PX = 26, PY = 100, PS = 76;      // you, seen from behind, bottom left
+    const ECX = RX + RS / 2, ECY = RY + RS / 2, PCX = PX + PS / 2, PCY = PY + PS / 3;
+    const rSprites = spritesFor('Richard');
+    // hp is the real score; shown drains towards it so the bar visibly empties.
+    let hp = { you: MAX_HP, rich: MAX_HP }, shown = { you: MAX_HP, rich: MAX_HP };
+    let state = 'msg', sel = 0, queue = [], lines = [], chars = 0;
+    let fx = null, hurt = { you: 0, rich: 0 }, result = null;
+
+    // Each queued step is a line of text plus whatever happens once it is read.
+    function push(str, step) { queue.push({ str, step: step || null }); }
+    function nextMsg() {
+      const m = queue.shift();
+      if (!m) { state = 'menu'; return; }
+      lines = wrap(m.str, Math.floor((SW - 16) / 6) - 1).slice(0, 2);
+      chars = 0;
+      if (m.step) m.step();
+    }
+    function damage(who) {
+      hp[who]--; hurt[who] = 24; sfx('hit');
+      if (hp[who] > 0) return;
+      result = who === 'rich' ? 'win' : 'lose';
+      push(who === 'rich' ? 'I have taught you the ways of airflow well!'
+        : 'You still have much to learn!', () => sfx(result === 'win' ? 'ding' : 'buzz'));
+    }
+    function attack(mv, toward) {
+      fx = { kind: mv.key, toward, t: 0 };
+      sfx(MOVE_SFX[mv.key], 2);
+    }
+    function round(you) {
+      const rich = MOVES[Math.floor(Math.random() * MOVES.length)];
+      push('You use ' + you.said + '!', () => attack(you, 'rich'));
+      push('Richard uses ' + rich.said + '!', () => attack(rich, 'you'));
+      if (you.key === rich.key) push('You read each other\'s mind!');
+      else if (BEATS[you.key] === rich.key) push(WIN_TEXT[you.key], () => damage('rich'));
+      else push(WIN_TEXT[rich.key], () => damage('you'));
+      state = 'msg';
+      nextMsg();
+    }
+
+    function hpBar(x, y, w, name, value) {
+      box(x, y, w, 38);
+      text(name, x + 8, y + 6);
+      text('HP', x + 8, y + 22);
+      const bx = x + 28, bw = w - 60, f = Math.max(0, value) / MAX_HP;
+      ctx.fillStyle = col.dark; ctx.fillRect(bx, y + 21, bw, 8);
+      ctx.fillStyle = '#f8f8f8'; ctx.fillRect(bx + 1, y + 22, bw - 2, 6);
+      ctx.fillStyle = f > 0.5 ? '#58b058' : f > 0.2 ? '#f0b030' : '#f05040';
+      ctx.fillRect(bx + 1, y + 22, Math.round((bw - 2) * f), 6);
+      text(Math.ceil(Math.max(0, value)) + '/' + MAX_HP, bx + bw + 4, y + 22);
+    }
+
+    const self = {
+      music: 'battle',
+      update() {
+        if (fx && ++fx.t > 34) fx = null;
+        for (const k in hurt) if (hurt[k] > 0) hurt[k]--;
+        // drain the bars before letting the next line through
+        let draining = false;
+        for (const k in shown) {
+          if (shown[k] > hp[k]) { shown[k] = Math.max(hp[k], shown[k] - 0.05); draining = true; }
+        }
+        if (state === 'menu') {
+          if (pressed.has('up')) { sel = (sel + MOVES.length - 1) % MOVES.length; sfx('select'); }
+          if (pressed.has('down')) { sel = (sel + 1) % MOVES.length; sfx('select'); }
+          if (pressed.has('a')) { sfx('menu'); round(MOVES[sel]); return; }
+          if (pressed.has('b')) { remove(self); say('You step away. Richard nods: another time, then.'); }
+          return;
+        }
+        const len = lines.join('').length;
+        if (chars < len) { chars += held.a || held.b ? 3 : 1; return; }
+        if (draining || fx) return;
+        if (pressed.has('a') || pressed.has('b')) {
+          // the last line of a finished duel closes it
+          if (result && !queue.length) {
+            remove(self);
+            say(result === 'win'
+              ? 'You won the air handling duel! Richard looks genuinely proud.'
+              : 'Richard wins. Time to read up on airflow.');
+            return;
+          }
+          sfx('select');
+          nextMsg();
+        }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        // battle backdrop: a pale wall over a floor band, with a pad under each fighter
+        ctx.fillStyle = '#d8dce8'; ctx.fillRect(4, 4, SW - 8, 146);
+        ctx.fillStyle = '#c8b898'; ctx.fillRect(4, 150, SW - 8, SH - 154);
+        ctx.fillStyle = col.dark; ctx.fillRect(4, 150, SW - 8, 1);
+        ctx.fillStyle = '#b0a888'; ctx.fillRect(RX - 6, RY + RS - 6, RS + 12, 6);
+        ctx.fillStyle = '#b0a888'; ctx.fillRect(PX - 10, PY + PS - 10, PS + 20, 8);
+        // the fighters, blinking when they have just been hit
+        const flash = (n) => n > 0 && (n >> 1) & 1;
+        if (!flash(hurt.rich)) ctx.drawImage(rSprites.down[0], RX, RY, RS, RS);
+        if (!flash(hurt.you)) ctx.drawImage(sprites.up[0], PX, PY, PS, PS);
+        hpBar(8, 10, 150, 'RICHARD', shown.rich);
+        hpBar(162, 112, 150, 'YOU', shown.you);
+        // whichever move is flying across the screen
+        if (fx) {
+          const [ax, ay] = fx.toward === 'rich' ? [PCX, PCY] : [ECX, ECY];
+          const [bx, by] = fx.toward === 'rich' ? [ECX, ECY] : [PCX, PCY];
+          for (let i = 0; i < 5; i++) {
+            const f = 0.18 + 0.82 * (((fx.t / 30) + i * 0.13) % 1);
+            const x = Math.round(ax + (bx - ax) * f), y = Math.round(ay + (by - ay) * f);
+            if (fx.kind === 'fan') {
+              ctx.fillStyle = i & 1 ? '#f8f8f8' : '#a8d8f0';
+              ctx.fillRect(x - 9, y, 18, 2);
+            } else if (fx.kind === 'coil') {
+              ctx.fillStyle = '#a8e0f8';
+              ctx.fillRect(x - 5, y, 11, 1); ctx.fillRect(x, y - 5, 1, 11);
+              ctx.fillRect(x - 2, y - 2, 4, 4);
+            } else {
+              ctx.fillStyle = i & 1 ? '#8890a0' : '#585868';
+              ctx.fillRect(x - 3, y - 8, 5, 16);
+            }
+          }
+        }
+        if (state === 'menu') {
+          box(0, SH - 64, SW, 64);
+          text('What will', 14, SH - 52);
+          text('you use?', 14, SH - 36);
+          text('Esc: give up', 14, SH - 18);
+          MOVES.forEach((m, i) => {
+            text(m.label, 134, SH - 56 + i * 16);
+            if (i === sel) text('>', 122, SH - 56 + i * 16);
+          });
+          return;
+        }
+        box(0, SH - 48, SW, 48);
+        let left = chars;
+        lines.forEach((l, i) => { text(l.slice(0, Math.max(0, left)), 12, SH - 38 + i * 16); left -= l.length; });
+        if (chars >= lines.join('').length && !fx && shown.you <= hp.you && shown.rich <= hp.rich
+          && (tick >> 4) & 1) text('~', SW - 14, SH - 12);
+      },
+    };
+    push('Richard wants to test your air handling knowledge!');
+    nextMsg();
+    return self;
+  }
+
   function openStartMenu() {
     sfx('menu');
     const labels = () => ['MAP', soundOn ? 'SOUND ON' : 'SOUND OFF', musicOn ? 'MUSIC ON' : 'MUSIC OFF', 'CLOSE'];
@@ -2216,6 +2389,13 @@
       if (!npc.moving) npc.dir = OPPOSITE[P.dir];
       sfx('select');
       if (npc.name === 'Damir') { say('Do you feel safe in the dark?', () => ui.push(DarkGame())); return; }
+      if (npc.name === 'Richard') {
+        ask('Do you want to test your air handling knowledge?', ['YES', 'NO'], (i) => {
+          if (i === 0) { sfx('menu'); ui.push(BattleGame()); }
+          else say('Richard: Come back when you are ready.');
+        });
+        return;
+      }
       say(npc.lines[Math.floor(Math.random() * npc.lines.length)]);
       return;
     }
@@ -2468,7 +2648,7 @@
   addEventListener('resize', layout);
   addEventListener('orientationchange', layout);
 
-  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee)
+  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle)
   if (location.hash.startsWith('#play')) {
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
@@ -2480,7 +2660,7 @@
     if (q.has('say')) ask('The elevator. Which floor?', ['GROUND', '2F', 'CANCEL'], () => {});
     if (q.has('menu')) openStartMenu();
     if (q.has('map')) ui.push(MapView());
-    const GAME = { coffee: CoffeeGame, punch: PunchGame, run: RunGame, pong: PongGame, toss: TossGame, stack: StackGame, simon: SimonGame, lunch: LunchGame, candy: CandyGame, squat: SquatGame, golf: GolfGame, dark: DarkGame }[q.get('game')];
+    const GAME = { coffee: CoffeeGame, punch: PunchGame, run: RunGame, pong: PongGame, toss: TossGame, stack: StackGame, simon: SimonGame, lunch: LunchGame, candy: CandyGame, squat: SquatGame, golf: GolfGame, dark: DarkGame, battle: BattleGame }[q.get('game')];
     if (GAME) ui.push(GAME());
   }
 

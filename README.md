@@ -44,8 +44,13 @@ Talk to **Damir** (office 108, with the lights off) if you dare: he cuts the
 power, and you have to find three fuses with only a flashlight while shadows
 creep closer whenever they're out of the beam.
 
+Talk to **Richard** (office 122) and say yes to test your air handling
+knowledge: a turn-based duel where you and Richard each pick a move and the
+winner knocks 1 off the other's 3 HP. Fan Gust beats Coil Freeze, Coil Freeze
+beats Damper Block, and Damper Block beats Fan Gust.
+
 Best scores are saved in the browser. For testing, `index.html#play&game=punch`
-(or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`, `dark`, `coffee`) opens a game straight away.
+(or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`, `dark`, `coffee`, `battle`) opens a game straight away.
 
 ## People
 

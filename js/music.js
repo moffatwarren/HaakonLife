@@ -184,4 +184,17 @@ window.MUSIC = {
       { type: 'drums', vol: 0.5, notes: 'k . k . . . . . | . . . . . . . h' },
     ],
   },
+  // Richard's air handling duel: fast, driving and a little heroic
+  battle: {
+    bpm: 148,
+    voices: [
+      { type: 'square', vol: 0.032, notes:
+        'A4 - E5 - A5 - G5 E5 | F5 - E5 - D5 - C5 B4 | A4 - C5 - E5 - D5 C5 | B4 - G#4 - A4 - . . |' +
+        'A4 - E5 - A5 - B5 C6 | B5 - A5 - G5 - E5 D5 | C5 - E5 - A5 - G5 E5 | A5 - - - - - . .' },
+      { type: 'triangle', vol: 0.09, notes:
+        'A2 . A2 E3 A2 . A2 E3 | F2 . F2 C3 F2 . F2 C3 | A2 . A2 E3 A2 . A2 E3 | E2 . E2 B2 E2 . E2 B2 |' +
+        'A2 . A2 E3 A2 . A2 E3 | F2 . F2 C3 G2 . G2 D3 | C3 . C3 G3 C3 . C3 G3 | E2 . B2 . A2 . . .' },
+      { type: 'drums', vol: 0.5, notes: 'k h s h k h s h | k h s h k k s h' },
+    ],
+  },
 };
