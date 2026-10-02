@@ -13,8 +13,8 @@ and the `js/` folder together.
 | --- | --- | --- |
 | Move | Arrows / WASD | D-pad |
 | A: interact, confirm | E / Space | A |
-| B: back, cancel, hold to run | Esc / X / Shift | B |
-| Start menu (map, sound) | Enter (or Esc while walking) | START |
+| B: back, cancel | Esc / X / Shift | B |
+| Start menu (map, sound, music) | Enter (or Esc while walking) | START |
 | Map | M | (Start → Map) |
 
 - Walk onto a staircase to change floors, or face the elevator doors and press A.
@@ -30,12 +30,22 @@ Walk up to these and press A:
 - **Office computers**: SDG, lay out an air handling unit
 - **Coffee machine** (lunch room): catch the coffee in your cup
 - **Recycling bin** (lunch room): toss crumpled paper into the bin; watch the wind
-- **Punching bag** (fitness room): punch when the marker hits the green zone
+- **Fridge**: keep your eye on your lunch while the containers shuffle
+- **Candy table**: hold A to reach for candy, and freeze when your coworker turns around
+- **Photocopier**: drop each copy onto the pile; anything hanging over gets cut off
+- **Electrical panels** (Instrument Room 168 and both electrical rooms): repeat the light sequence with the arrow keys
+- **Punching bag** (fitness room): 5 punches; the closer to dead centre, the more points
+- **Squat rack** (fitness room): mash A to stand up with the bar before time runs out; it gets heavier every lift
 - **Treadmill** (fitness room): jump over the gym clutter (hold A to jump higher) and duck under hanging stuff with Down
 - **Big TVs**: play Pong against the TV, first to 5
+- **Wade's putting green** (2nd floor, office 137): 5 holes of top-down mini golf with sand and water
+
+Talk to **Damir** (office 108, with the lights off) if you dare: he cuts the
+power, and you have to find three fuses with only a flashlight while shadows
+creep closer whenever they're out of the beam.
 
 Best scores are saved in the browser. For testing, `index.html#play&game=punch`
-(or `run`, `pong`, `toss`, `coffee`) opens a game straight away.
+(or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`, `dark`, `coffee`) opens a game straight away.
 
 ## People
 

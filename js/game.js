@@ -40,6 +40,14 @@
   });
   let curtainOpen = null; // floor index whose curtains are open
 
+  // Electrical panels ('K' tiles) get blinking status lights drawn over them.
+  const panels = MAPS.floors.map((f) => {
+    const list = [];
+    f.tiles.forEach((rowStr, y) => [...rowStr].forEach((c, x) => { if (c === 'K') list.push({ x, y }); }));
+    return list;
+  });
+  const PANEL_LIGHTS = ['#58e048', '#f05040', '#f0b030'];
+
   // ---------- NPCs: one per person, pacing around their own office ----------
   const NPC_LINES = [
     "Hi! I'm {n}.",
@@ -145,10 +153,19 @@
   }
 
   // ---------- sound ----------
-  let actx = null;
+  let actx = null, sfxBus = null, musicBus = null;
+  // Overall loudness. A compressor at the end keeps the boost from clipping.
+  const SFX_VOLUME = 1.6, MUSIC_VOLUME = 1.7;
   function unlockAudio() {
     if (!actx) {
       try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; }
+      if (actx) {
+        const limit = actx.createDynamicsCompressor();
+        limit.threshold.value = -6; limit.ratio.value = 8;
+        limit.connect(actx.destination);
+        sfxBus = actx.createGain(); sfxBus.gain.value = SFX_VOLUME; sfxBus.connect(limit);
+        musicBus = actx.createGain(); musicBus.gain.value = MUSIC_VOLUME; musicBus.connect(limit);
+      }
     }
     if (actx && actx.state === 'suspended') actx.resume();
   }
@@ -160,7 +177,7 @@
     if (slide) o.frequency.linearRampToValueAtTime(freq + slide, t + dur);
     g.gain.setValueAtTime(vol || 0.04, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(actx.destination);
+    o.connect(g); g.connect(sfxBus);
     o.start(t); o.stop(t + dur + 0.02);
   }
   // Short burst of filtered noise (the "splash" part of a pour).
@@ -171,7 +188,7 @@
     const src = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
     src.buffer = buf; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = 1.5;
     g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f); f.connect(g); g.connect(actx.destination);
+    src.connect(f); f.connect(g); g.connect(sfxBus);
     src.start(t);
   }
   const SFX = {
@@ -189,9 +206,112 @@
     hit: (pts) => { noise(0.14, 260 + (pts || 0) * 2, 0.08 + (pts || 0) / 1200); tone(120, 0.15, 'square', 0.06, -70); },
     jump: () => tone(320, 0.12, 'square', 0.035, 380),
     blip: (hi) => tone(hi ? 880 : 440, 0.04, 'square', 0.05),
+    putt: () => tone(700, 0.05, 'triangle', 0.08, -300),
+    cup: () => { tone(880, 0.08, 'square', 0.04); tone(1175, 0.08, 'square', 0.04, 0, 0.09); tone(1568, 0.25, 'square', 0.04, 0, 0.18); },
+    splash: () => { noise(0.35, 700, 0.09); tone(300, 0.2, 'sine', 0.05, -200); },
+    lift: (h) => tone(140 + (h || 0) * 260, 0.05, 'square', 0.03),
+    note: (i) => tone([330, 440, 554, 660][i], 0.18, 'square', 0.05),
+    buzz: () => { tone(90, 0.4, 'square', 0.07); noise(0.3, 400, 0.06); },
     swish: () => { noise(0.25, 2200, 0.06); tone(600, 0.15, 'triangle', 0.05, 500, 0.1); },
   };
   function sfx(name, arg) { if (soundOn && actx) SFX[name](arg); }
+
+  // ---------- music: a tiny chiptune sequencer for the songs in js/music.js ----------
+  let musicOn = store.get('music') !== 'off';
+  const SEMI = { C: -9, D: -7, E: -5, F: -4, G: -2, A: 0, B: 2 };
+  function noteFreq(tok) {
+    const m = /^([A-G])([#b]?)(\d)$/.exec(tok);
+    if (!m) return 0;
+    const n = SEMI[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + (m[3] - 4) * 12;
+    return 440 * Math.pow(2, n / 12);
+  }
+  // Turn each voice's note string into one slot per step: a note {f, len}, a drum letter, or null.
+  const SONGS = {};
+  for (const name in window.MUSIC) {
+    const song = window.MUSIC[name];
+    SONGS[name] = {
+      bpm: song.bpm,
+      voices: song.voices.map((v) => {
+        const toks = v.notes.split(/\s+/).filter((s) => s && s !== '|');
+        const steps = toks.map(() => null);
+        toks.forEach((tok, i) => {
+          if (v.type === 'drums') { if ('ksh'.includes(tok)) steps[i] = tok; return; }
+          const f = noteFreq(tok);
+          if (!f) return;
+          let len = 1;
+          while (toks[i + len] === '-') len++;
+          steps[i] = { f, len };
+        });
+        return { type: v.type, vol: v.vol, steps };
+      }),
+    };
+  }
+  let noiseBuf = null;
+  function drum(kind, t, vol, out) {
+    if (kind === 'k') {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+      g.gain.setValueAtTime(vol * 0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+      o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.16);
+      return;
+    }
+    if (!noiseBuf) {
+      noiseBuf = actx.createBuffer(1, actx.sampleRate * 0.2, actx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    const src = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+    const len = kind === 's' ? 0.12 : 0.03;
+    src.buffer = noiseBuf;
+    f.type = kind === 's' ? 'bandpass' : 'highpass'; f.frequency.value = kind === 's' ? 1800 : 7000;
+    g.gain.setValueAtTime(vol * (kind === 's' ? 0.25 : 0.12), t); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    src.connect(f); f.connect(g); g.connect(out); src.start(t); src.stop(t + len + 0.01);
+  }
+  function voiceNote(v, ev, t, step, out) {
+    const o = actx.createOscillator(), g = actx.createGain(), end = t + ev.len * step;
+    o.type = v.type; o.frequency.setValueAtTime(ev.f, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(v.vol, t + 0.008);
+    // plucky decay down to a sustain level, then a short release so notes don't click
+    g.gain.linearRampToValueAtTime(v.vol * 0.6, t + Math.min(0.15, ev.len * step * 0.5));
+    g.gain.setValueAtTime(v.vol * 0.6, Math.max(t + 0.01, end - 0.03));
+    g.gain.linearRampToValueAtTime(0, end);
+    o.connect(g); g.connect(out); o.start(t); o.stop(end + 0.01);
+  }
+  let music = null; // { name, song, step, next, out }
+  function playMusic(name) {
+    if ((music && music.name) === name) return;
+    if (music && actx) { // fade the old song out; its already-scheduled notes go quiet with it
+      const g = music.out.gain;
+      g.setValueAtTime(g.value, actx.currentTime); g.linearRampToValueAtTime(0, actx.currentTime + 0.15);
+    }
+    music = null;
+    if (!name || !SONGS[name] || !actx) return;
+    const out = actx.createGain();
+    out.gain.value = 1; out.connect(musicBus);
+    music = { name, song: SONGS[name], step: 0, next: actx.currentTime + 0.05, out };
+  }
+  setInterval(() => {
+    if (!music || !actx) return;
+    const step = 60 / music.song.bpm / 2;
+    if (music.next < actx.currentTime - 0.5) music.next = actx.currentTime + 0.02; // came back from a background tab
+    while (music.next < actx.currentTime + 0.12) {
+      for (const v of music.song.voices) {
+        const ev = v.steps[music.step % v.steps.length];
+        if (!ev) continue;
+        if (typeof ev === 'string') drum(ev, music.next, v.vol, music.out);
+        else voiceNote(v, ev, music.next, step, music.out);
+      }
+      music.step++; music.next += step;
+    }
+  }, 30);
+  // Which song fits right now: the open mini-game's theme, the room's mood, or the office tune.
+  function pickMusic() {
+    if (!musicOn) return null;
+    for (let i = ui.length - 1; i >= 0; i--) if (ui[i].music) return ui[i].music;
+    if (mode === 'play' && curRoom && (curRoom.name === 'Ghosts' || curRoom.dark)) return 'spooky';
+    return 'office';
+  }
 
   // ---------- input ----------
   const held = { up: false, down: false, left: false, right: false, a: false, b: false, start: false, map: false };
@@ -342,7 +462,7 @@
   function Choice(options, x, y, cb, opts) {
     opts = opts || {};
     let cur = opts.start || 0;
-    const w = Math.max(...options.map((o) => o.length)) * 6 + 22, h = options.length * 16 + 8;
+    const w = Math.max(opts.minChars || 0, ...options.map((o) => o.length)) * 6 + 22, h = options.length * 16 + 8;
     if (x < 0) x = SW - w + x + 1;
     const self = {
       options,
@@ -662,6 +782,7 @@
     let cup = AX + AW / 2 - CUP_W / 2, fill = 0, caught = 0, missed = 0, t = 0, state = 'ready';
     let nozzle = AX + AW / 2, target = nozzle, drops = [], splashes = [];
     const self = {
+      music: 'coffee',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -783,9 +904,10 @@
   // ---------- punching bag: hit A when the marker is in the middle ----------
   function PunchGame() {
     const BAR = { x: 40, y: 200, w: 240, h: 12 }, BAG_X = 160, BAG_TOP = 50, BAG_W = 44, BAG_H = 96;
-    const PUNCHES = 3;
+    const PUNCHES = 5;
     let state = 'ready', t = 0, p = 0, dir = 1, n = 0, total = 0, last = null, swing = 0, shake = 0, record = false;
     const self = {
+      music: 'punch',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -800,20 +922,21 @@
         swing *= 0.97; shake *= 0.85;
         if (state === 'hit') {
           if (t > 60) {
-            if (n >= PUNCHES) { state = 'done'; record = saveBest('punch', total); sfx('ding'); }
+            if (n >= PUNCHES) { state = 'done'; record = saveBest('punch5', total); sfx('ding'); }
             else state = 'play';
             t = 0;
           }
           return;
         }
         // the marker gets faster with every punch
-        p += dir * (0.014 + n * 0.007);
+        p += dir * (0.014 + n * 0.006);
         if (p >= 1) { p = 1; dir = -1; }
         if (p <= 0) { p = 0; dir = 1; }
         if (pressed.has('a')) {
+          // points fall off smoothly from the centre; only a dead-centre hit is PERFECT
           const d = Math.abs(p - 0.5);
-          const pts = d < 0.04 ? 100 : d < 0.12 ? 60 : Math.max(5, Math.round(40 * (1 - d * 2)));
-          last = { pts, label: pts === 100 ? 'PERFECT!' : pts === 60 ? 'GOOD!' : 'WEAK...' };
+          const pts = d < 0.012 ? 100 : Math.max(1, Math.round(98 * Math.pow(1 - d * 2, 3)));
+          last = { pts, label: pts === 100 ? 'PERFECT!' : pts >= 85 ? 'GREAT!' : pts >= 60 ? 'GOOD' : pts >= 30 ? 'OK' : 'WEAK...' };
           total += pts; n++;
           swing = pts / 3; shake = pts / 12;
           sfx('hit', pts);
@@ -825,7 +948,7 @@
         text('Punch the bag!', 16, 10);
         text('Punch ' + Math.min(n + (state === 'play' ? 1 : 0), PUNCHES) + '/' + PUNCHES, 16, 22);
         text('Score ' + total, SW - 16 - ('Score ' + total).length * 6, 10);
-        text('Best ' + getBest('punch'), SW - 16 - ('Best ' + getBest('punch')).length * 6, 22);
+        text('Best ' + getBest('punch5'), SW - 16 - ('Best ' + getBest('punch5')).length * 6, 22);
         ctx.save();
         if (shake > 0.5) ctx.translate(Math.round((Math.random() - 0.5) * shake), Math.round((Math.random() - 0.5) * shake));
         // ceiling hook and chain
@@ -852,12 +975,13 @@
         const B = BAR;
         ctx.fillStyle = col.dark; ctx.fillRect(B.x, B.y, B.w, B.h);
         ctx.fillStyle = '#e8e8e8'; ctx.fillRect(B.x + 2, B.y + 2, B.w - 4, B.h - 4);
-        ctx.fillStyle = '#f0d060'; ctx.fillRect(B.x + B.w * 0.38, B.y + 2, B.w * 0.24, B.h - 4);
-        ctx.fillStyle = '#58b058'; ctx.fillRect(B.x + B.w * 0.46, B.y + 2, B.w * 0.08, B.h - 4);
+        ctx.fillStyle = '#f0d060'; ctx.fillRect(B.x + B.w * 0.40, B.y + 2, B.w * 0.20, B.h - 4);
+        ctx.fillStyle = '#a8d870'; ctx.fillRect(B.x + B.w * 0.45, B.y + 2, B.w * 0.10, B.h - 4);
+        ctx.fillStyle = '#389838'; ctx.fillRect(Math.round(B.x + B.w * 0.488), B.y + 2, Math.round(B.w * 0.024), B.h - 4);
         const mx = Math.round(B.x + 2 + p * (B.w - 6));
         ctx.fillStyle = col.dark; ctx.fillRect(mx, B.y - 5, 2, B.h + 10);
         if (state === 'ready') readyBox(t, 'Space: punch');
-        else if (state === 'done') doneBox(['Workout done!', 'Total ' + total + ' / ' + PUNCHES * 100, record ? 'New record!' : 'Best ' + getBest('punch')], t);
+        else if (state === 'done') doneBox(['Workout done!', 'Total ' + total + ' / ' + PUNCHES * 100, record ? 'New record!' : 'Best ' + getBest('punch5')], t);
         else text('Esc: give up', 16, SH - 14);
       },
     };
@@ -900,6 +1024,7 @@
     let state = 'ready', t = 0, h = 0, vy = 0, speed = 3, dist = 0, nextAt = 220, obs = [], record = false, ducking = false;
     const metres = () => Math.floor(dist / 16);
     const self = {
+      music: 'run',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -980,6 +1105,7 @@
     }
     serve(Math.random() < 0.5);
     const self = {
+      music: 'pong',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -1053,6 +1179,7 @@
       state = 'result'; t = 0;
     };
     const self = {
+      music: 'toss',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { nextPaper(); t = 0; } return; }
@@ -1151,17 +1278,822 @@
     return self;
   }
 
+  // ---------- photocopier stacker: drop each sheet onto the pile ----------
+  function StackGame() {
+    const SHEET = 8, BASE_Y = 204, BASE_W = 120, L = 16, R = SW - 16;
+    let state = 'ready', t = 0, stack = [{ x: (SW - BASE_W) / 2, w: BASE_W }], cur = null, dir = 1;
+    let falling = [], flash = 0, cam = 0, record = false;
+    const count = () => stack.length - 1;
+    const yOf = (i) => BASE_Y - i * SHEET;
+    function next() {
+      const top = stack[stack.length - 1];
+      dir = count() % 2 ? -1 : 1;
+      cur = { x: dir > 0 ? L : R - top.w, w: top.w };
+    }
+    const self = {
+      music: 'stack',
+      update() {
+        t++;
+        for (const f of falling) { f.vy += 0.3; f.y += f.vy; }
+        falling = falling.filter((f) => f.y < SH + cam + 20);
+        cam += (Math.max(0, (stack.length - 16) * SHEET) - cam) * 0.1;
+        if (flash) flash--;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; next(); } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(count() === 0 ? 'Not a single copy. The copier blinks: PC LOAD LETTER'
+              : 'You stacked ' + count() + ' copies.' + (record ? ' A new record!' : ' Nice and neat.'));
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You leave the copies for someone else.'); return; }
+        cur.x += dir * Math.min(6, 2 + count() * 0.15);
+        if (cur.x + cur.w >= R) { cur.x = R - cur.w; dir = -1; }
+        if (cur.x <= L) { cur.x = L; dir = 1; }
+        if (!pressed.has('a')) return;
+        const top = stack[stack.length - 1], y = yOf(stack.length);
+        let x0 = Math.max(cur.x, top.x), x1 = Math.min(cur.x + cur.w, top.x + top.w);
+        if (x1 <= x0) { // missed the pile completely
+          falling.push({ x: cur.x, w: cur.w, y, vy: 0 });
+          cur = null; state = 'done'; t = 0; record = saveBest('stack', count()); sfx('bump');
+          return;
+        }
+        if (Math.abs(cur.x - top.x) <= 2) { x0 = top.x; x1 = top.x + top.w; flash = 30; sfx('ding'); }
+        else {
+          // whatever hangs over the edge gets cut off and falls
+          if (cur.x < x0) falling.push({ x: cur.x, w: x0 - cur.x, y, vy: 0 });
+          if (cur.x + cur.w > x1) falling.push({ x: x1, w: cur.x + cur.w - x1, y, vy: 0 });
+          sfx('blip', true);
+        }
+        stack.push({ x: x0, w: x1 - x0 });
+        next();
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('Stack the copies!', 16, 10);
+        const s = 'Copies ' + count(), b = 'Best ' + getBest('stack');
+        text(s, SW - 16 - s.length * 6, 10);
+        text(b, SW - 16 - b.length * 6, 22);
+        ctx.save();
+        ctx.beginPath(); ctx.rect(8, 34, SW - 16, SH - 42); ctx.clip();
+        const c = Math.round(cam);
+        const sheet = (x, y, w) => {
+          x = Math.round(x); y = Math.round(y) + c; w = Math.round(w);
+          ctx.fillStyle = col.dark; ctx.fillRect(x, y, w, SHEET);
+          ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 1, y + 1, Math.max(0, w - 2), SHEET - 2);
+          ctx.fillStyle = '#b8bcc8'; ctx.fillRect(x + 3, y + 4, Math.max(0, w - 6), 1);
+        };
+        // copier output tray
+        ctx.fillStyle = col.dark; ctx.fillRect(SW / 2 - 80, BASE_Y + SHEET + c, 160, 10);
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(SW / 2 - 79, BASE_Y + SHEET + 1 + c, 158, 8);
+        stack.forEach((p, i) => sheet(p.x, yOf(i), p.w));
+        if (cur) sheet(cur.x, yOf(stack.length), cur.w);
+        for (const f of falling) sheet(f.x, f.y, f.w);
+        ctx.restore();
+        if (flash) ctext('PERFECT!', 44);
+        if (state === 'ready') readyBox(t, 'Space: drop the sheet');
+        else if (state === 'done') doneBox(['Missed the pile!', 'Stacked ' + count() + ' copies', record ? 'New record!' : 'Best ' + getBest('stack')], t);
+        else text('Esc: give up', 16, SH - 14);
+      },
+    };
+    return self;
+  }
+
+  // ---------- electrical panel: repeat the light sequence ----------
+  function SimonGame() {
+    const S = 40;
+    const LIGHTS = [
+      { k: 'up', x: 140, y: 52, on: '#f85848', off: '#702820' },
+      { k: 'right', x: 194, y: 104, on: '#78e060', off: '#2c5a28' },
+      { k: 'down', x: 140, y: 156, on: '#68a0f8', off: '#283c78' },
+      { k: 'left', x: 86, y: 104, on: '#f8d848', off: '#6a5818' },
+    ];
+    let state = 'ready', t = 0, seq = [], pos = 0, lit = -1, litT = 0, record = false;
+    const rounds = () => Math.max(0, seq.length - 1);
+    const step = () => Math.max(14, 30 - seq.length * 1.5);
+    function nextRound() { seq.push(Math.floor(Math.random() * 4)); state = 'show'; t = 0; }
+    const self = {
+      music: 'simon',
+      update() {
+        t++;
+        if (litT) litT--;
+        if (state === 'ready') { if (t > 75) nextRound(); return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(rounds() === 0 ? 'The panel buzzes angrily. Best not to touch it.'
+              : 'You got through ' + rounds() + (rounds() === 1 ? ' round' : ' rounds') + ' before something sparked.' + (record ? ' A new record!' : ''));
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You back away from the panel slowly.'); return; }
+        if (state === 'show') {
+          const st = Math.round(step()), u = t - 1, i = Math.floor(u / st);
+          if (i < seq.length && u % st === 0) { lit = seq[i]; litT = Math.round(st * 0.7); sfx('note', lit); }
+          if (u >= seq.length * st + 8) { state = 'input'; pos = 0; t = 0; }
+        } else if (state === 'input') {
+          const i = LIGHTS.findIndex((l) => pressed.has(l.k));
+          if (i < 0) return;
+          lit = i; litT = 12;
+          if (i !== seq[pos]) { sfx('buzz'); state = 'done'; t = 0; record = saveBest('simon', rounds()); return; }
+          sfx('note', i);
+          if (++pos === seq.length) { state = 'pause'; t = 0; }
+        } else if (state === 'pause' && t > 40) nextRound();
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('Repeat the lights!', 16, 10);
+        const s = 'Round ' + seq.length, b = 'Best ' + getBest('simon');
+        text(s, SW - 16 - s.length * 6, 10);
+        text(b, SW - 16 - b.length * 6, 22);
+        // panel housing with screws
+        ctx.fillStyle = col.dark; ctx.fillRect(70, 40, 180, 172);
+        ctx.fillStyle = '#8890a0'; ctx.fillRect(72, 42, 176, 168);
+        ctx.fillStyle = '#585868';
+        [[76, 46], [242, 46], [76, 204], [242, 204]].forEach(([x, y]) => ctx.fillRect(x, y, 3, 3));
+        LIGHTS.forEach((l, i) => {
+          const on = litT > 0 && lit === i;
+          ctx.fillStyle = col.dark; ctx.fillRect(l.x, l.y, S, S);
+          ctx.fillStyle = on ? l.on : l.off; ctx.fillRect(l.x + 2, l.y + 2, S - 4, S - 4);
+          if (on) { ctx.fillStyle = '#f8f8f8'; ctx.fillRect(l.x + 6, l.y + 6, 6, 3); }
+        });
+        ctx.fillStyle = col.dark; ctx.fillRect(146, 110, 28, 28);
+        ctx.fillStyle = state === 'done' ? '#f85848' : '#484858'; ctx.fillRect(148, 112, 24, 24);
+        if (state === 'show') ctext('Watch...', 220);
+        else if (state === 'input') ctext('Your turn!', 220);
+        else if (state === 'pause') ctext('Correct!', 220);
+        if (state === 'ready') readyBox(t, 'Arrows: repeat the lights');
+        else if (state === 'done') doneBox(['Wrong light! Zap!', 'Rounds: ' + rounds(), record ? 'New record!' : 'Best ' + getBest('simon')], t);
+        else text('Esc: give up', 16, SH - 14);
+      },
+    };
+    return self;
+  }
+
+  // ---------- fridge shell game: keep your eye on your lunch ----------
+  function LunchGame() {
+    const SLOT = [80, 160, 240], Y = 132, CW = 44, CH = 30;
+    // each container knows which slot it's in; container 0 holds your lunch
+    const conts = [0, 1, 2].map((i) => ({ slot: i, x: SLOT[i], y: Y, open: 0 }));
+    let state = 'ready', t = 0, round = 0, swaps = [], swap = null, cursor = 1, picked = null, record = false;
+    const dur = () => Math.max(7, 22 - round * 3);
+    function startRound() {
+      swaps = [];
+      for (let i = 0; i < 3 + round * 2; i++) {
+        const a = Math.floor(Math.random() * 3), b = (a + 1 + Math.floor(Math.random() * 2)) % 3;
+        swaps.push([a, b]);
+      }
+      conts[0].open = 1; state = 'reveal'; t = 0;
+    }
+    const at = (slot) => conts.find((c) => c.slot === slot);
+    const self = {
+      music: 'lunch',
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) startRound(); return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(round === 0 ? 'That\'s not your lunch. Someone is going to be upset.'
+              : 'You found your lunch ' + round + (round === 1 ? ' time' : ' times') + '. Then someone ate it anyway.');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You close the fridge. Lunch can wait.'); return; }
+        if (state === 'reveal') {
+          if (t === 70) conts[0].open = 0;
+          if (t > 90) { state = 'shuffle'; t = 0; swap = null; }
+        } else if (state === 'shuffle') {
+          if (!swap) {
+            if (!swaps.length) { state = 'pick'; t = 0; return; }
+            const [a, b] = swaps.shift();
+            swap = { ca: at(a), cb: at(b), a, b, t: 0 };
+          }
+          const s = swap, k = ++s.t / dur(), arc = Math.sin(Math.PI * Math.min(1, k)) * 20;
+          s.ca.x = SLOT[s.a] + (SLOT[s.b] - SLOT[s.a]) * Math.min(1, k); s.ca.y = Y - arc;
+          s.cb.x = SLOT[s.b] + (SLOT[s.a] - SLOT[s.b]) * Math.min(1, k); s.cb.y = Y + arc;
+          if (k >= 1) {
+            s.ca.slot = s.b; s.cb.slot = s.a;
+            s.ca.x = SLOT[s.b]; s.cb.x = SLOT[s.a]; s.ca.y = s.cb.y = Y;
+            sfx('blip'); swap = null;
+          }
+        } else if (state === 'pick') {
+          if (pressed.has('left')) { cursor = (cursor + 2) % 3; sfx('select'); }
+          if (pressed.has('right')) { cursor = (cursor + 1) % 3; sfx('select'); }
+          if (pressed.has('a')) {
+            picked = at(cursor); picked.open = 1; t = 0;
+            if (picked === conts[0]) { round++; state = 'right'; sfx('ding'); }
+            else { conts[0].open = 1; state = 'done'; record = saveBest('lunch', round); sfx('buzz'); }
+          }
+        } else if (state === 'right' && t > 60) { picked.open = 0; startRound(); }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('Find your lunch!', 16, 10);
+        const s = 'Found ' + round, b = 'Best ' + getBest('lunch');
+        text(s, SW - 16 - s.length * 6, 10);
+        text(b, SW - 16 - b.length * 6, 22);
+        // inside of the fridge: white walls and wire shelves
+        ctx.fillStyle = col.dark; ctx.fillRect(20, 40, SW - 40, 180);
+        ctx.fillStyle = '#e8f0f8'; ctx.fillRect(22, 42, SW - 44, 176);
+        ctx.fillStyle = '#b8c8d8';
+        for (const y of [80, Y + CH + 2]) ctx.fillRect(22, y, SW - 44, 3);
+        // light at the back
+        ctx.fillStyle = '#fff8d0'; ctx.fillRect(SW / 2 - 12, 44, 24, 4);
+        for (const c of conts) {
+          const x = Math.round(c.x - CW / 2), y = Math.round(c.y);
+          ctx.fillStyle = col.dark; ctx.fillRect(x, y, CW, CH);
+          ctx.fillStyle = '#d8dce8'; ctx.fillRect(x + 2, y + 2, CW - 4, CH - 4);
+          if (c.open) {
+            if (c === conts[0]) { // your sandwich
+              ctx.fillStyle = col.dark; ctx.fillRect(x + 8, y + 6, 28, 16);
+              ctx.fillStyle = '#f0d0a0'; ctx.fillRect(x + 9, y + 7, 26, 4); ctx.fillRect(x + 9, y + 17, 26, 4);
+              ctx.fillStyle = '#58a848'; ctx.fillRect(x + 9, y + 11, 26, 2);
+              ctx.fillStyle = '#b83028'; ctx.fillRect(x + 9, y + 13, 26, 4);
+            } else text('?', x + 19, y + 11);
+          }
+          // lid, lifted when open
+          const ly = y - 6 - (c.open ? 12 : 0);
+          ctx.fillStyle = col.dark; ctx.fillRect(x - 2, ly, CW + 4, 7);
+          ctx.fillStyle = '#3878c8'; ctx.fillRect(x - 1, ly + 1, CW + 2, 5);
+        }
+        if (state === 'pick') {
+          const x = SLOT[cursor], y = Y - 30 + ((tick >> 3) & 1);
+          ctx.fillStyle = col.dark;
+          for (let i = 0; i < 5; i++) ctx.fillRect(x - 5 + i, y + i, 10 - i * 2, 1);
+          ctext('Which one is yours?', 196);
+        } else if (state === 'reveal') ctext(t < 70 ? 'This one is yours!' : 'Keep your eye on it...', 196);
+        else if (state === 'right') ctext('Yes! That\'s your lunch!', 196);
+        if (state === 'ready') readyBox(t, 'Left/Right + Space: pick');
+        else if (state === 'done') doneBox(['That\'s not yours!', 'Found it ' + round + (round === 1 ? ' time' : ' times'), record ? 'New record!' : 'Best ' + getBest('lunch')], t);
+        else text('Esc: give up', 16, SH - 14);
+      },
+    };
+    return self;
+  }
+
+  // ---------- candy table: sneak candy while nobody is looking ----------
+  function CandyGame() {
+    const FLOOR = 184, BOWL_X = 150, HAND_X0 = 50;
+    const pool = npcs.filter((n) => !n.ghost);
+    const who = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+    const name = who ? who.name : 'Someone', look = who ? who.sprites : sprites;
+    const CANDY = ['#f85848', '#f8d848', '#78e060', '#68a0f8', '#d870d0', '#f0b030'];
+    let state = 'ready', t = 0, p = 0, candies = 0, watch = 'away', wt = 0, wdur = 120, grab = null, record = false;
+    const turnTime = () => Math.max(14, 40 - candies * 3);
+    function setWatch(w) {
+      watch = w; wt = 0;
+      wdur = w === 'away' ? 60 + Math.random() * 140 : w === 'turn' ? turnTime() : w === 'look' ? 50 + Math.random() * 70 : 12;
+    }
+    const self = {
+      music: 'candy',
+      update() {
+        t++;
+        if (grab) { grab.t++; if (grab.t > 20) grab = null; }
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; setWatch('away'); } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(candies === 0 ? name + ' caught you red-handed. Not a single candy!'
+              : 'You sneaked ' + candies + (candies === 1 ? ' candy' : ' candies') + ' before ' + name + ' caught you.' + (record ? ' A new record!' : ''));
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You leave the candy alone. For now.'); return; }
+        if (++wt >= wdur) setWatch({ away: 'turn', turn: 'look', look: 'back', back: 'away' }[watch]);
+        if (held.a) {
+          // a few frames of grace when they first look, so it's fair
+          if (watch === 'look' && wt > 5) { state = 'done'; t = 0; record = saveBest('candy', candies); sfx('buzz'); return; }
+          p += 0.016;
+          if (p >= 1) { p = 0; candies++; grab = { t: 0, c: CANDY[candies % CANDY.length] }; sfx('swish'); }
+        }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('Sneak some candy!', 16, 10);
+        const s = 'Candy ' + candies, b = 'Best ' + getBest('candy');
+        text(s, SW - 16 - s.length * 6, 10);
+        text(b, SW - 16 - b.length * 6, 22);
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(8, 36, SW - 16, FLOOR - 36);
+        ctx.fillStyle = col.dark; ctx.fillRect(8, FLOOR, SW - 16, 1);
+        ctx.fillStyle = '#c8b898'; ctx.fillRect(8, FLOOR + 1, SW - 16, 30);
+        // candy table and bowl
+        ctx.fillStyle = col.dark; ctx.fillRect(110, FLOOR - 26, 90, 6); ctx.fillRect(114, FLOOR - 20, 4, 20); ctx.fillRect(192, FLOOR - 20, 4, 20);
+        ctx.fillStyle = '#c89058'; ctx.fillRect(111, FLOOR - 25, 88, 4);
+        for (let i = 0; i < 14; i++) {
+          ctx.fillStyle = CANDY[i % CANDY.length];
+          ctx.fillRect(BOWL_X - 18 + (i % 7) * 5, FLOOR - 44 + (i < 7 ? 4 : 0) + ((i * 3) % 2), 4, 4);
+        }
+        ctx.fillStyle = col.dark; ctx.fillRect(BOWL_X - 22, FLOOR - 36, 44, 10);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(BOWL_X - 21, FLOOR - 35, 42, 8);
+        // you, reaching for it
+        ctx.drawImage(sprites.right[0], 8, FLOOR - 48, 48, 48);
+        const hx = Math.round(HAND_X0 + p * (BOWL_X - 8 - HAND_X0));
+        if (p > 0) {
+          ctx.fillStyle = col.dark; ctx.fillRect(HAND_X0 - 4, FLOOR - 25, hx - HAND_X0 + 6, 6);
+          ctx.fillStyle = '#f8d0a8'; ctx.fillRect(HAND_X0 - 4, FLOOR - 24, hx - HAND_X0 + 5, 4);
+          ctx.fillStyle = col.dark; ctx.fillRect(hx, FLOOR - 28, 9, 9);
+          ctx.fillStyle = '#f8d0a8'; ctx.fillRect(hx + 1, FLOOR - 27, 7, 7);
+        }
+        if (grab) { ctx.fillStyle = grab.c; ctx.fillRect(40 + grab.t, FLOOR - 50 - grab.t, 5, 5); }
+        // coworker at their desk
+        ctx.fillStyle = col.dark; ctx.fillRect(270, FLOOR - 26, 44, 4); ctx.fillRect(272, FLOOR - 22, 3, 22); ctx.fillRect(308, FLOOR - 22, 3, 22);
+        ctx.fillRect(282, FLOOR - 46, 22, 18); ctx.fillStyle = '#a8d8f0'; ctx.fillRect(284, FLOOR - 44, 18, 13);
+        const dir = watch === 'away' ? 'right' : watch === 'turn' || watch === 'back' ? 'down' : 'left';
+        ctx.drawImage(look[dir][0], 216, FLOOR - 48, 48, 48);
+        if (watch === 'turn' && state === 'play') text('?', 237, FLOOR - 62 + ((tick >> 2) & 1));
+        if (watch === 'look' || state === 'done') text('!', 237, FLOOR - 62);
+        text(name, 240 - name.length * 3, FLOOR + 8);
+        if (state === 'ready') readyBox(t, 'Hold Space: reach. Freeze!');
+        else if (state === 'done') doneBox(['Caught by ' + name + '!', 'Candies: ' + candies, record ? 'New record!' : 'Best ' + getBest('candy')], t);
+        else text('Esc: give up', 16, SH - 14);
+      },
+    };
+    return self;
+  }
+
+  // ---------- squat rack: mash A to stand the bar up before time runs out ----------
+  function SquatGame() {
+    const FLOOR = 196, START = 135, STEP = 20, TIME = 480;
+    let state = 'ready', t = 0, weight = START, h = 0, left = TIME, best = 0, record = false;
+    const self = {
+      music: 'squat',
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(best ? 'You squatted ' + best + ' lb!' + (record ? ' A new record!' : '') + ' Your legs are jelly.'
+              : 'You couldn\'t budge it. Not today after all.');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You rack the bar. Leg day can wait.'); return; }
+        if (state === 'lifted') {
+          if (t > 70) { weight += STEP; h = 0; left = TIME; state = 'play'; t = 0; }
+          return;
+        }
+        // heavier bars need more presses and sink faster
+        const k = weight / START;
+        if (pressed.has('a')) { h += 0.07 / k; sfx('lift', h); }
+        h = Math.max(0, h - 0.002 * k);
+        if (h >= 1) { h = 1; best = weight; state = 'lifted'; t = 0; sfx('ding'); return; }
+        if (--left <= 0) { state = 'done'; t = 0; record = saveBest('squat', best); sfx('bump'); }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('Squat ' + weight + ' lb!', 16, 10);
+        const b = 'Best ' + getBest('squat') + ' lb';
+        text(b, SW - 16 - b.length * 6, 10);
+        // time left
+        text('TIME', 16, 24);
+        ctx.fillStyle = col.dark; ctx.fillRect(46, 23, 120, 9);
+        ctx.fillStyle = '#e8e8e8'; ctx.fillRect(47, 24, 118, 7);
+        ctx.fillStyle = left < TIME / 4 ? '#f05040' : '#58b058'; ctx.fillRect(47, 24, Math.round(118 * left / TIME), 7);
+        // gym floor and rack uprights
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(8, 38, SW - 16, FLOOR - 38);
+        ctx.fillStyle = col.dark; ctx.fillRect(8, FLOOR, SW - 16, 1);
+        ctx.fillStyle = '#585868'; ctx.fillRect(8, FLOOR + 1, SW - 16, 14);
+        for (const x of [70, 246]) {
+          ctx.fillStyle = col.dark; ctx.fillRect(x, 70, 6, FLOOR - 70);
+          ctx.fillStyle = '#8890a0'; ctx.fillRect(x + 1, 71, 4, FLOOR - 71);
+        }
+        // you: squashed down at the bottom of the squat, standing tall at the top
+        const ph = Math.round(30 + h * 26), py = FLOOR - ph;
+        const shake = state === 'play' && h > 0.05 ? ((tick >> 1) & 1) : 0;
+        ctx.drawImage(sprites.down[0], 132 + shake, py, 56, ph);
+        // the bar on your shoulders, with a plate for every 20 lb over the empty bar
+        const by = py + Math.round(ph * 0.55);
+        ctx.fillStyle = col.dark; ctx.fillRect(40, by, SW - 80, 4);
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(41, by + 1, SW - 82, 2);
+        const plates = Math.min(8, Math.round((weight - 45) / 40));
+        for (let i = 0; i < plates; i++) {
+          for (const side of [-1, 1]) {
+            const x = side < 0 ? 96 - i * 6 : SW - 102 + i * 6;
+            ctx.fillStyle = col.dark; ctx.fillRect(x, by - 14, 6, 32);
+            ctx.fillStyle = i & 1 ? '#585868' : '#c03838'; ctx.fillRect(x + 1, by - 13, 4, 30);
+          }
+        }
+        // lift meter
+        const M = { x: SW - 34, y: 50, w: 14, h: 130 };
+        ctx.fillStyle = col.dark; ctx.fillRect(M.x, M.y, M.w, M.h);
+        ctx.fillStyle = '#e8e8e8'; ctx.fillRect(M.x + 2, M.y + 2, M.w - 4, M.h - 4);
+        const mh = Math.round((M.h - 4) * h);
+        ctx.fillStyle = '#f0b030'; ctx.fillRect(M.x + 2, M.y + M.h - 2 - mh, M.w - 4, mh);
+        text('UP', M.x + 1, M.y - 11);
+        if (state === 'lifted') ctext('LIFTED! +' + STEP + ' lb next', 46);
+        if (state === 'ready') readyBox(t, 'Mash Space to lift!');
+        else if (state === 'done') doneBox(['Too heavy!', best ? 'Best lift: ' + best + ' lb' : 'No lift this time', record ? 'New record!' : 'Record ' + getBest('squat') + ' lb'], t);
+        else text('Esc: give up', 16, SH - 14);
+      },
+    };
+    return self;
+  }
+
+  // ---------- Wade's putting green: top-down mini golf ----------
+  function GolfGame() {
+    const FX = 16, FY = 40, FW = 288, FH = 174, R = 3, CUP = 5, MAX_STROKES = 10;
+    // walls / sand / water are rects inside the field
+    const HOLES = [
+      { par: 2, ball: [50, 127], cup: [266, 127], walls: [], sand: [], water: [] },
+      { par: 3, ball: [46, 192], cup: [266, 66], walls: [{ x: 150, y: 40, w: 12, h: 120 }], sand: [], water: [] },
+      { par: 3, ball: [40, 127], cup: [278, 127],
+        walls: [{ x: 140, y: 40, w: 12, h: 70 }, { x: 140, y: 152, w: 12, h: 62 }],
+        sand: [{ x: 200, y: 96, w: 44, h: 70 }], water: [] },
+      { par: 3, ball: [40, 66], cup: [272, 66], walls: [{ x: 228, y: 40, w: 10, h: 60 }],
+        sand: [], water: [{ x: 96, y: 40, w: 110, h: 118 }] },
+      { par: 4, ball: [44, 196], cup: [270, 64],
+        walls: [{ x: 92, y: 40, w: 12, h: 130 }, { x: 186, y: 92, w: 12, h: 122 }],
+        sand: [{ x: 214, y: 150, w: 70, h: 44 }], water: [{ x: 120, y: 40, w: 50, h: 26 }] },
+    ];
+    const BOUNDS = [
+      { x: FX - 8, y: FY - 8, w: FW + 16, h: 8 }, { x: FX - 8, y: FY + FH, w: FW + 16, h: 8 },
+      { x: FX - 8, y: FY, w: 8, h: FH }, { x: FX + FW, y: FY, w: 8, h: FH },
+    ];
+    const inRect = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+    let state = 'ready', t = 0, n = 0, hole = null, ball = null, last = null, ang = 0, pw = 0, pwDir = 1;
+    let strokes = 0, cards = [], msg = '', record = false;
+    function startHole() {
+      hole = HOLES[n]; strokes = 0;
+      ball = { x: hole.ball[0], y: hole.ball[1], vx: 0, vy: 0, sink: 0 };
+      ang = Math.atan2(hole.cup[1] - ball.y, hole.cup[0] - ball.x);
+      state = 'aim'; t = 0;
+    }
+    function collide(r) {
+      const nx = Math.max(r.x, Math.min(ball.x, r.x + r.w)), ny = Math.max(r.y, Math.min(ball.y, r.y + r.h));
+      let dx = ball.x - nx, dy = ball.y - ny, d = Math.hypot(dx, dy);
+      if (d >= R) return;
+      if (d === 0) { dx = -Math.sign(ball.vx) || 1; dy = 0; d = 1; } // centre ended up inside: push back out
+      dx /= d; dy /= d;
+      ball.x = nx + dx * R; ball.y = ny + dy * R;
+      const dot = ball.vx * dx + ball.vy * dy;
+      if (dot < 0) { ball.vx -= 1.75 * dot * dx; ball.vy -= 1.75 * dot * dy; if (dot < -0.6) sfx('blip'); }
+    }
+    function finishHole(score) {
+      cards.push(score);
+      const diff = score - hole.par;
+      msg = score === 1 ? 'Hole in one!' : diff <= -2 ? 'Eagle!' : diff === -1 ? 'Birdie!' : diff === 0 ? 'Par'
+        : diff === 1 ? 'Bogey' : diff === 2 ? 'Double bogey' : '+' + diff;
+      state = 'holed'; t = 0;
+    }
+    const total = () => cards.reduce((a, b) => a + b, 0);
+    const parSoFar = () => HOLES.slice(0, cards.length).reduce((a, h) => a + h.par, 0);
+    const best = () => +store.get('best.golf') || 0; // fewest strokes, 0 = never finished
+    const self = {
+      music: 'golf',
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) startHole(); return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            const d = total() - parSoFar();
+            say('You finished in ' + total() + ' strokes (' + (d === 0 ? 'even par' : d > 0 ? d + ' over par' : -d + ' under par') + ').'
+              + (record ? ' A new record!' : '') + (d < 0 ? ' Wade is impressed.' : ''));
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You lean the putter back against the wall.'); return; }
+        if (state === 'aim') {
+          if (held.left) ang -= 0.075;
+          if (held.right) ang += 0.075;
+          if (held.up) ang -= 0.018;
+          if (held.down) ang += 0.018;
+          if (pressed.has('a')) { state = 'power'; pw = 0; pwDir = 1; }
+        } else if (state === 'power') {
+          pw += pwDir * 0.018;
+          if (pw >= 1) { pw = 1; pwDir = -1; }
+          if (pw <= 0) { pw = 0; pwDir = 1; }
+          if (!held.a) {
+            const v = 0.6 + pw * 6.4;
+            last = { x: ball.x, y: ball.y };
+            ball.vx = Math.cos(ang) * v; ball.vy = Math.sin(ang) * v;
+            strokes++; state = 'roll'; sfx('putt');
+          }
+        } else if (state === 'roll') {
+          const sp = Math.hypot(ball.vx, ball.vy), steps = Math.max(1, Math.ceil(sp / 1.5));
+          for (let i = 0; i < steps; i++) {
+            ball.x += ball.vx / steps; ball.y += ball.vy / steps;
+            for (const r of BOUNDS) collide(r);
+            for (const r of hole.walls) collide(r);
+          }
+          const [cx, cy] = hole.cup, dc = Math.hypot(ball.x - cx, ball.y - cy);
+          // the cup pulls a slow ball in; a fast one rolls right over it
+          if (dc < 9 && sp < 2.5) { ball.vx += (cx - ball.x) * 0.04; ball.vy += (cy - ball.y) * 0.04; }
+          if (dc < CUP && sp < 3.2) { sfx('cup'); finishHole(strokes); return; }
+          if (hole.water.some((r) => inRect(r, ball.x, ball.y))) {
+            sfx('splash'); strokes++; msg = 'Splash! +1 stroke';
+            Object.assign(ball, { x: last.x, y: last.y, vx: 0, vy: 0 });
+            state = 'wet'; t = 0; return;
+          }
+          const f = hole.sand.some((r) => inRect(r, ball.x, ball.y)) ? 0.9 : 0.983;
+          ball.vx *= f; ball.vy *= f;
+          if (Math.hypot(ball.vx, ball.vy) < 0.05) {
+            ball.vx = ball.vy = 0;
+            if (strokes >= MAX_STROKES) { msg = 'Picked up'; cards.push(MAX_STROKES); state = 'holed'; t = 0; return; }
+            state = 'aim';
+          }
+        } else if (state === 'wet') {
+          if (t > 50) state = strokes >= MAX_STROKES ? (cards.push(MAX_STROKES), msg = 'Picked up', t = 0, 'holed') : 'aim';
+        } else if (state === 'holed' && t > 80) {
+          if (++n < HOLES.length) startHole();
+          else {
+            state = 'done'; t = 0;
+            record = !best() || total() < best();
+            if (record) store.set('best.golf', total());
+            sfx('ding');
+          }
+        }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        const h = hole || HOLES[0];
+        text('Hole ' + Math.min(n + 1, HOLES.length) + '/' + HOLES.length + '  Par ' + h.par, 16, 10);
+        text('Strokes ' + strokes, 16, 22);
+        const tot = 'Total ' + total() + (cards.length ? ' (' + (total() - parSoFar() >= 0 ? '+' : '') + (total() - parSoFar()) + ')' : '');
+        text(tot, SW - 16 - tot.length * 6, 10);
+        const b = 'Best ' + (best() || '-');
+        text(b, SW - 16 - b.length * 6, 22);
+        // wooden rail around the course
+        ctx.fillStyle = col.dark; ctx.fillRect(FX - 8, FY - 8, FW + 16, FH + 16);
+        ctx.fillStyle = '#9a6434'; ctx.fillRect(FX - 7, FY - 7, FW + 14, FH + 14);
+        // mowed stripes
+        for (let x = 0; x < FW; x += 16) { ctx.fillStyle = (x >> 4) & 1 ? '#58a848' : '#68b858'; ctx.fillRect(FX + x, FY, Math.min(16, FW - x), FH); }
+        ctx.fillStyle = col.dark; ctx.fillRect(FX - 1, FY - 1, FW + 2, 1); ctx.fillRect(FX - 1, FY + FH, FW + 2, 1);
+        ctx.fillRect(FX - 1, FY, 1, FH); ctx.fillRect(FX + FW, FY, 1, FH);
+        for (const r of h.sand) {
+          ctx.fillStyle = '#e8d090'; ctx.fillRect(r.x, r.y, r.w, r.h);
+          ctx.fillStyle = '#c8b070';
+          for (let y = r.y + 3; y < r.y + r.h; y += 6) for (let x = r.x + ((y >> 1) % 6); x < r.x + r.w - 1; x += 7) ctx.fillRect(x, y, 1, 1);
+        }
+        for (const r of h.water) {
+          ctx.fillStyle = '#3878c8'; ctx.fillRect(r.x, r.y, r.w, r.h);
+          ctx.fillStyle = '#68a0f8';
+          for (let y = r.y + 6; y < r.y + r.h - 2; y += 10)
+            for (let x = r.x + 4 + ((y + (tick >> 3)) % 12); x < r.x + r.w - 6; x += 16) ctx.fillRect(x, y, 5, 1);
+        }
+        for (const r of h.walls) {
+          ctx.fillStyle = col.dark; ctx.fillRect(r.x, r.y, r.w, r.h);
+          ctx.fillStyle = '#9a6434'; ctx.fillRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+          ctx.fillStyle = '#c89058'; ctx.fillRect(r.x + 2, r.y + 1, 2, r.h - 2);
+        }
+        // cup and flag
+        const [cx, cy] = h.cup;
+        ctx.fillStyle = col.dark; ctx.fillRect(cx - 4, cy - 3, 9, 7); ctx.fillRect(cx - 3, cy - 4, 7, 9);
+        ctx.fillRect(cx, cy - 20, 1, 18);
+        ctx.fillStyle = '#f05040';
+        for (let i = 0; i < 5; i++) ctx.fillRect(cx + 1, cy - 20 + i, 8 - i * 2 + (i < 3 ? 2 : 0), 1);
+        if (ball && state !== 'holed') {
+          // aim line: dots get longer with power
+          if (state === 'aim' || state === 'power') {
+            const len = 14 + (state === 'power' ? pw * 50 : 10);
+            ctx.fillStyle = '#f8f8f8';
+            for (let d = 6; d < len; d += 4) ctx.fillRect(Math.round(ball.x + Math.cos(ang) * d), Math.round(ball.y + Math.sin(ang) * d), 1, 1);
+          }
+          ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(Math.round(ball.x) - 2, Math.round(ball.y) - 1, 5, 4);
+          ctx.fillStyle = col.dark; ctx.fillRect(Math.round(ball.x) - 3, Math.round(ball.y) - 2, 5, 3); ctx.fillRect(Math.round(ball.x) - 2, Math.round(ball.y) - 3, 3, 5);
+          ctx.fillStyle = '#f8f8f8'; ctx.fillRect(Math.round(ball.x) - 2, Math.round(ball.y) - 2, 3, 3);
+        }
+        if (state === 'power') {
+          text('POWER', 16, SH - 14);
+          ctx.fillStyle = col.dark; ctx.fillRect(50, SH - 15, 100, 9);
+          ctx.fillStyle = '#e8e8e8'; ctx.fillRect(51, SH - 14, 98, 7);
+          ctx.fillStyle = '#f0b030'; ctx.fillRect(51, SH - 14, Math.round(98 * pw), 7);
+        } else if (state === 'aim') text('Left/Right: aim  Space: putt', 16, SH - 14);
+        else if (state !== 'ready' && state !== 'done') text('Esc: give up', 16, SH - 14);
+        if (state === 'holed' || state === 'wet') { box(90, 110, 140, 30); ctext(msg, 121); }
+        if (state === 'ready') readyBox(t, 'Hold Space, let go to putt');
+        else if (state === 'done') {
+          const d = total() - parSoFar();
+          doneBox(['Round complete!', total() + ' strokes (' + (d === 0 ? 'E' : (d > 0 ? '+' : '') + d) + ')', record ? 'New record!' : 'Best ' + best()], t);
+        }
+      },
+    };
+    return self;
+  }
+
+  // ---------- Damir's game: Lights Out ----------
+  // The power is cut. Your flashlight is the only light; shadows creep closer
+  // whenever they're out of the beam and freeze while it's on them. Find three
+  // fuses and get them back to the breaker before they reach you.
+  function DarkGame() {
+    const AX = 8, AY = 32, AW = SW - 16, AH = SH - 40, SPEED = 1.4, CONE = 0.5, AMBIENT = 16;
+    const DESKS = [
+      { x: 56, y: 62, w: 52, h: 14 }, { x: 56, y: 172, w: 52, h: 14 }, { x: 148, y: 92, w: 14, h: 72 },
+      { x: 206, y: 50, w: 60, h: 14 }, { x: 206, y: 190, w: 60, h: 14 }, { x: 266, y: 104, w: 14, h: 50 },
+    ];
+    const SPOTS = [[86, 44], [86, 206], [126, 128], [186, 126], [236, 84], [236, 160], [298, 44], [298, 214], [130, 210], [190, 40]];
+    const BREAKER = { x: AX + 2, y: 118, w: 10, h: 18 };
+    const dark = document.createElement('canvas');
+    dark.width = SW; dark.height = SH;
+    const dctx = dark.getContext('2d');
+    const shuffled = SPOTS.slice().sort(() => Math.random() - 0.5);
+    const fuses = shuffled.slice(0, 3).map(([x, y]) => ({ x, y, got: false }));
+    const cells = shuffled.slice(3, 5).map(([x, y]) => ({ x, y, got: false }));
+    const me = { x: 30, y: 127, ang: 0, target: 0, dir: 'right', moving: false };
+    let state = 'intro', t = 0, time = 0, battery = 100, shadows = [], lights = 0, record = false, flicker = false;
+    const got = () => fuses.filter((f) => f.got).length;
+    const blocked = (x, y) => x < AX + 6 || x > AX + AW - 6 || y < AY + 4 || y > AY + AH - 2 ||
+      DESKS.some((d) => x > d.x - 5 && x < d.x + d.w + 5 && y > d.y - 2 && y < d.y + d.h + 6);
+    function spawnShadow() {
+      let x, y, tries = 0;
+      do { x = AX + 10 + Math.random() * (AW - 20); y = AY + 10 + Math.random() * (AH - 20); }
+      while (Math.hypot(x - me.x, y - me.y) < 130 && ++tries < 50);
+      shadows.push({ x, y, lit: 0, seed: Math.random() * 100 });
+    }
+    const beamLen = () => 44 + battery * 0.8;
+    function inBeam(x, y) {
+      if (flicker || battery <= 0) return false;
+      const dx = x - me.x, dy = y - me.y, d = Math.hypot(dx, dy);
+      if (d > beamLen()) return false;
+      let a = Math.atan2(dy, dx) - me.ang;
+      a = Math.atan2(Math.sin(a), Math.cos(a));
+      return Math.abs(a) < CONE + 6 / Math.max(d, 1);
+    }
+    const self = {
+      music: 'dark',
+      update() {
+        t++;
+        if (state === 'intro') { if (t > 150) { state = 'ready'; t = 0; } return; }
+        if (state === 'ready') {
+          if (t > 40 && (pressed.has('a') || pressed.has('b'))) { state = 'play'; t = 0; for (let i = 0; i < 3; i++) spawnShadow(); }
+          return;
+        }
+        if (state === 'caught' || state === 'win') {
+          if (state === 'win') lights = Math.min(1, lights + 0.02);
+          if (t > 90 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(state === 'win'
+              ? 'The lights flicker back on. Damir looks almost disappointed. "Not bad... for a first time."'
+              : 'Something cold grabs your shoulder... The lights come on. Damir is smiling. "Maybe next time."');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You fumble for the door and flee. Damir chuckles in the dark.'); return; }
+        time++;
+        // walking: eight directions, the flashlight swings to face where you're going
+        let vx = (held.right ? 1 : 0) - (held.left ? 1 : 0), vy = (held.down ? 1 : 0) - (held.up ? 1 : 0);
+        me.moving = !!(vx || vy);
+        if (me.moving) {
+          const len = Math.hypot(vx, vy);
+          vx = vx / len * SPEED; vy = vy / len * SPEED;
+          if (!blocked(me.x + vx, me.y)) me.x += vx;
+          if (!blocked(me.x, me.y + vy)) me.y += vy;
+          me.target = Math.atan2(vy, vx);
+          me.dir = Math.abs(vx) > Math.abs(vy) ? (vx > 0 ? 'right' : 'left') : (vy > 0 ? 'down' : 'up');
+        }
+        let da = me.target - me.ang;
+        da = Math.atan2(Math.sin(da), Math.cos(da));
+        me.ang += da * 0.25;
+        // the batteries run down, and the beam flickers when they're nearly flat
+        if (time % 30 === 0) battery = Math.max(0, battery - 1);
+        flicker = battery < 25 && Math.random() < (25 - battery) / 60;
+        for (const f of fuses) if (!f.got && Math.hypot(f.x - me.x, f.y - me.y) < 10) {
+          f.got = true; sfx('note', 3); spawnShadow();
+        }
+        for (const c of cells) if (!c.got && Math.hypot(c.x - me.x, c.y - me.y) < 10) {
+          c.got = true; battery = Math.min(100, battery + 40); sfx('swish');
+        }
+        if (got() === 3 && Math.hypot(BREAKER.x + 5 - me.x, BREAKER.y + 9 - me.y) < 16) {
+          state = 'win'; t = 0; sfx('ding');
+          const secs = Math.ceil(time / 60), best = +store.get('best.dark') || 0;
+          record = !best || secs < best;
+          if (record) store.set('best.dark', secs);
+          return;
+        }
+        // shadows creep while you're not looking, freeze in the beam, and melt away if you hold it on them
+        const speed = 0.38 + got() * 0.1;
+        for (const s of shadows) {
+          if (inBeam(s.x, s.y)) {
+            if (++s.lit > 75) { s.dead = true; sfx('splash'); }
+            continue;
+          }
+          s.lit = Math.max(0, s.lit - 1);
+          const dx = me.x - s.x, dy = me.y - s.y, d = Math.hypot(dx, dy) || 1;
+          s.x += dx / d * speed + Math.sin((time + s.seed * 10) / 20) * 0.2;
+          s.y += dy / d * speed + Math.cos((time + s.seed * 10) / 23) * 0.2;
+          if (d < 9) { state = 'caught'; t = 0; sfx('buzz'); return; }
+        }
+        const lost = shadows.filter((s) => s.dead).length;
+        shadows = shadows.filter((s) => !s.dead);
+        for (let i = 0; i < lost; i++) spawnShadow();
+      },
+      draw() {
+        if (state === 'intro') {
+          // the world fades to black, then Damir's question hangs there
+          ctx.fillStyle = 'rgba(0,0,0,' + Math.min(1, t / 60) + ')'; ctx.fillRect(0, 0, SW, SH);
+          if (t > 70) {
+            ctx.globalAlpha = Math.min(1, (t - 70) / 30);
+            ctext('Do you feel safe in the dark?', SH / 2 - 4, '#f8f8f8');
+            ctx.globalAlpha = 1;
+          }
+          return;
+        }
+        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, SW, SH);
+        if (state === 'ready') {
+          ctext('LIGHTS OUT', 50, '#f8f8f8');
+          ['Damir cut the power.', '', 'Find the 3 fuses and bring', 'them back to the breaker.', '',
+            'Things move in the dark.', 'Keep your flashlight on them', 'and they can\'t come closer.', '',
+            'Arrows: walk and aim'].forEach((l, i) => ctext(l, 74 + i * 12, '#c8ccd8'));
+          if (t > 40 && (tick >> 4) & 1) ctext('Press Space', 206, '#f8f8f8');
+          return;
+        }
+        // the office, which you mostly can't see
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(AX, AY, AW, AH);
+        ctx.fillStyle = '#a4acc4';
+        for (let y = AY + 4; y < AY + AH; y += 8) for (let x = AX + ((y >> 3) & 1) * 4 + 2; x < AX + AW; x += 8) ctx.fillRect(x, y, 1, 1);
+        for (const d of DESKS) {
+          ctx.fillStyle = col.dark; ctx.fillRect(d.x, d.y, d.w, d.h);
+          ctx.fillStyle = '#c89058'; ctx.fillRect(d.x + 1, d.y + 1, d.w - 2, d.h - 3);
+        }
+        ctx.fillStyle = col.dark; ctx.fillRect(BREAKER.x, BREAKER.y, BREAKER.w, BREAKER.h);
+        ctx.fillStyle = '#8890a0'; ctx.fillRect(BREAKER.x + 1, BREAKER.y + 1, BREAKER.w - 2, BREAKER.h - 2);
+        for (const f of fuses) if (!f.got) {
+          ctx.fillStyle = col.dark; ctx.fillRect(f.x - 2, f.y - 4, 5, 9);
+          ctx.fillStyle = '#f0d060'; ctx.fillRect(f.x - 1, f.y - 3, 3, 7);
+          ctx.fillStyle = '#c8ccd8'; ctx.fillRect(f.x - 1, f.y - 3, 3, 1); ctx.fillRect(f.x - 1, f.y + 3, 3, 1);
+        }
+        for (const c of cells) if (!c.got) {
+          ctx.fillStyle = col.dark; ctx.fillRect(c.x - 4, c.y - 2, 8, 5);
+          ctx.fillStyle = '#58b058'; ctx.fillRect(c.x - 3, c.y - 1, 5, 3); ctx.fillRect(c.x + 3, c.y, 1, 1);
+        }
+        // shadows: only visible where the light falls on them
+        for (const s of shadows) {
+          const x = Math.round(s.x), y = Math.round(s.y), wob = (tick >> 3) & 1;
+          ctx.fillStyle = '#201028';
+          ctx.fillRect(x - 5, y - 10, 10, 14); ctx.fillRect(x - 4, y - 12, 8, 2);
+          for (let i = 0; i < 5; i++) ctx.fillRect(x - 5 + i * 2, y + 4, 1, 2 + ((i + wob) & 1));
+          ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x - 3, y - 7, 2, 2); ctx.fillRect(x + 1, y - 7, 2, 2);
+        }
+        ctx.drawImage(sprites[me.dir][me.moving ? ((time >> 3) & 1 ? 1 : 2) : 0], Math.round(me.x) - 8, Math.round(me.y) - 14);
+        // darkness with the flashlight cut out of it
+        const L = 1 - lights;
+        if (L > 0) {
+          dctx.globalCompositeOperation = 'source-over';
+          dctx.clearRect(0, 0, SW, SH);
+          dctx.fillStyle = 'rgba(0,0,0,' + L + ')'; dctx.fillRect(AX, AY, AW, AH);
+          dctx.globalCompositeOperation = 'destination-out';
+          const glow = dctx.createRadialGradient(me.x, me.y, 2, me.x, me.y, AMBIENT);
+          glow.addColorStop(0, 'rgba(0,0,0,0.75)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
+          dctx.fillStyle = glow; dctx.fillRect(me.x - AMBIENT, me.y - AMBIENT, AMBIENT * 2, AMBIENT * 2);
+          if (!flicker && battery > 0 && state === 'play') {
+            const len = beamLen();
+            const g = dctx.createRadialGradient(me.x, me.y, 4, me.x, me.y, len);
+            g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.7, 'rgba(0,0,0,0.85)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+            dctx.fillStyle = g;
+            dctx.beginPath(); dctx.moveTo(me.x, me.y);
+            dctx.arc(me.x, me.y, len, me.ang - CONE, me.ang + CONE); dctx.closePath(); dctx.fill();
+          }
+          ctx.drawImage(dark, 0, 0);
+          // things you can make out even in the dark: eyes, the breaker's LED, a fuse's glint
+          for (const s of shadows) {
+            if (inBeam(s.x, s.y) || ((tick + s.seed * 7) % 140) < 8) continue; // they blink
+            ctx.fillStyle = '#e03030';
+            ctx.fillRect(Math.round(s.x) - 3, Math.round(s.y) - 7, 1, 1); ctx.fillRect(Math.round(s.x) + 2, Math.round(s.y) - 7, 1, 1);
+          }
+          if ((tick >> 5) & 1) { ctx.fillStyle = got() === 3 ? '#58e048' : '#f05040'; ctx.fillRect(BREAKER.x + 4, BREAKER.y + 3, 2, 2); }
+          fuses.forEach((f, i) => {
+            if (!f.got && (tick + i * 47) % 160 < 4) { ctx.fillStyle = '#f8f0a0'; ctx.fillRect(f.x, f.y - 1, 1, 1); }
+          });
+        }
+        // HUD
+        text('Fuses ' + got() + '/3', 12, 8, 1, '#f8f8f8');
+        text('Light', 96, 8, 1, '#f8f8f8');
+        ctx.fillStyle = '#585868'; ctx.fillRect(128, 8, 62, 7);
+        ctx.fillStyle = battery < 25 ? '#f05040' : '#f0d060'; ctx.fillRect(129, 9, Math.round(60 * battery / 100), 5);
+        const secs = Math.ceil(time / 60), best = +store.get('best.dark') || 0;
+        const tm = secs + 's' + (best ? '  Best ' + best + 's' : '');
+        text(tm, SW - 12 - tm.length * 6, 8, 1, '#f8f8f8');
+        if (got() === 3 && state === 'play') text('Back to the breaker!', 12, 20, 1, '#58e048');
+        else if (state === 'play') text('Esc: run away', 12, 20, 1, '#8890a0');
+        if (state === 'caught') {
+          ctx.fillStyle = 'rgba(80,0,0,' + Math.min(0.85, t / 40) + ')'; ctx.fillRect(0, 0, SW, SH);
+          if (t > 40) { ctext('IT FOUND YOU', 100, '#f8f8f8'); if (t > 90 && (tick >> 4) & 1) ctext('Press Space', 140, '#f8f8f8'); }
+        } else if (state === 'win' && t > 40) {
+          doneBox(['The lights are back on!', 'Time: ' + secs + 's', record ? 'New record!' : 'Best ' + best + 's'], t - 60);
+        }
+      },
+    };
+    return self;
+  }
+
   function openStartMenu() {
     sfx('menu');
-    const labels = () => ['MAP', soundOn ? 'SOUND ON' : 'SOUND OFF', 'CLOSE'];
+    const labels = () => ['MAP', soundOn ? 'SOUND ON' : 'SOUND OFF', musicOn ? 'MUSIC ON' : 'MUSIC OFF', 'CLOSE'];
     const menu = Choice(labels(), -1, 0, (i, self) => {
       if (i === 0) ui.push(MapView());
       else if (i === 1) {
         soundOn = !soundOn; store.set('sound', soundOn ? 'on' : 'off');
         self.options = labels();
         sfx('select');
+      } else if (i === 2) {
+        musicOn = !musicOn; store.set('music', musicOn ? 'on' : 'off');
+        self.options = labels();
+        sfx('select');
       } else remove(self);
-    }, { keepOpen: true, startCloses: true });
+    }, { keepOpen: true, startCloses: true, minChars: 9 });
     ui.push(menu);
   }
 
@@ -1176,8 +2108,6 @@
     M: ['A humming machine. Better not touch it.'],
     n: ['A sink. The water is freezing!'],
     w: ['It\'s a toilet. Nothing to see here.'],
-    f: ['A fridge. One lunch is labelled DO NOT EAT.'],
-    x: ['The photocopier blinks: PC LOAD LETTER'],
     T: ['A big table. Good for meetings.'],
     z: ['A server rack. The fans are roaring.', 'Rows of blinking lights. Something is definitely computing.'],
     y: ['A rack of computers crunching numbers.'],
@@ -1187,7 +2117,6 @@
     g: ['Shelves stocked with chips, granola bars and pop. Snack heaven!'],
     W: ['A washing machine. Someone left their gym towels in it.'],
     O: ['A dryer. Still warm.'],
-    A: ['A squat rack loaded with heavy plates. Not today.'],
     N: ['A row of lockers. Most of them are locked.'],
     I: ['A lat pulldown machine.'],
     e: ['A rack of dumbbells, neatly sorted by weight.'],
@@ -1201,9 +2130,7 @@
     J: ['A heap of old monitors and computer towers.'],
     F: ['A big air handling fan. It hums loudly.'],
     R: ['The reception computer. The visitor log is open.'],
-    Z: ['A table full of candy! You sneak one. Shh...'],
     L: ['A cooling coil. Cold air is blowing off it.'],
-    K: ['An electrical control panel full of blinking lights.', 'A panel of switches. Best not to flip any.'],
     Q: ['A TV for video calls. The remote is missing.'],
     U: ['Cupboards stocked with paper, pens and sticky notes.', 'Boxes of staples, binder clips and printer paper.'],
     Y: ['A printer. It\'s out of toner. Again.', 'The printer is warming up...'],
@@ -1211,7 +2138,7 @@
 
   // ---------- player / world ----------
   const S0 = MAPS.start;
-  const P = { floor: S0.floor, x: S0.x, y: S0.y, dir: S0.dir, moving: false, prog: 0, mdx: 0, mdy: 0, speed: 1, step: 0, turnWait: 0, walked: false, bump: 0 };
+  const P = { floor: S0.floor, x: S0.x, y: S0.y, dir: S0.dir, moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, turnWait: 0, walked: false, bump: 0 };
   let mode = 'title', tick = 0, roomName = null, curRoom = null, banner = null;
   let fade = null; // {t, cb}
 
@@ -1272,7 +2199,7 @@
     const blocked = genderBlock(P.x + dx, P.y + dy, dx, dy);
     if (blocked) { P.walked = false; say(blocked); return; }
     if (walkable(P.floor, P.x + dx, P.y + dy) && !npcAt(P.floor, P.x + dx, P.y + dy)) {
-      Object.assign(P, { moving: true, prog: 0, mdx: dx, mdy: dy, speed: held.b ? 2 : 1, bump: 0 });
+      Object.assign(P, { moving: true, prog: 0, mdx: dx, mdy: dy, bump: 0 });
       P.step ^= 1;
     } else {
       if (P.bump % 24 === 0) sfx('bump');
@@ -1288,6 +2215,7 @@
     if (npc) {
       if (!npc.moving) npc.dir = OPPOSITE[P.dir];
       sfx('select');
+      if (npc.name === 'Damir') { say('Do you feel safe in the dark?', () => ui.push(DarkGame())); return; }
       say(npc.lines[Math.floor(Math.random() * npc.lines.length)]);
       return;
     }
@@ -1317,9 +2245,15 @@
     }
     const GAMES = {
       G: ['A punching bag. Want to throw a few?', 'PUNCH IT', PunchGame],
+      i: ['Wade\'s putting green. He practises between meetings.', 'PLAY GOLF', GolfGame],
+      A: ['A squat rack loaded with heavy plates.', 'LIFT IT', SquatGame],
       q: ['A treadmill. Maybe after work...', 'GO FOR A RUN', RunGame],
       V: ['A big TV. Someone left the news on.', 'PLAY PONG', PongGame],
       v: ['A recycling bin. Crumpled paper everywhere around it...', 'CLEAN UP', TossGame],
+      x: ['The photocopier blinks: PC LOAD LETTER', 'MAKE COPIES', StackGame],
+      K: ['An electrical control panel full of blinking lights.', 'PRESS BUTTONS', SimonGame],
+      f: ['A fridge. One lunch is labelled DO NOT EAT.', 'FIND MY LUNCH', LunchGame],
+      Z: ['A table full of candy! Nobody is watching...', 'SNEAK ONE', CandyGame],
     };
     if (GAMES[t]) {
       const [msg, opt, Game] = GAMES[t];
@@ -1343,7 +2277,7 @@
 
   function updatePlayer() {
     if (P.moving) {
-      P.prog += P.speed;
+      P.prog += 2; // always at running pace
       if (P.prog < 16) return;
       P.moving = false; P.prog = 0;
       P.x += P.mdx; P.y += P.mdy;
@@ -1381,6 +2315,7 @@
       updateNpcs();
     }
     if (banner && ++banner.t > 150) banner = null;
+    playMusic(pickMusic());
     pressed.clear();
   }
 
@@ -1441,6 +2376,15 @@
     if (w > 0 && h > 0) ctx.drawImage(cv, sx, sy, w, h, dx, dy, w, h);
     if (curtainOpen === P.floor)
       for (const c of curtains[P.floor]) ctx.drawImage(c.open, c.x * 16 - cx, c.y * 16 - cy);
+    for (const k of panels[P.floor]) {
+      const x = k.x * 16 - cx, y = k.y * 16 - cy;
+      if (x < -16 || x > SW || y < -16 || y > SH) continue;
+      PANEL_LIGHTS.forEach((c, i) => {
+        // each light blinks at its own pace, offset per panel so they don't sync up
+        if (((tick >> 4) * (i + 1) + k.x * 7 + k.y * 13 + i * 5) % 3 === 0) return;
+        ctx.fillStyle = c; ctx.fillRect(x + 4 + i * 3, y + 3, 2, 2);
+      });
+    }
     // people, drawn back to front so nearer ones overlap farther ones
     const actors = [{ x: px, y: py, img: sprites[P.dir][frameIndex()] }];
     for (const n of npcs) {
@@ -1524,7 +2468,7 @@
   addEventListener('resize', layout);
   addEventListener('orientationchange', layout);
 
-  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|coffee)
+  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee)
   if (location.hash.startsWith('#play')) {
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
@@ -1536,7 +2480,7 @@
     if (q.has('say')) ask('The elevator. Which floor?', ['GROUND', '2F', 'CANCEL'], () => {});
     if (q.has('menu')) openStartMenu();
     if (q.has('map')) ui.push(MapView());
-    const GAME = { coffee: CoffeeGame, punch: PunchGame, run: RunGame, pong: PongGame, toss: TossGame }[q.get('game')];
+    const GAME = { coffee: CoffeeGame, punch: PunchGame, run: RunGame, pong: PongGame, toss: TossGame, stack: StackGame, simon: SimonGame, lunch: LunchGame, candy: CandyGame, squat: SquatGame, golf: GolfGame, dark: DarkGame }[q.get('game')];
     if (GAME) ui.push(GAME());
   }
 

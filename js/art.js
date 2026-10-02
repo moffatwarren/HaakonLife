@@ -410,22 +410,23 @@ window.Art = (function () {
       '................',
       '................',
     ],
+    // Status lights at (4,3), (7,3), (10,3) are drawn dark here; game.js blinks them.
     panel: [
-      '..kkkkkkkkkkkk..',
-      '..kGGGGGGGGGGk..',
-      '..kGkkkkkkkkGk..',
-      '..kGkEkRkokkGk..',
-      '..kGkkkkkkkkGk..',
-      '..kGGGGGGGGGGk..',
-      '..kGKKGKKGKKGk..',
-      '..kGKwGKwGKwGk..',
-      '..kGKKGKKGKKGk..',
-      '..kGGGGGGGGGGk..',
-      '..kGkkkkkkkkGk..',
-      '..kGkiiiUiikGk..',
-      '..kGkkkkkkkkGk..',
-      '..kGGGGGoGGGGk..',
-      '..kkkkkkkkkkkk..',
+      '.kkkkkkkkkkkkkk.',
+      '.kGGGGGGGGGGGGk.',
+      '.kGkkkkkkkkkkGk.',
+      '.kGkKKkKKkKKkGk.',
+      '.kGkKKkKKkKKkGk.',
+      '.kGkkkkkkkkkkGk.',
+      '.kGGGGGGGGGGGGk.',
+      '.kGKKGGKKGGKKGk.',
+      '.kGKwGGKwGGKwGk.',
+      '.kGKKGGKKGGKKGk.',
+      '.kGGGGGGGGGGGGk.',
+      '.kGkkkkkkkkkkGk.',
+      '.kGkiiiiUiiikGk.',
+      '.kGkkkkkkkkkkGk.',
+      '.kkkkkkkkkkkkkk.',
       '................',
     ],
     candy: [
@@ -918,6 +919,27 @@ window.Art = (function () {
     rect(b, t === 'V' ? 15 : 0, 7, 1, 2, 'K');
   }
 
+  // Putting green: striped turf with a dark edge, a flag in the top-right
+  // tile and a ball waiting in the bottom-left one.
+  function paintGreen(b, get, x, y) {
+    const l = get(x - 1, y) === 'i', r = get(x + 1, y) === 'i', u = get(x, y - 1) === 'i', d = get(x, y + 1) === 'i';
+    const x0 = l ? 0 : 1, x1 = r ? 16 : 15, y0 = u ? 0 : 1, y1 = d ? 16 : 15;
+    rect(b, x0, y0, x1 - x0, y1 - y0, 'e');
+    const ix0 = l ? 0 : 2, ix1 = r ? 16 : 14, iy0 = u ? 0 : 2, iy1 = d ? 16 : 14;
+    for (let j = iy0; j < iy1; j++) rect(b, ix0, j, ix1 - ix0, 1, ((y * 16 + j) >> 2) & 1 ? 'l' : 'E');
+    let ix = 0, iy = 0;
+    while (get(x - 1 - ix, y) === 'i') ix++;
+    while (get(x, y - 1 - iy) === 'i') iy++;
+    if (iy === 0 && !r) {
+      rect(b, 8, 11, 5, 3, 'k'); rect(b, 9, 10, 3, 5, 'k');   // hole
+      rect(b, 10, 2, 1, 10, 'k');                             // pole
+      rect(b, 11, 2, 4, 1, 'r'); rect(b, 11, 3, 3, 1, 'r'); rect(b, 11, 4, 2, 1, 'r');
+    }
+    if (!d && ix === 0) {
+      rect(b, 6, 6, 3, 3, 'w'); set(b, 7, 9, 'e'); set(b, 8, 9, 'e');  // ball + shadow
+    }
+  }
+
   // Squat rack: uprights at the ends, barbell with plates across the middle.
   function paintSquatRack(b, get, x, y) {
     const l = get(x - 1, y) === 'A', r = get(x + 1, y) === 'A';
@@ -1041,6 +1063,7 @@ window.Art = (function () {
       case 'N': stamp(b, ART.locker); break;
       case 'I': stamp(b, ART.pulldown); break;
       case 'A': paintSquatRack(b, get, x, y); break;
+      case 'i': paintGreen(b, get, x, y); break;
       case 'e': block(b, con('e'), 'g', 'K', 'G'); stamp(b, ART.dumbbells); break;
       case 'F': stamp(b, ART.fan); break;
       case 'L': stamp(b, ART.coil); break;

@@ -19,6 +19,7 @@ Map glyphs
              W washer  O dryer  A squat rack  G punching bag  N locker
              I lat pulldown machine  e dumbbell rack  g shelf of snacks  l railing
              z server rack  y rack of computers  u stretcher  t trophy shelf
+             i putting green
              P coffee machine (two tiles tall)  C curtain (opened from the game; closes when you leave the room)
   walkable:  j computer parts scattered on the floor
 
@@ -151,6 +152,8 @@ f1.room('Instrument Room 168', 15, 4, 26, 10)
 f1.vline(27, 3, 16); f1.hline(14, 27, 11); f1.door((17, 11), (18, 11))
 f1.fill(15, 4, 26, 4, 'b'); f1.fill(17, 4, 18, 4, '.')  # keep the exit clear
 f1.fill(19, 7, 24, 7, 'k'); f1.put(21, 7, 'M'); f1.put(23, 7, 'M')
+for x in (20, 22, 24):
+    f1.put(x, 4, 'K')                           # electrical panels between the shelves
 
 f1.vline(19, 11, 16)
 f1.room('Shower Room', 20, 12, 26, 15, ':')
@@ -188,9 +191,9 @@ f1.fill(42, 15, 45, 15, 'k'); f1.put(45, 15, 'f'); f1.fill(50, 15, 53, 15, 'b')
 f1.put(41, 4, 'p'); f1.put(60, 4, 'p')
 # air handling gear along the top and bottom walls, TV on the right wall
 for x in range(42, 60):
-    f1.put(x, 4, 'FLKLFLLKFLFKLLFKLF'[x - 42])
+    f1.put(x, 4, 'FLLLFLLFFLFLLLFFLF'[x - 42])
 for x in range(54, 61):
-    f1.put(x, 15, 'KFLLFKF'[x - 54])
+    f1.put(x, 15, 'LFLLFLF'[x - 54])
 f1.fill(60, 6, 60, 13, 'V')
 
 # --- offices east of boardroom ---
@@ -299,6 +302,8 @@ f1.hline(51, 55, 25); f1.vline(51, 25, 28)
 f1.room('Storage', 52, 26, 54, 28); f1.door((51, 27))
 f1.fill(52, 26, 54, 26, 'g'); f1.fill(54, 27, 54, 28, 'g')  # snack shelves
 f1.fill(56, 37, 59, 37, 'M'); f1.fill(56, 26, 57, 26, 'b')
+for y in (29, 31, 33, 35):
+    f1.put(56, y, 'K')                          # electrical panels down the left wall
 f1.office('149 Troy', 61, 31, 65, 37, 'N'); f1.door((61, 30), (62, 30))
 f1.office('163 Eugene', 67, 31, 72, 37, 'N'); f1.door((67, 30), (68, 30))
 f1.office('108 Damir', 74, 31, 79, 37, 'N'); f1.door((74, 30), (75, 30))
@@ -480,6 +485,7 @@ f2.hline(30, 42, 19); f2.hline(30, 42, 26)
 for x in (33, 37, 42):
     f2.vline(x, 19, 26)
 f2.room('Electrical', 31, 20, 32, 25); f2.door((32, 19)); f2.fill(31, 25, 32, 25, 'M')
+f2.fill(31, 21, 31, 23, 'K')  # electrical panels
 f2.office('126 Zin', 34, 20, 36, 25, 'N'); f2.door((35, 19))
 f2.fill(36, 22, 36, 25, 'd')  # L-shaped desk up the right wall
 f2.office('133 Jules', 38, 20, 41, 25, 'N'); f2.door((39, 19), (40, 19))
@@ -559,6 +565,7 @@ f2.office('147 STEPHEN', 37, 30, 44, 35, 'N'); f2.door((43, 29), (44, 29))
 f2.office('145 Dave', 46, 30, 54, 35, 'N'); f2.door((46, 29), (47, 29))
 f2.office('144 Desirae', 56, 30, 63, 35, 'N'); f2.door((56, 29), (57, 29))
 f2.office('137 Wade', 65, 30, 71, 35, 'N'); f2.door((65, 29), (66, 29))
+f2.fill(65, 31, 66, 35, 'i')  # Wade's putting green
 f2.office('182 Jillian', 73, 30, 78, 35, 'N'); f2.door((73, 29), (74, 29))
 f2.office('119 Kim', 80, 30, 87, 35, 'N'); f2.door((80, 29), (81, 29))
 f2.office('143 Matthew', 89, 30, 95, 35, 'N'); f2.door((89, 29), (90, 29))
