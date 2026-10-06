@@ -990,7 +990,7 @@ window.OFFICE_MAPS = {
      "y2": 35
     },
     {
-     "name": "182 Jillian",
+     "name": "182 Visitor",
      "x1": 73,
      "y1": 30,
      "x2": 78,

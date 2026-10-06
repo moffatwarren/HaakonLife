@@ -5,6 +5,20 @@
 //   lines: what they say when you talk to them (one is picked at random).
 //          Leave it empty to use the generic greetings.
 // Body types are a best guess from each name; colours are random placeholders.
+// Office 182 is the visitor office: a different random man or woman every
+// time the game is launched.
+function visitor() {
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  return {
+    body: pick(['male', 'female']),
+    hair: pick(['#181010', '#201818', '#5a3420', '#6a3c20', '#8a5a3a', '#d06030', '#e8c050', '#a8a8b0']),
+    skin: pick(['#f8d8b8', '#f8d0a8', '#f0c098', '#d8a070', '#c08860', '#8a5838']),
+    top: pick(['#e07898', '#b83028', '#40a0a0', '#58a848', '#3868c8', '#f8f8f8', '#78a8e8', '#f0b030', '#9868c8', '#808898']),
+    accent: pick(['#f8e070', '#d03868', '#2c6a34', '#f0b030', '#f8f8f8', '#b83028', '#3050a8', '#283878']),
+    pants: pick(['#303040', '#383848', '#484858', '#686878', '#b09870', '#3a3050']),
+    lines: ["I am just visiting"],
+  };
+}
 window.PEOPLE = {
   // ---- Ground floor ----
   "Kiki": { body: 'female', hair: '#201818', skin: '#d8a070', top: '#e07898', accent: '#f8e070', pants: '#303040', lines: ["Welcome to Richmond! Help yourself to some candy."] },
@@ -60,7 +74,7 @@ window.PEOPLE = {
   "Dave": { body: 'male', hair: '#a8a8b0', skin: '#f0c098', top: '#e07898', accent: '#f8e070', pants: '#383848', lines: [] },
   "Desirae": { body: 'female', hair: '#181010', skin: '#f8d0a8', top: '#f8f8f8', accent: '#f0b030', pants: '#303040', lines: [] },
   "Wade": { body: 'male', hair: '#181010', skin: '#f0c098', top: '#78a8e8', accent: '#283878', pants: '#303040', lines: [] },
-  "Jillian": { body: 'female', hair: '#201818', skin: '#f0c098', top: '#9868c8', accent: '#2c6a34', pants: '#686878', lines: [] },
+  "Visitor": visitor(),
   "Kim": { body: 'female', hair: '#201818', skin: '#8a5838', top: '#3868c8', accent: '#283878', pants: '#b09870', lines: [] },
   "Matthew": { body: 'male', hair: '#5a3420', skin: '#f0c098', top: '#f0b030', accent: '#d03868', pants: '#b09870', lines: [] },
   "Richard": { body: 'male', hair: '#201818', skin: '#c08860', top: '#b83028', accent: '#f8f8f8', pants: '#303040', lines: [] },
