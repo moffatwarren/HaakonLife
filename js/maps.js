@@ -877,7 +877,8 @@ window.OFFICE_MAPS = {
      "y1": 16,
      "x2": 85,
      "y2": 19,
-     "parent": "Open Office"
+     "parent": "Open Office",
+     "computer": "blackjack"
     },
     {
      "name": "167 Leo",
