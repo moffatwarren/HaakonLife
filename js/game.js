@@ -5627,6 +5627,13 @@
     ctx.drawImage(charSprites.male[0].down[(tick >> 4) & 1 ? 1 : 2], (SW >> 1) - 36, t0 + 70, 32, 32);
     ctx.drawImage(charSprites.female[0].down[(tick >> 4) & 1 ? 2 : 1], (SW >> 1) + 4, t0 + 70, 32, 32);
     if ((tick >> 5) & 1) text('PRESS ENTER', (SW - 11 * 6) >> 1, t0 + 118);
+    // when this version was published (set by the loader in index.html), so you can
+    // tell whether your phone has the latest
+    if (window.GAME_VERSION) {
+      const d = window.GAME_VERSION, pad = (n) => String(n).padStart(2, '0');
+      const v = 'Updated ' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      text(v, (SW - v.length * 6) >> 1, SH - 20, 1, '#8890a0');
+    }
   }
 
   function draw() {
