@@ -87,10 +87,12 @@ see her, and she's finally free: she rises up a beam of light and floats away.
 
 ## Employee of the Month
 
-Help out every coworker who has a challenge for you. Beat each one below and
-Kiki at reception names you **Employee of the Month**, with your picture on an
-easel by the front entrance and the name you entered at the start. Like the
-list, it isn't saved.
+Talk to Kiki at reception and she hands you a list of the coworkers who could
+use a hand (anyone you've already beaten comes pre-ticked). Like Linda's list,
+you can read it from the Start menu and each one ticks itself off as you win.
+Beat them all and Kiki names you **Employee of the Month**, with your picture on
+an easel by the front entrance and the name you entered at the start. Like
+Linda's list, it isn't saved.
 
 - **Nathan** (office 115): grab the trophy he names off a crowded shelf, before the sweeping hand runs away with you (get 8)
 - **Wade** (2nd floor, office 137): a three-hole putting grudge match (win it)
@@ -108,7 +110,8 @@ For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,
 `&quest=done` finished), `&name=Sam` sets your name, and `game=locker`, `list`
 or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
 and `&stapler=near` puts it right in front of you. `&helped=5` counts the
-first 5 coworkers as helped, and `&eotm=1` hands you the award.
+first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gives you Kiki's list, and
+`game=kiki` opens it.
 
 `tools/shot.sh out.png "play&game=snake&ticks=60"` screenshots a game headlessly
 (it uses `tools/test.html`, which stubs the audio and can pin `Math.random` with

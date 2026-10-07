@@ -4935,9 +4935,10 @@
 
   function openStartMenu() {
     sfx('menu');
-    // Linda's list shows up in the menu once you've taken it out of the locker
+    // Linda's and Kiki's lists show up in the menu once you've got them
     const items = () => [['MAP', () => ui.push(MapView())]]
       .concat(quest ? [['LINDA\'S LIST', () => ui.push(LindaList())]] : [])
+      .concat(kikiList ? [['KIKI\'S LIST', () => ui.push(KikiList())]] : [])
       .concat([
         [soundOn ? 'SOUND ON' : 'SOUND OFF', (self) => { soundOn = !soundOn; store.set('sound', soundOn ? 'on' : 'off'); self.options = items().map((o) => o[0]); sfx('select'); }],
         [musicOn ? 'MUSIC ON' : 'MUSIC OFF', (self) => { musicOn = !musicOn; store.set('music', musicOn ? 'on' : 'off'); self.options = items().map((o) => o[0]); sfx('select'); }],
@@ -5119,22 +5120,26 @@
   // everyone's been helped, Kiki at reception hands you the award and your picture goes
   // up by the front entrance. Not saved, like Linda's list.
   const COWORKERS = [
-    { name: 'Nathan', key: 'trophy', need: 8, thanks: 'Nathan grudgingly admits you know your trophies.' },
-    { name: 'Wade', key: 'wade', need: 2, thanks: 'Wade shakes your hand. He is already planning the rematch.' },
-    { name: 'Kiki', key: 'jar', need: 2, thanks: 'Kiki is impressed. Nobody out-guesses her at the candy jar.' },
-    { name: 'Jhonna', key: 'forms', need: 15, thanks: 'Jhonna can finally close that Manulife ticket.' },
-    { name: 'Richard', key: 'battle', need: 1, thanks: 'Richard bows. Your air handling knowledge is sound.' },
-    { name: 'Damir', key: 'dark', need: 1, thanks: 'Damir feels safe in the dark again, thanks to you.' },
+    { name: 'Nathan', task: 'Grab 8 of Nathan\'s trophies', key: 'trophy', need: 8, thanks: 'Nathan grudgingly admits you know your trophies.' },
+    { name: 'Wade', task: 'Beat Wade at putting', key: 'wade', need: 2, thanks: 'Wade shakes your hand. He is already planning the rematch.' },
+    { name: 'Kiki', task: 'Beat me at the candy jar', key: 'jar', need: 2, thanks: 'Kiki is impressed. Nobody out-guesses her at the candy jar.' },
+    { name: 'Jhonna', task: 'Fill in 15 of Jhonna\'s fields', key: 'forms', need: 15, thanks: 'Jhonna can finally close that Manulife ticket.' },
+    { name: 'Richard', task: 'Win Richard\'s air duel', key: 'battle', need: 1, thanks: 'Richard bows. Your air handling knowledge is sound.' },
+    { name: 'Damir', task: 'Fix the lights in Damir\'s office', key: 'dark', need: 1, thanks: 'Damir feels safe in the dark again, thanks to you.' },
   ];
   const helped = new Set();
   let eotm = false; // Kiki has given you the award
+  let kikiList = false; // Kiki has handed you her list
   function coworkerNote(key, value) {
     for (const c of COWORKERS) {
       if (helped.has(c.name) || c.key !== key || !(value >= c.need)) continue;
       helped.add(c.name);
       questQueue.push(c.thanks);
-      if (helped.size < COWORKERS.length) {
-        questQueue.push('Word gets around. Help everyone out and you might make Employee of the Month. (' + helped.size + ' of ' + COWORKERS.length + ' helped)');
+      const left = COWORKERS.length - helped.size;
+      if (left && kikiList) {
+        questQueue.push('"' + c.task + '" gets ticked off Kiki\'s list! (' + left + ' to go)');
+      } else if (left) {
+        questQueue.push('Word gets around. Kiki at reception keeps track of who has helped who...');
       } else {
         questQueue.push('You\'ve helped everyone in the office! Kiki at reception wants a word.');
       }
@@ -5217,13 +5222,14 @@
     return self;
   }
 
-  // Linda's list on old lined paper, crossed off as you go. first: just taken out.
-  function LindaList(first) {
+  // A list on old lined paper, ticked and crossed off as you go. Used for Linda's list
+  // and Kiki's Employee of the Month list. first: just handed over, with what to say then.
+  function PaperList(title, items, sign, footer, first) {
     const self = {
       update() {
         if (pressed.has('a') || pressed.has('b') || pressed.has('start')) {
           sfx('select'); remove(self);
-          if (first) say('It\'s signed "Linda". You fold it into your pocket. (Read it again any time from the Start menu.)');
+          if (first) say(first);
         }
       },
       draw() {
@@ -5233,9 +5239,11 @@
         ctx.fillStyle = '#f4ecd0'; ctx.fillRect(X, Y, W, H);
         ctx.fillStyle = '#b8d0e8'; for (let y = Y + 40; y < Y + H - 8; y += 20) ctx.fillRect(X + 4, y + 11, W - 8, 1);
         ctx.fillStyle = '#e8a0a0'; ctx.fillRect(X + 24, Y + 4, 1, H - 8);
-        text('THINGS I NEVER GOT TO DO', X + 58, Y + 12, 1, '#a03030');
-        ctx.fillStyle = '#a03030'; ctx.fillRect(X + 58, Y + 21, 143, 1);
-        quest.tasks.forEach((task, i) => {
+        const tx0 = X + 24 + ((W - 24 - title.length * 6) >> 1);
+        text(title, tx0, Y + 12, 1, '#a03030');
+        ctx.fillStyle = '#a03030'; ctx.fillRect(tx0, Y + 21, title.length * 6 - 1, 1);
+        const list = items();
+        list.forEach((task, i) => {
           const y = Y + 40 + i * 20, tx = X + 34;
           // the box, ticked once done
           ctx.fillStyle = INK; ring(X + 8, y + 1, 9, 9);
@@ -5247,17 +5255,25 @@
             ctx.fillRect(X + 9, y + 5, 2, 2); ctx.fillRect(X + 11, y + 7, 2, 2); ctx.fillRect(X + 13, y + 5, 2, 2); ctx.fillRect(X + 15, y + 3, 2, 2); ctx.fillRect(X + 17, y + 1, 2, 2);
           }
         });
-        const doneN = quest.tasks.filter((x) => x.done).length;
-        text(doneN + '/' + quest.tasks.length + ' done', X + 34, Y + H - 18, 1, '#7080b0');
-        if (quest.complete) {
-          const note = stapler.found ? 'Thank you. I can rest now.' : 'Now... where is my stapler?';
-          text(note, X + W - 10 - note.length * 6, Y + H - 30, 1, '#c03030');
-        }
-        text('- Linda', X + W - 50, Y + H - 18, 1, INK);
+        const doneN = list.filter((x) => x.done).length;
+        text(doneN + '/' + list.length + ' done', X + 34, Y + H - 18, 1, '#7080b0');
+        const note = footer();
+        if (note) text(note, X + W - 10 - note.length * 6, Y + H - 30, 1, '#c03030');
+        text(sign, X + W - 10 - sign.length * 6, Y + H - 18, 1, INK);
         text('Space: put it away', 6, SH - 14, 1, '#f8f8f8');
       },
     };
     return self;
+  }
+  function LindaList(first) {
+    return PaperList('THINGS I NEVER GOT TO DO', () => quest.tasks, '- Linda',
+      () => (!quest.complete ? '' : stapler.found ? 'Thank you. I can rest now.' : 'Now... where is my stapler?'),
+      first && 'It\'s signed "Linda". You fold it into your pocket. (Read it again any time from the Start menu.)');
+  }
+  function KikiList(first) {
+    return PaperList('EMPLOYEE OF THE MONTH', () => COWORKERS.map((c) => ({ text: c.task, done: helped.has(c.name) })), '- Kiki',
+      () => (eotm ? 'Congratulations!' : helped.size === COWORKERS.length ? 'All done! Come and see me.' : ''),
+      first && 'You tuck Kiki\'s list into your pocket. (Read it again any time from the Start menu.)');
   }
 
   // Your framed picture by the front entrance, once Linda's list is done.
@@ -5502,6 +5518,13 @@
           say(says('So this month\'s Employee of the Month is... YOU! I\'ll put your picture up by the entrance.'), () => {
             eotm = true; sfx('cup'); ui.push(EmployeeOfMonth());
           }));
+        return;
+      }
+      if (npc.name === 'Kiki' && !kikiList && !eotm) {
+        sfx('select');
+        say(says('Want to be Employee of the Month? Help out everyone on this list and it\'s yours!'), () => {
+          kikiList = true; sfx('menu'); ui.push(KikiList(true));
+        });
         return;
       }
       // name: [what they offer, yes label, the game, what they say if you decline, no label]
@@ -5896,6 +5919,7 @@
     // &helped=6 has you help the first N coworkers; &eotm=1 gives you the award
     if (q.has('helped')) COWORKERS.slice(0, +q.get('helped')).forEach((c) => helped.add(c.name));
     if (q.has('eotm')) eotm = true;
+    if (q.has('kikilist')) kikiList = true;
     // &stapler=found hands Linda her stapler back; &stapler=near puts it on the desk in front of you
     if (q.get('stapler') === 'found') stapler.found = true;
     if (q.get('stapler') === 'near') {
@@ -5908,7 +5932,7 @@
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
       nathan: NathanGame, wade: WadeGolfGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
-      locker: LockerScreen, list: LindaList, eotm: EmployeeOfMonth }[q.get('game')];
+      locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth }[q.get('game')];
     if (GAME) ui.push(GAME());
   }
 
