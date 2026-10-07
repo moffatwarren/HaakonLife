@@ -1897,7 +1897,7 @@
         me.y = Math.max(TOP, Math.min(BOT - PH, me.y));
         // the TV only watches the ball when it's coming its way, and can't move very fast
         const aim = ball.vx > 0 ? ball.y + BS / 2 - PH / 2 : (TOP + BOT - PH) / 2;
-        cpu.y += Math.sign(aim - cpu.y) * Math.min(Math.abs(aim - cpu.y), 2.3);
+        cpu.y += Math.sign(aim - cpu.y) * Math.min(Math.abs(aim - cpu.y), 1.8);
         cpu.y = Math.max(TOP, Math.min(BOT - PH, cpu.y));
         if (wait > 0) { wait--; return; }
         ball.x += ball.vx; ball.y += ball.vy;
