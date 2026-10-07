@@ -601,8 +601,7 @@ window.OFFICE_MAPS = {
      "x2": 44,
      "y2": 8,
      "people": [
-      "Linda 1",
-      "Linda 2"
+      "Linda"
      ]
     },
     {

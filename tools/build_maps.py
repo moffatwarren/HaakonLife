@@ -405,7 +405,7 @@ f2.room('193 Engraver', 32, 4, 35, 8)
 f2.hline(31, 36, 9); f2.vline(36, 3, 9); f2.door((31, 5))
 f2.put(33, 4, 's'); f2.put(34, 4, 'M'); f2.put(35, 8, 'b')
 f2.office('Ghosts', 37, 4, 44, 8, 'S')
-f2.rooms[-1]['people'] = ['Linda 1', 'Linda 2']  # two ghosts haunt the rack room
+f2.rooms[-1]['people'] = ['Linda']  # Linda haunts the rack room
 f2.clear((40, 5)); f2.fill(37, 4, 44, 4, 'y')  # racks of computers along the top
 f2.hline(36, 45, 9); f2.vline(45, 3, 10); f2.door((43, 9), (44, 9))
 
