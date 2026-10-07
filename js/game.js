@@ -949,7 +949,7 @@
 
   // pc: the ComputerScreen it runs on, which shuts down when the game is over
   function PokerApp(pc) {
-    const START = 200, BLIND_EVERY = 8, SMALL_BLINDS = [2, 3, 5, 8, 12, 20, 30, 50, 80];
+    const START = 200, BLIND_EVERY = 4, SMALL_BLINDS = [2, 3, 5, 8, 12, 20, 30, 50, 80];
     // how the bots play: loose calls more, aggr raises more, bluff bets with nothing
     const BOTS = {
       Cody: { loose: 0.5, aggr: 0.6, bluff: 0.14, bg: '#3868c8', bust: "I guess I just won't eat this weekend :(" },
@@ -979,6 +979,18 @@
       amt = Math.min(amt, p.stack);
       p.stack -= amt; p.bet += amt; p.total += amt;
       if (!p.stack) p.allIn = true;
+      if (amt > 0) flyRolls(p, amt);
+    }
+    // Little spring rolls flying from someone's stack into the pot when they put money
+    // in: more rolls for bigger amounts (up to 6), a few frames apart, on a low arc.
+    let flying = [];
+    const FLY_TIME = 20;
+    function flyRolls(p, amt) {
+      const [x0, y0] = p.you ? [40, 138] : [p.px + 28, 39];
+      const n = Math.min(6, 1 + Math.floor(amt / (bb() * 2)));
+      for (let i = 0; i < n; i++) {
+        flying.push({ x0, y0, x1: 134 + Math.round(Math.random() * 30 - 15), y1: 40 + Math.round(Math.random() * 6 - 3), t: -i * 4 });
+      }
     }
 
     function startHand() {
@@ -1130,6 +1142,7 @@
       music: 'poker',
       update() {
         t++;
+        flying = flying.filter((f) => ++f.t < FLY_TIME);
         if (timer > 0) {
           if (pressed.has('b')) ask('Leave the table with ' + seats[0].stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
           else if (--timer === 0 && next) { const f = next; next = null; f(); }
@@ -1237,6 +1250,13 @@
             text('D', cx + 3, cy + 2, 1, INK);
           }
         });
+        // spring rolls on their way into the pot
+        for (const f of flying) {
+          if (f.t < 0) continue;
+          const k = f.t / FLY_TIME, e = 1 - (1 - k) * (1 - k); // ease out
+          const x = f.x0 + (f.x1 - f.x0) * e, y = f.y0 + (f.y1 - f.y0) * e - Math.sin(Math.PI * k) * 14;
+          drawRoll(Math.round(x), Math.round(y));
+        }
         // what just happened
         ctx.fillStyle = INK; ctx.fillRect(4, 172, SW - 8, 26);
         ctx.fillStyle = '#f8f8f8'; ctx.fillRect(5, 173, SW - 10, 24);
@@ -4923,7 +4943,7 @@
     { key: 'run', need: 150, text: 'Run 150m on the treadmill' },
     { key: 'pulldown', need: 10, text: 'Do 10 clean lat pulldowns' },
     { key: 'jam', need: 3, text: 'Unjam 3 sheets from the printer' },
-    { key: 'blackjack', need: 300, text: 'Win 300 spring rolls off Cody' },
+    { key: 'blackjack', need: 300, text: 'Win 100 spring rolls off Cody' }, // you start with 200
     { key: 'battle', need: 1, text: 'Beat Richard in his silly duel' },
     { key: 'dark', need: 1, text: 'Fix the lights in Damir\'s office' },
     { key: 'elevator', need: 1, text: 'Make small talk in the elevator' },
