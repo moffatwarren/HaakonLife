@@ -55,7 +55,7 @@ Walk up to these and press A:
 - **Front desk** (Reception): send each visitor to the right office; you have to know the building
 - **Printer**: ease five jammed sheets out without tearing them: watch for snags on the rollers, keep each sheet straight, and read whatever somebody printed
 - **Washer and dryer** (fitness room): catch the load the machine is asking for, let the rest drop
-- **Elevator**: about one ride in three, a coworker gets in and makes conversation
+- **Elevator**: every ride, a coworker gets in and makes conversation
 
 Talk to **Damir** (office 108, with the lights off) if you dare: he cuts the
 power, and you have to find three fuses with only a flashlight while shadows

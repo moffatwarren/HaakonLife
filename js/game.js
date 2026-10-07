@@ -5331,9 +5331,9 @@
         if (i === P.floor) { say('You\'re already on this floor.'); return; }
         sfx('ding');
         const from = P.floor, go = () => warpTo(ends.find((e) => e.floor === i));
-        // roughly one ride in three, somebody gets in with you
+        // every ride, somebody gets in with you
         const pool = npcs.filter((n) => !n.ghost);
-        if (pool.length && Math.random() < 0.34) {
+        if (pool.length) {
           ui.push(ElevatorGame(pool[Math.floor(Math.random() * pool.length)], from, i, go));
         } else go();
       });
