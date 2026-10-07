@@ -76,22 +76,28 @@ One of the lockers in the **fitness room** is open a crack. Inside is a list
 left by Linda, the ghost in the rack room: 7 things she never got round to,
 picked at random from about 20 each time you take it (beat the TV at Pong, win
 100 spring rolls off Cody, fix Damir's lights, and so on). Read it any time
-from the Start menu; each task crosses itself off when you do it. Finish them
-all and your picture goes up as **Employee of the Month** on an easel by the
-front entrance, with the name you entered at the start. Linda has new things
-to say once her list is done. The list isn't saved: every visit starts fresh.
+from the Start menu; each task crosses itself off when you do it. Linda has
+new things to say once her list is done. The list isn't saved: every visit
+starts fresh.
 
 Linda also lost her **red stapler**. It turns up on a different desk, counter,
 shelf or table every visit, and Linda drops hints about which room. Finding it
 or finishing the list makes the air feel a little lighter; do both and go and
 see her, and she's finally free: she rises up a beam of light and floats away.
 
-Other people worth talking to:
+## Employee of the Month
 
-- **Nathan** (office 115): grab the trophy he names off a crowded shelf, before the sweeping hand runs away with you
-- **Wade** (2nd floor, office 137): a three-hole putting grudge match
-- **Kiki** (Reception): guess how many sweets are in the jar, closer than she does
-- **Jhonna** (office 118): her Manulife dependant forms, at last
+Help out every coworker who has a challenge for you. Beat each one below and
+Kiki at reception names you **Employee of the Month**, with your picture on an
+easel by the front entrance and the name you entered at the start. Like the
+list, it isn't saved.
+
+- **Nathan** (office 115): grab the trophy he names off a crowded shelf, before the sweeping hand runs away with you (get 8)
+- **Wade** (2nd floor, office 137): a three-hole putting grudge match (win it)
+- **Kiki** (Reception): guess how many sweets are in the jar, closer than she does (win it)
+- **Jhonna** (office 118): her Manulife dependant forms, at last (tick 15 fields)
+- **Richard** (office 122): his air handling duel (win it)
+- **Damir** (office 108): fix the lights in his dark office
 
 Best scores are saved in the browser. For testing, `index.html#play&game=punch`
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
@@ -101,7 +107,8 @@ Best scores are saved in the browser. For testing, `index.html#play&game=punch`
 For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,
 `&quest=done` finished), `&name=Sam` sets your name, and `game=locker`, `list`
 or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
-and `&stapler=near` puts it right in front of you.
+and `&stapler=near` puts it right in front of you. `&helped=5` counts the
+first 5 coworkers as helped, and `&eotm=1` hands you the award.
 
 `tools/shot.sh out.png "play&game=snake&ticks=60"` screenshots a game headlessly
 (it uses `tools/test.html`, which stubs the audio and can pin `Math.random` with

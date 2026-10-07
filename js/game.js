@@ -44,7 +44,7 @@
   let curtainOpen = null; // floor index whose curtains are open
 
   // The Employee of the Month easel ('$' tile by the front entrance) only appears once
-  // Linda's list is done; until then the spot is plain floor.
+  // Kiki has given you the award; until then the spot is plain floor.
   const easels = MAPS.floors.map((f) => {
     const list = [];
     f.tiles.forEach((rowStr, y) => [...rowStr].forEach((c, x) => { if (c === '$') list.push({ x, y }); }));
@@ -4954,9 +4954,8 @@
   // Linda (the ghost in the rack room) left a list of things she never got round to.
   // Each time you take it out of the locker you get a different handful of tasks from
   // LINDA_TASKS. Mini-games report their results to questNote(key, value) and a task
-  // is crossed off when value reaches its target. Finish them all and you become
-  // Employee of the Month, with your picture by the front entrance. None of this is
-  // saved: it starts fresh every visit.
+  // is crossed off when value reaches its target. Finish them all, and find her stapler,
+  // and Linda is free to move on. None of this is saved: it starts fresh every visit.
   const LINDA_TASKS = [
     { key: 'coffee', need: 1, text: 'Make a cup of coffee. I miss it.' },
     { key: 'pong', need: 1, text: 'Beat the TV at Pong' },
@@ -5115,9 +5114,37 @@
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     quest = { tasks: pool.slice(0, LINDA_COUNT).map((t) => Object.assign({ done: false }, t)), complete: false };
   }
+  // ---------- Employee of the Month: help out every coworker with a challenge ----------
+  // Beat each person's own game (the results come in through questNote too). Once
+  // everyone's been helped, Kiki at reception hands you the award and your picture goes
+  // up by the front entrance. Not saved, like Linda's list.
+  const COWORKERS = [
+    { name: 'Nathan', key: 'trophy', need: 8, thanks: 'Nathan grudgingly admits you know your trophies.' },
+    { name: 'Wade', key: 'wade', need: 2, thanks: 'Wade shakes your hand. He is already planning the rematch.' },
+    { name: 'Kiki', key: 'jar', need: 2, thanks: 'Kiki is impressed. Nobody out-guesses her at the candy jar.' },
+    { name: 'Jhonna', key: 'forms', need: 15, thanks: 'Jhonna can finally close that Manulife ticket.' },
+    { name: 'Richard', key: 'battle', need: 1, thanks: 'Richard bows. Your air handling knowledge is sound.' },
+    { name: 'Damir', key: 'dark', need: 1, thanks: 'Damir feels safe in the dark again, thanks to you.' },
+  ];
+  const helped = new Set();
+  let eotm = false; // Kiki has given you the award
+  function coworkerNote(key, value) {
+    for (const c of COWORKERS) {
+      if (helped.has(c.name) || c.key !== key || !(value >= c.need)) continue;
+      helped.add(c.name);
+      questQueue.push(c.thanks);
+      if (helped.size < COWORKERS.length) {
+        questQueue.push('Word gets around. Help everyone out and you might make Employee of the Month. (' + helped.size + ' of ' + COWORKERS.length + ' helped)');
+      } else {
+        questQueue.push('You\'ve helped everyone in the office! Kiki at reception wants a word.');
+      }
+    }
+  }
+
   // Called with every mini-game result (from saveBest, and directly by the games that
   // don't keep a best score).
   function questNote(key, value) {
+    coworkerNote(key, value);
     if (!quest || quest.complete) return;
     for (const task of quest.tasks) {
       if (task.done || task.key !== key || !(value >= task.need)) continue;
@@ -5129,7 +5156,6 @@
         quest.complete = true;
         questQueue.push('A cold breeze ruffles Linda\'s list... "' + task.text + '" crosses itself off!');
         questQueue.push('That\'s everything on Linda\'s list! A happy "Boooo!" echoes through the building.');
-        questQueue.push('Somebody has hung a new EMPLOYEE OF THE MONTH picture by the front entrance. Go and have a look!');
         lindaLighter();
       }
     }
@@ -5265,7 +5291,7 @@
         ctx.fillStyle = '#e0b030'; ctx.fillRect((SW - nw) / 2, 174, nw, 22);
         text(name, (SW - name.length * 12) >> 1, 178, 2, '#3a2808');
         text(month, (SW - month.length * 6) >> 1, 202, 1, '#6a4a10');
-        const note = 'For finishing everything on Linda\'s list.';
+        const note = 'For helping out every single coworker.';
         text(note, (SW - note.length * 6) >> 1, 216, 1, '#6a4a10');
         if (t > 20 && (tick >> 4) & 1) text('Space', SW - 40, SH - 12, 1, '#6a4a10');
       },
@@ -5439,7 +5465,7 @@
 
   function walkable(fi, x, y) {
     const t = tileAt(fi, x, y);
-    return WALKABLE.includes(t) || (t === 'C' && curtainOpen === fi) || (t === '$' && !(quest && quest.complete));
+    return WALKABLE.includes(t) || (t === 'C' && curtainOpen === fi) || (t === '$' && !eotm);
   }
 
   function tryMove(d) {
@@ -5468,6 +5494,14 @@
       const says = (line) => npc.name + ': ' + line;
       if (npc.name === 'Damir') {
         say(says('Do you feel safe in the dark?'), () => ui.push(DarkGame()));
+        return;
+      }
+      if (npc.name === 'Kiki' && !eotm && helped.size === COWORKERS.length) {
+        sfx('ding');
+        say(says('Everyone has been talking about you. You helped every single person in this office!'), () =>
+          say(says('So this month\'s Employee of the Month is... YOU! I\'ll put your picture up by the entrance.'), () => {
+            eotm = true; sfx('cup'); ui.push(EmployeeOfMonth());
+          }));
         return;
       }
       // name: [what they offer, yes label, the game, what they say if you decline, no label]
@@ -5506,7 +5540,7 @@
         : 'Just a gym bag, some old sneakers and a faint chill.');
       return;
     }
-    if (t === '$' && quest && quest.complete) { sfx('menu'); ui.push(EmployeeOfMonth()); return; }
+    if (t === '$' && eotm) { sfx('menu'); ui.push(EmployeeOfMonth()); return; }
     if (t === 'E') {
       const ends = findLink(P.floor, tx, ty);
       const names = MAPS.floors.map((f, i) => (i === 0 ? 'GROUND' : i + 1 + 'F'));
@@ -5693,7 +5727,7 @@
     if (w > 0 && h > 0) ctx.drawImage(cv, sx, sy, w, h, dx, dy, w, h);
     if (curtainOpen === P.floor)
       for (const c of curtains[P.floor]) ctx.drawImage(c.open, c.x * 16 - cx, c.y * 16 - cy);
-    if (quest && quest.complete)
+    if (eotm)
       for (const e of easels[P.floor]) drawEaselAt(e.x * 16 - cx, e.y * 16 - cy);
     if (!stapler.found && stapler.floor === P.floor) drawStaplerAt(stapler.x * 16 - cx, stapler.y * 16 - cy);
     for (const k of panels[P.floor]) {
@@ -5859,6 +5893,9 @@
       if (q.get('quest') === 'done') { quest.tasks.forEach((x) => { x.done = true; }); quest.complete = true; }
       else quest.tasks.slice(0, +q.get('quest') - 1).forEach((x) => { x.done = true; });
     }
+    // &helped=6 has you help the first N coworkers; &eotm=1 gives you the award
+    if (q.has('helped')) COWORKERS.slice(0, +q.get('helped')).forEach((c) => helped.add(c.name));
+    if (q.has('eotm')) eotm = true;
     // &stapler=found hands Linda her stapler back; &stapler=near puts it on the desk in front of you
     if (q.get('stapler') === 'found') stapler.found = true;
     if (q.get('stapler') === 'near') {
