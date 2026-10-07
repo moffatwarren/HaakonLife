@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds js/maps.js from hand-traced coordinates of "Richmond Floor Map.pdf".
+"""Builds js/maps.js from coordinates hand-traced off the office floor plan.
 
 1 tile ~= 0.1 inch on the printed plan (roughly half a metre).
 Run:  python3 tools/build_maps.py
