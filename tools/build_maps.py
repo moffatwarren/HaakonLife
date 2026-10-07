@@ -425,7 +425,7 @@ f2.office('191 Mauro / Alyssa', 73, 4, 79, 10, 'S'); f2.door((78, 11), (79, 11))
 f2.put(77, 4, 'm'); f2.put(78, 4, 'd'); f2.put(77, 5, 'c')  # second desk
 f2.office('116 JP', 81, 4, 88, 10, 'S'); f2.door((81, 11), (82, 11))
 f2.office('117 James', 90, 4, 96, 10, 'S'); f2.door((90, 11), (91, 11))
-f2.office('171 Raegan / Patrick', 98, 4, 105, 10, 'S'); f2.door((98, 11), (99, 11))
+f2.office('171 Reagan / Patrick', 98, 4, 105, 10, 'S'); f2.door((98, 11), (99, 11))
 f2.rooms[-1].update(rave=True)
 f2.put(103, 4, 'd'); f2.put(102, 4, 'm'); f2.put(102, 5, 'c')
 
@@ -618,7 +618,7 @@ f2.clear((84, 4), (85, 4), (84, 5))
 f2.l_desk(col(83, 6, 9) + row(9, 84, 88), (83, 9), (84, 8))             # JP
 f2.clear((92, 4), (93, 4), (92, 5))
 f2.l_desk(col(92, 6, 10) + row(10, 93, 96), (92, 10), (93, 9))          # James
-f2.l_desk(row(4, 101, 105) + col(105, 5, 9), (101, 4), (101, 5))       # Raegan / Patrick
+f2.l_desk(row(4, 101, 105) + col(105, 5, 9), (101, 4), (101, 5))       # Reagan / Patrick
 f2.put(102, 4, 'm')
 f2.l_desk(col(98, 5, 9), (98, 7), (99, 7))
 
