@@ -29,6 +29,7 @@ Walk up to these and press A:
 
 - **Office computers**: SDG, lay out an air handling unit
 - **Zin's computer** (office 126): Spring Roll Hold'em, no-limit Texas Hold'em against Cody and Dmitriy, played for spring rolls
+- **Cody's computer** (cubicle 142): Spring Roll Blackjack against the house, for the same spring rolls (break the bank at 1000)
 - **Coffee machine** (lunch room): catch the coffee in your cup
 - **Recycling bin** (lunch room): toss crumpled paper into the bin; watch the wind
 - **Fridge**: keep your eye on your lunch while the containers shuffle
@@ -76,7 +77,7 @@ Best scores are saved in the browser. For testing, `index.html#play&game=punch`
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
-`forms`, `nathan`, `wade`, `jar`, `poker`) opens a game straight away.
+`forms`, `nathan`, `wade`, `jar`, `poker`, `blackjack`) opens a game straight away.
 
 `tools/shot.sh out.png "play&game=snake&ticks=60"` screenshots a game headlessly
 (it uses `tools/test.html`, which stubs the audio and can pin `Math.random` with

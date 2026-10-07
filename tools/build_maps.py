@@ -26,7 +26,7 @@ Map glyphs
 Room options: 'dark': True draws the room with the lights off,
 'rave': True fills the room with strobing party lights and dance music,
 'say': '...' shows a line of dialogue every time you walk in, and
-'computer': 'poker' runs that program on the room's computers instead of SDG, and
+'computer': 'poker' / 'blackjack' runs that program on the room's computers instead of SDG, and
 'gender': 'male'/'female' keeps the other gender out (bathrooms), and
 'curtain': True marks the room behind a curtain, and
 'people': [names] adds extra NPCs (repeats allowed),
@@ -539,6 +539,7 @@ for (x1, x2), top, bottom in (((81, 85), '142 Cody', '167 Leo'),
     f2.put(x1, 24, 'm'); f2.put(x1 + 1, 24, 'd'); f2.put(x1, 23, 'c')
     f2.rooms.append({'name': top, 'x1': x1, 'y1': 16, 'x2': x2, 'y2': 19, 'parent': 'Open Office'})
     f2.rooms.append({'name': bottom, 'x1': x1, 'y1': 21, 'x2': x2, 'y2': 24, 'parent': 'Open Office'})
+next(r for r in f2.rooms if r['name'] == '142 Cody')['computer'] = 'blackjack'
 
 # east washrooms + stairs
 f2.vline(101, 13, 29)

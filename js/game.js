@@ -553,6 +553,7 @@
     sdg: { label: 'SDG', App: () => SdgApp(),
       icon(x, y) { if (sdgIcon.complete && sdgIcon.naturalWidth) ctx.drawImage(sdgIcon, x, y, 62, 64); } },
     poker: { label: 'Poker', App: (pc) => PokerApp(pc), icon: (x, y) => drawPokerIcon(x, y) },
+    blackjack: { label: 'Blackjack', App: (pc) => BlackjackApp(pc), icon: (x, y) => drawBlackjackIcon(x, y) },
   };
   function ComputerScreen(program) {
     const prog = PROGRAMS[program] || PROGRAMS.sdg;
@@ -1241,6 +1242,235 @@
         } else if (state !== 'over') text('Space: next hand   Esc: leave the table', 10, 214, 1, INK);
         if (state === 'over') doneBox(['You cleaned them out!',
           'Spring rolls: ' + seats[0].stack, record ? 'New record!' : 'Best ' + getBest('poker')], t);
+      },
+    };
+    return self;
+  }
+
+  // ---------- Spring Roll Blackjack: on Cody's computer ----------
+  // You against the house, played for the same spring rolls as Hold'em. You start
+  // with START rolls; blackjack pays 3 to 2 and the dealer stands on all 17s.
+  // Break the bank (GOAL rolls) to win, or lose them all and get kicked off.
+  function drawBlackjackIcon(x, y) {
+    drawCard({ r: 14, s: 0 }, x + 10, y + 4);
+    drawCard({ r: 11, s: 1 }, x + 28, y + 10);
+    for (let i = 0; i < 3; i++) drawRoll(x + 12 + i * 13, y + 50);
+  }
+  // a hand's best total, and whether an ace is still counting as 11
+  function bjTotal(hand) {
+    let n = 0, aces = 0;
+    for (const c of hand) { n += c.r === 14 ? 11 : Math.min(10, c.r); if (c.r === 14) aces++; }
+    while (n > 21 && aces) { n -= 10; aces--; }
+    return { n, soft: aces > 0 };
+  }
+  const isBlackjack = (hand) => hand.length === 2 && bjTotal(hand).n === 21;
+
+  // pc: the ComputerScreen it runs on, which shuts down when the game is over
+  function BlackjackApp(pc) {
+    const START = 200, GOAL = 1000, MIN_BET = 10, DECKS = 4;
+    let stack = START, bet = MIN_BET, wager = 0, shoe = [], me = [], dealer = [], holeHidden = true;
+    let state = 'bet', lines = [], btn = 0, timer = 0, next = null, t = 0, record = false;
+    const after = (frames, fn) => { timer = frames; next = fn; };
+    // run fns one after another, a beat apart, then done()
+    const steps = (fns, done) => {
+      if (!fns.length) { done(); return; }
+      fns[0](); after(16, () => steps(fns.slice(1), done));
+    };
+    const draw1 = (hand) => () => { hand.push(shoe.pop()); sfx('putt'); };
+    function shuffle() {
+      shoe = [];
+      for (let d = 0; d < DECKS; d++) shoe.push(...newDeck());
+      for (let i = shoe.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shoe[i], shoe[j]] = [shoe[j], shoe[i]]; }
+    }
+    shuffle();
+    const fixBet = () => { bet = Math.max(Math.min(MIN_BET, stack), Math.min(stack, bet)); };
+    lines = ['Welcome to Spring Roll Blackjack!', 'Blackjack pays 3 to 2. Place your bet.'];
+    fixBet();
+
+    function deal() {
+      const reshuffled = shoe.length < 60;
+      if (reshuffled) shuffle();
+      wager = bet; stack -= wager;
+      me = []; dealer = []; holeHidden = true; state = 'deal'; btn = 0;
+      lines = [(reshuffled ? 'Fresh shoe. ' : '') + 'You bet ' + wager + ' spring rolls.'];
+      sfx('select');
+      steps([draw1(me), draw1(dealer), draw1(me), draw1(dealer)], () => {
+        const up = dealer[0].r;
+        // the dealer peeks under an ace or a ten-card for blackjack
+        if (isBlackjack(dealer) && (up === 14 || up >= 10)) { holeHidden = false; settle(); return; }
+        if (isBlackjack(me)) { holeHidden = false; settle(); return; }
+        state = 'play';
+        lines = ['You have ' + totalText(me) + '. Dealer shows ' + RANK_TXT(up) + '.'];
+      });
+    }
+    const totalText = (hand) => { const v = bjTotal(hand); return (v.soft && v.n < 21 ? 'soft ' : '') + v.n; };
+    const canDouble = () => state === 'play' && me.length === 2 && stack >= wager;
+
+    function hit() {
+      sfx('putt'); me.push(shoe.pop());
+      const v = bjTotal(me).n;
+      if (v > 21) { state = 'wait'; lines = ['You bust with ' + v + '.']; after(30, () => { holeHidden = false; settle(); }); }
+      else if (v === 21) { state = 'wait'; lines = ['21!']; after(24, dealerPlays); }
+      else lines = ['You have ' + totalText(me) + '.'];
+    }
+    function double() {
+      stack -= wager; wager *= 2;
+      sfx('menu'); me.push(shoe.pop());
+      state = 'wait';
+      const v = bjTotal(me).n;
+      lines = ['You double down to ' + wager + ' and draw ' + v + '.'];
+      after(30, () => { if (v > 21) { holeHidden = false; settle(); } else dealerPlays(); });
+    }
+    function dealerPlays() {
+      state = 'wait'; holeHidden = false; sfx('blip');
+      lines = ['Dealer turns over ' + totalText(dealer) + '.'];
+      const go = () => {
+        if (bjTotal(dealer).n < 17) {
+          after(30, () => { draw1(dealer)(); lines = ['Dealer draws to ' + totalText(dealer) + '.']; go(); });
+        } else after(30, settle);
+      };
+      go();
+    }
+    // pay out (or not) and show what happened
+    function settle() {
+      const mine = bjTotal(me).n, theirs = bjTotal(dealer).n;
+      const myBJ = isBlackjack(me), theirBJ = isBlackjack(dealer);
+      let won = 0, msg;
+      if (myBJ && theirBJ) { won = wager; msg = 'Both blackjack. Push.'; }
+      else if (myBJ) { won = wager + Math.floor(wager * 1.5); msg = 'Blackjack! You win ' + (won - wager) + '.'; }
+      else if (theirBJ) msg = 'Dealer has blackjack. You lose ' + wager + '.';
+      else if (mine > 21) msg = 'Bust. You lose ' + wager + '.';
+      else if (theirs > 21) { won = wager * 2; msg = 'Dealer busts with ' + theirs + '! You win ' + wager + '.'; }
+      else if (mine > theirs) { won = wager * 2; msg = mine + ' beats ' + theirs + '. You win ' + wager + '.'; }
+      else if (mine === theirs) { won = wager; msg = 'Push at ' + mine + '. Bet back.'; }
+      else msg = theirs + ' beats ' + mine + '. You lose ' + wager + '.';
+      stack += won;
+      lines = [msg, 'You have ' + stack + ' spring rolls.'];
+      if (won > wager) sfx('cup'); else if (won < wager) sfx('bump'); else sfx('blip');
+      wager = 0; state = 'result';
+    }
+    function nextHand() {
+      if (stack <= 0) {
+        // busted: you get kicked off the computer
+        remove(self); if (pc) remove(pc);
+        say("Cody: Don't worry, the house always wins. That's how I lose mine too.");
+        return;
+      }
+      if (stack >= GOAL) { state = 'over'; t = 0; record = saveBest('blackjack', stack); sfx('ding'); return; }
+      fixBet(); me = []; dealer = []; state = 'bet';
+      lines = ['Place your bet.'];
+    }
+    function leave() {
+      remove(self);
+      if (state === 'over') { if (pc) remove(pc); say('You broke the bank on Cody\'s computer. He looks nervous.'); return; }
+      // walking away mid-hand forfeits the bet on the table
+      record = saveBest('blackjack', stack);
+      say('You log off with ' + stack + ' spring rolls.' + (record ? ' A new record!' : ''));
+    }
+    const askLeave = () => ask('Leave the table with ' + stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
+
+    const self = {
+      music: 'poker',
+      update() {
+        t++;
+        if (timer > 0) {
+          if (pressed.has('b')) askLeave();
+          else if (--timer === 0 && next) { const f = next; next = null; f(); }
+          return;
+        }
+        if (state === 'over') { if (t > 30 && (pressed.has('a') || pressed.has('b'))) leave(); return; }
+        if (pressed.has('b')) { askLeave(); return; }
+        if (state === 'result') { if (pressed.has('a')) { sfx('select'); nextHand(); } return; }
+        if (state === 'bet') {
+          const nudge = (d) => {
+            const b = Math.max(Math.min(MIN_BET, stack), Math.min(stack, bet + d));
+            if (b !== bet) { bet = b; sfx('select'); }
+          };
+          const rep = (k) => pressed.has(k) || (held[k] && t % 5 === 0);
+          if (rep('right')) nudge(MIN_BET);
+          if (rep('left')) nudge(-MIN_BET);
+          if (rep('up')) nudge(MIN_BET * 5);
+          if (rep('down')) nudge(-MIN_BET * 5);
+          if (pressed.has('a')) deal();
+          return;
+        }
+        if (state !== 'play') return;
+        if (pressed.has('left')) { btn = (btn + 2) % 3; sfx('select'); }
+        if (pressed.has('right')) { btn = (btn + 1) % 3; sfx('select'); }
+        if (pressed.has('a')) {
+          if (btn === 0) hit();
+          else if (btn === 1) { lines = ['You stand on ' + bjTotal(me).n + '.']; dealerPlays(); }
+          else if (canDouble()) double();
+          else sfx('bump');
+        }
+      },
+      draw() {
+        // window + title bar
+        ctx.fillStyle = WIN; ctx.fillRect(0, 0, SW, SH);
+        ctx.fillStyle = TITLE; ctx.fillRect(0, 0, SW, 14);
+        drawRoll(3, 4);
+        text('Spring Roll Blackjack', 18, 3, 1, '#f8f8f8');
+        const gl = 'Goal ' + GOAL;
+        text(gl, SW - 20 - gl.length * 6, 3, 1, '#f8f8f8');
+        ctx.fillStyle = INK; ctx.fillRect(SW - 13, 2, 10, 10);
+        ctx.fillStyle = WIN; ctx.fillRect(SW - 12, 3, 8, 8);
+        text('x', SW - 11, 1, 1, INK);
+        // the table
+        ctx.fillStyle = '#4a2810'; ctx.fillRect(6, 18, 308, 150); ctx.fillRect(4, 22, 312, 142);
+        ctx.fillStyle = '#2c7a40'; ctx.fillRect(10, 22, 300, 142); ctx.fillRect(8, 26, 304, 134);
+        const felt = '#88c898';
+        text('BLACKJACK PAYS 3 TO 2', 160 - 21 * 3, 80, 1, felt);
+        text('Dealer stands on all 17s', 160 - 24 * 3, 91, 1, felt);
+        // a hand of cards, centred, squeezed together when it gets long
+        const row = (hand, y, hideSecond) => {
+          if (!hand.length) { ctx.fillStyle = '#246a36'; ctx.fillRect(160 - CARD_W - 1, y, CARD_W, CARD_H); ctx.fillRect(161, y, CARD_W, CARD_H); return; }
+          const gap = hand.length > 6 ? 16 : 26, w = (hand.length - 1) * gap + CARD_W;
+          hand.forEach((c, i) => drawCard(c, 160 - (w >> 1) + i * gap, y, hideSecond && i === 1));
+        };
+        // dealer
+        drawAvatar(14, 28, '#3868c8');
+        text('Dealer', 42, 30, 1, '#f8f8f8');
+        row(dealer, 34, holeHidden);
+        if (dealer.length) {
+          const dt = holeHidden ? RANK_TXT(dealer[0].r) + ' + ?' : totalText(dealer);
+          text(dt, 238, 46, 1, '#f8f8f8');
+        }
+        // you
+        text('You', 20, 124, 1, '#f8f8f8');
+        drawRoll(20, 136); text(String(stack), 34, 136, 1, '#f8f8f8');
+        row(me, 104, false);
+        if (me.length) text(totalText(me), 238, 116, 1, '#f8f8f8');
+        const shown = state === 'bet' ? bet : wager;
+        if (shown) {
+          const bs = 'Bet ' + shown;
+          drawRoll(160 - bs.length * 3 - 14, 146);
+          text(bs, 160 - bs.length * 3, 146, 1, '#f8e070');
+        }
+        // what just happened
+        ctx.fillStyle = INK; ctx.fillRect(4, 172, SW - 8, 26);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(5, 173, SW - 10, 24);
+        lines.slice(0, 2).forEach((l, i) => text(l, 10, 176 + i * 11, 1, INK));
+        // your controls
+        if (state === 'bet') {
+          text('Bet ' + bet + (bet === stack ? ' (all in)' : ''), 10, 204, 1, INK);
+          ctx.fillStyle = INK; ctx.fillRect(160, 203, 150, 9);
+          ctx.fillStyle = '#e8e8e8'; ctx.fillRect(161, 204, 148, 7);
+          ctx.fillStyle = '#f0b030'; ctx.fillRect(161, 204, Math.round(148 * Math.min(1, bet / Math.max(1, stack))), 7);
+          text('Arrows: bet  Space: deal  Esc: leave', 10, 224, 1, INK);
+        } else if (state === 'play' || state === 'deal' || state === 'wait') {
+          const myTurn = state === 'play' && !timer;
+          ['Hit', 'Stand', 'Double'].forEach((l, i) => {
+            const x = 6 + i * 104, on = myTurn && i === btn, ok = myTurn && (i < 2 || canDouble());
+            ctx.fillStyle = INK; ctx.fillRect(x, 202, 100, 16);
+            ctx.fillStyle = on ? WIN_DARK : '#f8f8f8'; ctx.fillRect(x, 202, 99, 15);
+            ctx.fillStyle = on ? '#f8f8f8' : WIN_DARK; ctx.fillRect(x + 1, 203, 98, 14);
+            ctx.fillStyle = on ? '#f0d890' : WIN; ctx.fillRect(x + 1, 203, 97, 13);
+            text(l, x + 50 - l.length * 3, 206, 1, ok ? INK : WIN_DARK);
+          });
+          text(myTurn ? 'Arrows: choose  Space: OK  Esc: leave' : 'Esc: leave the table', 10, 226, 1, INK);
+        } else if (state === 'result') text('Space: next hand   Esc: leave the table', 10, 214, 1, INK);
+        if (state === 'over') doneBox(['You broke the bank!',
+          'Spring rolls: ' + stack, record ? 'New record!' : 'Best ' + getBest('blackjack')], t);
       },
     };
     return self;
@@ -4681,7 +4911,8 @@
     }
     if (t === 'm' || t === 'R') {
       sfx('menu');
-      const room = roomAt(P.floor, tx, ty);
+      // a cubicle sits inside its open office, so ask every room here for a program
+      const room = MAPS.floors[P.floor].rooms.find((r) => r.computer && tx >= r.x1 && tx <= r.x2 && ty >= r.y1 && ty <= r.y2);
       ui.push(ComputerScreen(room && room.computer));
       return;
     }
@@ -4978,7 +5209,7 @@
   addEventListener('resize', layout);
   addEventListener('orientationchange', layout);
 
-  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|jar|poker)
+  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|jar|poker|blackjack)
   if (location.hash.startsWith('#play')) {
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
@@ -4995,7 +5226,7 @@
       snake: SnakeGame, parts: PartsGame, cable: CableGame, cpr: CprGame,
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
-      nathan: NathanGame, wade: WadeGolfGame, jar: CandyJarGame, poker: PokerApp }[q.get('game')];
+      nathan: NathanGame, wade: WadeGolfGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp }[q.get('game')];
     if (GAME) ui.push(GAME());
   }
 
