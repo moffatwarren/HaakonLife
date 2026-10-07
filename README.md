@@ -70,6 +70,11 @@ knowledge: a turn-based duel where you and Richard each pick a move and the
 winner knocks 1 off the other's 3 HP. Fan Gust beats Coil Freeze, Coil Freeze
 beats Damper Block, and Damper Block beats Fan Gust.
 
+Talk to **Patrick** (office 171, the one with the disco floor) for a
+dance-off: arrows rise up four lanes in time with the office's rave tune, and
+you hit each one as it reaches the top. Beat Patrick's score and he calls the
+whole office in for a few seconds of dance party.
+
 ## Linda's list
 
 One of the lockers in the **fitness room** is open a crack. Inside is a list
@@ -100,12 +105,13 @@ Linda's list, it isn't saved.
 - **Jhonna** (office 118): her Manulife dependant forms, at last (tick 15 fields)
 - **Richard** (office 122): his air handling duel (win it)
 - **Damir** (office 108): fix the lights in his dark office
+- **Patrick** (office 171): out-dance him in his dance-off
 
 Best scores are saved in the browser. For testing, `index.html#play&game=punch`
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
-`forms`, `nathan`, `wade`, `jar`, `poker`, `blackjack`) opens a game straight away.
+`forms`, `nathan`, `wade`, `jar`, `dance`, `party`, `poker`, `blackjack`) opens a game straight away.
 For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,
 `&quest=done` finished), `&name=Sam` sets your name, and `game=locker`, `list`
 or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,

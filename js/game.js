@@ -4844,6 +4844,190 @@
     return self;
   }
 
+  // ---------- Patrick's dance-off: hit the arrows on the beat of the rave song ----------
+  // Arrows rise up their lanes and you press each one as it reaches the targets at the
+  // top. Timing follows the rave song itself (or a steady 140bpm with the music off),
+  // counted in eighth-note steps like the song is. Out-score Patrick to win.
+  function DanceGame() {
+    const LANES = ['left', 'down', 'up', 'right'], LANE_COLS = ['#ff2a6d', '#05d9e8', '#39ff14', '#f9f871'];
+    const LX = 104, LW = 28, TY = 34, PX = 9; // first lane, lane width, target row, pixels per step
+    const PERFECT = 0.4, GOOD = 0.8, LEN = 128, LEAD = 16; // windows and lengths, in steps
+    const patrick = spritesFor('Patrick');
+    // The chart: half notes to warm up, then every beat, then some off-beats to finish.
+    const notes = [];
+    for (let s = 0; s < LEN; s += s < 32 ? 4 : s < 96 ? 2 : Math.random() < 0.45 ? 1 : 2) {
+      let lane;
+      do lane = Math.floor(Math.random() * 4);
+      while (notes.length > 1 && notes[notes.length - 1].lane === lane && notes[notes.length - 2].lane === lane);
+      notes.push({ s, lane, hit: null });
+    }
+    const PATRICK = 70 + Math.floor(Math.random() * 14); // Patrick is good, not perfect
+    let state = 'play', t = 0, pos = -LEAD, lastMp = null, synced = false;
+    let pts = 0, combo = 0, maxCombo = 0, judge = null, flash = [0, 0, 0, 0], move = 'down', record = false;
+    const pct = () => Math.round(100 * pts / (notes.length * 2));
+    function rate(word, color, lane) { judge = { word, color, t: 0 }; if (lane >= 0) flash[lane] = 10; }
+    const self = {
+      music: 'rave',
+      update() {
+        t++;
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            if (pct() > PATRICK && MAPS.floors[P.floor].rooms.some((r) => r.rave)) {
+              say('Patrick: ' + pct() + '% to my ' + PATRICK + '%? You can actually dance! EVERYBODY IN HERE!', () => ui.push(PartyTime()));
+            } else say(pct() > PATRICK ? 'Patrick: You can actually dance! Respect. ' + pct() + '% to my ' + PATRICK + '%.'
+              : 'Patrick: ' + PATRICK + '% to your ' + pct() + '%. Come back when you\'ve warmed up!');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('Patrick: Leaving the floor already? More room for me.'); return; }
+        // follow the song when it's playing; otherwise count 140bpm ticks ourselves
+        const mp = musicPos('rave');
+        if (mp === null) pos += 1 / 12.86;
+        else if (!synced) {
+          // line the chart up so it starts on a bar of the song, a couple of bars from now
+          synced = true;
+          pos = mp - (Math.ceil(mp / 8) * 8 + LEAD);
+        } else pos += mp - lastMp;
+        lastMp = mp;
+        if (judge) judge.t++;
+        flash = flash.map((f) => Math.max(0, f - 1));
+        // arrows pressed: take the closest unhit note in that lane
+        LANES.forEach((k, lane) => {
+          if (!pressed.has(k)) return;
+          move = k;
+          let best = null;
+          for (const n of notes) if (n.lane === lane && !n.hit && Math.abs(n.s - pos) <= GOOD && (!best || Math.abs(n.s - pos) < Math.abs(best.s - pos))) best = n;
+          if (!best) { if (combo) rate('OOPS', '#a0a0b8', -1); combo = 0; return; }
+          const d = Math.abs(best.s - pos);
+          best.hit = d <= PERFECT ? 'perfect' : 'good';
+          pts += d <= PERFECT ? 2 : 1;
+          maxCombo = Math.max(maxCombo, ++combo);
+          rate(d <= PERFECT ? 'PERFECT' : 'GOOD', d <= PERFECT ? '#f9f871' : '#05d9e8', lane);
+        });
+        // anything that's slipped past the targets is a miss
+        for (const n of notes) if (!n.hit && pos - n.s > GOOD) { n.hit = 'miss'; combo = 0; rate('MISS', '#ff2a6d', -1); }
+        if (pos > LEN + 4) {
+          state = 'done'; t = 0;
+          record = saveBest('dance', pct());
+          if (pct() > PATRICK) { questNote('danceoff', 1); sfx('cup'); } else sfx('bump');
+        }
+      },
+      draw() {
+        const step = Math.floor(pos), beat = step >> 1;
+        // the dance floor, lit up on the beat like the office
+        ctx.fillStyle = '#140024'; ctx.fillRect(0, 0, SW, SH);
+        for (let ty = 0; ty < SH / 16; ty++)
+          for (let tx = 0; tx < SW / 16; tx++) {
+            if ((tx + ty + beat) & 1) continue;
+            ctx.fillStyle = RAVE_COLS[(tx * 3 + ty * 5 + (beat & 0xffff)) % RAVE_COLS.length];
+            ctx.globalAlpha = 0.18; ctx.fillRect(tx * 16, ty * 16, 16, 16);
+          }
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)'; ctx.fillRect(LX - 4, 0, LW * 4 + 8, SH);
+        // you and Patrick, dancing on either side
+        const bop = (step & 1) ? 0 : 3;
+        ctx.drawImage(sprites[move][1 + (beat & 1)], 22, 100 - bop, 56, 56);
+        const pDir = ['down', 'left', 'down', 'right', 'up', 'right', 'down', 'left'][beat & 7];
+        ctx.drawImage(patrick[pDir][1 + (beat & 1)], 242, 100 - bop, 56, 56);
+        text('You', 41, 162, 1, '#f8f8f8');
+        text('Patrick', 249, 162, 1, '#f8f8f8');
+        text(pct() + '%', 50 - String(pct()).length * 3 - 3, 176, 1, '#f9f871');
+        text(PATRICK + '%', 270 - String(PATRICK).length * 3 - 3, 176, 1, state === 'done' ? '#f9f871' : '#606080');
+        // targets, then the arrows on their way up
+        LANES.forEach((k, lane) => {
+          arrow(k, LX + lane * LW + 4, TY, flash[lane] ? '#ffffff' : '#505070', true);
+        });
+        for (const n of notes) {
+          if (n.hit && n.hit !== 'miss') continue;
+          const y = TY + (n.s - pos) * PX;
+          if (y > SH || y < -20) continue;
+          arrow(LANES[n.lane], LX + n.lane * LW + 4, Math.round(y), n.hit === 'miss' ? '#585868' : LANE_COLS[n.lane]);
+        }
+        if (judge && judge.t < 30) text(judge.word, 160 - judge.word.length * 6, 70 - (judge.t >> 3), 2, judge.color);
+        if (combo > 4) text(combo + ' combo', 160 - (String(combo).length + 6) * 3, 92, 1, '#f8f8f8');
+        text('DANCE-OFF', 4, 4, 1, '#f8f8f8');
+        const b = 'Best ' + getBest('dance') + '%';
+        text(b, SW - 4 - b.length * 6, 4, 1, '#a0a0c8');
+        if (pos < 0) {
+          box(60, 120, 200, 48);
+          ctext(pos < -8 ? 'Patrick wants a dance-off!' : 'Get ready... ' + Math.ceil(-pos / 2), 132);
+          ctext('Arrows on the beat', 148);
+        }
+        if (state === 'done') doneBox([pct() > PATRICK ? 'You out-danced Patrick!' : 'Patrick wins!',
+          'You ' + pct() + '%  Patrick ' + PATRICK + '%  Combo ' + maxCombo, record ? 'New record!' : 'Best ' + getBest('dance') + '%'], t);
+      },
+    };
+    // a chunky pixel arrow pointing k, 20px square at (x, y); hollow for the targets
+    function arrow(k, x, y, color, hollow) {
+      const UP = ['....##....', '...####...', '..######..', '.########.', '##########', '...####...', '...####...', '...####...', '...####...', '...####...'];
+      const on = (cx, cy) => cx >= 0 && cy >= 0 && cx < 10 && cy < 10 && UP[cy][cx] === '#';
+      for (let cy = 0; cy < 10; cy++)
+        for (let cx = 0; cx < 10; cx++) {
+          if (!on(cx, cy)) continue;
+          if (hollow && on(cx - 1, cy) && on(cx + 1, cy) && on(cx, cy - 1) && on(cx, cy + 1)) continue;
+          const [px, py] = k === 'up' ? [cx, cy] : k === 'down' ? [cx, 9 - cy] : k === 'left' ? [cy, cx] : [9 - cy, cx];
+          ctx.fillStyle = '#000000'; ctx.fillRect(x + px * 2 + 1, y + py * 2 + 1, 2, 2);
+          ctx.fillStyle = color; ctx.fillRect(x + px * 2, y + py * 2, 2, 2);
+        }
+    }
+    return self;
+  }
+
+  // ---------- the dance party: win the dance-off and the whole office piles in ----------
+  // For a few seconds everybody (bar Linda) dances in the rave room with you, then they
+  // all wander back to wherever they were. Nobody actually moves; drawWorld just draws
+  // the party guests on the dance floor instead of at their desks while it's on.
+  let party = null; // { names: Set, dancers: [{ x, y, sprites, phase }] }
+  function PartyTime() {
+    const room = MAPS.floors[P.floor].rooms.find((r) => r.rave) || { x1: 0, y1: 0, x2: -1, y2: -1 };
+    const spots = [];
+    for (let y = room.y1; y <= room.y2; y++)
+      for (let x = room.x1; x <= room.x2; x++)
+        if (NPC_FLOOR.includes(tileAt(P.floor, x, y)) && !(x === P.x && y === P.y)) spots.push([x, y]);
+    const guests = npcs.filter((n) => !n.ghost);
+    // the people already in the room stay where they are; everyone else squeezes in around them
+    const taken = new Set();
+    const dancers = [];
+    for (const n of guests) if (n.floor === P.floor && n.x >= room.x1 && n.x <= room.x2 && n.y >= room.y1 && n.y <= room.y2) {
+      taken.add(n.x + ',' + n.y); dancers.push({ name: n.name, x: n.x, y: n.y, sprites: n.sprites });
+    }
+    const free = spots.filter(([x, y]) => !taken.has(x + ',' + y));
+    for (let i = free.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [free[i], free[j]] = [free[j], free[i]]; }
+    for (const n of guests) {
+      if (!free.length) break;
+      if (dancers.some((d) => d.name === n.name)) continue;
+      const [x, y] = free.pop();
+      dancers.push({ name: n.name, x, y, sprites: n.sprites });
+    }
+    dancers.forEach((d, i) => { d.phase = (i * 3) % 8; });
+    party = { names: new Set(dancers.map((d) => d.name)), dancers };
+    const bits = [];
+    let t = 0;
+    sfx('cup');
+    const self = {
+      music: 'rave',
+      update() {
+        t++;
+        if (bits.length < 90) for (let k = 0; k < 3; k++)
+          bits.push({ x: Math.random() * SW, y: -4 - Math.random() * 40, v: 0.6 + Math.random() * 1.2, c: RAVE_COLS[Math.floor(Math.random() * RAVE_COLS.length)], w: Math.random() * 6 });
+        for (const b of bits) { b.y += b.v; b.x += Math.sin((t + b.w * 20) / 10) * 0.5; if (b.y > SH) b.y -= SH + 10; }
+        if (t > 420 || (t > 60 && pressed.has('b'))) {
+          party = null; remove(self);
+          say('The whole office danced with you! Everyone drifts back to their desks, grinning.');
+        }
+      },
+      draw() {
+        for (const b of bits) { ctx.fillStyle = b.c; ctx.fillRect(Math.round(b.x), Math.round(b.y), 3, 2); }
+        const msg = 'DANCE PARTY!';
+        const y = 18 + Math.round(Math.sin(t / 8) * 3);
+        text(msg, ((SW - msg.length * 12) >> 1) + 1, y + 1, 2, '#000000');
+        text(msg, (SW - msg.length * 12) >> 1, y, 2, RAVE_COLS[(t >> 3) % RAVE_COLS.length]);
+      },
+    };
+    return self;
+  }
+
   // ---------- Kiki's candy jar: closest guess takes the round ----------
   function CandyJarGame() {
     const ROUNDS = 3, COLS = ['#f85848', '#f8d848', '#78e060', '#68a0f8', '#d870d0', '#f0b030'];
@@ -5126,6 +5310,7 @@
     { name: 'Jhonna', task: 'Fill in 15 of Jhonna\'s fields', key: 'forms', need: 15, thanks: 'Jhonna can finally close that Manulife ticket.' },
     { name: 'Richard', task: 'Win Richard\'s air duel', key: 'battle', need: 1, thanks: 'Richard bows. Your air handling knowledge is sound.' },
     { name: 'Damir', task: 'Fix the lights in Damir\'s office', key: 'dark', need: 1, thanks: 'Damir feels safe in the dark again, thanks to you.' },
+    { name: 'Patrick', task: 'Win Patrick\'s dance-off', key: 'danceoff', need: 1, thanks: 'Patrick is out of breath. "Same time next week?"' },
   ];
   const helped = new Set();
   let eotm = false; // Kiki has given you the award
@@ -5534,6 +5719,7 @@
         Kiki: ['Bet you cannot guess how many sweets are in that jar.', 'TAKE THE BET', CandyJarGame, 'Offer stands all week!'],
         Jhonna: ['Have you done your Manulife dependant forms?', 'DO THEM NOW', FormsGame, 'They are not going to fill themselves in.', 'NOT YET'],
         Richard: ['Do you want to test your air handling knowledge?', 'YES', BattleGame, 'Come back when you are ready.', 'NO'],
+        Patrick: ['Dance-off! Think you can keep up with me?', 'BRING IT', DanceGame, 'Suit yourself. More floor for me.'],
       };
       if (OFFERS[npc.name]) {
         const [msg, yes, Game, no, noLabel] = OFFERS[npc.name];
@@ -5764,8 +5950,19 @@
     }
     // people, drawn back to front so nearer ones overlap farther ones
     const actors = [{ x: px, y: py, img: sprites[P.dir][frameIndex()] }];
+    if (party) {
+      // everyone takes turns facing a new way and bouncing, on the beat of the rave song
+      const rp = musicPos('rave'), beat = Math.floor(rp === null ? tick / 25.7 : rp / 2);
+      const DANCE = ['down', 'left', 'down', 'right', 'up', 'right', 'down', 'left'];
+      const hop = (b) => (b & 1 ? 0 : 3);
+      actors[0] = { x: px, y: py - hop(beat), img: sprites[DANCE[beat & 7]][1 + (beat & 1)] };
+      for (const d of party.dancers) {
+        const b = beat + d.phase;
+        actors.push({ x: d.x * 16, y: d.y * 16 - hop(b), img: d.sprites[DANCE[b & 7]][1 + (b & 1)] });
+      }
+    }
     for (const n of npcs) {
-      if (n.floor !== P.floor) continue;
+      if (n.floor !== P.floor || (party && party.names.has(n.name))) continue;
       const frame = n.moving && n.prog < 8 ? (n.step ? 1 : 2) : 0;
       actors.push({ x: n.x * 16 + (n.moving ? n.mdx * n.prog : 0), y: n.y * 16 + (n.moving ? n.mdy * n.prog : 0),
         img: n.sprites[n.dir][frame], ghost: n.ghost, freeing: freeing && freeing.npc === n });
@@ -5931,7 +6128,7 @@
       snake: SnakeGame, parts: PartsGame, cable: CableGame, cpr: CprGame,
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
-      nathan: NathanGame, wade: WadeGolfGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
+      dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
       locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth }[q.get('game')];
     if (GAME) ui.push(GAME());
   }
