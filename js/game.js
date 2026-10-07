@@ -9,6 +9,9 @@
   canvas.width = SW; canvas.height = SH;
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
+  // Touch screens get the on-screen D-pad and A/B/START buttons (see layout), and the
+  // control hints drawn in the game name those buttons instead of keyboard keys.
+  const isTouch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 || /[#&]touch/.test(location.hash);
 
   // ---------- settings ----------
   const store = {
@@ -418,7 +421,18 @@
   document.addEventListener('contextmenu', (e) => e.preventDefault());
 
   // ---------- drawing helpers ----------
+  // Keyboard hints -> touch button hints ("Space: punch" -> "A: punch", "Esc: give up" ->
+  // "B: give up", "Arrows: steer" -> "D-pad: steer"). Only hint-shaped text is touched,
+  // so an SDG "Space" component or a printout stays as it is.
+  const TOUCH_HINTS = [
+    [/\bSpace(?=:| twice| to )|(?<=(?:Hold|Mash|Press|\+|then) )Space\b/g, 'A'],
+    [/\bEsc(?=:)/g, 'B'],
+    [/\bArrows(?=:| \+)/g, 'D-pad'],
+    [/PRESS ENTER/g, 'PRESS START'],
+  ];
+  const touchHint = (str) => TOUCH_HINTS.reduce((s, [re, to]) => s.replace(re, to), str);
   function text(str, x, y, scale, color) {
+    if (isTouch) str = touchHint(str);
     scale = scale || 1;
     ctx.fillStyle = color || col.dark;
     let cx = x;
@@ -1596,7 +1610,10 @@
   }
 
   // ---------- shared bits for the arcade mini-games ----------
-  const ctext = (str, y, color) => text(str, (SW - str.length * 6) >> 1, y, 1, color);
+  const ctext = (str, y, color) => {
+    if (isTouch) str = touchHint(str);
+    text(str, (SW - str.length * 6) >> 1, y, 1, color);
+  };
   // Save a high score; returns true if it's a new record.
   function saveBest(key, score) {
     questNote(key, score);
@@ -5160,8 +5177,13 @@
         text(tok, x, y, 1, sel ? col.light : col.dark);
       });
     });
-    text('Type your name, then press Enter', (SW - 32 * 6) >> 1, SH - 34);
-    text('(or pick letters with the arrows + A)', (SW - 37 * 6) >> 1, SH - 22);
+    if (isTouch) {
+      text('Pick letters with the D-pad + A,', (SW - 32 * 6) >> 1, SH - 34);
+      text('then choose OK (or press START)', (SW - 31 * 6) >> 1, SH - 22);
+    } else {
+      text('Type your name, then press Enter', (SW - 32 * 6) >> 1, SH - 34);
+      text('(or pick letters with the arrows + A)', (SW - 37 * 6) >> 1, SH - 22);
+    }
   }
 
   // ---------- flavour text ----------
@@ -5484,7 +5506,7 @@
         if (sel) { ctx.fillStyle = col.dark; ring(x - 6, y + 6, 60, 60); ring(x - 5, y + 7, 58, 58); }
       });
     });
-    text('Arrows: choose   Space: start', (SW - 29 * 6) >> 1, SH - 24);
+    ctext('Arrows: choose   Space: start', SH - 24);
   }
 
   // ---------- render ----------
@@ -5628,7 +5650,6 @@
   }
 
   // ---------- layout ----------
-  const isTouch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 || /[#&]touch/.test(location.hash);
   document.body.classList.toggle('touch', isTouch);
   function layout() {
     const vw = innerWidth, vh = innerHeight, portrait = vh >= vw;
