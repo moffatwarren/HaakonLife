@@ -1,7 +1,6 @@
 # Haakon Life
 
-A top-down, Game Boy–style walkabout of the Richmond office (both floors from
-`Richmond Floor Map.pdf`).
+A top-down, Game Boy–style walkabout of the Richmond office (both floors).
 
 ## Playing
 
