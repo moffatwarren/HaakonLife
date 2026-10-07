@@ -8,6 +8,11 @@ Open `index.html` in any browser. It works straight from the folder (no server
 needed), or you can copy the whole folder to any web host. Keep `index.html`
 and the `js/` folder together.
 
+When it's served from a website (like GitHub Pages), the page asks the server for
+the newest copy of each file in `js/` every time it loads, so phones pick up an
+update straight away. The title screen shows when the version you're running was
+published ("Updated ...").
+
 | Action | Keyboard | Touch |
 | --- | --- | --- |
 | Move | Arrows / WASD | D-pad |

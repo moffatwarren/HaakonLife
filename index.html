@@ -104,11 +104,39 @@
     <b>Esc</b> back, cancel &nbsp;·&nbsp; <b>X / Shift</b> B &nbsp;·&nbsp; <b>Enter</b> Start menu &nbsp;·&nbsp; <b>M</b> Map
   </div>
 </div>
-<script src="js/font.js"></script>
-<script src="js/art.js"></script>
-<script src="js/maps.js"></script>
-<script src="js/people.js"></script>
-<script src="js/music.js"></script>
-<script src="js/game.js"></script>
+<script>
+// Load the game's scripts, always asking the server whether there's a newer copy, so a
+// phone picks up an update as soon as it's published instead of reusing a cached one
+// (GitHub Pages lets browsers keep files for 10 minutes). Unchanged files come back as a
+// tiny "not modified" reply. Opened straight from the folder (file://), or if anything
+// goes wrong, the scripts load the ordinary way.
+(function () {
+  var FILES = ['font', 'art', 'maps', 'people', 'music', 'game'];
+  function plain(i) {
+    if (i >= FILES.length) return;
+    var s = document.createElement('script');
+    s.src = 'js/' + FILES[i] + '.js';
+    s.onload = function () { plain(i + 1); };
+    document.body.appendChild(s);
+  }
+  if (location.protocol === 'file:' || !window.fetch) { plain(0); return; }
+  Promise.all(FILES.map(function (f) {
+    return fetch('js/' + f + '.js', { cache: 'no-cache' }).then(function (r) {
+      if (!r.ok) throw new Error(f);
+      // the newest file's date doubles as the version shown on the title screen
+      var mod = Date.parse(r.headers.get('last-modified'));
+      return r.text().then(function (code) { return { f: f, code: code, mod: mod }; });
+    });
+  })).then(function (all) {
+    var newest = Math.max.apply(null, all.map(function (x) { return x.mod || 0; }));
+    if (newest) window.GAME_VERSION = new Date(newest);
+    all.forEach(function (x) {
+      var s = document.createElement('script');
+      s.textContent = x.code + '\n//# sourceURL=js/' + x.f + '.js';
+      document.body.appendChild(s);
+    });
+  }).catch(function () { plain(0); });
+})();
+</script>
 </body>
 </html>
