@@ -1189,7 +1189,7 @@ window.Art = (function () {
     for (let y = 0; y < H; y++)
       for (let x = 0; x < W; x++) {
         const t = floor.tiles[y][x];
-        const c = t === ' ' ? 'w' : t === '#' ? 'k' : t === 'S' || t === 'E' ? 'r' : t === 'X' ? 'u' : '.,:_D'.includes(t) ? 'G' : 'g';
+        const c = t === ' ' ? 'w' : t === '#' ? 'k' : t === 'S' || t === 'E' ? 'r' : t === 'X' ? 'u' : '.,:_D$'.includes(t) ? 'G' : 'g';
         const rgb = pal[c], i = (y * W + x) * 4;
         img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2]; img.data[i + 3] = 255;
       }
