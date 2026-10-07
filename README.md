@@ -53,7 +53,7 @@ Walk up to these and press A:
 - **Lat pulldown** (fitness room): pull, then release, as the marker sweeps through the sweet spot; 20 sweeps, scored out of 20
 - **Exercise ball** (fitness room): shift your weight and stay on it
 - **Front desk** (Reception): send each visitor to the right office; you have to know the building
-- **Printer**: ease the jammed sheet out — pull too hard and it tears
+- **Printer**: ease five jammed sheets out without tearing them: watch for snags on the rollers, keep each sheet straight, and read whatever somebody printed
 - **Washer and dryer** (fitness room): catch the load the machine is asking for, let the rest drop
 - **Elevator**: about one ride in three, a coworker gets in and makes conversation
 
