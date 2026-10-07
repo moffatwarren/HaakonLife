@@ -933,6 +933,27 @@
     ctx.fillStyle = '#c07828'; ctx.fillRect(x + 3, y + 1, 1, 5); ctx.fillRect(x + 6, y + 1, 1, 5);
     ctx.fillStyle = '#f8e098'; ctx.fillRect(x + 1, y + 2, 9, 1);
   }
+  // Little spring rolls flying across the table when money moves (poker and blackjack):
+  // n rolls a few frames apart, each on a low arc from (x0, y0) to near (x1, y1).
+  // Call update() every frame and draw() over the table.
+  function RollFlyer() {
+    const TIME = 20;
+    let flying = [];
+    return {
+      send(x0, y0, x1, y1, n) {
+        for (let i = 0; i < n; i++)
+          flying.push({ x0, y0, x1: x1 + Math.round(Math.random() * 30 - 15), y1: y1 + Math.round(Math.random() * 6 - 3), t: -i * 4 });
+      },
+      update() { flying = flying.filter((f) => ++f.t < TIME); },
+      draw() {
+        for (const f of flying) {
+          if (f.t < 0) continue;
+          const k = f.t / TIME, e = 1 - (1 - k) * (1 - k); // ease out
+          drawRoll(Math.round(f.x0 + (f.x1 - f.x0) * e), Math.round(f.y0 + (f.y1 - f.y0) * e - Math.sin(Math.PI * k) * 14));
+        }
+      },
+    };
+  }
   // a generic profile picture: a grey head and shoulders on a coloured square
   function drawAvatar(x, y, bg) {
     ctx.fillStyle = '#181820'; ctx.fillRect(x, y, 24, 24);
@@ -981,16 +1002,11 @@
       if (!p.stack) p.allIn = true;
       if (amt > 0) flyRolls(p, amt);
     }
-    // Little spring rolls flying from someone's stack into the pot when they put money
-    // in: more rolls for bigger amounts (up to 6), a few frames apart, on a low arc.
-    let flying = [];
-    const FLY_TIME = 20;
+    // spring rolls fly from someone's stack into the pot: more for bigger amounts, up to 6
+    const rolls = RollFlyer();
     function flyRolls(p, amt) {
       const [x0, y0] = p.you ? [40, 138] : [p.px + 28, 39];
-      const n = Math.min(6, 1 + Math.floor(amt / (bb() * 2)));
-      for (let i = 0; i < n; i++) {
-        flying.push({ x0, y0, x1: 134 + Math.round(Math.random() * 30 - 15), y1: 40 + Math.round(Math.random() * 6 - 3), t: -i * 4 });
-      }
+      rolls.send(x0, y0, 134, 40, Math.min(6, 1 + Math.floor(amt / (bb() * 2))));
     }
 
     function startHand() {
@@ -1142,7 +1158,7 @@
       music: 'poker',
       update() {
         t++;
-        flying = flying.filter((f) => ++f.t < FLY_TIME);
+        rolls.update();
         if (timer > 0) {
           if (pressed.has('b')) ask('Leave the table with ' + seats[0].stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
           else if (--timer === 0 && next) { const f = next; next = null; f(); }
@@ -1250,13 +1266,7 @@
             text('D', cx + 3, cy + 2, 1, INK);
           }
         });
-        // spring rolls on their way into the pot
-        for (const f of flying) {
-          if (f.t < 0) continue;
-          const k = f.t / FLY_TIME, e = 1 - (1 - k) * (1 - k); // ease out
-          const x = f.x0 + (f.x1 - f.x0) * e, y = f.y0 + (f.y1 - f.y0) * e - Math.sin(Math.PI * k) * 14;
-          drawRoll(Math.round(x), Math.round(y));
-        }
+        rolls.draw(); // spring rolls on their way into the pot
         // what just happened
         ctx.fillStyle = INK; ctx.fillRect(4, 172, SW - 8, 26);
         ctx.fillStyle = '#f8f8f8'; ctx.fillRect(5, 173, SW - 10, 24);
@@ -1315,6 +1325,10 @@
     let stack = START, bet = MIN_BET, wager = 0, shoe = [], me = [], dealer = [], holeHidden = true;
     let state = 'bet', lines = [], btn = 0, timer = 0, next = null, t = 0, record = false;
     const after = (frames, fn) => { timer = frames; next = fn; };
+    // spring rolls flying between your stack, the bet spot and the dealer
+    const rolls = RollFlyer(), YOU = [20, 136], BET = [130, 146], DEALER = [42, 40];
+    const count = (amt) => Math.min(6, 1 + Math.floor(amt / 20));
+    const toBet = (amt) => rolls.send(YOU[0], YOU[1], BET[0], BET[1], count(amt));
     // run fns one after another, a beat apart, then done()
     const steps = (fns, done) => {
       if (!fns.length) { done(); return; }
@@ -1334,7 +1348,7 @@
     function deal() {
       const reshuffled = shoe.length < 60;
       if (reshuffled) shuffle();
-      wager = bet; stack -= wager;
+      wager = bet; stack -= wager; toBet(wager);
       me = []; dealer = []; holeHidden = true; state = 'deal'; btn = 0;
       lines = [(reshuffled ? 'Fresh shoe. ' : '') + 'You bet ' + wager + ' spring rolls.'];
       sfx('select');
@@ -1358,7 +1372,7 @@
       else lines = ['You have ' + totalText(me) + '.'];
     }
     function double() {
-      stack -= wager; wager *= 2;
+      toBet(wager); stack -= wager; wager *= 2;
       sfx('menu'); me.push(shoe.pop());
       state = 'wait';
       const v = bjTotal(me).n;
@@ -1389,6 +1403,12 @@
       else if (mine === theirs) { won = wager; msg = 'Push at ' + mine + '. Bet back.'; }
       else msg = theirs + ' beats ' + mine + '. You lose ' + wager + '.';
       stack += won;
+      // the bet goes to the dealer, or comes back to you with any winnings
+      if (won === 0) rolls.send(BET[0], BET[1], DEALER[0], DEALER[1], count(wager));
+      else {
+        rolls.send(BET[0], BET[1], YOU[0], YOU[1], count(Math.min(won, wager)));
+        if (won > wager) rolls.send(DEALER[0], DEALER[1], YOU[0], YOU[1], count(won - wager));
+      }
       lines = [msg, 'You have ' + stack + ' spring rolls.'];
       if (won > wager) sfx('cup'); else if (won < wager) sfx('bump'); else sfx('blip');
       wager = 0; state = 'result';
@@ -1417,6 +1437,7 @@
       music: 'poker',
       update() {
         t++;
+        rolls.update();
         if (timer > 0) {
           if (pressed.has('b')) askLeave();
           else if (--timer === 0 && next) { const f = next; next = null; f(); }
@@ -1490,6 +1511,7 @@
           drawRoll(160 - bs.length * 3 - 14, 146);
           text(bs, 160 - bs.length * 3, 146, 1, '#f8e070');
         }
+        rolls.draw();
         // what just happened
         ctx.fillStyle = INK; ctx.fillRect(4, 172, SW - 8, 26);
         ctx.fillStyle = '#f8f8f8'; ctx.fillRect(5, 173, SW - 10, 24);
