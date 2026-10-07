@@ -811,7 +811,7 @@ window.OFFICE_MAPS = {
      "y2": 26
     },
     {
-     "name": "Empty Cubicle",
+     "name": "187 Dalia",
      "x1": 48,
      "y1": 15,
      "x2": 52,
