@@ -246,7 +246,7 @@ window.OFFICE_MAPS = {
      "y2": 19
     },
     {
-     "name": "135 Maya",
+     "name": "135 Maya W",
      "x1": 82,
      "y1": 21,
      "x2": 86,
@@ -714,7 +714,7 @@ window.OFFICE_MAPS = {
      "parent": "Open Office"
     },
     {
-     "name": "Empty Cubicle",
+     "name": "127 Maya J",
      "x1": 16,
      "y1": 16,
      "x2": 19,

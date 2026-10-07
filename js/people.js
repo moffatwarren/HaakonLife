@@ -51,6 +51,7 @@ window.PEOPLE = {
   "Jhonna": { body: 'female', hair: '#8a5a3a', skin: '#d8a070', top: '#3868c8', accent: '#2c6a34', pants: '#383848', lines: ["Make sure you have your dependant forms filled out for Manulife!"] },
   "Max": { body: 'male', hair: '#181010', skin: '#f8d0a8', top: '#40a0a0', accent: '#f8e070', pants: '#b09870', lines: [] },
   "Jack": { body: 'male', hair: '#6a3c20', skin: '#8a5838', top: '#58a848', accent: '#d03868', pants: '#484858', lines: [] },
+  "Maya W": { body: 'female', hair: '#181010', skin: '#d8a070', top: '#78a8e8', accent: '#f8f8f8', pants: '#303040', lines: [] },
   // ---- Second floor ----
   "Linda": { body: 'ghost', lines: ["Boooooo...", "Ooooo... has anyone seen my stapler?", "This rack room is MY office now. Boo."] },
   "Davisson": { body: 'male', hair: '#d06030', skin: '#f8d0a8', top: '#f8f8f8', accent: '#f8f8f8', pants: '#3a3050', lines: [] },
@@ -87,7 +88,7 @@ window.PEOPLE = {
   "Jordan": { body: 'male', hair: '#181010', skin: '#c08860', top: '#b83028', accent: '#f0b030', pants: '#b09870', lines: [] },
   "Jimmy": { body: 'male', hair: '#181010', skin: '#d8a070', top: '#9868c8', accent: '#f8e070', pants: '#383848', lines: [] },
   "Kyle": { body: 'male', hair: '#d06030', skin: '#8a5838', top: '#3868c8', accent: '#3050a8', pants: '#3a3050', lines: [] },
-  "Maya": { body: 'female', hair: '#d06030', skin: '#f8d0a8', top: '#b83028', accent: '#f0b030', pants: '#b09870', lines: [] },
+  "Maya J": { body: 'female', hair: '#d06030', skin: '#f8d0a8', top: '#b83028', accent: '#f0b030', pants: '#b09870', lines: [] },
   "Tainah": { body: 'female', hair: '#d06030', skin: '#f8d8b8', top: '#f0b030', accent: '#f0b030', pants: '#b09870', lines: [] },
   "Diane": { body: 'female', hair: '#6a3c20', skin: '#d8a070', top: '#9868c8', accent: '#b83028', pants: '#484858', lines: [] },
   "Raymond": { body: 'male', hair: '#5a3420', skin: '#f8d0a8', top: '#b83028', accent: '#f8e070', pants: '#686878', lines: [] },
