@@ -498,7 +498,7 @@ f2.rooms[-1]['computer'] = 'poker'
 f2.office('133 Jules', 38, 20, 41, 25, 'N'); f2.door((39, 19), (40, 19))
 f2.fill(38, 22, 38, 25, 'd'); f2.put(39, 25, 'd'); f2.put(38, 25, 'm')  # L-shaped desk up the left wall
 
-# centre pod (Avery / Marcus / Muhammad, one empty cubicle)
+# centre pod (Dalia / Avery / Marcus / Muhammad)
 f2.rooms.append({'name': 'Open Office', 'x1': 43, 'y1': 14, 'x2': 63, 'y2': 26})
 f2.fill(47, 14, 58, 25, '.')
 f2.vline(53, 14, 25, '=')
@@ -507,7 +507,7 @@ for y in (14, 20, 25):
 f2.vline(47, 14, 25, '='); f2.vline(58, 14, 25, '=')
 for gx in (49, 50, 55, 56):  # openings on the top and bottom
     f2.put(gx, 14, '.'); f2.put(gx, 25, '.')
-for (y1, y2), left, right in (((15, 19), 'Empty Cubicle', '139 Avery'),
+for (y1, y2), left, right in (((15, 19), '187 Dalia', '139 Avery'),
                                ((21, 24), '166 Marcus', '141 Muhammad')):
     f2.cubicle(left, 48, y1, 52, y2, 'E')
     f2.cubicle(right, 54, y1, 57, y2, 'W')
@@ -628,7 +628,7 @@ f2.clear((69, 21), (70, 21), (69, 22))
 f2.l_desk(col(67, 23, 25), (67, 24), (68, 24))                           # Nik
 
 # centre pod
-f2.l_desk(col(52, 16, 19) + row(19, 48, 51), (52, 16), (51, 16))        # empty
+f2.l_desk(col(52, 16, 19) + row(19, 48, 51), (52, 16), (51, 16))        # Dalia
 f2.l_desk(col(54, 16, 19) + row(19, 55, 57), (54, 16), (55, 16))        # Avery
 f2.l_desk(row(21, 48, 52) + col(52, 22, 24), (52, 21), (51, 22))        # Marcus
 f2.l_desk(col(54, 21, 24) + row(21, 55, 57), (54, 21), (55, 22))        # Muhammad
