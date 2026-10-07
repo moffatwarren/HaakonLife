@@ -343,7 +343,7 @@
   function pickMusic() {
     if (!musicOn) return null;
     for (let i = ui.length - 1; i >= 0; i--) if (ui[i].music) return ui[i].music;
-    if (mode === 'play' && curRoom && ((curRoom.name === 'Ghosts' && !lindaFree) || curRoom.dark)) return 'spooky';
+    if (mode === 'play' && curRoom && ((curRoom.name === 'Haunted Office' && !lindaFree) || curRoom.dark)) return 'spooky';
     if (mode === 'play' && curRoom && curRoom.rave) return 'rave';
     return 'office';
   }
@@ -3614,7 +3614,7 @@
           }
           return;
         }
-        if (pressed.has('b')) { remove(self); say('You back out of the rack room.'); return; }
+        if (pressed.has('b')) { remove(self); say('You back out of the Haunted Office.'); return; }
         if (pressed.has('up')) { sel = (sel + N - 1) % N; sfx('select'); }
         if (pressed.has('down')) { sel = (sel + 1) % N; sfx('select'); }
         if (pressed.has('a')) {
@@ -5140,7 +5140,7 @@
   }
 
   // ---------- Linda's list: a side quest from a locker in the fitness room ----------
-  // Linda (the ghost in the rack room) left a list of things she never got round to.
+  // Linda (the ghost in the Haunted Office) left a list of things she never got round to.
   // Each time you take it out of the locker you get a different handful of tasks from
   // LINDA_TASKS. Mini-games report their results to questNote(key, value) and a task
   // is crossed off when value reaches its target. Finish them all, and find her stapler,
@@ -5191,7 +5191,7 @@
       for (const [dx, dy] of Object.values(DIRS)) {
         const r = roomAt(fi, x + dx, y + dy);
         if (!WALKABLE.includes(tileAt(fi, x + dx, y + dy)) || !r) continue;
-        if (r.name === 'Ghosts' || r.dark || r.gender || r.curtain || / \/ \d/.test(r.name)) continue;
+        if (r.name === 'Haunted Office' || r.dark || r.gender || r.curtain || / \/ \d/.test(r.name)) continue;
         spots.push({ floor: fi, x, y, room: r });
         return;
       }
@@ -5215,7 +5215,7 @@
   // The stapler or the list is done: say so, and point you at Linda once both are.
   function lindaLighter() {
     if (stapler.found && quest && quest.complete) {
-      questQueue.push('The air feels lighter than ever. You should go and see Linda in the rack room.');
+      questQueue.push('The air feels lighter than ever. You should go and see Linda in the Haunted Office.');
     } else questQueue.push('The air feels a little lighter.');
   }
   function drawStaplerAt(x, y) {
@@ -5252,7 +5252,7 @@
         sfx('ding');
         questQueue.push('Linda floats up through the ceiling tiles, stapler in hand, and is gone.');
         questQueue.push('Somewhere far above, there is a happy "Boooo!" and the click of a stapler.');
-        questQueue.push('The rack room feels warm for the first time in years.');
+        questQueue.push('The Haunted Office feels warm for the first time in years.');
       },
       draw() {
         // a warm wash over everything, ending in a soft white flash
@@ -5740,7 +5740,7 @@
       sfx('cup');
       stapler.found = true;
       say('A red stapler! It\'s ice cold. This must be Linda\'s.');
-      questQueue.push('A chilly breeze whisks it out of your hands, off towards the rack room.');
+      questQueue.push('A chilly breeze whisks it out of your hands, off towards the Haunted Office.');
       lindaLighter();
       return;
     }

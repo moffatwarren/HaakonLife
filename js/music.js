@@ -24,7 +24,7 @@ window.MUSIC = {
     ],
   },
 
-  // the Ghosts room: slow, minor and empty
+  // the Haunted Office: slow, minor and empty
   spooky: {
     bpm: 72,
     voices: [

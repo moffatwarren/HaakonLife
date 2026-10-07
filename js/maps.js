@@ -595,7 +595,7 @@ window.OFFICE_MAPS = {
      "y2": 8
     },
     {
-     "name": "Ghosts",
+     "name": "Haunted Office",
      "x1": 37,
      "y1": 4,
      "x2": 44,
