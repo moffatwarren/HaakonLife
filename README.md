@@ -75,7 +75,7 @@ beats Damper Block, and Damper Block beats Fan Gust.
 One of the lockers in the **fitness room** is open a crack. Inside is a list
 left by Linda, the ghost in the rack room: 7 things she never got round to,
 picked at random from about 20 each time you take it (beat the TV at Pong, win
-300 spring rolls off Cody, fix Damir's lights, and so on). Read it any time
+100 spring rolls off Cody, fix Damir's lights, and so on). Read it any time
 from the Start menu; each task crosses itself off when you do it. Finish them
 all and your picture goes up as **Employee of the Month** on an easel by the
 front entrance, with the name you entered at the start. Linda has new things

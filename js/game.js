@@ -4923,7 +4923,7 @@
     { key: 'run', need: 150, text: 'Run 150m on the treadmill' },
     { key: 'pulldown', need: 10, text: 'Do 10 clean lat pulldowns' },
     { key: 'jam', need: 3, text: 'Unjam 3 sheets from the printer' },
-    { key: 'blackjack', need: 300, text: 'Win 300 spring rolls off Cody' },
+    { key: 'blackjack', need: 300, text: 'Win 100 spring rolls off Cody' }, // you start with 200
     { key: 'battle', need: 1, text: 'Beat Richard in his silly duel' },
     { key: 'dark', need: 1, text: 'Fix the lights in Damir\'s office' },
     { key: 'elevator', need: 1, text: 'Make small talk in the elevator' },
