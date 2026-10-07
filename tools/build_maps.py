@@ -17,6 +17,7 @@ Map glyphs
              F fan unit  L cooling coil  a damper  K electrical control panel
              R reception desk with PC  Z table with candy
              W washer  O dryer  A squat rack  G punching bag  N locker
+             $ Employee of the Month easel (plain floor until Linda's list is done)
              I lat pulldown machine  e dumbbell rack  g shelf of snacks  l railing
              z server rack  y rack of computers  u stretcher  t trophy shelf
              i putting green  s engraving machine
@@ -345,6 +346,7 @@ f1.fill(31, 33, 31, 35, 'Z')  # candy table on the right wall
 f1.put(23, 31, 'c')
 f1.put(25, 37, 'p'); f1.put(30, 37, 'p'); f1.put(19, 37, 'p')
 f1.exit((26, 38), (27, 38), (28, 38), (29, 38))
+f1.put(23, 37, '$')  # Employee of the Month easel (appears once Linda's list is done)
 
 # --- west offices ---
 f1.vline(9, 16, 37); f1.hline(2, 9, 26)

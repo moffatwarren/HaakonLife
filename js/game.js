@@ -40,6 +40,14 @@
   });
   let curtainOpen = null; // floor index whose curtains are open
 
+  // The Employee of the Month easel ('$' tile by the front entrance) only appears once
+  // Linda's list is done; until then the spot is plain floor.
+  const easels = MAPS.floors.map((f) => {
+    const list = [];
+    f.tiles.forEach((rowStr, y) => [...rowStr].forEach((c, x) => { if (c === '$') list.push({ x, y }); }));
+    return list;
+  });
+
   // Electrical panels ('K' tiles) get blinking status lights drawn over them.
   const panels = MAPS.floors.map((f) => {
     const list = [];
@@ -364,6 +372,8 @@
   // Esc backs out of any menu or mini-game (like B); while walking around it opens the start menu.
   let escAs = 'b';
   addEventListener('keydown', (e) => {
+    // naming yourself: keys type letters, and only the arrows keep their game meaning
+    if (mode === 'name' && !fade && (nameKey(e) || !e.code.startsWith('Arrow'))) { e.preventDefault(); return; }
     if (e.code === 'Escape' && !e.repeat) escAs = mode === 'play' && !ui.length && !fade ? 'start' : 'b';
     const k = e.code === 'Escape' ? escAs : KEYS[e.code];
     if (!k) return;
@@ -1493,6 +1503,7 @@
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
             coffeesToday++;
+            questNote('coffee', 1);
             say(coffeesToday === 1
               ? 'You made a cup of coffee. Ahh, that hits the spot!'
               : 'Another cup of coffee! That\'s ' + coffeesToday + ' today...');
@@ -1588,6 +1599,7 @@
   const ctext = (str, y, color) => text(str, (SW - str.length * 6) >> 1, y, 1, color);
   // Save a high score; returns true if it's a new record.
   function saveBest(key, score) {
+    questNote(key, score);
     if (score <= (+store.get('best.' + key) || 0)) return false;
     store.set('best.' + key, score);
     return true;
@@ -1815,6 +1827,7 @@
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
+            questNote('pong', mine > theirs ? 1 : 0);
             say(mine > theirs ? 'You beat the TV at Pong! The news can wait.' : 'The TV beat you. Maybe just watch the news.');
           }
           return;
@@ -2504,6 +2517,7 @@
           if (++n < HOLES.length) startHole();
           else {
             state = 'done'; t = 0;
+            questNote('golf', 1);
             record = !best() || total() < best();
             if (record) store.set('best.golf', total());
             sfx('ding');
@@ -2628,6 +2642,7 @@
           if (state === 'win') lights = Math.min(1, lights + 0.02);
           if (t > 90 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
+            questNote('dark', state === 'win' ? 1 : 0);
             say(state === 'win'
               ? 'The lights flicker back on. Damir looks almost disappointed. "Not bad... for a first time."'
               : 'Something cold grabs your shoulder... The lights come on. Damir is smiling. "Maybe next time."');
@@ -2876,6 +2891,7 @@
           // the last line of a finished duel closes it
           if (result && !queue.length) {
             remove(self);
+            questNote('battle', result === 'win' ? 1 : 0);
             say(result === 'win'
               ? 'You won the air handling duel! Richard looks genuinely proud.'
               : 'Richard wins. Time to read up on airflow.');
@@ -4360,7 +4376,7 @@
         }
         if (said) {
           if (++said.t > 50) {
-            if (++turn >= hops) { state = 'done'; t = 0; sfx('ding'); return; }
+            if (++turn >= hops) { state = 'done'; t = 0; sfx('ding'); questNote('elevator', 1); return; }
             nextBit();
           }
           return;
@@ -4860,20 +4876,292 @@
 
   function openStartMenu() {
     sfx('menu');
-    const labels = () => ['MAP', soundOn ? 'SOUND ON' : 'SOUND OFF', musicOn ? 'MUSIC ON' : 'MUSIC OFF', 'CLOSE'];
-    const menu = Choice(labels(), -1, 0, (i, self) => {
-      if (i === 0) ui.push(MapView());
-      else if (i === 1) {
-        soundOn = !soundOn; store.set('sound', soundOn ? 'on' : 'off');
-        self.options = labels();
-        sfx('select');
-      } else if (i === 2) {
-        musicOn = !musicOn; store.set('music', musicOn ? 'on' : 'off');
-        self.options = labels();
-        sfx('select');
-      } else remove(self);
-    }, { keepOpen: true, startCloses: true, minChars: 9 });
+    // Linda's list shows up in the menu once you've taken it out of the locker
+    const items = () => [['MAP', () => ui.push(MapView())]]
+      .concat(quest ? [['LINDA\'S LIST', () => ui.push(LindaList())]] : [])
+      .concat([
+        [soundOn ? 'SOUND ON' : 'SOUND OFF', (self) => { soundOn = !soundOn; store.set('sound', soundOn ? 'on' : 'off'); self.options = items().map((o) => o[0]); sfx('select'); }],
+        [musicOn ? 'MUSIC ON' : 'MUSIC OFF', (self) => { musicOn = !musicOn; store.set('music', musicOn ? 'on' : 'off'); self.options = items().map((o) => o[0]); sfx('select'); }],
+        ['CLOSE', (self) => remove(self)],
+      ]);
+    const menu = Choice(items().map((o) => o[0]), -1, 0, (i, self) => {
+      if (i < 0) return;
+      items()[i][1](self);
+    }, { keepOpen: true, startCloses: true, minChars: 12 });
     ui.push(menu);
+  }
+
+  // ---------- Linda's list: a side quest from a locker in the fitness room ----------
+  // Linda (the ghost in the rack room) left a list of things she never got round to.
+  // Each time you take it out of the locker you get a different handful of tasks from
+  // LINDA_TASKS. Mini-games report their results to questNote(key, value) and a task
+  // is crossed off when value reaches its target. Finish them all and you become
+  // Employee of the Month, with your picture by the front entrance. None of this is
+  // saved: it starts fresh every visit.
+  const LINDA_TASKS = [
+    { key: 'coffee', need: 1, text: 'Make a cup of coffee. I miss it.' },
+    { key: 'pong', need: 1, text: 'Beat the TV at Pong' },
+    { key: 'punch5', need: 300, text: 'Punch the bag for 300 points' },
+    { key: 'squat', need: 175, text: 'Squat 175 lb' },
+    { key: 'run', need: 150, text: 'Run 150m on the treadmill' },
+    { key: 'pulldown', need: 10, text: 'Do 10 clean lat pulldowns' },
+    { key: 'jam', need: 3, text: 'Unjam 3 sheets from the printer' },
+    { key: 'blackjack', need: 300, text: 'Win 300 spring rolls off Cody' },
+    { key: 'battle', need: 1, text: 'Beat Richard in his silly duel' },
+    { key: 'dark', need: 1, text: 'Fix the lights in Damir\'s office' },
+    { key: 'elevator', need: 1, text: 'Make small talk in the elevator' },
+    { key: 'jar', need: 2, text: 'Beat Kiki at the candy jar' },
+    { key: 'wade', need: 1, text: 'Win a hole against Wade' },
+    { key: 'simon', need: 5, text: 'Get 5 rounds on a light panel' },
+    { key: 'lunch', need: 3, text: 'Find the right lunch 3 times' },
+    { key: 'candy', need: 5, text: 'Sneak 5 candies off the table' },
+    { key: 'desk', need: 7, text: 'Send 7 visitors the right way' },
+    { key: 'forms', need: 1, text: 'Help Jhonna with her forms' },
+    { key: 'cpr', need: 0, text: 'Practise CPR on the dummy' },
+    { key: 'engrave', need: 70, text: 'Engrave a nameplate (70% on)' },
+    { key: 'golf', need: 1, text: 'Play a round on Wade\'s green' },
+  ];
+  const LINDA_COUNT = 7;
+  const LINDA_WAITING = [
+    'Ooooo... you found my list! Don\'t forget the rest of it.',
+    'Boooo... how is my list coming along?',
+    'You can check my list from the Start menu. Boo.',
+  ];
+  const LINDA_THANKS = [
+    'You did EVERYTHING on my list! I feel so... light.',
+    'Thank you, Employee of the Month. Boo! (That was a happy boo.)',
+    'I can finally rest... right after I find my stapler.',
+  ];
+  let quest = null; // { tasks: [{key, need, text, done}], complete }
+  let playerName = '';
+  const questQueue = []; // messages to show once you're back walking around
+
+  function startQuest() {
+    const pool = LINDA_TASKS.slice();
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    quest = { tasks: pool.slice(0, LINDA_COUNT).map((t) => Object.assign({ done: false }, t)), complete: false };
+  }
+  // Called with every mini-game result (from saveBest, and directly by the games that
+  // don't keep a best score).
+  function questNote(key, value) {
+    if (!quest || quest.complete) return;
+    for (const task of quest.tasks) {
+      if (task.done || task.key !== key || !(value >= task.need)) continue;
+      task.done = true;
+      const left = quest.tasks.filter((x) => !x.done).length;
+      if (left) {
+        questQueue.push('A cold breeze ruffles Linda\'s list... "' + task.text + '" crosses itself off! (' + left + ' to go)');
+      } else {
+        quest.complete = true;
+        questQueue.push('A cold breeze ruffles Linda\'s list... "' + task.text + '" crosses itself off!');
+        questQueue.push('That\'s everything on Linda\'s list! A happy "Boooo!" echoes through the building.');
+        questQueue.push('Somebody has hung a new EMPLOYEE OF THE MONTH picture by the front entrance. Go and have a look!');
+      }
+    }
+  }
+
+  // The open locker, with the list tucked on the top shelf.
+  function LockerScreen() {
+    let state = 'open', t = 0;
+    const self = {
+      update() {
+        t++;
+        if (state === 'open') { if (t > 30) { state = 'look'; t = 0; } return; }
+        if (state === 'look') {
+          if (t > 20 && pressed.has('a')) { sfx('select'); state = 'grab'; t = 0; }
+          else if (pressed.has('b')) { remove(self); say('You close the locker. The paper can wait.'); }
+          return;
+        }
+        if (t > 20 && (pressed.has('a') || pressed.has('b'))) {
+          sfx('menu'); remove(self); startQuest(); ui.push(LindaList(true));
+        }
+      },
+      draw() {
+        ctx.fillStyle = col.dark; ctx.fillRect(0, 0, SW, SH);
+        // the locker body
+        const X = 90, Y = 12, W = 140, H = 176;
+        ctx.fillStyle = '#5a6478'; ctx.fillRect(X - 6, Y - 6, W + 12, H + 12);
+        ctx.fillStyle = '#20242e'; ctx.fillRect(X, Y, W, H);
+        // shelf, towel, sneakers, gym bag
+        ctx.fillStyle = '#8890a0'; ctx.fillRect(X, Y + 50, W, 5);
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(X + 60, Y + 55, 2, 10); // hook
+        ctx.fillStyle = '#d85858'; ctx.fillRect(X + 52, Y + 64, 20, 54); ctx.fillStyle = '#f8f8f8'; ctx.fillRect(X + 52, Y + 74, 20, 3); ctx.fillRect(X + 52, Y + 106, 20, 3);
+        ctx.fillStyle = '#3868c8'; ctx.fillRect(X + 12, Y + 140, 56, 30); ctx.fillStyle = '#284888'; ctx.fillRect(X + 12, Y + 140, 56, 4); ctx.fillRect(X + 30, Y + 134, 20, 6);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(X + 84, Y + 156, 22, 12); ctx.fillRect(X + 108, Y + 156, 22, 12);
+        ctx.fillStyle = '#c03030'; ctx.fillRect(X + 84, Y + 166, 22, 3); ctx.fillRect(X + 108, Y + 166, 22, 3);
+        // the folded paper, glowing a little, until you take it
+        if (state !== 'grab') {
+          const glow = 0.25 + 0.2 * Math.sin(tick / 10);
+          ctx.fillStyle = 'rgba(200,230,255,' + glow + ')'; ctx.fillRect(X + 40, Y + 22, 52, 30);
+          ctx.fillStyle = '#181820'; ctx.fillRect(X + 45, Y + 28, 42, 22);
+          ctx.fillStyle = '#f4ecd0'; ctx.fillRect(X + 46, Y + 29, 40, 20);
+          ctx.fillStyle = '#d8ccb0'; ctx.fillRect(X + 46, Y + 38, 40, 1);
+          ctx.fillStyle = '#5068b0'; for (let i = 0; i < 3; i++) ctx.fillRect(X + 50, Y + 32 + i * 5, 24 - i * 6, 1);
+        }
+        // the door, swinging open
+        const open = state === 'open' ? Math.min(1, t / 30) : 1;
+        const dw = Math.round(W * (1 - open) + 16 * open);
+        ctx.fillStyle = '#6a7490'; ctx.fillRect(X - 6, Y - 6, dw, H + 12);
+        ctx.fillStyle = '#8890a8';
+        if (dw > 30) for (let i = 0; i < 4; i++) ctx.fillRect(X + 8, Y + 8 + i * 6, dw - 24, 2);
+        if (state === 'look') sayBox('Something is tucked on the top shelf.', 'Space: take it   Esc: close');
+        if (state === 'grab') sayBox('You reach in and grab a paper.', 'Space: read it');
+      },
+    };
+    function sayBox(a, b) {
+      box(0, SH - 48, SW, 48);
+      text(a, 8, SH - 38);
+      if ((tick >> 4) & 1) text(b, 8, SH - 22);
+    }
+    return self;
+  }
+
+  // Linda's list on old lined paper, crossed off as you go. first: just taken out.
+  function LindaList(first) {
+    const self = {
+      update() {
+        if (pressed.has('a') || pressed.has('b') || pressed.has('start')) {
+          sfx('select'); remove(self);
+          if (first) say('It\'s signed "Linda". You fold it into your pocket. (Read it again any time from the Start menu.)');
+        }
+      },
+      draw() {
+        ctx.fillStyle = col.dark; ctx.fillRect(0, 0, SW, SH);
+        const X = 30, Y = 6, W = 260, H = 214, INK = '#2a3a8a';
+        ctx.fillStyle = '#c8bc98'; ctx.fillRect(X + 3, Y + 3, W, H);
+        ctx.fillStyle = '#f4ecd0'; ctx.fillRect(X, Y, W, H);
+        ctx.fillStyle = '#b8d0e8'; for (let y = Y + 40; y < Y + H - 8; y += 20) ctx.fillRect(X + 4, y + 11, W - 8, 1);
+        ctx.fillStyle = '#e8a0a0'; ctx.fillRect(X + 24, Y + 4, 1, H - 8);
+        text('THINGS I NEVER GOT TO DO', X + 58, Y + 12, 1, '#a03030');
+        ctx.fillStyle = '#a03030'; ctx.fillRect(X + 58, Y + 21, 143, 1);
+        quest.tasks.forEach((task, i) => {
+          const y = Y + 40 + i * 20, tx = X + 34;
+          // the box, ticked once done
+          ctx.fillStyle = INK; ring(X + 8, y + 1, 9, 9);
+          text(task.text, tx, y + 2, 1, task.done ? '#7080b0' : INK);
+          if (task.done) {
+            ctx.fillStyle = '#c03030';
+            const w = task.text.length * 6;
+            for (let k = 0; k < w; k += 2) ctx.fillRect(tx - 2 + k, y + 5 + ((k >> 1) % 3 === 1 ? 1 : 0), 2, 1);
+            ctx.fillRect(X + 9, y + 5, 2, 2); ctx.fillRect(X + 11, y + 7, 2, 2); ctx.fillRect(X + 13, y + 5, 2, 2); ctx.fillRect(X + 15, y + 3, 2, 2); ctx.fillRect(X + 17, y + 1, 2, 2);
+          }
+        });
+        const doneN = quest.tasks.filter((x) => x.done).length;
+        text(doneN + '/' + quest.tasks.length + ' done', X + 34, Y + H - 18, 1, '#7080b0');
+        if (quest.complete) text('Thank you. I can rest now.', X + W - 166, Y + H - 30, 1, '#c03030');
+        text('- Linda', X + W - 50, Y + H - 18, 1, INK);
+        text('Space: put it away', 6, SH - 14, 1, '#f8f8f8');
+      },
+    };
+    return self;
+  }
+
+  // Your framed picture by the front entrance, once Linda's list is done.
+  function EmployeeOfMonth() {
+    let t = 0;
+    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const d = new Date(), month = MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+    const self = {
+      update() { t++; if (t > 20 && (pressed.has('a') || pressed.has('b'))) { sfx('select'); remove(self); } },
+      draw() {
+        ctx.fillStyle = '#e8dcc0'; ctx.fillRect(0, 0, SW, SH);
+        ctx.fillStyle = '#d8ccb0'; for (let y = 0; y < SH; y += 8) ctx.fillRect(0, y, SW, 1);
+        const head = 'EMPLOYEE OF THE MONTH';
+        text(head, (SW - head.length * 12) >> 1, 10, 2, '#a07010');
+        // gold frame
+        const FX = 100, FY = 34, FW = 120, FH = 130;
+        ctx.fillStyle = '#6a4a10'; ctx.fillRect(FX - 2, FY - 2, FW + 4, FH + 4);
+        ctx.fillStyle = '#e0b030'; ctx.fillRect(FX, FY, FW, FH);
+        ctx.fillStyle = '#f8e070'; ctx.fillRect(FX + 3, FY + 3, FW - 6, 2); ctx.fillRect(FX + 3, FY + 3, 2, FH - 6);
+        ctx.fillStyle = '#a07010'; ctx.fillRect(FX + 8, FY + 8, FW - 16, FH - 16);
+        // the photo: you, on a studio backdrop
+        ctx.fillStyle = '#5878b8'; ctx.fillRect(FX + 10, FY + 10, FW - 20, FH - 20);
+        ctx.fillStyle = '#6888c8'; ctx.fillRect(FX + 10, FY + 10, FW - 20, (FH - 20) >> 1);
+        ctx.drawImage(sprites.down[0], FX + 12, FY + 14, 96, 96);
+        // a little gold star sticker
+        ctx.fillStyle = '#f8d848'; ctx.fillRect(FX + FW - 26, FY + 14, 10, 4); ctx.fillRect(FX + FW - 23, FY + 11, 4, 10);
+        // nameplate
+        const name = playerName || 'New Hire';
+        const nw = Math.max(100, name.length * 12 + 20);
+        ctx.fillStyle = '#6a4a10'; ctx.fillRect((SW - nw) / 2 - 1, 173, nw + 2, 24);
+        ctx.fillStyle = '#e0b030'; ctx.fillRect((SW - nw) / 2, 174, nw, 22);
+        text(name, (SW - name.length * 12) >> 1, 178, 2, '#3a2808');
+        text(month, (SW - month.length * 6) >> 1, 202, 1, '#6a4a10');
+        const note = 'For finishing everything on Linda\'s list.';
+        text(note, (SW - note.length * 6) >> 1, 216, 1, '#6a4a10');
+        if (t > 20 && (tick >> 4) & 1) text('Space', SW - 40, SH - 12, 1, '#6a4a10');
+      },
+    };
+    return self;
+  }
+  // the easel by the entrance, drawn over the map once there's a picture to show
+  function drawEaselAt(x, y) {
+    ctx.fillStyle = '#5a3a18';
+    ctx.fillRect(x + 3, y + 8, 2, 8); ctx.fillRect(x + 11, y + 8, 2, 8); ctx.fillRect(x + 7, y + 10, 2, 5);
+    ctx.fillStyle = '#6a4a10'; ctx.fillRect(x + 1, y - 6, 14, 15);
+    ctx.fillStyle = '#e0b030'; ctx.fillRect(x + 2, y - 5, 12, 13);
+    ctx.fillStyle = '#5878b8'; ctx.fillRect(x + 4, y - 3, 8, 9);
+    ctx.drawImage(sprites.down[0], 0, 0, 16, 16, x + 4, y - 3, 8, 9);
+  }
+
+  // ---------- your name, for the picture ----------
+  const NAME_MAX = 12;
+  const NAME_ROWS = ['ABCDEFGHIJKLM', 'NOPQRSTUVWXYZ', 'abcdefghijklm', 'nopqrstuvwxyz'].map((r) => r.split(''))
+    .concat([['-', '\'', '.', 'SPACE', 'DEL', 'OK']]);
+  const nameCur = { r: 0, c: 0 };
+  function nameDone() {
+    if (fade) return;
+    playerName = playerName.trim() || 'New Hire';
+    store.set('name', playerName);
+    sfx('menu');
+    startFade(() => { mode = 'play'; roomName = null; curRoom = null; updateRoom(); });
+  }
+  function nameType(tok) {
+    if (tok === 'OK') { nameDone(); return; }
+    if (tok === 'DEL') { playerName = playerName.slice(0, -1); sfx('select'); return; }
+    const ch = tok === 'SPACE' ? ' ' : tok;
+    if (playerName.length < NAME_MAX) { playerName += ch; sfx('blip'); } else sfx('bump');
+  }
+  // physical keyboard: type straight into the name
+  function nameKey(e) {
+    if (e.code === 'Enter') { if (!e.repeat) nameDone(); return true; }
+    if (e.code === 'Backspace') { nameType('DEL'); return true; }
+    if (e.key && e.key.length === 1 && /[A-Za-z0-9 .'\-]/.test(e.key)) { nameType(e.key === ' ' ? 'SPACE' : e.key); return true; }
+    return false;
+  }
+  function updateName() {
+    const row = () => NAME_ROWS[nameCur.r];
+    if (pressed.has('up')) { nameCur.r = (nameCur.r + NAME_ROWS.length - 1) % NAME_ROWS.length; nameCur.c = Math.min(nameCur.c, row().length - 1); sfx('select'); }
+    if (pressed.has('down')) { nameCur.r = (nameCur.r + 1) % NAME_ROWS.length; nameCur.c = Math.min(nameCur.c, row().length - 1); sfx('select'); }
+    if (pressed.has('left')) { nameCur.c = (nameCur.c + row().length - 1) % row().length; sfx('select'); }
+    if (pressed.has('right')) { nameCur.c = (nameCur.c + 1) % row().length; sfx('select'); }
+    if (pressed.has('a')) nameType(row()[nameCur.c]);
+    if (pressed.has('b')) nameType('DEL');
+    if (pressed.has('start')) nameDone();
+  }
+  function drawName() {
+    ctx.fillStyle = col.light; ctx.fillRect(0, 0, SW, SH);
+    ctx.fillStyle = col.dark; ring(4, 4, SW - 8, SH - 8); ring(6, 6, SW - 12, SH - 12);
+    const title = 'What\'s your name?';
+    text(title, (SW - title.length * 12) >> 1, 18, 2);
+    ctx.drawImage(sprites.down[[1, 0, 2, 0][(tick >> 3) & 3]], 24, 42, 48, 48);
+    // the name field
+    ctx.fillStyle = col.dark; ctx.fillRect(84, 52, 206, 28);
+    ctx.fillStyle = '#f8f8f8'; ctx.fillRect(86, 54, 202, 24);
+    text(playerName, 92, 58, 2);
+    if ((tick >> 4) & 1) { ctx.fillStyle = col.dark; ctx.fillRect(92 + playerName.length * 12, 58, 2, 16); }
+    // letters to pick with the arrows (for touch screens)
+    NAME_ROWS.forEach((row, r) => {
+      const last = r === NAME_ROWS.length - 1;
+      row.forEach((tok, c) => {
+        const x = last ? 34 + c * 44 : 34 + c * 20, y = 100 + r * 18;
+        const sel = nameCur.r === r && nameCur.c === c;
+        if (sel) { ctx.fillStyle = col.dark; ctx.fillRect(x - 4, y - 4, tok.length * 6 + 7, 15); }
+        text(tok, x, y, 1, sel ? col.light : col.dark);
+      });
+    });
+    text('Type your name, then press Enter', (SW - 32 * 6) >> 1, SH - 34);
+    text('(or pick letters with the arrows + A)', (SW - 37 * 6) >> 1, SH - 22);
   }
 
   // ---------- flavour text ----------
@@ -4968,7 +5256,7 @@
 
   function walkable(fi, x, y) {
     const t = tileAt(fi, x, y);
-    return WALKABLE.includes(t) || (t === 'C' && curtainOpen === fi);
+    return WALKABLE.includes(t) || (t === 'C' && curtainOpen === fi) || (t === '$' && !(quest && quest.complete));
   }
 
   function tryMove(d) {
@@ -5014,9 +5302,26 @@
         });
         return;
       }
+      if (npc.ghost) {
+        // Linda, and how she feels about her list
+        const lines = quest && quest.complete ? LINDA_THANKS
+          : quest ? LINDA_WAITING : npc.lines.concat(['Ooooo... I left something in the gym lockers...']);
+        say(says(lines[Math.floor(Math.random() * lines.length)]));
+        return;
+      }
       say(says(npc.lines[Math.floor(Math.random() * npc.lines.length)]));
       return;
     }
+    if (t === 'N' && curRoom && curRoom.name === 'Fitness Room') {
+      sfx('select');
+      if (!quest) ask('A row of lockers. One of them is open just a crack...', ['OPEN IT', 'LEAVE IT'], (i) => {
+        if (i === 0) { sfx('menu'); ui.push(LockerScreen()); }
+      });
+      else say(quest.complete ? 'The locker is empty now. It feels warmer in here than it used to.'
+        : 'Just a gym bag, some old sneakers and a faint chill.');
+      return;
+    }
+    if (t === '$' && quest && quest.complete) { sfx('menu'); ui.push(EmployeeOfMonth()); return; }
     if (t === 'E') {
       const ends = findLink(P.floor, tx, ty);
       const names = MAPS.floors.map((f, i) => (i === 0 ? 'GROUND' : i + 1 + 'F'));
@@ -5026,9 +5331,9 @@
         if (i === P.floor) { say('You\'re already on this floor.'); return; }
         sfx('ding');
         const from = P.floor, go = () => warpTo(ends.find((e) => e.floor === i));
-        // roughly one ride in three, somebody gets in with you
+        // every ride, somebody gets in with you
         const pool = npcs.filter((n) => !n.ghost);
-        if (pool.length && Math.random() < 0.34) {
+        if (pool.length) {
           ui.push(ElevatorGame(pool[Math.floor(Math.random() * pool.length)], from, i, go));
         } else go();
       });
@@ -5130,8 +5435,12 @@
       if (pressed.has('a') || pressed.has('start')) { sfx('menu'); mode = 'select'; }
     } else if (mode === 'select') {
       updateSelect();
+    } else if (mode === 'name') {
+      updateName();
     } else if (ui.length) {
       top().update();
+    } else if (questQueue.length) {
+      say(questQueue.shift());
     } else {
       updatePlayer();
       updateNpcs();
@@ -5155,7 +5464,8 @@
       sfx('menu');
       store.set('gender', pick.gender); store.set('look', pick.index);
       sprites = charSprites[pick.gender][pick.index];
-      startFade(() => { mode = 'play'; roomName = null; curRoom = null; updateRoom(); });
+      if (!playerName) playerName = store.get('name') || '';
+      startFade(() => { mode = 'name'; });
     }
   }
 
@@ -5198,6 +5508,8 @@
     if (w > 0 && h > 0) ctx.drawImage(cv, sx, sy, w, h, dx, dy, w, h);
     if (curtainOpen === P.floor)
       for (const c of curtains[P.floor]) ctx.drawImage(c.open, c.x * 16 - cx, c.y * 16 - cy);
+    if (quest && quest.complete)
+      for (const e of easels[P.floor]) drawEaselAt(e.x * 16 - cx, e.y * 16 - cy);
     for (const k of panels[P.floor]) {
       const x = k.x * 16 - cx, y = k.y * 16 - cy;
       if (x < -16 || x > SW || y < -16 || y > SH) continue;
@@ -5300,6 +5612,7 @@
     ctx.fillRect(0, 0, SW, SH);
     if (mode === 'title') drawTitle();
     else if (mode === 'select') drawSelect();
+    else if (mode === 'name') drawName();
     else {
       drawWorld();
       drawBanner();
@@ -5334,24 +5647,32 @@
   addEventListener('resize', layout);
   addEventListener('orientationchange', layout);
 
-  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|jar|poker|blackjack)
+  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|jar|poker|blackjack, or locker|list|eotm with &quest=)
   if (location.hash.startsWith('#play')) {
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
     if (q.has('x')) { P.x = +q.get('x'); P.y = +q.get('y'); }
     if (q.has('char')) { const [g, i] = q.get('char').split(':'); pick.gender = g; sprites = charSprites[g][+i || 0]; }
     if (q.has('dir')) P.dir = q.get('dir');
-    mode = q.has('title') ? 'title' : q.has('select') ? 'select' : 'play';
+    mode = q.has('title') ? 'title' : q.has('select') ? 'select' : q.has('naming') ? 'name' : 'play';
     updateRoom();
     if (q.has('say')) ask('The elevator. Which floor?', ['GROUND', '2F', 'CANCEL'], () => {});
     if (q.has('menu')) openStartMenu();
     if (q.has('map')) ui.push(MapView());
+    // &name=Sam sets your name; &quest=1 hands you Linda's list, &quest=done finishes it
+    if (q.has('name')) playerName = q.get('name');
+    if (q.has('quest')) {
+      startQuest();
+      if (q.get('quest') === 'done') { quest.tasks.forEach((x) => { x.done = true; }); quest.complete = true; }
+      else quest.tasks.slice(0, +q.get('quest') - 1).forEach((x) => { x.done = true; });
+    }
     const GAME = { coffee: CoffeeGame, punch: PunchGame, run: RunGame, pong: PongGame, toss: TossGame, stack: StackGame, simon: SimonGame, lunch: LunchGame, candy: CandyGame, squat: SquatGame, golf: GolfGame, dark: DarkGame, battle: BattleGame,
       fan: FanGame, coil: CoilGame, damper: DamperGame, filter: FilterGame,
       snake: SnakeGame, parts: PartsGame, cable: CableGame, cpr: CprGame,
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
-      nathan: NathanGame, wade: WadeGolfGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp }[q.get('game')];
+      nathan: NathanGame, wade: WadeGolfGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
+      locker: LockerScreen, list: LindaList, eotm: EmployeeOfMonth }[q.get('game')];
     if (GAME) ui.push(GAME());
   }
 
@@ -5381,5 +5702,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo, npcs };
+  window.GAME = { P, MAPS, warpTo, npcs, questNote, get quest() { return quest; } };
 })();

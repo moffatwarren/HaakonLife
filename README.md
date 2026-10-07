@@ -18,8 +18,8 @@ and the `js/` folder together.
 | Map | M | (Start → Map) |
 
 - Walk onto a staircase to change floors, or face the elevator doors and press A.
-- After the title screen, pick a male or female character (four looks each).
-  The game remembers your last pick.
+- After the title screen, pick a male or female character (four looks each),
+  then type your name. The game remembers your last pick and name.
 - Character colours live in `LOOKS` at the top of `js/art.js` if you want to
   add or tweak outfits.
 
@@ -55,7 +55,7 @@ Walk up to these and press A:
 - **Front desk** (Reception): send each visitor to the right office; you have to know the building
 - **Printer**: ease five jammed sheets out without tearing them: watch for snags on the rollers, keep each sheet straight, and read whatever somebody printed
 - **Washer and dryer** (fitness room): catch the load the machine is asking for, let the rest drop
-- **Elevator**: about one ride in three, a coworker gets in and makes conversation
+- **Elevator**: every ride, a coworker gets in and makes conversation
 
 Talk to **Damir** (office 108, with the lights off) if you dare: he cuts the
 power, and you have to find three fuses with only a flashlight while shadows
@@ -65,6 +65,17 @@ Talk to **Richard** (office 122) and say yes to test your air handling
 knowledge: a turn-based duel where you and Richard each pick a move and the
 winner knocks 1 off the other's 3 HP. Fan Gust beats Coil Freeze, Coil Freeze
 beats Damper Block, and Damper Block beats Fan Gust.
+
+## Linda's list
+
+One of the lockers in the **fitness room** is open a crack. Inside is a list
+left by Linda, the ghost in the rack room: 7 things she never got round to,
+picked at random from about 20 each time you take it (beat the TV at Pong, win
+300 spring rolls off Cody, fix Damir's lights, and so on). Read it any time
+from the Start menu; each task crosses itself off when you do it. Finish them
+all and your picture goes up as **Employee of the Month** on an easel by the
+front entrance, with the name you entered at the start. Linda has new things
+to say once her list is done. The list isn't saved: every visit starts fresh.
 
 Other people worth talking to:
 
@@ -78,6 +89,9 @@ Best scores are saved in the browser. For testing, `index.html#play&game=punch`
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
 `forms`, `nathan`, `wade`, `jar`, `poker`, `blackjack`) opens a game straight away.
+For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,
+`&quest=done` finished), `&name=Sam` sets your name, and `game=locker`, `list`
+or `eotm` opens those screens.
 
 `tools/shot.sh out.png "play&game=snake&ticks=60"` screenshots a game headlessly
 (it uses `tools/test.html`, which stubs the audio and can pin `Math.random` with
