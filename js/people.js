@@ -60,7 +60,7 @@ window.PEOPLE = {
   "Gigi": { body: 'female', hair: '#8a5a3a', skin: '#8a5838', top: '#40a0a0', accent: '#283878', pants: '#383848', lines: [] },
   "Joe": { body: 'male', hair: '#8a5a3a', skin: '#8a5838', top: '#b83028', accent: '#3050a8', pants: '#b09870', lines: [] },
   "Mauro": { body: 'male', hair: '#d06030', skin: '#8a5838', top: '#40a0a0', accent: '#2c6a34', pants: '#3a3050', lines: ["I'm young and Italian!"] },
-  "Alyssa": { body: 'female', hair: '#a8a8b0', skin: '#f8d0a8', top: '#78a8e8', accent: '#283878', pants: '#b09870', lines: ["I can't believe I let Mauro steal my youth"] },
+  "Alyssa": { body: 'female', hair: '#a8a8b0', skin: '#f8d0a8', top: '#78a8e8', accent: '#283878', pants: '#b09870', lines: ["Why do I feel so old? Did Mauro steal my youth?"] },
   "JP": { body: 'male', hair: '#d06030', skin: '#c08860', top: '#78a8e8', accent: '#2c6a34', pants: '#3a3050', lines: [] },
   "James": { body: 'male', hair: '#d06030', skin: '#f8d0a8', top: '#58a848', accent: '#283878', pants: '#686878', lines: [] },
   "Reagan": { body: 'male', hair: '#d06030', skin: '#f0c098', top: '#9868c8', accent: '#f8e070', pants: '#383848', lines: ["I was up all night waiting in line to get Pokemon cards. These lights are keeping me awake!"] },
