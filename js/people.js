@@ -52,8 +52,7 @@ window.PEOPLE = {
   "Max": { body: 'male', hair: '#181010', skin: '#f8d0a8', top: '#40a0a0', accent: '#f8e070', pants: '#b09870', lines: [] },
   "Jack": { body: 'male', hair: '#6a3c20', skin: '#8a5838', top: '#58a848', accent: '#d03868', pants: '#484858', lines: [] },
   // ---- Second floor ----
-  "Linda 1": { body: 'ghost', lines: ["Boooooo...", "Ooooo... has anyone seen my stapler?", "This rack room is MY office now. Boo."] },
-  "Linda 2": { body: 'ghost', lines: ["Boooooo...", "Ooooo... has anyone seen my stapler?", "This rack room is MY office now. Boo."] },
+  "Linda": { body: 'ghost', lines: ["Boooooo...", "Ooooo... has anyone seen my stapler?", "This rack room is MY office now. Boo."] },
   "Davisson": { body: 'male', hair: '#d06030', skin: '#f8d0a8', top: '#f8f8f8', accent: '#f8f8f8', pants: '#3a3050', lines: [] },
   "Michael Tam": { body: 'male', hair: '#181010', skin: '#f8d8b8', top: '#40a0a0', accent: '#3050a8', pants: '#484858', lines: [] },
   "Lauren": { body: 'female', hair: '#181010', skin: '#8a5838', top: '#f0b030', accent: '#f8f8f8', pants: '#303040', lines: [] },
