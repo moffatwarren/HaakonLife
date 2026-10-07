@@ -1864,15 +1864,16 @@
   // ---------- Pong on the big TV ----------
   function PongGame() {
     const L = 12, R = SW - 12, TOP = 34, BOT = SH - 22, PW = 4, PH = 28, BS = 4, WIN = 5;
-    const me = { x: L + 4, y: (TOP + BOT - PH) / 2 }, cpu = { x: R - 8, y: (TOP + BOT - PH) / 2 };
+    // your paddle is a little taller than the TV's, to make up for the touch d-pad
+    const me = { x: L + 4, y: (TOP + BOT - PH) / 2, h: PH + 4 }, cpu = { x: R - 8, y: (TOP + BOT - PH) / 2, h: PH };
     let state = 'ready', t = 0, mine = 0, theirs = 0, ball = null, wait = 0;
     function serve(toCpu) {
-      ball = { x: SW / 2, y: (TOP + BOT) / 2, vx: toCpu ? 2.2 : -2.2, vy: (Math.random() * 2 - 1) * 1.5 };
+      ball = { x: SW / 2, y: (TOP + BOT) / 2, vx: toCpu ? 2 : -2, vy: (Math.random() * 2 - 1) * 1.5 };
       wait = 40;
     }
     function bounce(pad, dirOut) {
-      const off = (ball.y + BS / 2 - (pad.y + PH / 2)) / (PH / 2);
-      ball.vx = dirOut * Math.min(6, Math.abs(ball.vx) * 1.07);
+      const off = (ball.y + BS / 2 - (pad.y + pad.h / 2)) / (pad.h / 2);
+      ball.vx = dirOut * Math.min(5, Math.abs(ball.vx) * 1.05);
       ball.vy = off * 3;
       ball.x = dirOut > 0 ? pad.x + PW : pad.x - BS;
       sfx('blip', true);
@@ -1894,16 +1895,16 @@
         if (pressed.has('b')) { remove(self); say('You switch the TV back to the news.'); return; }
         if (held.up) me.y -= 3.5;
         if (held.down) me.y += 3.5;
-        me.y = Math.max(TOP, Math.min(BOT - PH, me.y));
+        me.y = Math.max(TOP, Math.min(BOT - me.h, me.y));
         // the TV only watches the ball when it's coming its way, and can't move very fast
         const aim = ball.vx > 0 ? ball.y + BS / 2 - PH / 2 : (TOP + BOT - PH) / 2;
-        cpu.y += Math.sign(aim - cpu.y) * Math.min(Math.abs(aim - cpu.y), 2.3);
+        cpu.y += Math.sign(aim - cpu.y) * Math.min(Math.abs(aim - cpu.y), 1.8);
         cpu.y = Math.max(TOP, Math.min(BOT - PH, cpu.y));
         if (wait > 0) { wait--; return; }
         ball.x += ball.vx; ball.y += ball.vy;
         if (ball.y < TOP) { ball.y = TOP; ball.vy = -ball.vy; sfx('blip'); }
         if (ball.y > BOT - BS) { ball.y = BOT - BS; ball.vy = -ball.vy; sfx('blip'); }
-        const overlap = (pad) => ball.y + BS > pad.y && ball.y < pad.y + PH;
+        const overlap = (pad) => ball.y + BS > pad.y && ball.y < pad.y + pad.h;
         if (ball.vx < 0 && ball.x <= me.x + PW && ball.x + BS >= me.x - 4 && overlap(me)) bounce(me, 1);
         if (ball.vx > 0 && ball.x + BS >= cpu.x && ball.x <= cpu.x + PW + 4 && overlap(cpu)) bounce(cpu, -1);
         if (ball.x < L - 8 || ball.x > R + 8) {
@@ -1923,7 +1924,7 @@
         text(String(mine), SW / 2 - 30, TOP + 4, 2, '#f8f8f8');
         text(String(theirs), SW / 2 + 20, TOP + 4, 2, '#f8f8f8');
         ctx.fillStyle = '#f8f8f8';
-        ctx.fillRect(me.x, Math.round(me.y), PW, PH);
+        ctx.fillRect(me.x, Math.round(me.y), PW, me.h);
         ctx.fillRect(cpu.x, Math.round(cpu.y), PW, PH);
         if (state === 'play' && (wait === 0 || (wait >> 2) & 1)) ctx.fillRect(Math.round(ball.x), Math.round(ball.y), BS, BS);
         text('YOU', L, 10, 1, '#f8f8f8');
