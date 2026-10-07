@@ -654,7 +654,7 @@ window.OFFICE_MAPS = {
      "y2": 10
     },
     {
-     "name": "171 Raegan / Patrick",
+     "name": "171 Reagan / Patrick",
      "x1": 98,
      "y1": 4,
      "x2": 105,

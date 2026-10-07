@@ -58,7 +58,7 @@ window.MUSIC = {
     ],
   },
 
-  // Raegan and Patrick's office: four-on-the-floor rave
+  // Reagan and Patrick's office: four-on-the-floor rave
   rave: {
     bpm: 140,
     voices: [

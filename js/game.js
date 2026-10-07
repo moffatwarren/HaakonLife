@@ -408,7 +408,7 @@
     const fromEvent = (e) => {
       const r = dpad.getBoundingClientRect();
       const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-      if (Math.hypot(dx, dy) < r.width * 0.1) return cur;
+      if (Math.hypot(dx, dy) < r.width * 0.06) return cur; // a small dead spot in the middle
       return Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
     };
     dpad.addEventListener('pointerdown', (e) => { e.preventDefault(); dpad.setPointerCapture(e.pointerId); setDir(fromEvent(e)); });
@@ -4132,7 +4132,7 @@
     ['MEMO: THE FRIDGE', 'To whoever ate the', 'lunch with my name on', 'it, in big letters:', '', 'I know it was you.', 'I have seen the', 'security footage.', '- Management'],
     ['FROM: STEPHEN', 'RE: EMAIL FORMATTING', '', 'PLEASE NOTE THAT ALL', 'EMAILS MUST NOW BE', 'WRITTEN IN CAPS.', 'IT IS EASIER TO READ.', '', 'THANK YOU, STEPHEN'],
     ['HYROX TRAINING PLAN', 'Mon: wall balls', 'Tue: sled push', 'Wed: burpees', 'Thu: more burpees', 'Fri: burpees again', 'Sat: race day!', 'Sun: cannot walk', '- Patrick'],
-    ['POKEMON CARD WISHLIST', 'Charizard (shiny)', 'Pikachu (promo)', 'Mewtwo (first ed.)', 'Sleep (any edition)', '', 'Line starts at 4am.', 'Bring a chair.', '- Raegan'],
+    ['POKEMON CARD WISHLIST', 'Charizard (shiny)', 'Pikachu (promo)', 'Mewtwo (first ed.)', 'Sleep (any edition)', '', 'Line starts at 4am.', 'Bring a chair.', '- Reagan'],
     ['TROPHY INVENTORY', 'Golf: 1st place', 'Golf: 2nd place', 'Bowling: 1st place', 'Darts: 3rd place', 'Participation: 14', 'Shelf space left: 0', '', 'Need a bigger office.'],
     ['MANULIFE FORM 1 OF 40', 'Name:', 'Dependants:', 'Dependants of', 'dependants:', '', 'Please return this', 'form by YESTERDAY.', '- Jhonna'],
     ['RESIGNATION LETTER', 'Dear boss,', '', 'I quit.', '', 'Just kidding. The', 'printer ate my real', 'letter. See you on', 'Monday.'],

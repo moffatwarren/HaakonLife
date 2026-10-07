@@ -63,7 +63,7 @@ window.PEOPLE = {
   "Alyssa": { body: 'female', hair: '#a8a8b0', skin: '#f8d0a8', top: '#78a8e8', accent: '#283878', pants: '#b09870', lines: [] },
   "JP": { body: 'male', hair: '#d06030', skin: '#c08860', top: '#78a8e8', accent: '#2c6a34', pants: '#3a3050', lines: [] },
   "James": { body: 'male', hair: '#d06030', skin: '#f8d0a8', top: '#58a848', accent: '#283878', pants: '#686878', lines: [] },
-  "Raegan": { body: 'male', hair: '#d06030', skin: '#f0c098', top: '#9868c8', accent: '#f8e070', pants: '#383848', lines: ["I was up all night waiting in line to get Pokemon cards. These lights are keeping me awake!"] },
+  "Reagan": { body: 'male', hair: '#d06030', skin: '#f0c098', top: '#9868c8', accent: '#f8e070', pants: '#383848', lines: ["I was up all night waiting in line to get Pokemon cards. These lights are keeping me awake!"] },
   "Patrick": { body: 'male', hair: '#201818', skin: '#f8d0a8', top: '#e07898', accent: '#283878', pants: '#484858', lines: ["Did you get your Hyrox tickets? Let's get a workout in!"] },
   "Rob": { body: 'male', hair: '#a8a8b0', skin: '#f8d0a8', top: '#9868c8', accent: '#3050a8', pants: '#686878', lines: [] },
   "Warren": { body: 'male', hair: '#d06030', skin: '#c08860', top: '#f8f8f8', accent: '#d03868', pants: '#303040', lines: [] },
