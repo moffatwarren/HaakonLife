@@ -28,6 +28,7 @@ and the `js/` folder together.
 Walk up to these and press A:
 
 - **Office computers**: SDG, lay out an air handling unit
+- **Zin's computer** (office 126): Spring Roll Hold'em, no-limit Texas Hold'em against Cody and Dmitriy, played for spring rolls
 - **Coffee machine** (lunch room): catch the coffee in your cup
 - **Recycling bin** (lunch room): toss crumpled paper into the bin; watch the wind
 - **Fridge**: keep your eye on your lunch while the containers shuffle
@@ -48,7 +49,7 @@ Walk up to these and press A:
 - **Server racks**: patch every port to its matching colour
 - **First aid dummy** (170 First Aid Station): compressions at 110 bpm, scored on timing
 - **Engraver** (2nd floor, room 193): trace the nameplate without straying off the line
-- **Lat pulldown** (fitness room): pull and release on the beat
+- **Lat pulldown** (fitness room): pull, then release, as the marker sweeps through the sweet spot; 20 sweeps, scored out of 20
 - **Exercise ball** (fitness room): shift your weight and stay on it
 - **Front desk** (Reception): send each visitor to the right office; you have to know the building
 - **Printer**: ease the jammed sheet out — pull too hard and it tears
@@ -75,7 +76,7 @@ Best scores are saved in the browser. For testing, `index.html#play&game=punch`
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
-`forms`, `nathan`, `wade`, `jar`) opens a game straight away.
+`forms`, `nathan`, `wade`, `jar`, `poker`) opens a game straight away.
 
 `tools/shot.sh out.png "play&game=snake&ticks=60"` screenshots a game headlessly
 (it uses `tools/test.html`, which stubs the audio and can pin `Math.random` with

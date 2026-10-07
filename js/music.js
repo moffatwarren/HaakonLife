@@ -41,6 +41,39 @@ window.MUSIC = {
     ],
   },
 
+  // Raegan and Patrick's office: four-on-the-floor rave
+  rave: {
+    bpm: 140,
+    voices: [
+      { type: 'square', vol: 0.025, notes:
+        'A4 C5 E5 A5 E5 C5 A4 C5 | F4 A4 C5 F5 C5 A4 F4 A4 | C5 E5 G5 C6 G5 E5 C5 E5 | G4 B4 D5 G5 D5 B4 G4 B4 |' +
+        'A4 C5 E5 A5 E5 C5 A4 C5 | F4 A4 C5 F5 C5 A4 F4 A4 | C5 E5 G5 C6 G5 E5 C5 E5 | G4 B4 D5 G5 B5 G5 D5 B4' },
+      { type: 'square', vol: 0.02, notes:
+        '. . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . |' +
+        'E6 - - - D6 - C6 - | C6 - - - A5 - - - | G5 - - - C6 - E6 - | D6 - - - B5 - - - |' +
+        'E6 - E6 - D6 - C6 - | A5 - C6 - - - A5 - | G5 - C6 - E6 - G6 - | F#6 - D6 - B5 - G5 - |' +
+        'A6 - - - - - - - | . . . . . . . . | . . . . . . . . | . . . . . . . .' },
+      { type: 'sawtooth', vol: 0.035, notes:
+        '. A2 . A2 . A2 . A2 | . F2 . F2 . F2 . F2 | . C3 . C3 . C3 . C3 | . G2 . G2 . G2 . G2' },
+      { type: 'drums', vol: 0.6, notes: 'k . k . k . k .' },
+      { type: 'drums', vol: 0.5, notes: '. h s h . h s h | . h s h . h s s' },
+    ],
+  },
+
+  // Zin's poker program: a lazy card-room lounge tune
+  poker: {
+    bpm: 104,
+    voices: [
+      { type: 'square', vol: 0.022, notes:
+        'A4 - C5 - . E5 D5 C5 | A4 - - - G4 - . . | F4 - A4 - . C5 Bb4 A4 | G4 - - - . . . . |' +
+        'A4 - C5 - . E5 F5 E5 | D5 - - - C5 - A4 - | Bb4 - A4 - G4 - E4 - | F4 - - - . . . .' },
+      { type: 'triangle', vol: 0.08, notes:
+        'F2 . A2 . C3 . A2 . | D2 . F2 . A2 . F2 . | Bb2 . D3 . F3 . D3 . | C3 . E3 . G3 . E3 . |' +
+        'F2 . A2 . C3 . A2 . | D2 . F2 . A2 . F2 . | G2 . Bb2 . C3 . E3 . | F2 . C3 . F2 . . .' },
+      { type: 'drums', vol: 0.3, notes: 'k . h h s . h h' },
+    ],
+  },
+
   coffee: {
     bpm: 132,
     voices: [

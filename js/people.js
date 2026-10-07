@@ -5,18 +5,24 @@
 //   lines: what they say when you talk to them (one is picked at random).
 //          Leave it empty to use the generic greetings.
 // Body types are a best guess from each name; colours are random placeholders.
-// Office 182 is the visitor office: a different random man or woman every
-// time the game is launched.
+// Office 182 is the visitor office: someone different from out of town every
+// time the game is launched. 'name' is who they show up as in the game.
+//   name: body (best guess from the name)
+const VISITORS = {
+  Jill: 'female', Alex: 'male', Garret: 'male', Ali: 'female', Courtney: 'female',
+};
 function visitor() {
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  const name = pick(Object.keys(VISITORS));
   return {
-    body: pick(['male', 'female']),
+    name,
+    body: VISITORS[name],
     hair: pick(['#181010', '#201818', '#5a3420', '#6a3c20', '#8a5a3a', '#d06030', '#e8c050', '#a8a8b0']),
     skin: pick(['#f8d8b8', '#f8d0a8', '#f0c098', '#d8a070', '#c08860', '#8a5838']),
     top: pick(['#e07898', '#b83028', '#40a0a0', '#58a848', '#3868c8', '#f8f8f8', '#78a8e8', '#f0b030', '#9868c8', '#808898']),
     accent: pick(['#f8e070', '#d03868', '#2c6a34', '#f0b030', '#f8f8f8', '#b83028', '#3050a8', '#283878']),
     pants: pick(['#303040', '#383848', '#484858', '#686878', '#b09870', '#3a3050']),
-    lines: ["I am just visiting"],
+    lines: ["I am visiting from out of town. I'll be here all week!"],
   };
 }
 window.PEOPLE = {
@@ -46,7 +52,8 @@ window.PEOPLE = {
   "Max": { body: 'male', hair: '#181010', skin: '#f8d0a8', top: '#40a0a0', accent: '#f8e070', pants: '#b09870', lines: [] },
   "Jack": { body: 'male', hair: '#6a3c20', skin: '#8a5838', top: '#58a848', accent: '#d03868', pants: '#484858', lines: [] },
   // ---- Second floor ----
-  "Ghost": { body: 'ghost', lines: ["Boooooo...", "Ooooo... has anyone seen my stapler?", "This rack room is MY office now. Boo."] },
+  "Linda 1": { body: 'ghost', lines: ["Boooooo...", "Ooooo... has anyone seen my stapler?", "This rack room is MY office now. Boo."] },
+  "Linda 2": { body: 'ghost', lines: ["Boooooo...", "Ooooo... has anyone seen my stapler?", "This rack room is MY office now. Boo."] },
   "Davisson": { body: 'male', hair: '#d06030', skin: '#f8d0a8', top: '#f8f8f8', accent: '#f8f8f8', pants: '#3a3050', lines: [] },
   "Michael Tam": { body: 'male', hair: '#181010', skin: '#f8d8b8', top: '#40a0a0', accent: '#3050a8', pants: '#484858', lines: [] },
   "Lauren": { body: 'female', hair: '#181010', skin: '#8a5838', top: '#f0b030', accent: '#f8f8f8', pants: '#303040', lines: [] },
@@ -56,15 +63,15 @@ window.PEOPLE = {
   "Alyssa": { body: 'female', hair: '#a8a8b0', skin: '#f8d0a8', top: '#78a8e8', accent: '#283878', pants: '#b09870', lines: [] },
   "JP": { body: 'male', hair: '#d06030', skin: '#c08860', top: '#78a8e8', accent: '#2c6a34', pants: '#3a3050', lines: [] },
   "James": { body: 'male', hair: '#d06030', skin: '#f8d0a8', top: '#58a848', accent: '#283878', pants: '#686878', lines: [] },
-  "Raegan": { body: 'female', hair: '#d06030', skin: '#f0c098', top: '#9868c8', accent: '#f8e070', pants: '#383848', lines: [] },
-  "Patrick": { body: 'male', hair: '#201818', skin: '#f8d0a8', top: '#e07898', accent: '#283878', pants: '#484858', lines: [] },
+  "Raegan": { body: 'male', hair: '#d06030', skin: '#f0c098', top: '#9868c8', accent: '#f8e070', pants: '#383848', lines: ["I was up all night waiting in line to get Pokemon cards. These lights are keeping me awake!"] },
+  "Patrick": { body: 'male', hair: '#201818', skin: '#f8d0a8', top: '#e07898', accent: '#283878', pants: '#484858', lines: ["Did you get your Hyrox tickets? Let's get a workout in!"] },
   "Rob": { body: 'male', hair: '#a8a8b0', skin: '#f8d0a8', top: '#9868c8', accent: '#3050a8', pants: '#686878', lines: [] },
   "Warren": { body: 'male', hair: '#d06030', skin: '#c08860', top: '#f8f8f8', accent: '#d03868', pants: '#303040', lines: [] },
   "Bob": { body: 'male', hair: '#8a5a3a', skin: '#8a5838', top: '#3868c8', accent: '#f0b030', pants: '#484858', lines: [] },
   "Walker": { body: 'male', hair: '#d06030', skin: '#c08860', top: '#40a0a0', accent: '#d03868', pants: '#686878', lines: [] },
   "Hudson": { body: 'male', hair: '#181010', skin: '#d8a070', top: '#808898', accent: '#f0b030', pants: '#686878', lines: [] },
   "Jenn": { body: 'female', hair: '#6a3c20', skin: '#f8d0a8', top: '#b83028', accent: '#2c6a34', pants: '#484858', lines: [] },
-  "Zin": { body: 'male', hair: '#a8a8b0', skin: '#d8a070', top: '#78a8e8', accent: '#f8f8f8', pants: '#484858', lines: [] },
+  "Zin": { body: 'male', hair: '#a8a8b0', skin: '#d8a070', top: '#78a8e8', accent: '#f8f8f8', pants: '#484858', lines: ["I'm on a 5 spring roll winning streak. I've never felt so alive!"] },
   "Jules": { body: 'male', hair: '#181010', skin: '#8a5838', top: '#3868c8', accent: '#f8e070', pants: '#484858', lines: [] },
   "Daphne": { body: 'female', hair: '#a8a8b0', skin: '#8a5838', top: '#58a848', accent: '#2c6a34', pants: '#383848', lines: [] },
   "Nik": { body: 'male', hair: '#6a3c20', skin: '#f8d8b8', top: '#808898', accent: '#f8e070', pants: '#383848', lines: [] },
@@ -86,11 +93,9 @@ window.PEOPLE = {
   "Diane": { body: 'female', hair: '#6a3c20', skin: '#d8a070', top: '#9868c8', accent: '#b83028', pants: '#484858', lines: [] },
   "Raymond": { body: 'male', hair: '#5a3420', skin: '#f8d0a8', top: '#b83028', accent: '#f8e070', pants: '#686878', lines: [] },
   "Avery": { body: 'male', hair: '#d06030', skin: '#8a5838', top: '#78a8e8', accent: '#d03868', pants: '#686878', lines: [] },
-  "Nikola": { body: 'male', hair: '#6a3c20', skin: '#d8a070', top: '#f0b030', accent: '#283878', pants: '#686878', lines: [] },
   "Muhammad": { body: 'male', hair: '#5a3420', skin: '#f8d0a8', top: '#b83028', accent: '#2c6a34', pants: '#686878', lines: [] },
-  "Cody": { body: 'male', hair: '#6a3c20', skin: '#f0c098', top: '#f8f8f8', accent: '#f0b030', pants: '#b09870', lines: [] },
+  "Cody": { body: 'male', hair: '#6a3c20', skin: '#f0c098', top: '#f8f8f8', accent: '#f0b030', pants: '#b09870', lines: ["I'm down this week on spring rolls. I guess I just won't eat this weekend :("] },
   "Leo": { body: 'male', hair: '#d06030', skin: '#d8a070', top: '#808898', accent: '#f0b030', pants: '#303040', lines: [] },
   "John": { body: 'male', hair: '#8a5a3a', skin: '#d8a070', top: '#808898', accent: '#d03868', pants: '#303040', lines: [] },
-  "Sayyada": { body: 'female', hair: '#181010', skin: '#f0c098', top: '#9868c8', accent: '#b83028', pants: '#686878', lines: [] },
   "Dmitriy": { body: 'male', hair: '#201818', skin: '#f8d8b8', top: '#58a848', accent: '#f8f8f8', pants: '#686878', lines: [] },
 };

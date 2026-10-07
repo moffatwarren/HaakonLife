@@ -121,7 +121,7 @@
           const { body, look } = lookFor(name);
           const [x, y] = spots[(hash(name) + npcs.length * 7) % spots.length];
           npcs.push({
-            name, floor: fi, room: area, x, y, dir: 'down', moving: false, prog: 0, mdx: 0, mdy: 0, step: 0,
+            name: p.name || name, floor: fi, room: area, x, y, dir: 'down', moving: false, prog: 0, mdx: 0, mdy: 0, step: 0,
             wait: 30 + ((hash(name) + npcs.length * 37) % 120), sprites: Art.renderSprites(body, look),
             ghost: body === 'ghost',
             lines: p.lines && p.lines.length ? p.lines : [NPC_LINES[hash(name) % NPC_LINES.length].replace('{n}', name)],
@@ -322,11 +322,18 @@
       music.step++; music.next += step;
     }
   }, 30);
+  // Where the song is right now, in eighth-note steps (fractional), or null if it isn't playing.
+  // Notes are scheduled a little ahead, so this backs up from the next step to what's audible.
+  function musicPos(name) {
+    if (!music || !actx || music.name !== name) return null;
+    return music.step - (music.next - actx.currentTime) / (60 / music.song.bpm / 2);
+  }
   // Which song fits right now: the open mini-game's theme, the room's mood, or the office tune.
   function pickMusic() {
     if (!musicOn) return null;
     for (let i = ui.length - 1; i >= 0; i--) if (ui[i].music) return ui[i].music;
     if (mode === 'play' && curRoom && (curRoom.name === 'Ghosts' || curRoom.dark)) return 'spooky';
+    if (mode === 'play' && curRoom && curRoom.rave) return 'rave';
     return 'office';
   }
 
@@ -537,17 +544,25 @@
     return self;
   }
 
-  // ---------- office computers: a desktop with the SDG program on it ----------
+  // ---------- office computers: a desktop with one program on it ----------
+  // Most computers run SDG; a room with a 'computer' option (see tools/build_maps.py)
+  // runs that program instead.
   const sdgIcon = new Image();
   sdgIcon.src = 'assets/sdg.png';
-  function ComputerScreen() {
+  const PROGRAMS = {
+    sdg: { label: 'SDG', App: () => SdgApp(),
+      icon(x, y) { if (sdgIcon.complete && sdgIcon.naturalWidth) ctx.drawImage(sdgIcon, x, y, 62, 64); } },
+    poker: { label: 'Poker', App: (pc) => PokerApp(pc), icon: (x, y) => drawPokerIcon(x, y) },
+  };
+  function ComputerScreen(program) {
+    const prog = PROGRAMS[program] || PROGRAMS.sdg;
     let sel = 0, state = 'desktop', t = 0;
-    const OPTIONS = ['Open SDG', 'Exit'];
+    const OPTIONS = ['Open ' + prog.label, 'Exit'];
     const self = {
       update() {
         t++;
         if (state === 'loading') {
-          if (t > 90) { state = 'desktop'; ui.push(SdgApp()); }
+          if (t > 90) { state = 'desktop'; ui.push(prog.App(self)); }
           return;
         }
         if (['left', 'right', 'up', 'down'].some((k) => pressed.has(k))) { sel ^= 1; sfx('select'); }
@@ -573,16 +588,17 @@
         ctx.fillStyle = '#c8ccd8'; ctx.fillRect(36, 168, 248, 12);
         ctx.fillStyle = '#181820'; ctx.fillRect(36, 168, 248, 1);
         text('START', 40, 170); text('9:41', 254, 170);
-        // SDG icon
+        // the program's icon
         const ix = 129, iy = 54;
-        if (sdgIcon.complete && sdgIcon.naturalWidth) ctx.drawImage(sdgIcon, ix, iy, 62, 64);
+        prog.icon(ix, iy);
         if (sel === 0 && state === 'desktop' && (tick >> 4) & 1) {
           ctx.fillStyle = '#f8f8f8'; ring(ix - 3, iy - 3, 68, 70);
         }
-        text('SDG', ix + 22, iy + 70, 1, '#f8f8f8');
+        text(prog.label, ix + 31 - prog.label.length * 3, iy + 70, 1, '#f8f8f8');
         if (state === 'loading') {
           box(80, 76, 160, 48);
-          text('Starting SDG...', 80 + 35, 88);
+          const msg = 'Starting ' + prog.label + '...';
+          text(msg, 160 - msg.length * 3, 88);
           ctx.fillStyle = col.dark; ring(96, 104, 128, 10);
           ctx.fillStyle = '#58a848'; ctx.fillRect(98, 106, Math.round(124 * Math.min(1, t / 80)), 6);
         }
@@ -785,6 +801,446 @@
             text('- ' + c.toLowerCase(), px + 10, yy, 1, i === addSel ? '#f8f8f8' : INK);
           });
         }
+      },
+    };
+    return self;
+  }
+
+  // ---------- Spring Roll Hold'em: no-limit Texas Hold'em on Zin's computer ----------
+  // You against Cody and Dmitriy, played for spring rolls. Everyone starts with
+  // START rolls and the blinds go up every BLIND_EVERY hands, so a game always ends.
+  // Cards are {r: 2-14 (14 = ace), s: 0-3 (spades, hearts, diamonds, clubs)}.
+  const HAND_NAMES = ['High Card', 'Pair', 'Two Pair', 'Three of a Kind', 'Straight', 'Flush', 'Full House', 'Four of a Kind', 'Straight Flush'];
+  const handName = (v) => HAND_NAMES[Math.floor(v / 759375)]; // 759375 = 15^5, see handValue
+  // The best five-card hand out of up to seven cards, as a number: higher beats lower,
+  // equal is a split. The category is the top base-15 digit, then up to five tiebreak ranks.
+  function handValue(cards) {
+    const cnt = Array(15).fill(0), bySuit = [[], [], [], []];
+    for (const c of cards) { cnt[c.r]++; bySuit[c.s].push(c.r); }
+    const pack = (cat, ranks) => { let v = cat; for (let i = 0; i < 5; i++) v = v * 15 + (ranks[i] || 0); return v; };
+    // top card of the best straight among the ranks has() accepts (the wheel A-5 counts, ace low), or 0
+    const straightTop = (has) => {
+      for (let top = 14; top >= 5; top--) {
+        let r = top;
+        while (r > top - 5 && has(r === 1 ? 14 : r)) r--;
+        if (r === top - 5) return top;
+      }
+      return 0;
+    };
+    for (const suit of bySuit) if (suit.length >= 5) {
+      const sf = straightTop((r) => suit.includes(r));
+      if (sf) return pack(8, [sf]);
+    }
+    const groups = []; // [count, rank], most of a kind first, then highest
+    for (let r = 14; r >= 2; r--) if (cnt[r]) groups.push([cnt[r], r]);
+    groups.sort((a, b) => b[0] - a[0] || b[1] - a[1]);
+    const others = (...not) => groups.map((g) => g[1]).filter((r) => !not.includes(r)).sort((a, b) => b - a);
+    const [g0, g1] = groups;
+    if (g0[0] === 4) return pack(7, [g0[1], others(g0[1])[0]]);
+    if (g0[0] === 3 && g1 && g1[0] >= 2) return pack(6, [g0[1], g1[1]]);
+    const flush = bySuit.find((s) => s.length >= 5);
+    if (flush) return pack(5, flush.slice().sort((a, b) => b - a));
+    const st = straightTop((r) => cnt[r] > 0);
+    if (st) return pack(4, [st]);
+    if (g0[0] === 3) return pack(3, [g0[1], ...others(g0[1]).slice(0, 2)]);
+    if (g0[0] === 2 && g1 && g1[0] === 2) return pack(2, [g0[1], g1[1], others(g0[1], g1[1])[0]]);
+    if (g0[0] === 2) return pack(1, [g0[1], ...others(g0[1]).slice(0, 3)]);
+    return pack(0, others());
+  }
+  function newDeck() {
+    const d = [];
+    for (let s = 0; s < 4; s++) for (let r = 2; r <= 14; r++) d.push({ r, s });
+    for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+    return d;
+  }
+  // How often `hole` wins (a tie counts as a share of a win) against `opps` random
+  // hands, dealing the rest of the board at random `sims` times.
+  function pokerEquity(hole, board, opps, sims) {
+    const used = new Set(hole.concat(board).map((c) => c.r * 4 + c.s)), rest = [];
+    for (let s = 0; s < 4; s++) for (let r = 2; r <= 14; r++) if (!used.has(r * 4 + s)) rest.push({ r, s });
+    const fill = 5 - board.length, need = fill + opps * 2;
+    let won = 0;
+    for (let n = 0; n < sims; n++) {
+      for (let i = 0; i < need; i++) { const j = i + Math.floor(Math.random() * (rest.length - i)); [rest[i], rest[j]] = [rest[j], rest[i]]; }
+      const b = board.concat(rest.slice(0, fill)), mine = handValue(hole.concat(b));
+      let ties = 0, beaten = false;
+      for (let o = 0; o < opps && !beaten; o++) {
+        const v = handValue([rest[fill + o * 2], rest[fill + o * 2 + 1]].concat(b));
+        if (v > mine) beaten = true; else if (v === mine) ties++;
+      }
+      if (!beaten) won += 1 / (ties + 1);
+    }
+    return won / sims;
+  }
+
+  // card faces: 5x6 suit pictures, and rank labels
+  const SUIT_PIX = [
+    ['00100', '01110', '11111', '11111', '00100', '01110'], // spade
+    ['01010', '11111', '11111', '01110', '00100', '00000'], // heart
+    ['00100', '01110', '11111', '01110', '00100', '00000'], // diamond
+    ['01110', '01110', '11111', '11111', '00100', '01110'], // club
+  ];
+  const SUIT_COL = ['#181820', '#c82828', '#c82828', '#181820'];
+  const RANK_TXT = (r) => ({ 10: '10', 11: 'J', 12: 'Q', 13: 'K', 14: 'A' })[r] || String(r);
+  function drawSuit(s, x, y, k) {
+    ctx.fillStyle = SUIT_COL[s];
+    SUIT_PIX[s].forEach((row, j) => { for (let i = 0; i < 5; i++) if (row[i] === '1') ctx.fillRect(x + i * k, y + j * k, k, k); });
+  }
+  const CARD_W = 24, CARD_H = 32;
+  function drawCard(c, x, y, faceDown) {
+    ctx.fillStyle = '#181820'; ctx.fillRect(x, y, CARD_W, CARD_H);
+    if (faceDown) {
+      ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 1, y + 1, CARD_W - 2, CARD_H - 2);
+      ctx.fillStyle = '#3050a8'; ctx.fillRect(x + 3, y + 3, CARD_W - 6, CARD_H - 6);
+      ctx.fillStyle = '#6890e0';
+      for (let j = 0; j < CARD_H - 8; j += 4) for (let i = (j >> 2) & 1 ? 2 : 0; i < CARD_W - 8; i += 4) ctx.fillRect(x + 4 + i, y + 4 + j, 2, 2);
+      return;
+    }
+    ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 1, y + 1, CARD_W - 2, CARD_H - 2);
+    text(RANK_TXT(c.r), x + 3, y + 3, 1, SUIT_COL[c.s]);
+    drawSuit(c.s, x + 3, y + 12, 1);
+    drawSuit(c.s, x + 9, y + 16, 2);
+  }
+  // a little spring roll, for amounts
+  function drawRoll(x, y) {
+    ctx.fillStyle = '#6a3c10'; ctx.fillRect(x, y + 1, 11, 5); ctx.fillRect(x + 1, y, 9, 7);
+    ctx.fillStyle = '#e8b048'; ctx.fillRect(x + 1, y + 1, 9, 5);
+    ctx.fillStyle = '#c07828'; ctx.fillRect(x + 3, y + 1, 1, 5); ctx.fillRect(x + 6, y + 1, 1, 5);
+    ctx.fillStyle = '#f8e098'; ctx.fillRect(x + 1, y + 2, 9, 1);
+  }
+  // a generic profile picture: a grey head and shoulders on a coloured square
+  function drawAvatar(x, y, bg) {
+    ctx.fillStyle = '#181820'; ctx.fillRect(x, y, 24, 24);
+    ctx.fillStyle = bg; ctx.fillRect(x + 1, y + 1, 22, 22);
+    ctx.fillStyle = '#e8e8f0';
+    ctx.fillRect(x + 9, y + 4, 6, 10); ctx.fillRect(x + 8, y + 5, 8, 8);
+    ctx.fillRect(x + 6, y + 16, 12, 7); ctx.fillRect(x + 4, y + 18, 16, 5);
+  }
+  function drawPokerIcon(x, y) {
+    drawCard({ r: 14, s: 1 }, x + 10, y + 4);
+    drawCard({ r: 13, s: 0 }, x + 28, y + 10);
+    for (let i = 0; i < 3; i++) drawRoll(x + 12 + i * 13, y + 50);
+  }
+
+  // pc: the ComputerScreen it runs on, which shuts down when the game is over
+  function PokerApp(pc) {
+    const START = 200, BLIND_EVERY = 8, SMALL_BLINDS = [2, 3, 5, 8, 12, 20, 30, 50, 80];
+    // how the bots play: loose calls more, aggr raises more, bluff bets with nothing
+    const BOTS = {
+      Cody: { loose: 0.5, aggr: 0.6, bluff: 0.14, bg: '#3868c8', bust: "I guess I just won't eat this weekend :(" },
+      Dmitriy: { loose: 0.1, aggr: 0.4, bluff: 0.05, bg: '#9868c8', bust: 'Spring rolls are overrated anyway...' },
+    };
+    // seats go round the table clockwise: you at the bottom, Cody left, Dmitriy right
+    const seats = [
+      { name: 'You', you: true, stack: START, cardX: 134, cardY: 122, chip: [120, 132] },
+      { name: 'Cody', stack: START, px: 12, cardX: 12, cardY: 56, chip: [66, 64] },
+      { name: 'Dmitriy', stack: START, px: 230, cardX: 258, cardY: 56, chip: [244, 64], right: true },
+    ];
+    for (const p of seats) Object.assign(p, { out: false, hand: [], folded: false, allIn: false, bet: 0, total: 0, acted: false, show: false, value: 0 });
+    let button = Math.floor(Math.random() * 3), handNo = 0, deck = [], board = [], street = 0;
+    let toAct = -1, curBet = 0, minRaise = 0, lines = [], state = 'play', timer = 0, next = null, think = 0;
+    let btn = 1, raising = false, raiseTo = 0, t = 0, record = false;
+    const after = (frames, fn) => { timer = frames; next = fn; };
+    const sb = () => SMALL_BLINDS[Math.min(SMALL_BLINDS.length - 1, Math.floor(handNo / BLIND_EVERY))];
+    const bb = () => sb() * 2;
+    const live = () => seats.filter((p) => !p.out);
+    const inHand = () => seats.filter((p) => !p.out && !p.folded);
+    const canAct = () => inHand().filter((p) => !p.allIn);
+    const nextSeat = (i, ok) => { for (let k = 1; k <= 3; k++) if (ok(seats[(i + k) % 3])) return (i + k) % 3; return -1; };
+    const pot = () => seats.reduce((n, p) => n + p.total, 0);
+    // "You raise" / "Cody raises"
+    const does = (p, verb) => (p.you ? 'You ' + verb : p.name + ' ' + verb + 's');
+    function put(p, amt) {
+      amt = Math.min(amt, p.stack);
+      p.stack -= amt; p.bet += amt; p.total += amt;
+      if (!p.stack) p.allIn = true;
+    }
+
+    function startHand() {
+      for (const p of seats) Object.assign(p, { hand: [], folded: p.out, allIn: false, bet: 0, total: 0, acted: false, show: false, value: 0 });
+      deck = newDeck(); board = []; street = 0; state = 'play'; raising = false;
+      button = nextSeat(button, (p) => !p.out);
+      // heads-up, the button posts the small blind
+      const sbSeat = live().length === 2 ? button : nextSeat(button, (p) => !p.out);
+      const bbSeat = nextSeat(sbSeat, (p) => !p.out);
+      put(seats[sbSeat], sb()); put(seats[bbSeat], bb());
+      curBet = bb(); minRaise = bb();
+      for (let k = 0; k < 2; k++) for (const p of live()) p.hand.push(deck.pop());
+      lines = ['Hand ' + (handNo + 1) + '. Blinds ' + sb() + '/' + bb() + '.'];
+      sfx('select');
+      advance(bbSeat);
+    }
+    // After someone acts: pass the action on, or close the betting round.
+    function advance(from) {
+      toAct = -1;
+      if (inHand().length === 1) { winUncontested(); return; }
+      const needs = (p) => !p.out && !p.folded && !p.allIn && (!p.acted || p.bet < curBet);
+      // a lone player who can still bet only has to act if they're behind
+      const alone = canAct().length === 1 && canAct()[0].bet >= curBet;
+      if (alone || !seats.some(needs)) { endStreet(); return; }
+      toAct = nextSeat(from, needs); think = 0;
+      if (seats[toAct].you) { btn = 1; raising = false; }
+    }
+    function endStreet() {
+      for (const p of seats) { p.bet = 0; p.acted = false; }
+      curBet = 0; minRaise = bb();
+      if (street === 3) { after(30, showdown); return; }
+      // nobody left to bet against: turn the hands over and run the board out
+      const runOut = canAct().length <= 1;
+      if (runOut) for (const p of inHand()) p.show = true;
+      after(runOut ? 50 : 24, () => {
+        street++;
+        deck.pop(); // burn
+        for (let i = street === 1 ? 3 : 1; i > 0; i--) board.push(deck.pop());
+        sfx('putt');
+        lines = [['', 'The flop.', 'The turn.', 'The river.'][street]];
+        if (runOut) { endStreet(); return; }
+        advance(button); // first to act after the flop: the next player after the button
+      });
+    }
+    function act(i, kind, to) {
+      const p = seats[i], call = curBet - p.bet;
+      p.acted = true;
+      if (kind === 'fold') { p.folded = true; lines = [does(p, 'fold') + '.']; sfx('select'); }
+      else if (kind === 'call' || to <= curBet) {
+        if (call <= 0) { lines = [does(p, 'check') + '.']; sfx('blip'); }
+        else { put(p, call); lines = [does(p, 'call') + ' ' + p.bet + (p.allIn ? ', all in!' : '.')]; sfx('putt'); }
+      } else {
+        to = Math.min(to, p.bet + p.stack);
+        const opened = curBet === 0;
+        // a full raise sets the new minimum; either way everyone else has to answer it
+        if (to - curBet >= minRaise) minRaise = to - curBet;
+        put(p, to - p.bet); curBet = p.bet;
+        for (const q of seats) if (q !== p) q.acted = false;
+        lines = [does(p, opened ? 'bet' : 'raise') + (opened ? ' ' : ' to ') + p.bet + (p.allIn ? ', all in!' : '.')];
+        sfx('menu');
+      }
+      toAct = -1;
+      after(p.you ? 12 : 30, () => advance(i));
+    }
+
+    function winUncontested() {
+      const w = inHand()[0], amt = pot();
+      w.stack += amt;
+      for (const p of seats) { p.total = 0; p.bet = 0; }
+      lines = [does(w, 'take') + ' the pot of ' + amt + '.'];
+      if (w.you) sfx('cup');
+      state = 'result';
+    }
+    function showdown() {
+      const contenders = inHand(), got = seats.map(() => 0);
+      for (const p of contenders) { p.show = true; p.value = handValue(p.hand.concat(board)); }
+      // Side pots: slice the contributions at each player's total, smallest first; each
+      // slice goes to the best hand among those still in who paid into all of it.
+      const levels = [...new Set(seats.map((p) => p.total).filter(Boolean))].sort((a, b) => a - b);
+      let prev = 0;
+      for (const lv of levels) {
+        const chunk = seats.reduce((n, p) => n + Math.max(0, Math.min(p.total, lv) - prev), 0);
+        let elig = contenders.filter((p) => p.total >= lv);
+        if (!elig.length) elig = contenders.filter((p) => p.total === Math.max(...contenders.map((q) => q.total)));
+        const best = Math.max(...elig.map((p) => p.value)), winners = elig.filter((p) => p.value === best);
+        const share = Math.floor(chunk / winners.length);
+        for (const w of winners) { w.stack += share; if (elig.length > 1) got[seats.indexOf(w)] += share; }
+        // the odd roll of a split goes to the first winner after the button
+        const odd = chunk - share * winners.length;
+        if (odd) seats[nextSeat(button, (p) => winners.includes(p))].stack += odd;
+        prev = lv;
+      }
+      for (const p of seats) { p.total = 0; p.bet = 0; }
+      const winners = seats.filter((p, i) => got[i] > 0);
+      lines = winners.slice(0, 2).map((p) => does(p, 'win') + ' ' + got[seats.indexOf(p)] + ' with ' + handName(p.value) + '.');
+      if (winners.some((p) => p.you)) sfx('cup'); else sfx('bump');
+      state = 'result';
+    }
+    function endHand() {
+      handNo++;
+      const busted = seats.filter((p) => !p.out && p.stack === 0);
+      for (const p of busted) p.out = true;
+      const bot = busted.find((p) => !p.you);
+      if (seats[0].out) {
+        // busted: you get kicked off the computer
+        remove(self); if (pc) remove(pc);
+        say("Go again. It's impossible to lose more than once while gambling.");
+      } else if (live().length === 1) {
+        lines = ['You won all ' + seats[0].stack + ' spring rolls!', bot ? bot.name + ': ' + BOTS[bot.name].bust : ''];
+        finish();
+      } else if (bot) {
+        // let the loser have their say before the next hand
+        lines = [bot.name + ' is out.', bot.name + ': ' + BOTS[bot.name].bust];
+        state = 'busted';
+      } else startHand();
+    }
+    function finish() { state = 'over'; t = 0; record = saveBest('poker', seats[0].stack); sfx('ding'); }
+    function leave() {
+      remove(self);
+      if (state === 'over') { if (pc) remove(pc); say('This gambling thing is too easy. You should do it full time.'); return; }
+      // walking away mid-hand forfeits what you've already put in
+      record = saveBest('poker', seats[0].stack);
+      say('You log off with ' + seats[0].stack + ' spring rolls.' + (record ? ' A new record!' : ''));
+    }
+
+    // Cody and Dmitriy: estimate their chances against the hands still in, then weigh
+    // that against the price of calling, each with their own habits.
+    function botMove(i) {
+      const p = seats[i], bot = BOTS[p.name], call = curBet - p.bet, potNow = pot();
+      const opps = inHand().length - 1;
+      const eq = pokerEquity(p.hand, board, opps, 250);
+      const strength = eq * (opps + 1); // 1 = an average hand for this many players
+      const odds = call / (potNow + call), r = Math.random();
+      const canRaise = p.stack > call && canAct().some((q) => q !== p);
+      const sized = (frac) => {
+        const to = curBet + Math.max(minRaise, Math.round((potNow + call) * frac / sb()) * sb());
+        return strength > 2.3 && r < 0.3 ? p.bet + p.stack : to;
+      };
+      if (canRaise && strength > 1.75 - bot.aggr * 0.5 && r < 0.35 + bot.aggr * 0.5) return ['raise', sized(0.5 + Math.random() * 0.6)];
+      if (canRaise && call === 0 && r < bot.bluff) return ['raise', sized(0.6)];
+      if (call === 0) return ['call'];
+      if (eq + bot.loose * 0.12 >= odds) return ['call'];
+      if (r < bot.bluff && call <= p.stack * 0.1) return ['call'];
+      return ['fold'];
+    }
+
+    startHand();
+    const self = {
+      music: 'poker',
+      update() {
+        t++;
+        if (timer > 0) {
+          if (pressed.has('b')) ask('Leave the table with ' + seats[0].stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
+          else if (--timer === 0 && next) { const f = next; next = null; f(); }
+          return;
+        }
+        if (state === 'over') { if (t > 30 && (pressed.has('a') || pressed.has('b'))) leave(); return; }
+        if (state === 'result' || state === 'busted') {
+          if (pressed.has('a')) { sfx('select'); if (state === 'busted') startHand(); else endHand(); }
+          else if (pressed.has('b')) ask('Leave the table with ' + seats[0].stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
+          return;
+        }
+        if (toAct < 0) return;
+        const p = seats[toAct];
+        if (!p.you) {
+          if (pressed.has('b')) { ask('Leave the table with ' + p.stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); }); return; }
+          if (++think < 40) return;
+          const [kind, to] = botMove(toAct);
+          act(toAct, kind, to);
+          return;
+        }
+        const call = curBet - p.bet, maxTo = p.bet + p.stack;
+        const canRaise = p.stack > call && canAct().some((q) => q !== p);
+        if (raising) {
+          const minTo = Math.min(maxTo, curBet + minRaise), step = bb();
+          const nudge = (d) => { raiseTo = Math.max(minTo, Math.min(maxTo, raiseTo + d)); sfx('select'); };
+          const rep = (k) => pressed.has(k) || (held[k] && t % 5 === 0);
+          if (rep('right')) nudge(step);
+          if (rep('left')) nudge(-step);
+          if (rep('up')) nudge(step * 5);
+          if (rep('down')) nudge(-step * 5);
+          if (pressed.has('a')) { raising = false; act(0, 'raise', raiseTo); }
+          else if (pressed.has('b')) { raising = false; sfx('select'); }
+          return;
+        }
+        if (pressed.has('left')) { btn = (btn + 3) % 4; sfx('select'); }
+        if (pressed.has('right')) { btn = (btn + 1) % 4; sfx('select'); }
+        if (pressed.has('b')) { ask('Leave the table with ' + p.stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); }); return; }
+        if (pressed.has('a')) {
+          if (btn === 0) act(0, 'fold');
+          else if (btn === 1) act(0, 'call');
+          else if (btn === 2) { if (canRaise) { raising = true; raiseTo = Math.min(maxTo, curBet + minRaise); sfx('select'); } else sfx('bump'); }
+          else act(0, canRaise ? 'raise' : 'call', maxTo);
+        }
+      },
+      draw() {
+        // window + title bar
+        ctx.fillStyle = WIN; ctx.fillRect(0, 0, SW, SH);
+        ctx.fillStyle = TITLE; ctx.fillRect(0, 0, SW, 14);
+        drawRoll(3, 4);
+        text("Spring Roll Hold'em", 18, 3, 1, '#f8f8f8');
+        const bl = 'Blinds ' + sb() + '/' + bb();
+        text(bl, SW - 20 - bl.length * 6, 3, 1, '#f8f8f8');
+        ctx.fillStyle = INK; ctx.fillRect(SW - 13, 2, 10, 10);
+        ctx.fillStyle = WIN; ctx.fillRect(SW - 12, 3, 8, 8);
+        text('x', SW - 11, 1, 1, INK);
+        // the table
+        ctx.fillStyle = '#4a2810'; ctx.fillRect(6, 18, 308, 150); ctx.fillRect(4, 22, 312, 142);
+        ctx.fillStyle = '#2c7a40'; ctx.fillRect(10, 22, 300, 142); ctx.fillRect(8, 26, 304, 134);
+        const blink = (tick >> 4) & 1;
+        // the pot and the board
+        const ps = 'Pot ' + pot();
+        drawRoll(160 - ps.length * 3 - 14, 41);
+        text(ps, 160 - ps.length * 3, 41, 1, '#f8f8f8');
+        for (let i = 0; i < 5; i++) {
+          const x = 94 + i * 27, y = 54;
+          if (board[i]) drawCard(board[i], x, y);
+          else { ctx.fillStyle = '#246a36'; ctx.fillRect(x, y, CARD_W, CARD_H); }
+        }
+        // the players
+        seats.forEach((p, i) => {
+          const showFace = p.you || p.show;
+          if (p.out) {
+            if (!p.you) { drawAvatar(p.px, 26, '#686878'); text(p.name, p.px + 28, 28, 1, '#a8b0a8'); text('OUT', p.cardX + 14, 66, 1, '#a8b0a8'); }
+            return;
+          }
+          if (!p.you) {
+            drawAvatar(p.px, 26, BOTS[p.name].bg);
+            if (toAct === i && blink) { ctx.fillStyle = '#f8e070'; ring(p.px - 2, 24, 28, 28); }
+            text(p.name, p.px + 28, 28, 1, '#f8f8f8');
+            drawRoll(p.px + 28, 39); text(String(p.stack), p.px + 42, 39, 1, '#f8f8f8');
+          } else {
+            text('You', 40, 126, 1, '#f8f8f8');
+            drawRoll(40, 138); text(String(p.stack), 54, 138, 1, '#f8f8f8');
+            if (toAct === i && blink) { ctx.fillStyle = '#f8e070'; ring(p.cardX - 2, p.cardY - 2, CARD_W * 2 + 6, CARD_H + 4); }
+          }
+          if (p.folded) {
+            ctx.globalAlpha = 0.35;
+            p.hand.forEach((c, k) => drawCard(c, p.cardX + k * 26, p.cardY, !showFace));
+            ctx.globalAlpha = 1;
+            text('FOLD', p.cardX + 13, p.cardY + 12, 1, '#f8f8f8');
+          } else p.hand.forEach((c, k) => drawCard(c, p.cardX + k * 26, p.cardY, !showFace));
+          // what they have in front of them this round, and their hand once it's shown
+          const note = p.allIn ? 'All in' : p.bet ? 'Bet ' + p.bet : '';
+          const ny = p.you ? p.cardY - 11 : p.cardY + CARD_H + 4;
+          if (note) text(note, p.you ? 160 - note.length * 3 : p.right ? 308 - note.length * 6 : p.cardX, ny, 1, '#f8e070');
+          if (showFace && !p.folded && board.length >= 3) {
+            const hn = handName(handValue(p.hand.concat(board)));
+            if (p.you) text(hn, 190, 138, 1, '#f8f8f8');
+            else text(hn, p.right ? 308 - hn.length * 6 : p.cardX, ny + 11, 1, '#f8f8f8');
+          }
+          if (i === button) {
+            const [cx, cy] = p.chip;
+            ctx.fillStyle = INK; ctx.fillRect(cx, cy + 1, 11, 9); ctx.fillRect(cx + 1, cy, 9, 11);
+            ctx.fillStyle = '#f8f8f8'; ctx.fillRect(cx + 1, cy + 1, 9, 9);
+            text('D', cx + 3, cy + 2, 1, INK);
+          }
+        });
+        // what just happened
+        ctx.fillStyle = INK; ctx.fillRect(4, 172, SW - 8, 26);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(5, 173, SW - 10, 24);
+        lines.slice(0, 2).forEach((l, i) => text(l, 10, 176 + i * 11, 1, INK));
+        // your controls
+        const me = seats[0], myTurn = toAct === 0 && !timer && state === 'play';
+        const call = Math.min(curBet - me.bet, me.stack);
+        if (raising) {
+          const minTo = Math.min(me.bet + me.stack, curBet + minRaise), maxTo = me.bet + me.stack;
+          const lbl = (curBet ? 'Raise to ' : 'Bet ') + raiseTo + (raiseTo === maxTo ? ' (all in)' : '');
+          text(lbl, 10, 204, 1, INK);
+          ctx.fillStyle = INK; ctx.fillRect(160, 203, 150, 9);
+          ctx.fillStyle = '#e8e8e8'; ctx.fillRect(161, 204, 148, 7);
+          ctx.fillStyle = '#f0b030'; ctx.fillRect(161, 204, Math.round(148 * (maxTo > minTo ? (raiseTo - minTo) / (maxTo - minTo) : 1)), 7);
+          text('Arrows: amount  Space: OK  Esc: back', 10, 224, 1, INK);
+        } else if (state === 'play') {
+          const labels = ['Fold', call ? 'Call ' + call : 'Check', curBet ? 'Raise' : 'Bet', 'All in'];
+          labels.forEach((l, i) => {
+            const x = 6 + i * 78, on = myTurn && i === btn;
+            ctx.fillStyle = INK; ctx.fillRect(x, 202, 74, 16);
+            ctx.fillStyle = on ? WIN_DARK : '#f8f8f8'; ctx.fillRect(x, 202, 73, 15);
+            ctx.fillStyle = on ? '#f8f8f8' : WIN_DARK; ctx.fillRect(x + 1, 203, 72, 14);
+            ctx.fillStyle = on ? '#f0d890' : WIN; ctx.fillRect(x + 1, 203, 71, 13);
+            text(l, x + 37 - l.length * 3, 206, 1, myTurn ? INK : WIN_DARK);
+          });
+          text(myTurn ? 'Arrows: choose  Space: OK  Esc: leave' : 'Esc: leave the table', 10, 226, 1, INK);
+        } else if (state !== 'over') text('Space: next hand   Esc: leave the table', 10, 214, 1, INK);
+        if (state === 'over') doneBox(['You cleaned them out!',
+          'Spring rolls: ' + seats[0].stack, record ? 'New record!' : 'Best ' + getBest('poker')], t);
       },
     };
     return self;
@@ -3069,9 +3525,14 @@
   }
 
   // ---------- lat pulldown: pull on the beat, let it back up on the off-beat ----------
+  // The marker sweeps back and forth across the meter, 20 times. Each sweep you get
+  // one press: the right direction while it's in the sweet spot moves the bar and
+  // switches you to the other direction; anything else is a miss and nothing moves.
   function PulldownGame() {
-    const BEAT = 36, REPS = 20, WIN = 9;
-    let state = 'ready', t = 0, beat = 0, want = 'down', bar = 0, reps = 0, clean = 0, miss = 0, last = null, record = false;
+    const SWEEP = 42, SWEEPS = 20, SPOT = 0.11; // frames per sweep; sweet spot is the middle +-SPOT
+    let state = 'ready', t = 0, beat = 0, sweep = 0, want = 'down', bar = 0, clean = 0, tried = false, last = null, record = false;
+    const markerAt = () => (sweep & 1 ? 1 - beat / SWEEP : beat / SWEEP);
+    function finish() { state = 'done'; t = 0; record = saveBest('pulldown', clean); sfx('ding'); }
     const self = {
       music: 'squat',
       update() {
@@ -3081,36 +3542,35 @@
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
             say(clean >= 16 ? 'Smooth reps all the way through. Lats are burning!'
-              : clean >= 8 ? clean + ' clean reps out of ' + REPS + '. Not bad.'
+              : clean >= 8 ? clean + ' clean reps out of ' + SWEEPS + '. Not bad.'
                 : 'You fought the machine and the machine won.');
           }
           return;
         }
         if (pressed.has('b')) { remove(self); say('You rack the bar and stretch instead.'); return; }
         bar += ((want === 'down' ? 0 : 1) - bar) * 0.25;
-        if (++beat >= BEAT) {
-          beat = 0; miss++; last = { s: 'MISSED', c: '#b83028', t: 0 };
-          want = want === 'down' ? 'up' : 'down';
-          sfx('bump');
-          if (++reps >= REPS) { state = 'done'; t = 0; record = saveBest('pulldown', clean); return; }
-        }
-        if (pressed.has(want)) {
-          const off = Math.abs(beat - BEAT / 2);
-          if (off <= WIN) { clean++; last = { s: 'CLEAN', c: '#2c6a34', t: 0 }; sfx('lift', 0.8); }
-          else { last = { s: 'RUSHED', c: '#f0b030', t: 0 }; sfx('bump'); }
-          bar = want === 'down' ? 1 : 0;
-          beat = 0; want = want === 'down' ? 'up' : 'down';
-          if (++reps >= REPS) { state = 'done'; t = 0; record = saveBest('pulldown', clean); sfx('ding'); return; }
-        }
         if (last) last.t++;
+        const other = want === 'down' ? 'up' : 'down';
+        if (!tried && (pressed.has(want) || pressed.has(other))) {
+          tried = true;
+          if (pressed.has(want) && Math.abs(markerAt() - 0.5) <= SPOT) {
+            clean++; last = { s: 'CLEAN', c: '#2c6a34', t: 0 }; sfx('lift', 0.8);
+            want = other;
+          } else { last = { s: 'MISSED', c: '#b83028', t: 0 }; sfx('bump'); }
+        }
+        if (++beat >= SWEEP) {
+          if (!tried) { last = { s: 'MISSED', c: '#b83028', t: 0 }; sfx('bump'); }
+          beat = 0; tried = false;
+          if (++sweep >= SWEEPS) finish();
+        }
       },
       draw() {
         box(0, 0, SW, SH);
         text('Lat pulldown!', 16, 10);
         const b = 'Best ' + getBest('pulldown');
         text(b, SW - 16 - b.length * 6, 10);
-        text('Rep ' + Math.min(reps + 1, REPS) + '/' + REPS, 16, 24);
-        text('Clean ' + clean, 160, 24);
+        text('Sweep ' + Math.min(sweep + 1, SWEEPS) + '/' + SWEEPS, 16, 24);
+        text('Clean ' + clean + '/' + SWEEPS, 160, 24);
         // frame and cable
         ctx.fillStyle = col.dark; ctx.fillRect(60, 44, 200, 8); ctx.fillRect(66, 52, 8, 150); ctx.fillRect(246, 52, 8, 150);
         ctx.fillStyle = '#8890a0'; ctx.fillRect(68, 54, 4, 146); ctx.fillRect(248, 54, 4, 146);
@@ -3127,17 +3587,17 @@
           ctx.fillStyle = i < 4 ? '#585868' : '#c03838';
           ctx.fillRect(274, 170 - i * 16 - st, 30, 14);
         }
-        // the beat window: hit it when the marker crosses the middle
-        const p = beat / BEAT;
+        // the meter: press as the marker crosses the green sweet spot
+        const p = markerAt();
         ctx.fillStyle = col.dark; ctx.fillRect(40, 208, 240, 12);
         ctx.fillStyle = '#e8e8e8'; ctx.fillRect(41, 209, 238, 10);
         ctx.fillStyle = '#b8e8b8';
-        ctx.fillRect(40 + Math.round(238 * (0.5 - WIN / BEAT / 2)), 209, Math.round(238 * WIN / BEAT), 10);
-        ctx.fillStyle = col.dark; ctx.fillRect(40 + Math.round(238 * p), 206, 3, 16);
+        ctx.fillRect(40 + Math.round(238 * (0.5 - SPOT)), 209, Math.round(238 * SPOT * 2), 10);
+        ctx.fillStyle = tried ? '#8890a0' : col.dark; ctx.fillRect(40 + Math.round(238 * p), 206, 3, 16);
         text(want === 'down' ? 'PULL (Down)' : 'RELEASE (Up)', 100, 192);
         if (last && last.t < 30) text(last.s, (SW - last.s.length * 6) >> 1, 38, 1, last.c);
-        if (state === 'ready') readyBox(t, 'Down then Up, on the beat');
-        else if (state === 'done') doneBox(['Set finished!', 'Clean reps: ' + clean + '/' + REPS,
+        if (state === 'ready') readyBox(t, 'Down, Up, in the green');
+        else if (state === 'done') doneBox(['Set finished!', 'Clean reps: ' + clean + '/' + SWEEPS,
           record ? 'New record!' : 'Best ' + getBest('pulldown')], t);
         else text('Esc: give up', 16, SH - 14);
       },
@@ -3882,12 +4342,15 @@
           return;
         }
         if (turn === 'wade') {
-          // Wade aims well but not perfectly, and his putts are a bit strong
+          // Wade reads the line closely and putts just past the cup, so a miss
+          // leaves him a tap-in: he sinks about half his first putts and nearly
+          // always the second
           if (++wadeWait < 30) return;
           wadeWait = 0;
           const b = ball.wade, d = Math.hypot(cup.x - b.x, cup.y - b.y);
-          const a = Math.atan2(cup.y - b.y, cup.x - b.x) + (Math.random() - 0.5) * 0.3;
-          shoot('wade', a, Math.min(100, d * 0.78 + (Math.random() - 0.5) * 18));
+          const a = Math.atan2(cup.y - b.y, cup.x - b.x) + (Math.random() - 0.5) * 0.12;
+          // the power that rolls the ball 14-32px past the cup (it slows 3.5% a frame and stops below 0.12)
+          shoot('wade', a, Math.min(100, (0.035 * (d + 14 + Math.random() * 18) + 0.12) / 0.22));
           return;
         }
         // your turn: sweep the aim, then sweep the power
@@ -4218,7 +4681,8 @@
     }
     if (t === 'm' || t === 'R') {
       sfx('menu');
-      ui.push(ComputerScreen());
+      const room = roomAt(P.floor, tx, ty);
+      ui.push(ComputerScreen(room && room.computer));
       return;
     }
     if (t === 'P') {
@@ -4410,6 +4874,50 @@
     ctx.fillStyle = 'rgba(8, 8, 28, 0.78)';
     for (const r of MAPS.floors[P.floor].rooms)
       if (r.dark) ctx.fillRect(r.x1 * 16 - cx, r.y1 * 16 - cy - 4, (r.x2 - r.x1 + 1) * 16, (r.y2 - r.y1 + 1) * 16 + 4);
+    for (const r of MAPS.floors[P.floor].rooms) if (r.rave) drawRave(r, cx, cy);
+  }
+
+  // Party lights: dim the room, light the floor tiles up in colour and sweep spotlights
+  // around, all on the beat of the rave song (or a steady 140bpm with the music off).
+  const RAVE_COLS = ['#ff2a6d', '#05d9e8', '#f9f871', '#7b2ff7', '#39ff14', '#ff8c00'];
+  function drawRave(r, cx, cy) {
+    const x0 = r.x1 * 16 - cx, y0 = r.y1 * 16 - cy - 4;
+    const w = (r.x2 - r.x1 + 1) * 16, h = (r.y2 - r.y1 + 1) * 16 + 4;
+    if (x0 > SW || y0 > SH || x0 + w < 0 || y0 + h < 0) return;
+    let pos = musicPos('rave');
+    if (pos === null) pos = tick / 12.86;
+    const step = Math.floor(pos), frac = pos - step, beat = step >> 1;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x0, y0, w, h); ctx.clip();
+    ctx.fillStyle = 'rgba(12, 0, 32, 0.6)';
+    ctx.fillRect(x0, y0, w, h);
+    ctx.globalCompositeOperation = 'lighter';
+    // disco floor: every other tile glows, the pattern shifting each beat
+    ctx.globalAlpha = 0.22;
+    for (let ty = r.y1; ty <= r.y2; ty++)
+      for (let tx = r.x1; tx <= r.x2; tx++) {
+        if ((tx + ty + beat) & 1) continue;
+        ctx.fillStyle = RAVE_COLS[(tx * 3 + ty * 5 + beat) % RAVE_COLS.length];
+        ctx.fillRect(tx * 16 - cx, ty * 16 - cy, 16, 16);
+      }
+    // spotlights swinging around the room
+    for (let i = 0; i < 3; i++) {
+      const t = pos / 4 + i * 2.1;
+      const sx = x0 + w / 2 + Math.sin(t * 1.3 + i) * w * 0.38;
+      const sy = y0 + h / 2 + Math.cos(t * 0.9 + i * 2) * h * 0.36;
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = RAVE_COLS[(beat + i * 2) % RAVE_COLS.length];
+      ctx.beginPath(); ctx.arc(sx, sy, 18, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.25;
+      ctx.beginPath(); ctx.arc(sx, sy, 10, 0, Math.PI * 2); ctx.fill();
+    }
+    // strobe: a quick white flash on every kick
+    if ((step & 1) === 0 && frac < 0.35) {
+      ctx.globalAlpha = 0.4 * (1 - frac / 0.35);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x0, y0, w, h);
+    }
+    ctx.restore();
   }
 
   function drawBanner() {
@@ -4470,7 +4978,7 @@
   addEventListener('resize', layout);
   addEventListener('orientationchange', layout);
 
-  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|jar)
+  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|jar|poker)
   if (location.hash.startsWith('#play')) {
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
@@ -4487,7 +4995,7 @@
       snake: SnakeGame, parts: PartsGame, cable: CableGame, cpr: CprGame,
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
-      nathan: NathanGame, wade: WadeGolfGame, jar: CandyJarGame }[q.get('game')];
+      nathan: NathanGame, wade: WadeGolfGame, jar: CandyJarGame, poker: PokerApp }[q.get('game')];
     if (GAME) ui.push(GAME());
   }
 

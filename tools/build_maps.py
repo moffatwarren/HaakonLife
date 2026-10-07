@@ -24,7 +24,9 @@ Map glyphs
   walkable:  j computer parts scattered on the floor
 
 Room options: 'dark': True draws the room with the lights off,
+'rave': True fills the room with strobing party lights and dance music,
 'say': '...' shows a line of dialogue every time you walk in, and
+'computer': 'poker' runs that program on the room's computers instead of SDG, and
 'gender': 'male'/'female' keeps the other gender out (bathrooms), and
 'curtain': True marks the room behind a curtain, and
 'people': [names] adds extra NPCs (repeats allowed),
@@ -267,9 +269,9 @@ f1.office('186 Ansys Station', 88, 16, 91, 19, 'N')
 f1.room('D&P Closet', 93, 16, 97, 19)
 f1.fill(93, 19, 97, 19, 'b')
 f1.door((83, 15), (84, 15), (89, 15), (90, 15), (94, 15), (95, 15))
-f1.office('135 Romano', 82, 21, 86, 25, 'S')
+f1.office('135 Maya', 82, 21, 86, 25, 'S')
 f1.office('185 Nicholas', 88, 21, 91, 25, 'S')
-f1.office('190 Marcus', 93, 21, 97, 25, 'S')
+f1.office('190 Raymond', 93, 21, 97, 25, 'S')
 f1.door((84, 26), (85, 26), (89, 26), (90, 26), (94, 26), (95, 26))
 
 # --- east washrooms + stairs ---
@@ -401,7 +403,7 @@ f2.room('193 Engraver', 32, 4, 35, 8)
 f2.hline(31, 36, 9); f2.vline(36, 3, 9); f2.door((31, 5))
 f2.put(33, 4, 's'); f2.put(34, 4, 'M'); f2.put(35, 8, 'b')
 f2.office('Ghosts', 37, 4, 44, 8, 'S')
-f2.rooms[-1]['people'] = ['Ghost', 'Ghost']  # two ghosts haunt the rack room
+f2.rooms[-1]['people'] = ['Linda 1', 'Linda 2']  # two ghosts haunt the rack room
 f2.clear((40, 5)); f2.fill(37, 4, 44, 4, 'y')  # racks of computers along the top
 f2.hline(36, 45, 9); f2.vline(45, 3, 10); f2.door((43, 9), (44, 9))
 
@@ -422,6 +424,7 @@ f2.put(77, 4, 'm'); f2.put(78, 4, 'd'); f2.put(77, 5, 'c')  # second desk
 f2.office('116 JP', 81, 4, 88, 10, 'S'); f2.door((81, 11), (82, 11))
 f2.office('117 James', 90, 4, 96, 10, 'S'); f2.door((90, 11), (91, 11))
 f2.office('171 Raegan / Patrick', 98, 4, 105, 10, 'S'); f2.door((98, 11), (99, 11))
+f2.rooms[-1].update(rave=True)
 f2.put(103, 4, 'd'); f2.put(102, 4, 'm'); f2.put(102, 5, 'c')
 
 # --- west ---
@@ -437,14 +440,14 @@ f2.vline(10, 27, 35)
 f2.office('125 Bob', 1, 28, 9, 35, 'E'); f2.door((10, 28), (10, 29))
 f2.fill(4, 28, 6, 28, 'd'); f2.fill(6, 29, 6, 33, 'd')  # Bob's L-shaped desk
 
-# open pod (Jordan / Jimmy / Kyle / Maya / Tainah / Diane)
+# open pod (Jordan / Jimmy / Kyle / Tainah / Diane, one empty cubicle)
 f2.rooms.append({'name': 'Open Office', 'x1': 8, 'y1': 9, 'x2': 24, 'y2': 26})
 f2.fill(11, 11, 19, 24, '.')
 f2.vline(15, 12, 24, '=')
 for y in (15, 19, 24):
     f2.hline(11, 19, y, '=')
 for (y1, y2), left, right in (((12, 14), '111 Jordan', '138 Jimmy'),
-                               ((16, 18), '180 Kyle', '127 Maya'),
+                               ((16, 18), '180 Kyle', 'Empty Cubicle'),
                                ((20, 23), '124 Tainah', '158 Diane')):
     for name, x1, x2 in ((left, 11, 14), (right, 16, 19)):
         f2.rooms.append({'name': name, 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2, 'parent': 'Open Office'})
@@ -452,7 +455,7 @@ for (y1, y2), left, right in (((12, 14), '111 Jordan', '138 Jimmy'),
 f2.l_desk([(x, 12) for x in range(11, 15)] + [(14, 13), (14, 14)], (14, 12), (13, 13))  # Jordan
 f2.l_desk([(16, 12), (16, 13)] + [(x, 14) for x in range(16, 20)], (16, 14), (17, 13))  # Jimmy
 f2.l_desk([(x, 16) for x in range(11, 15)] + [(14, 17), (14, 18)], (14, 16), (13, 17))  # Kyle
-f2.l_desk([(x, 16) for x in range(16, 20)] + [(16, 17), (16, 18)], (16, 16), (17, 17))  # Maya
+f2.l_desk([(x, 16) for x in range(16, 20)] + [(16, 17), (16, 18)], (16, 16), (17, 17))  # empty
 f2.l_desk([(14, y) for y in range(20, 23)] + [(x, 23) for x in range(11, 15)], (14, 23), (13, 22))  # Tainah
 f2.l_desk([(16, y) for y in range(20, 23)] + [(x, 23) for x in range(16, 20)], (16, 23), (17, 22))  # Diane
 f2.vline(22, 12, 16, '=')
@@ -488,10 +491,12 @@ f2.room('Electrical', 31, 20, 32, 25); f2.door((32, 19)); f2.fill(31, 25, 32, 25
 f2.fill(31, 21, 31, 23, 'K')  # electrical panels
 f2.office('126 Zin', 34, 20, 36, 25, 'N'); f2.door((35, 19))
 f2.fill(36, 22, 36, 25, 'd')  # L-shaped desk up the right wall
+f2.put(34, 25, 'd'); f2.put(35, 25, 'm')  # computer in the middle of the desk, clear of the chair
+f2.rooms[-1]['computer'] = 'poker'
 f2.office('133 Jules', 38, 20, 41, 25, 'N'); f2.door((39, 19), (40, 19))
 f2.fill(38, 22, 38, 25, 'd'); f2.put(39, 25, 'd'); f2.put(38, 25, 'm')  # L-shaped desk up the left wall
 
-# centre pod (Raymond / Avery / Nikola / Muhammad)
+# centre pod (Avery / Marcus / Muhammad, one empty cubicle)
 f2.rooms.append({'name': 'Open Office', 'x1': 43, 'y1': 14, 'x2': 63, 'y2': 26})
 f2.fill(47, 14, 58, 25, '.')
 f2.vline(53, 14, 25, '=')
@@ -500,8 +505,8 @@ for y in (14, 20, 25):
 f2.vline(47, 14, 25, '='); f2.vline(58, 14, 25, '=')
 for gx in (49, 50, 55, 56):  # openings on the top and bottom
     f2.put(gx, 14, '.'); f2.put(gx, 25, '.')
-for (y1, y2), left, right in (((15, 19), '187 Raymond', '139 Avery'),
-                               ((21, 24), '166 Nikola', '141 Muhammad')):
+for (y1, y2), left, right in (((15, 19), 'Empty Cubicle', '139 Avery'),
+                               ((21, 24), '166 Marcus', '141 Muhammad')):
     f2.cubicle(left, 48, y1, 52, y2, 'E')
     f2.cubicle(right, 54, y1, 57, y2, 'W')
 
@@ -517,7 +522,7 @@ f2.hline(72, 77, 14); f2.vline(77, 14, 21); f2.hline(72, 77, 21); f2.door((74, 1
 f2.put(76, 15, 'w'); f2.put(73, 19, 'n')
 f2.fill(73, 22, 77, 26, '#'); f2.put(77, 23, 'E'); f2.put(77, 24, 'E')
 
-# east pod (Cody / John / Dmitriy / Leo / Sayyada / Gigi)
+# east pod (Cody / John / Dmitriy / Leo / Leon / Romano)
 f2.rooms.append({'name': 'Open Office', 'x1': 78, 'y1': 12, 'x2': 100, 'y2': 28})
 f2.fill(81, 15, 97, 25, '.')
 f2.vline(80, 15, 25, '=')
@@ -528,8 +533,8 @@ for x in (86, 91, 97):
 for gx in (83, 89, 94):
     f2.put(gx, 15, '.'); f2.put(gx, 25, '.')
 for (x1, x2), top, bottom in (((81, 85), '142 Cody', '167 Leo'),
-                               ((87, 90), '174 John', '177 Sayyada'),
-                               ((92, 96), '173 Dmitriy', '129 Gigi')):
+                               ((87, 90), '174 John', '177 Leon'),
+                               ((92, 96), '173 Dmitriy', '129 Romano')):
     f2.put(x1, 16, 'm'); f2.put(x1 + 1, 16, 'd'); f2.put(x1, 17, 'c')
     f2.put(x1, 24, 'm'); f2.put(x1 + 1, 24, 'd'); f2.put(x1, 23, 'c')
     f2.rooms.append({'name': top, 'x1': x1, 'y1': 16, 'x2': x2, 'y2': 19, 'parent': 'Open Office'})
@@ -550,9 +555,9 @@ f2.fill(104, 24, 105, 27, 'S')
 f2.hline(18, 105, 29)
 for x in (18, 27, 36, 45, 55, 64, 72, 79, 88, 96):
     f2.vline(x, 29, 36)
-f2.rooms.append({'name': '123 Leon', 'x1': 11, 'y1': 28, 'x2': 17, 'y2': 35})
+f2.rooms.append({'name': 'Open Office', 'x1': 11, 'y1': 28, 'x2': 17, 'y2': 35})
 f2.fill(12, 33, 15, 35, '.')
-# Leon's desk runs along the meeting room wall, with two computers
+# a desk runs along the meeting room wall, with two computers
 f2.fill(17, 30, 17, 35, 'd'); f2.put(17, 31, 'm'); f2.put(17, 34, 'm')
 f2.put(16, 32, 'c'); f2.put(11, 35, 'p')
 f2.room('179 Meeting Room', 19, 30, 26, 35, '_'); f2.door((25, 29), (26, 29))
@@ -620,9 +625,9 @@ f2.clear((69, 21), (70, 21), (69, 22))
 f2.l_desk(col(67, 23, 25), (67, 24), (68, 24))                           # Nik
 
 # centre pod
-f2.l_desk(col(52, 16, 19) + row(19, 48, 51), (52, 16), (51, 16))        # Raymond
+f2.l_desk(col(52, 16, 19) + row(19, 48, 51), (52, 16), (51, 16))        # empty
 f2.l_desk(col(54, 16, 19) + row(19, 55, 57), (54, 16), (55, 16))        # Avery
-f2.l_desk(row(21, 48, 52) + col(52, 22, 24), (52, 21), (51, 22))        # Nikola
+f2.l_desk(row(21, 48, 52) + col(52, 22, 24), (52, 21), (51, 22))        # Marcus
 f2.l_desk(col(54, 21, 24) + row(21, 55, 57), (54, 21), (55, 22))        # Muhammad
 
 # east pod
@@ -632,8 +637,8 @@ f2.l_desk(col(81, 16, 19) + row(19, 82, 85), (81, 16), (82, 17))        # Cody
 f2.l_desk(col(87, 16, 19) + row(19, 88, 90), (87, 16), (88, 17))        # John
 f2.l_desk(col(96, 16, 19) + row(19, 92, 95), (96, 19), (95, 18))        # Dmitriy
 f2.l_desk(row(21, 81, 85) + col(81, 22, 24), (81, 24), (82, 23))        # Leo
-f2.l_desk(row(21, 87, 90) + col(90, 22, 24), (90, 21), (89, 22))        # Sayyada
-f2.l_desk(row(21, 92, 96) + col(96, 22, 24), (96, 21), (95, 22))        # Gigi (cubicle)
+f2.l_desk(row(21, 87, 90) + col(90, 22, 24), (90, 21), (89, 22))        # Leon
+f2.l_desk(row(21, 92, 96) + col(96, 22, 24), (96, 21), (95, 22))        # Romano
 
 
 # ---------------------------------------------------------------------
@@ -683,7 +688,7 @@ f1.clear((83, 19), (84, 19), (83, 18))
 f1.fill(83, 19, 85, 19, 'u')
 next(r for r in f1.rooms if r['name'] == '170 First Aid Station')['curtain'] = True
 
-# the centre cluster (first aid, Ansys, D&P closet, Romano, Nicholas, Marcus)
+# the centre cluster (first aid, Ansys, D&P closet, Maya, Nicholas, Raymond)
 # uses cubicle-style partitions instead of solid walls
 for y in range(15, 27):
     for x in range(81, 99):
@@ -693,9 +698,9 @@ for y in range(15, 27):
             f1.g[y][x] = ','
 
 # centre cluster, bottom row
-f1.l_desk(row(21, 82, 85) + col(82, 22, 25), (83, 21), (83, 22))       # Romano
+f1.l_desk(row(21, 82, 85) + col(82, 22, 25), (83, 21), (83, 22))       # Maya
 f1.l_desk(row(21, 88, 91) + col(91, 22, 25), (89, 21), (89, 22))       # Nicholas
-f1.l_desk(row(21, 94, 97) + col(97, 22, 25), (94, 21), (94, 22))       # Marcus
+f1.l_desk(row(21, 94, 97) + col(97, 22, 25), (94, 21), (94, 22))       # Raymond
 
 # =====================================================================
 # Links between floors: stepping on an S tile (or using an E tile) in a
