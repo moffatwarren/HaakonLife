@@ -4851,17 +4851,21 @@
   function DanceGame() {
     const LANES = ['left', 'down', 'up', 'right'], LANE_COLS = ['#ff2a6d', '#05d9e8', '#39ff14', '#f9f871'];
     const LX = 104, LW = 28, TY = 34, PX = 9; // first lane, lane width, target row, pixels per step
-    const PERFECT = 0.4, GOOD = 0.8, LEN = 128, LEAD = 16; // windows and lengths, in steps
+    // Timing windows and lengths, in steps. On a touch screen the D-pad is slower to hit than
+    // a key, so the windows are wider and the chart is gentler (see below).
+    const PERFECT = isTouch ? 0.7 : 0.5, GOOD = isTouch ? 1.4 : 1, LEN = 128, LEAD = 16;
     const patrick = spritesFor('Patrick');
     // The chart: half notes to warm up, then every beat, then some off-beats to finish.
+    // On touch it stays on the beat at the end, and never asks for the same arrow twice
+    // in a row (that means lifting your thumb off the pad and pressing again).
     const notes = [];
-    for (let s = 0; s < LEN; s += s < 32 ? 4 : s < 96 ? 2 : Math.random() < 0.45 ? 1 : 2) {
+    for (let s = 0; s < LEN; s += s < 32 ? 4 : s < 96 || isTouch ? 2 : Math.random() < 0.45 ? 1 : 2) {
       let lane;
       do lane = Math.floor(Math.random() * 4);
-      while (notes.length > 1 && notes[notes.length - 1].lane === lane && notes[notes.length - 2].lane === lane);
+      while (notes.length && notes[notes.length - 1].lane === lane && (isTouch || (notes.length > 1 && notes[notes.length - 2].lane === lane)));
       notes.push({ s, lane, hit: null });
     }
-    const PATRICK = 70 + Math.floor(Math.random() * 14); // Patrick is good, not perfect
+    const PATRICK = 62 + Math.floor(Math.random() * 14); // Patrick is good, not perfect
     let state = 'play', t = 0, pos = -LEAD, lastMp = null, synced = false;
     let pts = 0, combo = 0, maxCombo = 0, judge = null, flash = [0, 0, 0, 0], move = 'down', record = false;
     const pct = () => Math.round(100 * pts / (notes.length * 2));
@@ -4898,7 +4902,7 @@
           move = k;
           let best = null;
           for (const n of notes) if (n.lane === lane && !n.hit && Math.abs(n.s - pos) <= GOOD && (!best || Math.abs(n.s - pos) < Math.abs(best.s - pos))) best = n;
-          if (!best) { if (combo) rate('OOPS', '#a0a0b8', -1); combo = 0; return; }
+          if (!best) return; // a stray press costs nothing
           const d = Math.abs(best.s - pos);
           best.hit = d <= PERFECT ? 'perfect' : 'good';
           pts += d <= PERFECT ? 2 : 1;
