@@ -4040,10 +4040,62 @@
     return self;
   }
 
-  // ---------- printer jam: ease the sheet out without tearing it ----------
+  // ---------- printer jam: ease each sheet out without tearing it ----------
+  // Every sheet is different: snags on hidden rollers (marked on the OUT bar) make it
+  // strain, it comes out crooked (Left/Right straightens it, and a crooked sheet
+  // strains faster), and the paper itself can be thin, stiff or sticky. Whatever was
+  // printed on it is revealed line by line as it comes out.
+  const JAM_PAPERS = [
+    { name: 'Plain paper', bg: '#f8f8f8', pull: 0.55, strain: 1.5, relax: 2.3, drift: 0.22 },
+    { name: 'Thin paper', bg: '#ecece4', pull: 0.7, strain: 1.7, relax: 2.6, drift: 0.3 },
+    { name: 'Cardstock', bg: '#f0e0b0', pull: 0.45, strain: 1.1, relax: 1.7, drift: 0.12 },
+    { name: 'Label sheet', bg: '#f8f8f8', pull: 0.5, strain: 1.4, relax: 1.5, drift: 0.22, labels: true },
+  ];
+  // what somebody sent to the printer: a title, then up to 8 lines of 24 characters
+  const JAM_DOCS = [
+    ['SPRING ROLL LEDGER', 'Cody owes Zin: 12', 'Cody owes Dmitriy: 30', 'Cody owes Zin: 45', 'Cody owes Zin: 80', 'Cody owes everyone', '', 'NOTE: do not lend Cody', 'any more spring rolls.'],
+    ['MEMO: THE FRIDGE', 'To whoever ate the', 'lunch with my name on', 'it, in big letters:', '', 'I know it was you.', 'I have seen the', 'security footage.', '- Management'],
+    ['FROM: STEPHEN', 'RE: EMAIL FORMATTING', '', 'PLEASE NOTE THAT ALL', 'EMAILS MUST NOW BE', 'WRITTEN IN CAPS.', 'IT IS EASIER TO READ.', '', 'THANK YOU, STEPHEN'],
+    ['HYROX TRAINING PLAN', 'Mon: wall balls', 'Tue: sled push', 'Wed: burpees', 'Thu: more burpees', 'Fri: burpees again', 'Sat: race day!', 'Sun: cannot walk', '- Patrick'],
+    ['POKEMON CARD WISHLIST', 'Charizard (shiny)', 'Pikachu (promo)', 'Mewtwo (first ed.)', 'Sleep (any edition)', '', 'Line starts at 4am.', 'Bring a chair.', '- Raegan'],
+    ['TROPHY INVENTORY', 'Golf: 1st place', 'Golf: 2nd place', 'Bowling: 1st place', 'Darts: 3rd place', 'Participation: 14', 'Shelf space left: 0', '', 'Need a bigger office.'],
+    ['MANULIFE FORM 1 OF 40', 'Name:', 'Dependants:', 'Dependants of', 'dependants:', '', 'Please return this', 'form by YESTERDAY.', '- Jhonna'],
+    ['RESIGNATION LETTER', 'Dear boss,', '', 'I quit.', '', 'Just kidding. The', 'printer ate my real', 'letter. See you on', 'Monday.'],
+    ['PRINTER MANUAL PAGE 1', 'To clear a paper jam:', '', '1. Open tray 2.', '2. Pull gently.', '3. Pull less gently.', '4. Cry a little.', '5. Use the other', '   printer.'],
+    ['WHO TOOK MY STAPLER', 'It was red.', 'It was MINE.', '', 'I will haunt the rack', 'room until it is', 'returned.', '', 'Boo. - Linda'],
+    ['POKER NIGHT RULES', '1. No crying.', '2. Cody, no crying.', '3. Buy in: 200 rolls.', '4. Zin deals.', '5. Zin always wins.', '6. Do not ask why', '   Zin always wins.', ''],
+    ['PUTTING REMATCH', 'Wade vs. You', '', 'Hole 1: Wade', 'Hole 2: Wade', 'Hole 3: Wade', '', 'Wade says the green', 'was "fair".'],
+    ['CANDY JAR AUDIT', 'Start of day: 300', 'End of day: 12', 'Suspects: everyone', '', 'New rule: one candy', 'per visit, please!', '', '- Reception'],
+    ['VACATION PHOTOS.JPG', 'Page 1 of 400', '', '##########  ####', '####  ##########', '##########  ####', '####  ##########', '', 'Who printed this??'],
+  ];
   function JamGame() {
-    const SHEETS = 5;
-    let state = 'ready', t = 0, out = 0, tension = 0, done = 0, torn = 0, shake = 0, record = false;
+    const SHEETS = 5, LEN = 100; // the sheet is LEN pixels long when it's all the way out
+    const docs = JAM_DOCS.slice();
+    for (let i = docs.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [docs[i], docs[j]] = [docs[j], docs[i]]; }
+    let state = 'ready', t = 0, done = 0, torn = 0, shake = 0, record = false;
+    let sheet = null, out = 0, tension = 0, skew = 0, wait = 0, msg = '';
+    const SNAG_W = 6;
+    function newSheet() {
+      const n = done + torn;
+      const paper = n === 0 ? JAM_PAPERS[0] : JAM_PAPERS[Math.floor(Math.random() * JAM_PAPERS.length)];
+      // 1 snag on the first sheet, then 2 or 3, spread along the sheet
+      const snags = [], count = n === 0 ? 1 : 2 + (Math.random() < 0.5 ? 1 : 0);
+      for (let tries = 0; snags.length < count && tries < 50; tries++) {
+        const s = 15 + Math.floor(Math.random() * 72);
+        if (snags.every((o) => Math.abs(o - s) > 16)) snags.push(s);
+      }
+      snags.sort((a, b) => a - b);
+      sheet = { paper, snags, doc: docs[n % docs.length] };
+      out = 0; tension = 0; msg = '';
+      skew = (Math.random() < 0.5 ? -1 : 1) * (4 + Math.random() * 8);
+    }
+    const inSnag = () => sheet.snags.some((s) => out >= s && out < s + SNAG_W);
+    const snagAhead = () => sheet.snags.some((s) => out >= s - 10 && out < s);
+    function finishSheet() {
+      if (done + torn >= SHEETS) { state = 'done'; t = 0; record = saveBest('jam', done); return; }
+      newSheet(); state = 'play';
+    }
+    newSheet();
     const self = {
       music: 'stack',
       update() {
@@ -4060,53 +4112,126 @@
         }
         if (pressed.has('b')) { remove(self); say('You give up and use the other printer.'); return; }
         if (shake > 0) shake--;
-        if (held.a) { out += 0.55; tension += 1.5; } else { tension -= 2.3; }
+        // a finished sheet stays up so you can read it; a torn one hangs there a moment
+        if (state === 'clean') { wait++; if (wait > 20 && pressed.has('a')) { sfx('select'); finishSheet(); } return; }
+        if (state === 'tore') { if (++wait > 70) finishSheet(); return; }
+        const p = sheet.paper, snag = inSnag();
+        // straighten it out
+        if (held.left) skew -= 0.7;
+        if (held.right) skew += 0.7;
+        if (held.a) {
+          out += p.pull * (snag ? 0.5 : 1);
+          // pulling crooked makes it worse, and strains it more
+          skew += p.drift * (skew >= 0 ? 1 : -1) + (Math.random() - 0.5) * 0.3;
+          tension += p.strain * (snag ? 1.8 : 1) * (1 + Math.abs(skew) / 18);
+          if (snag && t % 10 === 0) sfx('blip');
+        } else tension -= p.relax;
+        skew = Math.max(-30, Math.min(30, skew));
         tension = Math.max(0, tension);
         if (tension >= 100) {
-          torn++; shake = 14; tension = 0; out = 0; sfx('buzz');
-          if (done + torn >= SHEETS) { state = 'done'; t = 0; record = saveBest('jam', done); return; }
+          torn++; shake = 14; tension = 0; sfx('buzz');
+          state = 'tore'; wait = 0;
+          msg = snag ? 'RRRIP! It caught on a roller.' : Math.abs(skew) > 12 ? 'RRRIP! It came out crooked.' : 'RRRIP! Too hard.';
+          return;
         }
         if (out >= 100) {
-          done++; tension = 0; out = 0; sfx('ding');
-          if (done + torn >= SHEETS) { state = 'done'; t = 0; record = saveBest('jam', done); return; }
+          out = 100; done++; tension = 0; sfx('ding');
+          state = 'clean'; wait = 0;
+          msg = 'Out clean!';
         }
       },
       draw() {
         box(0, 0, SW, SH);
-        text('Sheet ' + Math.min(done + torn + 1, SHEETS) + '/' + SHEETS, 16, 10);
+        const p = sheet.paper;
+        text('Sheet ' + Math.min(done + torn + (state === 'clean' || state === 'tore' ? 0 : 1), SHEETS) + '/' + SHEETS, 16, 8);
         const b = 'Best ' + getBest('jam');
-        text(b, SW - 16 - b.length * 6, 10);
-        text('Clean ' + done + '   Torn ' + torn, 16, 24);
+        text(b, SW - 16 - b.length * 6, 8);
+        text('Clean ' + done + '   Torn ' + torn, 16, 20);
+        text(p.name, SW - 16 - p.name.length * 6, 20, 1, p === JAM_PAPERS[0] ? col.dark : '#a05010');
         const sx = shake ? ((tick & 1) ? 2 : -2) : 0;
-        // the printer, with the jammed sheet creeping out of it
-        ctx.fillStyle = col.dark; ctx.fillRect(60 + sx, 60, 200, 96);
-        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(63 + sx, 63, 194, 90);
-        ctx.fillStyle = '#8890a0'; ctx.fillRect(70 + sx, 70, 180, 20);
-        text('PC LOAD LETTER', 80 + sx, 74, 1, col.dark);
-        ctx.fillStyle = col.dark; ctx.fillRect(70 + sx, 120, 180, 8);
-        const sheet = Math.round(out * 0.6);
-        if (sheet > 0) {
-          ctx.fillStyle = col.dark; ctx.fillRect(100 + sx, 128, 120, sheet);
-          ctx.fillStyle = '#f8f8f8'; ctx.fillRect(102 + sx, 128, 116, sheet - 2);
-          ctx.fillStyle = '#c8ccd8';
-          for (let i = 8; i < sheet - 6; i += 7) ctx.fillRect(108 + sx, 134 + i, 104, 2);
+        // the sheet comes up out of the top of the printer, top of the page first,
+        // drawn in 2px strips, each shifted by how crooked it is
+        const W = 160, X = 80 + sx, SLOT = 146, shown = Math.round(out * LEN / 100);
+        const top = SLOT - shown, off = (ly) => Math.round(skew * (shown - ly) / LEN);
+        for (let ly = 0; ly < shown; ly += 2) {
+          const dx = off(ly), h = Math.min(2, shown - ly);
+          ctx.fillStyle = col.dark; ctx.fillRect(X + dx, top + ly, W, h);
+          ctx.fillStyle = p.bg; ctx.fillRect(X + dx + 1, top + ly, W - 2, h);
         }
-        // how far out, and how close to tearing
-        text('OUT', 16, 176);
-        ctx.fillStyle = col.dark; ctx.fillRect(52, 174, 110, 10);
-        ctx.fillStyle = '#e8e8e8'; ctx.fillRect(53, 175, 108, 8);
-        ctx.fillStyle = '#3868c8'; ctx.fillRect(53, 175, Math.round(108 * out / 100), 8);
-        text('PULL', 16, 196);
-        ctx.fillStyle = col.dark; ctx.fillRect(52, 194, 110, 10);
-        ctx.fillStyle = '#e8e8e8'; ctx.fillRect(53, 195, 108, 8);
+        if (shown > 0) {
+          ctx.fillStyle = col.dark; ctx.fillRect(X + off(0), top, W, 1);
+          // label sheets: rows of labels behind the print
+          if (p.labels) {
+            ctx.fillStyle = '#d8dce8';
+            for (let ly = 3; ly + 21 < shown; ly += 24) for (const lx of [4, 82]) {
+              const dx = off(ly);
+              ctx.fillRect(X + dx + lx, top + ly, 74, 1); ctx.fillRect(X + dx + lx, top + ly + 20, 74, 1);
+              ctx.fillRect(X + dx + lx, top + ly, 1, 21); ctx.fillRect(X + dx + lx + 73, top + ly, 1, 21);
+            }
+          }
+          // the print, revealed a line at a time
+          sheet.doc.forEach((line, i) => {
+            const ly = i === 0 ? 4 : 8 + i * 10;
+            if (ly + 8 > shown || !line) return;
+            text(line, X + off(ly) + 6, top + ly, 1, i === 0 ? '#2850a0' : col.dark);
+            if (i === 0) { ctx.fillStyle = '#2850a0'; ctx.fillRect(X + off(12) + 6, top + 12, line.length * 6 - 1, 1); }
+          });
+          // creases where it was dragged over a snag
+          ctx.fillStyle = '#9098a8';
+          for (const s of sheet.snags) {
+            const ly = Math.round(s * LEN / 100);
+            if (out < s + SNAG_W || ly >= shown) continue;
+            for (let i = 0; i < W - 4; i += 2) ctx.fillRect(X + off(ly) + 2 + i, top + ly + ((i >> 1) & 1), 2, 1);
+          }
+          // a ragged edge where it ripped off at the rollers
+          if (state === 'tore') {
+            for (let i = 0; i < W; i += 4) {
+              const d = 1 + ((i * 7) % 5);
+              ctx.fillStyle = col.light; ctx.fillRect(X + off(shown) + i, SLOT - d, 4, d);
+              ctx.fillStyle = col.dark; ctx.fillRect(X + off(shown) + i, SLOT - d - 1, 4, 1);
+            }
+          }
+        }
+        // the printer, the sheet feeding out of the slot on top
+        ctx.fillStyle = col.dark; ctx.fillRect(70 + sx, SLOT - 2, 180, 46);
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(73 + sx, SLOT + 1, 174, 40);
+        ctx.fillStyle = col.dark; ctx.fillRect(76 + sx, SLOT - 2, 168, 4);
+        ctx.fillStyle = '#8890a0'; ctx.fillRect(80 + sx, SLOT + 8, 120, 16);
+        text('PC LOAD LETTER', 83 + sx, SLOT + 12, 1, col.dark);
+        ctx.fillStyle = state === 'play' && snagAhead() && (tick >> 2) & 1 ? '#f05040' : '#58a848';
+        ctx.fillRect(222 + sx, SLOT + 12, 8, 8);
+        // OUT (with the snags marked) on the left, PULL on the right, both filling upwards
+        const BY = 42, BH = 146;
+        text('OUT', 6, BY - 12);
+        ctx.fillStyle = col.dark; ctx.fillRect(10, BY, 12, BH);
+        ctx.fillStyle = '#e8e8e8'; ctx.fillRect(11, BY + 1, 10, BH - 2);
+        const oh = Math.round((BH - 2) * out / 100);
+        ctx.fillStyle = '#3868c8'; ctx.fillRect(11, BY + BH - 1 - oh, 10, oh);
+        ctx.fillStyle = '#c03030';
+        for (const s of sheet.snags) {
+          const y1 = BY + BH - 1 - Math.round((BH - 2) * (s + SNAG_W) / 100);
+          ctx.fillRect(8, y1, 16, Math.max(2, Math.round((BH - 2) * SNAG_W / 100)));
+        }
+        text('PULL', SW - 28, BY - 12);
+        ctx.fillStyle = col.dark; ctx.fillRect(SW - 22, BY, 12, BH);
+        ctx.fillStyle = '#e8e8e8'; ctx.fillRect(SW - 21, BY + 1, 10, BH - 2);
+        const th = Math.round((BH - 2) * Math.min(100, tension) / 100);
         ctx.fillStyle = tension > 75 ? '#f05040' : tension > 45 ? '#f0b030' : '#58b058';
-        ctx.fillRect(53, 195, Math.round(108 * tension / 100), 8);
-        ctx.fillStyle = '#c03030'; ctx.fillRect(159, 193, 2, 12);
-        if (tension > 75 && (tick >> 2) & 1) text('EASY!', 180, 196, 1, '#c03030');
+        ctx.fillRect(SW - 21, BY + BH - 1 - th, 10, th);
+        // what to watch out for
+        let warn = '', wc = '#c03030';
+        if (state === 'play') {
+          if (tension > 75) warn = 'EASY!';
+          else if (inSnag()) warn = 'Snagged! Gently...';
+          else if (snagAhead()) { warn = 'Snag ahead!'; wc = '#a05010'; }
+          else if (Math.abs(skew) > 12) { warn = skew > 0 ? 'Crooked! Press Left' : 'Crooked! Press Right'; wc = '#a05010'; }
+        } else if (state === 'tore' || state === 'clean') { warn = msg; wc = state === 'tore' ? '#c03030' : '#2c7a40'; }
+        if (warn && (state !== 'play' || warn !== 'EASY!' || (tick >> 2) & 1)) text(warn, 160 - warn.length * 3, 196, 1, wc);
         if (state === 'ready') readyBox(t, 'Hold Space, but ease off!');
         else if (state === 'done') doneBox(['Jam cleared!', 'Clean ' + done + '   Torn ' + torn,
           record ? 'New record!' : 'Best ' + getBest('jam')], t);
-        else text('Esc: give up', 16, SH - 14);
+        else if (state === 'clean') text('Space: next sheet   Esc: give up', 16, SH - 22);
+        else text('Space: pull  Left/Right: straighten  Esc: quit', 16, SH - 22);
       },
     };
     return self;
