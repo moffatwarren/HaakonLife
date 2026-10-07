@@ -343,7 +343,7 @@
   function pickMusic() {
     if (!musicOn) return null;
     for (let i = ui.length - 1; i >= 0; i--) if (ui[i].music) return ui[i].music;
-    if (mode === 'play' && curRoom && (curRoom.name === 'Ghosts' || curRoom.dark)) return 'spooky';
+    if (mode === 'play' && curRoom && ((curRoom.name === 'Ghosts' && !lindaFree) || curRoom.dark)) return 'spooky';
     if (mode === 'play' && curRoom && curRoom.rave) return 'rave';
     return 'office';
   }
@@ -4986,14 +4986,129 @@
     'Boooo... how is my list coming along?',
     'You can check my list from the Start menu. Boo.',
   ];
-  const LINDA_THANKS = [
-    'You did EVERYTHING on my list! I feel so... light.',
-    'Thank you, Employee of the Month. Boo! (That was a happy boo.)',
-    'I can finally rest... right after I find my stapler.',
-  ];
   let quest = null; // { tasks: [{key, need, text, done}], complete }
   let playerName = '';
   const questQueue = []; // messages to show once you're back walking around
+
+  // ---------- Linda's red stapler ----------
+  // Linda needs her stapler back AND her list done before she can move on. The stapler
+  // sits on a desk, counter, shelf or table somewhere different every visit, and Linda
+  // drops hints about which room. Not saved, like the list.
+  const STAPLER_ON = 'dkbT';
+  const stapler = (function hideStapler() {
+    const spots = [];
+    MAPS.floors.forEach((f, fi) => f.tiles.forEach((rowStr, y) => [...rowStr].forEach((c, x) => {
+      if (!STAPLER_ON.includes(c)) return;
+      // it has to be reachable: next to floor you can stand on, in a room you can walk into
+      for (const [dx, dy] of Object.values(DIRS)) {
+        const r = roomAt(fi, x + dx, y + dy);
+        if (!WALKABLE.includes(tileAt(fi, x + dx, y + dy)) || !r) continue;
+        if (r.name === 'Ghosts' || r.dark || r.gender || r.curtain || / \/ \d/.test(r.name)) continue;
+        spots.push({ floor: fi, x, y, room: r });
+        return;
+      }
+    })));
+    return Object.assign({ found: false }, spots[Math.floor(Math.random() * spots.length)]);
+  })();
+  let lindaFree = false; // she's gone for good
+  let freeing = null; // { npc, t } while she floats away
+  // "in Zin's office upstairs", "by the photocopier upstairs", ... for Linda's hints
+  function staplerPlace() {
+    const name = stapler.room.name, m = /^\d+ (.+)$/.exec(name);
+    const BY = { Photocopier: 'by the photocopier', Engraver: 'by the engraver' };
+    let place;
+    if (BY[m ? m[1] : name]) place = BY[m ? m[1] : name];
+    else if (m && !NOT_PEOPLE.includes(m[1])) {
+      place = 'in ' + m[1].split(' / ').map((n) => ((window.PEOPLE || {})[n] || {}).name || n).join(' and ') + '\'s office';
+    } else place = 'in the ' + (m ? m[1] : name.replace(/^(Lunch Room|Boardroom|Instrument Room) \d+$/, '$1'));
+    return place + (stapler.floor ? ' upstairs' : ' downstairs');
+  }
+  const staplerHint = () => 'Ooooo... I think I left my stapler ' + staplerPlace() + '...';
+  // The stapler or the list is done: say so, and point you at Linda once both are.
+  function lindaLighter() {
+    if (stapler.found && quest && quest.complete) {
+      questQueue.push('The air feels lighter than ever. You should go and see Linda in the rack room.');
+    } else questQueue.push('The air feels a little lighter.');
+  }
+  function drawStaplerAt(x, y) {
+    ctx.fillStyle = '#5a1010'; ctx.fillRect(x + 3, y + 9, 10, 3); // base
+    ctx.fillStyle = '#d02828'; ctx.fillRect(x + 3, y + 6, 10, 3); // top arm
+    ctx.fillStyle = '#f06060'; ctx.fillRect(x + 4, y + 6, 8, 1);
+    ctx.fillStyle = '#c8ccd8'; ctx.fillRect(x + 11, y + 8, 2, 1); // metal tip
+  }
+  function lindaTalk(npc, says) {
+    const listDone = quest && quest.complete;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    if (stapler.found && listDone) { say(says('My stapler... my list... it\'s all done. I... I am finally FREE!'), () => ui.push(LindaFree(npc))); return; }
+    if (listDone) { say(says('You did EVERYTHING on my list! But I can\'t rest without my stapler. I think I left it ' + staplerPlace() + '...')); return; }
+    if (stapler.found) {
+      say(says(quest ? 'My stapler! Thank you! Now if only somebody would finish my list...'
+        : 'My stapler! Thank you! But there are still things I never got to do... I left a list in the gym lockers.'));
+      return;
+    }
+    const lines = quest ? LINDA_WAITING : npc.lines.concat(['Ooooo... I left something in the gym lockers...']);
+    say(says(pick(lines.concat([staplerHint()]))));
+  }
+
+  // Both done: Linda glows, rises up a beam of light and floats away, to some happy music.
+  const FREE_TICKS = 480;
+  function LindaFree(npc) {
+    freeing = { npc, t: 0 };
+    const self = {
+      music: 'free',
+      update() {
+        if (++freeing.t < FREE_TICKS) return;
+        remove(self);
+        npcs.splice(npcs.indexOf(npc), 1);
+        freeing = null; lindaFree = true;
+        sfx('ding');
+        questQueue.push('Linda floats up through the ceiling tiles, stapler in hand, and is gone.');
+        questQueue.push('Somewhere far above, there is a happy "Boooo!" and the click of a stapler.');
+        questQueue.push('The rack room feels warm for the first time in years.');
+      },
+      draw() {
+        // a warm wash over everything, ending in a soft white flash
+        const t = freeing ? freeing.t : FREE_TICKS;
+        ctx.fillStyle = 'rgba(255, 220, 120, ' + (0.12 * Math.min(1, t / 90)) + ')';
+        ctx.fillRect(0, 0, SW, SH);
+        const flash = t > FREE_TICKS - 70 ? 1 - Math.abs(t - (FREE_TICKS - 35)) / 35 : 0;
+        if (flash > 0) { ctx.fillStyle = 'rgba(255, 255, 255, ' + flash.toFixed(2) + ')'; ctx.fillRect(0, 0, SW, SH); }
+      },
+    };
+    return self;
+  }
+  // Linda mid-departure: the beam, the sparkles and her, drawn where she stands.
+  function drawFreeing(sx, sy, img) {
+    const t = freeing.t;
+    const grow = Math.min(1, t / 90); // the beam opens up first
+    const rise = t < 120 ? 0 : Math.pow((t - 120) / (FREE_TICKS - 120), 1.6) * (sy + 40); // then up she goes
+    const fadeOut = t < 200 ? 1 : Math.max(0, 1 - (t - 200) / (FREE_TICKS - 240));
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const bw = 4 + grow * 20 + Math.sin(t / 6) * 2;
+    ctx.globalAlpha = 0.35 * grow;
+    ctx.fillStyle = '#f8d870'; ctx.fillRect(sx + 8 - bw / 2, 0, bw, sy + 18);
+    ctx.globalAlpha = 0.5 * grow;
+    ctx.fillStyle = '#fff8d0'; ctx.fillRect(sx + 8 - bw / 4, 0, bw / 2, sy + 18);
+    // sparkles drifting up the beam
+    for (let i = 0; i < 20; i++) {
+      const p = (t * (0.6 + (i % 5) * 0.15) + i * 23) % 90;
+      const px = sx + 8 + Math.sin(t / 15 + i * 1.7) * (6 + (i % 4) * 3);
+      const py = sy + 16 - rise * 0.5 - p;
+      ctx.globalAlpha = grow * (1 - p / 90);
+      ctx.fillStyle = i % 3 ? '#f8e070' : '#ffffff';
+      ctx.fillRect(Math.round(px), Math.round(py), i % 4 ? 1 : 2, i % 4 ? 1 : 2);
+    }
+    // a soft halo that follows her up
+    const hy = sy + 8 - rise, glow = ctx.createRadialGradient(sx + 8, hy, 1, sx + 8, hy, 18);
+    glow.addColorStop(0, 'rgba(255, 240, 180, 0.6)'); glow.addColorStop(1, 'rgba(255, 240, 180, 0)');
+    ctx.globalAlpha = grow * fadeOut; ctx.fillStyle = glow; ctx.fillRect(sx - 12, hy - 20, 40, 40);
+    ctx.restore();
+    // Linda herself, glowing and fading as she rises
+    ctx.globalAlpha = 0.75 * fadeOut;
+    ctx.drawImage(img, sx, Math.round(sy - 2 - rise + Math.sin(t / 8) * 2));
+    ctx.globalAlpha = 1;
+  }
 
   function startQuest() {
     const pool = LINDA_TASKS.slice();
@@ -5015,6 +5130,7 @@
         questQueue.push('A cold breeze ruffles Linda\'s list... "' + task.text + '" crosses itself off!');
         questQueue.push('That\'s everything on Linda\'s list! A happy "Boooo!" echoes through the building.');
         questQueue.push('Somebody has hung a new EMPLOYEE OF THE MONTH picture by the front entrance. Go and have a look!');
+        lindaLighter();
       }
     }
   }
@@ -5107,7 +5223,10 @@
         });
         const doneN = quest.tasks.filter((x) => x.done).length;
         text(doneN + '/' + quest.tasks.length + ' done', X + 34, Y + H - 18, 1, '#7080b0');
-        if (quest.complete) text('Thank you. I can rest now.', X + W - 166, Y + H - 30, 1, '#c03030');
+        if (quest.complete) {
+          const note = stapler.found ? 'Thank you. I can rest now.' : 'Now... where is my stapler?';
+          text(note, X + W - 10 - note.length * 6, Y + H - 30, 1, '#c03030');
+        }
         text('- Linda', X + W - 50, Y + H - 18, 1, INK);
         text('Space: put it away', 6, SH - 14, 1, '#f8f8f8');
       },
@@ -5366,14 +5485,16 @@
         });
         return;
       }
-      if (npc.ghost) {
-        // Linda, and how she feels about her list
-        const lines = quest && quest.complete ? LINDA_THANKS
-          : quest ? LINDA_WAITING : npc.lines.concat(['Ooooo... I left something in the gym lockers...']);
-        say(says(lines[Math.floor(Math.random() * lines.length)]));
-        return;
-      }
+      if (npc.ghost) { lindaTalk(npc, says); return; } // Linda, her list and her stapler
       say(says(npc.lines[Math.floor(Math.random() * npc.lines.length)]));
+      return;
+    }
+    if (!stapler.found && P.floor === stapler.floor && tx === stapler.x && ty === stapler.y) {
+      sfx('cup');
+      stapler.found = true;
+      say('A red stapler! It\'s ice cold. This must be Linda\'s.');
+      questQueue.push('A chilly breeze whisks it out of your hands, off towards the rack room.');
+      lindaLighter();
       return;
     }
     if (t === 'N' && curRoom && curRoom.name === 'Fitness Room') {
@@ -5574,6 +5695,7 @@
       for (const c of curtains[P.floor]) ctx.drawImage(c.open, c.x * 16 - cx, c.y * 16 - cy);
     if (quest && quest.complete)
       for (const e of easels[P.floor]) drawEaselAt(e.x * 16 - cx, e.y * 16 - cy);
+    if (!stapler.found && stapler.floor === P.floor) drawStaplerAt(stapler.x * 16 - cx, stapler.y * 16 - cy);
     for (const k of panels[P.floor]) {
       const x = k.x * 16 - cx, y = k.y * 16 - cy;
       if (x < -16 || x > SW || y < -16 || y > SH) continue;
@@ -5589,13 +5711,14 @@
       if (n.floor !== P.floor) continue;
       const frame = n.moving && n.prog < 8 ? (n.step ? 1 : 2) : 0;
       actors.push({ x: n.x * 16 + (n.moving ? n.mdx * n.prog : 0), y: n.y * 16 + (n.moving ? n.mdy * n.prog : 0),
-        img: n.sprites[n.dir][frame], ghost: n.ghost });
+        img: n.sprites[n.dir][frame], ghost: n.ghost, freeing: freeing && freeing.npc === n });
     }
     actors.sort((a, b) => a.y - b.y);
     for (const a of actors) {
       const sx = a.x - cx, sy = a.y - cy - 4;
       if (!(sx > -16 && sx < SW && sy > -20 && sy < SH)) continue;
-      if (a.ghost) {
+      if (a.freeing) drawFreeing(sx, sy, a.img);
+      else if (a.ghost) {
         // ghosts are see-through and bob up and down
         ctx.globalAlpha = 0.75;
         ctx.drawImage(a.img, sx, sy - 2 + Math.round(Math.sin(tick / 12 + a.x) * 2));
@@ -5736,6 +5859,12 @@
       if (q.get('quest') === 'done') { quest.tasks.forEach((x) => { x.done = true; }); quest.complete = true; }
       else quest.tasks.slice(0, +q.get('quest') - 1).forEach((x) => { x.done = true; });
     }
+    // &stapler=found hands Linda her stapler back; &stapler=near puts it on the desk in front of you
+    if (q.get('stapler') === 'found') stapler.found = true;
+    if (q.get('stapler') === 'near') {
+      const [dx, dy] = DIRS[P.dir];
+      Object.assign(stapler, { floor: P.floor, x: P.x + dx, y: P.y + dy, room: roomAt(P.floor, P.x, P.y) || stapler.room });
+    }
     const GAME = { coffee: CoffeeGame, punch: PunchGame, run: RunGame, pong: PongGame, toss: TossGame, stack: StackGame, simon: SimonGame, lunch: LunchGame, candy: CandyGame, squat: SquatGame, golf: GolfGame, dark: DarkGame, battle: BattleGame,
       fan: FanGame, coil: CoilGame, damper: DamperGame, filter: FilterGame,
       snake: SnakeGame, parts: PartsGame, cable: CableGame, cpr: CprGame,
@@ -5772,5 +5901,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo, npcs, questNote, get quest() { return quest; } };
+  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, get quest() { return quest; } };
 })();

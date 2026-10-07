@@ -41,6 +41,23 @@ window.MUSIC = {
     ],
   },
 
+  // Linda, finally free: bright, major and soaring
+  free: {
+    bpm: 128,
+    voices: [
+      { type: 'square', vol: 0.03, notes:
+        'E5 - G5 - C6 - B5 - | A5 - - - G5 - E5 - | F5 - A5 - C6 - D6 - | E6 - - - D6 - C6 - |' +
+        'C6 - B5 - A5 - G5 - | F5 - A5 - G5 - E5 - | D5 - F5 - B5 - D6 - | C6 - - - - - . .' },
+      { type: 'sine', vol: 0.03, notes:
+        'C5 E5 G5 C6 G5 E5 C5 E5 | A4 C5 E5 A5 E5 C5 A4 C5 | F4 A4 C5 F5 C5 A4 F4 A4 | C5 E5 G5 C6 G5 E5 C5 E5 |' +
+        'A4 C5 E5 A5 E5 C5 A4 C5 | F4 A4 C5 F5 C5 A4 F4 A4 | G4 B4 D5 G5 D5 B4 G4 B4 | C5 E5 G5 C6 E6 - - -' },
+      { type: 'triangle', vol: 0.09, notes:
+        'C3 - - - G2 - - - | A2 - - - E2 - - - | F2 - - - C3 - - - | C3 - - - G2 - - - |' +
+        'A2 - - - E2 - - - | F2 - - - C3 - - - | G2 - - - D3 - - - | C3 - - - - - - -' },
+      { type: 'drums', vol: 0.35, notes: 'k . h . s . h . | k . h k s . h h' },
+    ],
+  },
+
   // Raegan and Patrick's office: four-on-the-floor rave
   rave: {
     bpm: 140,

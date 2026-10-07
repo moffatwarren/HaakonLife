@@ -81,6 +81,11 @@ all and your picture goes up as **Employee of the Month** on an easel by the
 front entrance, with the name you entered at the start. Linda has new things
 to say once her list is done. The list isn't saved: every visit starts fresh.
 
+Linda also lost her **red stapler**. It turns up on a different desk, counter,
+shelf or table every visit, and Linda drops hints about which room. Finding it
+or finishing the list makes the air feel a little lighter; do both and go and
+see her, and she's finally free: she rises up a beam of light and floats away.
+
 Other people worth talking to:
 
 - **Nathan** (office 115): grab the trophy he names off a crowded shelf, before the sweeping hand runs away with you
@@ -95,7 +100,8 @@ Best scores are saved in the browser. For testing, `index.html#play&game=punch`
 `forms`, `nathan`, `wade`, `jar`, `poker`, `blackjack`) opens a game straight away.
 For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,
 `&quest=done` finished), `&name=Sam` sets your name, and `game=locker`, `list`
-or `eotm` opens those screens.
+or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
+and `&stapler=near` puts it right in front of you.
 
 `tools/shot.sh out.png "play&game=snake&ticks=60"` screenshots a game headlessly
 (it uses `tools/test.html`, which stubs the audio and can pin `Math.random` with
