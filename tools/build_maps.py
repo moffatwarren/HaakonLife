@@ -270,7 +270,7 @@ f1.office('186 Ansys Station', 88, 16, 91, 19, 'N')
 f1.room('D&P Closet', 93, 16, 97, 19)
 f1.fill(93, 19, 97, 19, 'b')
 f1.door((83, 15), (84, 15), (89, 15), (90, 15), (94, 15), (95, 15))
-f1.office('135 Maya', 82, 21, 86, 25, 'S')
+f1.office('135 Maya W', 82, 21, 86, 25, 'S')
 f1.office('185 Nicholas', 88, 21, 91, 25, 'S')
 f1.office('190 Raymond', 93, 21, 97, 25, 'S')
 f1.door((84, 26), (85, 26), (89, 26), (90, 26), (94, 26), (95, 26))
@@ -442,14 +442,14 @@ f2.vline(10, 27, 35)
 f2.office('125 Bob', 1, 28, 9, 35, 'E'); f2.door((10, 28), (10, 29))
 f2.fill(4, 28, 6, 28, 'd'); f2.fill(6, 29, 6, 33, 'd')  # Bob's L-shaped desk
 
-# open pod (Jordan / Jimmy / Kyle / Tainah / Diane, one empty cubicle)
+# open pod (Jordan / Jimmy / Kyle / Maya J / Tainah / Diane)
 f2.rooms.append({'name': 'Open Office', 'x1': 8, 'y1': 9, 'x2': 24, 'y2': 26})
 f2.fill(11, 11, 19, 24, '.')
 f2.vline(15, 12, 24, '=')
 for y in (15, 19, 24):
     f2.hline(11, 19, y, '=')
 for (y1, y2), left, right in (((12, 14), '111 Jordan', '138 Jimmy'),
-                               ((16, 18), '180 Kyle', 'Empty Cubicle'),
+                               ((16, 18), '180 Kyle', '127 Maya J'),
                                ((20, 23), '124 Tainah', '158 Diane')):
     for name, x1, x2 in ((left, 11, 14), (right, 16, 19)):
         f2.rooms.append({'name': name, 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2, 'parent': 'Open Office'})
@@ -457,7 +457,7 @@ for (y1, y2), left, right in (((12, 14), '111 Jordan', '138 Jimmy'),
 f2.l_desk([(x, 12) for x in range(11, 15)] + [(14, 13), (14, 14)], (14, 12), (13, 13))  # Jordan
 f2.l_desk([(16, 12), (16, 13)] + [(x, 14) for x in range(16, 20)], (16, 14), (17, 13))  # Jimmy
 f2.l_desk([(x, 16) for x in range(11, 15)] + [(14, 17), (14, 18)], (14, 16), (13, 17))  # Kyle
-f2.l_desk([(x, 16) for x in range(16, 20)] + [(16, 17), (16, 18)], (16, 16), (17, 17))  # empty
+f2.l_desk([(x, 16) for x in range(16, 20)] + [(16, 17), (16, 18)], (16, 16), (17, 17))  # Maya J
 f2.l_desk([(14, y) for y in range(20, 23)] + [(x, 23) for x in range(11, 15)], (14, 23), (13, 22))  # Tainah
 f2.l_desk([(16, y) for y in range(20, 23)] + [(x, 23) for x in range(16, 20)], (16, 23), (17, 22))  # Diane
 f2.vline(22, 12, 16, '=')
@@ -691,7 +691,7 @@ f1.clear((83, 19), (84, 19), (83, 18))
 f1.fill(83, 19, 85, 19, 'u')
 next(r for r in f1.rooms if r['name'] == '170 First Aid Station')['curtain'] = True
 
-# the centre cluster (first aid, Ansys, D&P closet, Maya, Nicholas, Raymond)
+# the centre cluster (first aid, Ansys, D&P closet, Maya W, Nicholas, Raymond)
 # uses cubicle-style partitions instead of solid walls
 for y in range(15, 27):
     for x in range(81, 99):
@@ -701,7 +701,7 @@ for y in range(15, 27):
             f1.g[y][x] = ','
 
 # centre cluster, bottom row
-f1.l_desk(row(21, 82, 85) + col(82, 22, 25), (83, 21), (83, 22))       # Maya
+f1.l_desk(row(21, 82, 85) + col(82, 22, 25), (83, 21), (83, 22))       # Maya W
 f1.l_desk(row(21, 88, 91) + col(91, 22, 25), (89, 21), (89, 22))       # Nicholas
 f1.l_desk(row(21, 94, 97) + col(97, 22, 25), (94, 21), (94, 22))       # Raymond
 
