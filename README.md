@@ -61,19 +61,28 @@ Walk up to these and press A:
 - **Washer and dryer** (fitness room): catch the load the machine is asking for, let the rest drop
 - **Elevator**: every ride, a coworker gets in and makes conversation
 
-Talk to **Damir** (office 108, with the lights off) if you dare: he cuts the
-power, and you have to find three fuses with only a flashlight while shadows
-creep closer whenever they're out of the beam.
+## Coworker games
 
-Talk to **Richard** (office 122) and say yes to test your air handling
-knowledge: a turn-based duel where you and Richard each pick a move and the
-winner knocks 1 off the other's 3 HP. Fan Gust beats Coil Freeze, Coil Freeze
-beats Damper Block, and Damper Block beats Fan Gust.
+Some coworkers have a game for you. Walk up to them and press A:
 
-Talk to **Patrick** (office 171, the one with the disco floor) for a
-dance-off: arrows rise up four lanes in time with the office's rave tune, and
-you hit each one as it reaches the top. Beat Patrick's score and he calls the
-whole office in for a few seconds of dance party.
+- **Damir** (office 108, with the lights off): if you dare, he cuts the power,
+  and you have to find three fuses with only a flashlight while shadows creep
+  closer whenever they're out of the beam.
+- **Richard** (office 122): say yes to test your air handling knowledge in a
+  turn-based duel where you and Richard each pick a move and the winner knocks
+  1 off the other's 3 HP. Fan Gust beats Coil Freeze, Coil Freeze beats Damper
+  Block, and Damper Block beats Fan Gust.
+- **Patrick** (office 171, the one with the disco floor): a dance-off. Arrows
+  rise up four lanes in time with the office's rave tune, and you hit each one
+  as it reaches the top. Beat Patrick's score and he calls the whole office in
+  for a few seconds of dance party.
+- **Nathan** (office 115): grab the trophy he names off his crowded shelf
+  before the sweeping hand runs away with you.
+- **Wade** (2nd floor, office 137): a three-hole putting grudge match.
+- **Kiki** (Reception): guess how many sweets are in the candy jar, closer than
+  she does. The first time you talk to her she hands you her Employee of the
+  Month list instead (see below); after that she offers the bet.
+- **Jhonna** (office 118): fill in her Manulife dependant forms, at last.
 
 ## Linda's list
 
