@@ -419,6 +419,12 @@
     dpad.addEventListener('lostpointercapture', end);
   }
   document.addEventListener('contextmenu', (e) => e.preventDefault());
+  // iOS Safari ignores user-scalable=no and touch-action on the page, so a quick double tap
+  // (say on the d-pad) zooms in and there's no way back out. The controls all run on pointer
+  // events, so cancelling the touch defaults costs nothing and stops the zoom.
+  document.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+  for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault());
 
   // ---------- drawing helpers ----------
   // Keyboard hints -> touch button hints ("Space: punch" -> "A: punch", "Esc: give up" ->
