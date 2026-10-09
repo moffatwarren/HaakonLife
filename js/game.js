@@ -67,9 +67,11 @@
     "Oh, hey! Welcome to the office.",
     "Busy day today!",
     "Have you tried the candy at reception?",
-    "Don't tell anyone, but this is my third coffee.",
     "Morning! Or afternoon. I have lost track.",
-    "If you see my mug, it is the one with the fan on it.",
+    "Is it Friday yet?",
+    "I'd chat, but I have a meeting in five minutes.",
+    "Did someone turn the thermostat down again? It's freezing in here.",
+    "Have you seen the new parts upstairs?",
   ];
   const NOT_PEOPLE = ['Meeting Room', 'First Aid Station', 'Ansys Station', 'Reception', 'Engraver'];
   const NPC_FLOOR = '.,:_j';
@@ -5797,6 +5799,20 @@
     ctx.fillStyle = '#f06060'; ctx.fillRect(x + 4, y + 6, 8, 1);
     ctx.fillStyle = '#c8ccd8'; ctx.fillRect(x + 11, y + 8, 2, 1); // metal tip
   }
+  // ---------- Jenn's cookies ----------
+  // A plate of homemade cookies on the lunch room counter, next to the sink.
+  const cookies = { floor: 0, x: 78, y: 4 };
+  function drawCookiesAt(x, y) {
+    ctx.fillStyle = '#a8acb8'; ctx.fillRect(x + 1, y + 8, 14, 5); // plate
+    ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 2, y + 8, 12, 4);
+    ctx.fillStyle = '#7a4a20'; // cookies
+    ctx.fillRect(x + 3, y + 7, 4, 3); ctx.fillRect(x + 8, y + 7, 4, 3); ctx.fillRect(x + 5, y + 5, 5, 3);
+    ctx.fillStyle = '#c88848';
+    ctx.fillRect(x + 4, y + 7, 2, 2); ctx.fillRect(x + 9, y + 7, 2, 2); ctx.fillRect(x + 6, y + 5, 3, 2);
+    ctx.fillStyle = '#301808'; // chocolate chips
+    ctx.fillRect(x + 4, y + 8, 1, 1); ctx.fillRect(x + 10, y + 7, 1, 1); ctx.fillRect(x + 7, y + 6, 1, 1);
+    ctx.fillStyle = '#f8e070'; ctx.fillRect(x + 12, y + 10, 3, 3); // the note
+  }
   function lindaTalk(npc, says) {
     const listDone = quest && quest.complete;
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -6321,6 +6337,11 @@
       say(says(npc.lines[Math.floor(Math.random() * npc.lines.length)]));
       return;
     }
+    if (P.floor === cookies.floor && tx === cookies.x && ty === cookies.y) {
+      sfx('select');
+      say('There is a plate of cookies with a note: "Made with love by Jenn." You take one.\nAs you eat it, you think to yourself: Nik and Dmitriy could never make anything this good.');
+      return;
+    }
     if (!stapler.found && P.floor === stapler.floor && tx === stapler.x && ty === stapler.y) {
       sfx('cup');
       stapler.found = true;
@@ -6529,6 +6550,7 @@
       for (const c of curtains[P.floor]) ctx.drawImage(c.open, c.x * 16 - cx, c.y * 16 - cy);
     if (eotm)
       for (const e of easels[P.floor]) drawEaselAt(e.x * 16 - cx, e.y * 16 - cy);
+    if (cookies.floor === P.floor) drawCookiesAt(cookies.x * 16 - cx, cookies.y * 16 - cy);
     if (!stapler.found && stapler.floor === P.floor) drawStaplerAt(stapler.x * 16 - cx, stapler.y * 16 - cy);
     for (const k of panels[P.floor]) {
       const x = k.x * 16 - cx, y = k.y * 16 - cy;
