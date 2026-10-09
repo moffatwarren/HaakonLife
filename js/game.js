@@ -240,6 +240,8 @@
     lift: (h) => tone(140 + (h || 0) * 260, 0.05, 'square', 0.03),
     note: (i) => tone([330, 440, 554, 660][i], 0.18, 'square', 0.05),
     buzz: () => { tone(90, 0.4, 'square', 0.07); noise(0.3, 400, 0.06); },
+    sizzle: () => { noise(0.3, 3200, 0.07); noise(0.15, 1200, 0.04); },
+    chop: () => { noise(0.05, 500, 0.12); tone(160, 0.06, 'square', 0.05, -80); },
     swish: () => { noise(0.25, 2200, 0.06); tone(600, 0.15, 'triangle', 0.05, 500, 0.1); },
   };
   function sfx(name, arg) { if (soundOn && actx) SFX[name](arg); }
@@ -4850,6 +4852,558 @@
     return self;
   }
 
+  // ---------- Joe's Lego brick battle: falling-brick puzzle, you against Joe ----------
+  // Both of you get the same bricks in the same order. Fill a row to clear it; clear
+  // two or more at once and grey bricks push up from the bottom of Joe's baseplate
+  // (2 rows -> 1, 3 -> 2, 4 -> 4), and his clears do the same to you. Whoever's bricks
+  // reach the top first loses. The bricks fall faster every 15 seconds.
+  function LegoGame() {
+    const COLS = 10, ROWS = 20, C = 9, BY = 38;
+    const BX = [22, 208];
+    // each piece's cells in its first rotation, on an n x n grid
+    const SHAPES = {
+      I: [4, [[0, 1], [1, 1], [2, 1], [3, 1]]], O: [2, [[0, 0], [1, 0], [0, 1], [1, 1]]],
+      T: [3, [[1, 0], [0, 1], [1, 1], [2, 1]]], S: [3, [[1, 0], [2, 0], [0, 1], [1, 1]]],
+      Z: [3, [[0, 0], [1, 0], [1, 1], [2, 1]]], J: [3, [[0, 0], [0, 1], [1, 1], [2, 1]]],
+      L: [3, [[2, 0], [0, 1], [1, 1], [2, 1]]],
+    };
+    const KEYS_ = Object.keys(SHAPES);
+    const ROTS = {};
+    for (const k of KEYS_) {
+      const [n, first] = SHAPES[k];
+      ROTS[k] = [first];
+      for (let r = 1; r < 4; r++) ROTS[k].push(ROTS[k][r - 1].map(([x, y]) => [n - 1 - y, x]));
+    }
+    // brick colours: [face, stud highlight, shadow]
+    const COLOURS = {
+      I: ['#4a9de0', '#9ccaf2', '#2a64a0'], O: ['#f2cd37', '#fbeaa0', '#b0901a'],
+      T: ['#9b5bc0', '#c89ae0', '#64368a'], S: ['#2d9a4a', '#7cd090', '#1a6430'],
+      Z: ['#d02818', '#f07858', '#8a1a10'], J: ['#1e5ac8', '#6890e0', '#123c88'],
+      L: ['#f08a20', '#f8c070', '#a85a10'], G: ['#9aa0a8', '#c8ccd8', '#60646c'],
+    };
+    const SEND = [0, 0, 1, 2, 4];
+    const joe = spritesFor('Joe');
+    // one shared bag of pieces, so neither of you gets luckier bricks
+    const seq = [];
+    function piece(i) {
+      while (seq.length <= i) {
+        const bag = KEYS_.slice();
+        for (let j = bag.length - 1; j > 0; j--) { const k = Math.floor(Math.random() * (j + 1)); [bag[j], bag[k]] = [bag[k], bag[j]]; }
+        seq.push(...bag);
+      }
+      return seq[i];
+    }
+    const empty = () => Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+    const fits = (board, k, r, x, y) => ROTS[k][r].every(([cx, cy]) => {
+      const bx = x + cx, by = y + cy;
+      return bx >= 0 && bx < COLS && by < ROWS && (by < 0 || !board[by][bx]);
+    });
+    const players = [0, 1].map((i) => ({
+      ai: i === 1, board: empty(), cur: null, next: 0, fall: 0, lockT: 0, das: 0,
+      clearing: null, pending: 0, lines: 0, sent: 0, dead: false, plan: null, wait: 0, dropping: false,
+    }));
+    const [you, them] = players;
+    let state = 'ready', t = 0, frames = 0, record = false, won = false;
+    const gravity = () => Math.max(6, 42 - Math.floor(frames / 900) * 4);
+    const level = () => 1 + Math.min(9, Math.floor(frames / 900));
+
+    function spawn(p) {
+      // rows of grey bricks the other player sent push up from the bottom
+      if (p.pending) {
+        const hole = Math.floor(Math.random() * COLS);
+        for (let i = 0; i < p.pending; i++) {
+          if (p.board.shift().some((c) => c)) p.dead = true;
+          const row = Array(COLS).fill('G'); row[hole] = null;
+          p.board.push(row);
+        }
+        p.pending = 0;
+        sfx('bump');
+      }
+      const k = piece(p.next++);
+      p.cur = { k, r: 0, x: k === 'O' ? 4 : 3, y: 0 };
+      p.fall = 0; p.lockT = 0; p.dropping = false; p.plan = null; p.wait = 0;
+      if (p.dead || !fits(p.board, k, 0, p.cur.x, p.cur.y)) { p.dead = true; p.cur = null; }
+    }
+    function move(p, dx, dy) {
+      const c = p.cur;
+      if (!c || !fits(p.board, c.k, c.r, c.x + dx, c.y + dy)) return false;
+      c.x += dx; c.y += dy;
+      return true;
+    }
+    function rotate(p) {
+      const c = p.cur, r = (c.r + 1) % 4;
+      // nudge it off a wall or another brick if it won't turn where it is
+      for (const [dx, dy] of [[0, 0], [-1, 0], [1, 0], [-2, 0], [2, 0], [0, -1]]) {
+        if (fits(p.board, c.k, r, c.x + dx, c.y + dy)) { c.r = r; c.x += dx; c.y += dy; return true; }
+      }
+      return false;
+    }
+    function lock(p) {
+      const c = p.cur;
+      for (const [cx, cy] of ROTS[c.k][c.r]) {
+        if (c.y + cy < 0) p.dead = true;
+        else p.board[c.y + cy][c.x + cx] = c.k;
+      }
+      p.cur = null;
+      if (p.dead) return;
+      const rows = [];
+      p.board.forEach((row, y) => { if (row.every((x) => x)) rows.push(y); });
+      if (!rows.length) { if (!p.ai) sfx('blip'); spawn(p); return; }
+      p.clearing = { rows, t: 0 };
+      p.lines += rows.length;
+      let send = SEND[rows.length];
+      const cancel = Math.min(send, p.pending);
+      p.pending -= cancel; send -= cancel;
+      const other = p === you ? them : you;
+      other.pending += send; p.sent += send;
+      sfx(rows.length >= 2 ? 'cup' : 'blip', true);
+    }
+    function drop(p) { while (move(p, 0, 1)); lock(p); }
+
+    // Joe weighs up every landing spot for his brick: low, flat and no gaps
+    // underneath. He doesn't always pick the best one.
+    function plan(p) {
+      const c = p.cur, opts = [];
+      for (let r = 0; r < 4; r++) {
+        for (let x = -2; x < COLS; x++) {
+          if (!fits(p.board, c.k, r, x, 0)) continue;
+          let y = 0;
+          while (fits(p.board, c.k, r, x, y + 1)) y++;
+          const b = p.board.map((row) => row.slice());
+          for (const [cx, cy] of ROTS[c.k][r]) if (y + cy >= 0) b[y + cy][x + cx] = c.k;
+          const full = b.filter((row) => row.every((v) => v)).length;
+          const kept = b.filter((row) => !row.every((v) => v));
+          const h = [];
+          let holes = 0;
+          for (let cx = 0; cx < COLS; cx++) {
+            let top = kept.findIndex((row) => row[cx]);
+            if (top < 0) { h.push(0); continue; }
+            h.push(kept.length - top);
+            for (let yy = top + 1; yy < kept.length; yy++) if (!kept[yy][cx]) holes++;
+          }
+          let bump = 0;
+          for (let cx = 1; cx < COLS; cx++) bump += Math.abs(h[cx] - h[cx - 1]);
+          const score = -0.51 * h.reduce((a, v) => a + v, 0) + 0.76 * full - 0.36 * holes - 0.18 * bump;
+          opts.push({ r, x, score });
+        }
+      }
+      opts.sort((a, b) => b.score - a.score);
+      const pickN = Math.random() < 0.5 ? Math.min(opts.length, 6) : 1;
+      return opts[Math.floor(Math.random() * pickN)] || { r: 0, x: c.x };
+    }
+    function joeThink(p) {
+      if (!p.plan) { if (++p.wait < 30) return; p.plan = plan(p); p.wait = 0; }
+      if (p.dropping) return;
+      if (++p.wait < 11) return;
+      p.wait = 0;
+      const c = p.cur, goal = p.plan;
+      if (c.r !== goal.r) { if (!rotate(p)) p.dropping = true; }
+      else if (c.x !== goal.x) { if (!move(p, Math.sign(goal.x - c.x), 0)) p.dropping = true; }
+      else p.dropping = true;
+    }
+
+    function step(p) {
+      if (p.dead) return;
+      if (p.clearing) {
+        if (++p.clearing.t < 14) return;
+        const gone = p.clearing.rows;
+        p.board = p.board.filter((_, y) => !gone.includes(y));
+        while (p.board.length < ROWS) p.board.unshift(Array(COLS).fill(null));
+        p.clearing = null;
+        spawn(p);
+        return;
+      }
+      if (!p.cur) return;
+      let soft = false;
+      if (p.ai) { joeThink(p); soft = p.dropping; }
+      else {
+        if (pressed.has('a')) { if (rotate(p)) sfx('select'); }
+        if (pressed.has('up')) { drop(p); return; }
+        for (const d of ['left', 'right']) {
+          if (pressed.has(d)) { move(p, d === 'left' ? -1 : 1, 0); p.das = 0; }
+          else if (held[d] && ++p.das >= 12 && (p.das - 12) % 3 === 0) move(p, d === 'left' ? -1 : 1, 0);
+        }
+        soft = held.down;
+      }
+      const c = p.cur;
+      if (!fits(p.board, c.k, c.r, c.x, c.y + 1)) {
+        if (++p.lockT >= (soft ? 4 : 30)) lock(p);
+        return;
+      }
+      p.lockT = 0;
+      if (++p.fall >= (soft ? Math.min(2, gravity()) : gravity())) { p.fall = 0; move(p, 0, 1); }
+    }
+
+    function finish() {
+      state = 'done'; t = 0;
+      won = them.dead && !you.dead;
+      questNote('lego', won ? 1 : 0);
+      record = saveBest('legolines', you.lines);
+      sfx(won ? 'cup' : 'buzz');
+    }
+
+    spawn(you); spawn(them);
+    const self = {
+      music: 'lego',
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(won ? 'Joe: "My bricks! My beautiful bricks!" He bows to the new master builder.'
+              : 'Joe: "Still the master builder!" He snaps another brick onto his tower.');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('Joe: "Ha! Knew you would crack." He starts sorting his bricks by colour.'); return; }
+        frames++;
+        step(you); step(them);
+        if (you.dead || them.dead) finish();
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('Lego Brick Battle', 16, 10);
+        const b = 'Best ' + getBest('legolines') + ' lines';
+        text(b, SW - 16 - b.length * 6, 10);
+        const brick = (x, y, k, s, alpha) => {
+          const [face, hi, lo] = COLOURS[k];
+          ctx.globalAlpha = alpha || 1;
+          ctx.fillStyle = lo; ctx.fillRect(x, y, s, s);
+          ctx.fillStyle = face; ctx.fillRect(x, y, s - 1, s - 1);
+          ctx.fillStyle = hi; ctx.fillRect(x, y, s - 1, 1); ctx.fillRect(x, y, 1, s - 1);
+          // the stud
+          const st = s > 7 ? 3 : 2, o = (s - st) >> 1;
+          ctx.fillStyle = lo; ctx.fillRect(x + o, y + o + 1, st, st);
+          ctx.fillStyle = hi; ctx.fillRect(x + o, y + o, st, st);
+          ctx.globalAlpha = 1;
+        };
+        players.forEach((p, i) => {
+          const X = BX[i];
+          const name = i ? 'JOE' : (playerName || 'YOU').toUpperCase();
+          text(name, X, 26);
+          const ln = p.lines + (p.lines === 1 ? ' line' : ' lines');
+          text(ln, X + COLS * C - ln.length * 6, 26);
+          // the baseplate, studs and all
+          ctx.fillStyle = col.dark; ctx.fillRect(X - 2, BY - 2, COLS * C + 4, ROWS * C + 4);
+          ctx.fillStyle = i ? '#3a5a90' : '#2f7a3a'; ctx.fillRect(X, BY, COLS * C, ROWS * C);
+          ctx.fillStyle = i ? '#4668a0' : '#3a8a46';
+          for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) ctx.fillRect(X + x * C + 3, BY + y * C + 3, 3, 3);
+          p.board.forEach((row, y) => row.forEach((k, x) => {
+            if (!k) return;
+            if (p.clearing && p.clearing.rows.includes(y) && (p.clearing.t >> 1) & 1) {
+              ctx.fillStyle = '#f8f8f8'; ctx.fillRect(X + x * C, BY + y * C, C, C);
+            } else brick(X + x * C, BY + y * C, k, C);
+          }));
+          if (p.cur) {
+            const c = p.cur;
+            if (!p.ai) { // where your brick will land
+              let gy = c.y;
+              while (fits(p.board, c.k, c.r, c.x, gy + 1)) gy++;
+              for (const [cx, cy] of ROTS[c.k][c.r]) if (gy + cy >= 0) brick(X + (c.x + cx) * C, BY + (gy + cy) * C, c.k, C, 0.3);
+            }
+            for (const [cx, cy] of ROTS[c.k][c.r]) if (c.y + cy >= 0) brick(X + (c.x + cx) * C, BY + (c.y + cy) * C, c.k, C);
+          }
+          // incoming grey rows, as a red bar beside the baseplate
+          if (p.pending) {
+            const mx = i ? X + COLS * C + 3 : X - 7, h = Math.min(ROWS, p.pending) * C;
+            ctx.fillStyle = (tick >> 3) & 1 ? '#f05040' : '#b83028';
+            ctx.fillRect(mx, BY + ROWS * C - h, 4, h);
+          }
+          // next brick, in the middle
+          const NX = i ? 164 : 118, NY = 54;
+          ctx.fillStyle = col.dark; ring(NX, NY, 38, 30);
+          const k = piece(p.next), cells = ROTS[k][0];
+          const w = Math.max(...cells.map((q) => q[0])) + 1, hgt = Math.max(...cells.map((q) => q[1])) + 1;
+          const ox = NX + ((38 - w * 7) >> 1), oy = NY + ((30 - hgt * 7) >> 1) - (k === 'I' ? 3 : 0);
+          for (const [cx, cy] of cells) brick(ox + cx * 7, oy + cy * 7, k, 7);
+          if (p.dead && state === 'done') {
+            box(X + 5, BY + 140, COLS * C - 10, 22);
+            text('TOPPED', X + 27, BY + 148);
+          }
+        });
+        ctext('NEXT', 42);
+        ctx.drawImage(joe.down[0], 142, 92, 36, 36);
+        ctext('VS', 134);
+        ctext('Speed ' + level(), 150);
+        if (state === 'play') {
+          ctext('Space: turn', 176);
+          ctext('Up: drop', 188);
+          ctext('Esc: give up', 200);
+        }
+        if (state === 'ready') readyBox(t, 'Clear 2+ rows to send bricks');
+        else if (state === 'done') doneBox([won ? 'You buried Joe in bricks!' : 'Joe out-built you!',
+          'Lines: ' + you.lines + ' - ' + them.lines,
+          record ? 'New record!' : 'Best ' + getBest('legolines') + ' lines'], t);
+      },
+    };
+    return self;
+  }
+
+  // ---------- Nik's wok toss: keep the stir-fry moving and in the wok ----------
+  // Toss the food up with A and slide the wok under it to catch it. Food in the wok
+  // cooks (faster over the flame) but scorches if you leave it sitting, and a toss
+  // knocks the scorch back down. Cook a dish through and it's served; scorch it and
+  // it's binned. Serve more dishes than Nik in a minute to win.
+  function WokGame() {
+    const WOK_Y = 186, FLOOR = 232, HALF = 28, GRAV = 0.18, TIME = 60 * 60, NIK = 4;
+    const FLAME = { x: 120, w: 80 };
+    const FOOD = {
+      rice: '#f8f0d8', egg: '#f8d848', pea: '#58a848', shrimp: '#f8a070',
+      beef: '#8a4a28', pepper: '#d83020', noodle: '#f0d090', onion: '#e8e0f0',
+    };
+    const DISHES = [
+      ['Fried Rice', ['rice', 'rice', 'egg', 'pea', 'shrimp', 'rice']],
+      ['Beef Stir-Fry', ['beef', 'pepper', 'beef', 'onion', 'pea', 'pepper']],
+      ['Pad Thai', ['noodle', 'noodle', 'shrimp', 'egg', 'pea', 'noodle']],
+      ['Sweet and Sour', ['pepper', 'onion', 'beef', 'pepper', 'rice', 'onion']],
+    ];
+    const nik = spritesFor('Nik');
+    let state = 'ready', t = 0, left = TIME, wx = 160, dish = 0, food = [], cook = 0, scorch = 0;
+    let served = 0, perfect = 0, dropped = 0, cool = 0, msg = null, record = false;
+    function newDish() {
+      const [, items] = DISHES[dish % DISHES.length];
+      food = items.map((kind, i) => ({ kind, inWok: true, off: (i - 2.5) * 8, x: 0, y: WOK_Y, vx: 0, vy: 0 }));
+      cook = 0; scorch = 0; dropped = 0;
+    }
+    newDish();
+    const endDish = (s, good) => { msg = { t: 0, s }; sfx(good ? 'cup' : 'buzz'); };
+    const self = {
+      music: 'kitchen',
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(served > NIK ? 'Nik: "Not bad at all! Just don\'t tell Dmitriy you out-cooked me."'
+              : 'Nik: "And that is how a real chef does it. Dmitriy learned from the best."');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('Nik: "Too hot in the kitchen? Ha!"'); return; }
+        if (--left <= 0) {
+          state = 'done'; t = 0;
+          questNote('wok', served > NIK ? 1 : 0);
+          record = saveBest('wokdishes', served);
+          sfx(served > NIK ? 'cup' : 'buzz');
+          return;
+        }
+        if (held.left) wx = Math.max(HALF + 4, wx - 3);
+        if (held.right) wx = Math.min(SW - HALF - 4, wx + 3);
+        if (msg) { if (++msg.t > 60) { msg = null; dish++; newDish(); } return; }
+        const inWok = food.filter((f) => f.inWok);
+        if (cool) cool--;
+        if (pressed.has('a') && inWok.length && !cool) {
+          // the further into service, the higher and wider it all goes
+          const lift = 5 + Math.min(dish, 6) * 0.15, spread = 1.1 + Math.min(dish, 6) * 0.2;
+          for (const f of inWok) {
+            Object.assign(f, { inWok: false, x: wx + f.off, y: WOK_Y, vx: (Math.random() - 0.5) * spread, vy: -(lift + Math.random() * 1.4) });
+          }
+          scorch = Math.max(0, scorch - 45); cool = 18;
+          sfx('sizzle');
+        }
+        for (const f of food) {
+          if (f.inWok) continue;
+          f.x += f.vx; f.y += f.vy; f.vy += GRAV;
+          if (f.x < 4 || f.x > SW - 4) f.vx = -f.vx;
+          if (f.vy > 0 && f.y >= WOK_Y && f.y - f.vy < WOK_Y + 1 && Math.abs(f.x - wx) <= HALF - 2) {
+            f.inWok = true; f.off = Math.max(-HALF + 6, Math.min(HALF - 6, f.x - wx)); f.y = WOK_Y;
+          }
+        }
+        const lost = food.filter((f) => !f.inWok && f.y > FLOOR);
+        if (lost.length) { dropped += lost.length; food = food.filter((f) => !lost.includes(f)); sfx('bump'); }
+        if (!food.length) { endDish('All over the floor!', false); return; }
+        const now = food.filter((f) => f.inWok).length;
+        if (now) {
+          const over = Math.abs(wx - (FLAME.x + FLAME.w / 2)) < FLAME.w / 2 + HALF / 2;
+          cook += 0.26 * (now / food.length) * (over ? 1 : 0.35);
+          scorch += (0.5 + Math.min(dish, 6) * 0.07) * (over ? 1 : 0.4);
+        } else scorch = Math.max(0, scorch - 0.5);
+        if (scorch >= 100) { endDish('Burnt! Into the bin.', false); return; }
+        if (cook >= 100) {
+          served++;
+          if (!dropped) perfect++;
+          endDish(dropped ? DISHES[dish % DISHES.length][0] + ' served!' : 'Perfect ' + DISHES[dish % DISHES.length][0] + '!', true);
+        }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text(DISHES[dish % DISHES.length][0], 16, 10);
+        const tm = 'Time ' + Math.ceil(left / 60);
+        text(tm, SW - 16 - tm.length * 6, 10);
+        text('Served ' + served + '   Nik ' + NIK, 16, 22);
+        const b = 'Best ' + getBest('wokdishes');
+        text(b, SW - 16 - b.length * 6, 22);
+        // the two meters
+        const meter = (x, label, v, c) => {
+          text(label, x, 36);
+          ctx.fillStyle = col.dark; ctx.fillRect(x + 44, 35, 92, 9);
+          ctx.fillStyle = '#e8e8e8'; ctx.fillRect(x + 45, 36, 90, 7);
+          ctx.fillStyle = c; ctx.fillRect(x + 45, 36, Math.round(90 * Math.min(100, v) / 100), 7);
+        };
+        meter(16, 'Cooked', cook, '#58a848');
+        meter(164, 'Scorch', scorch, scorch > 70 && (tick >> 2) & 1 ? '#f8e070' : '#d83020');
+        // the kitchen: tiled wall and the stove
+        ctx.fillStyle = '#dce8ec'; ctx.fillRect(4, 50, SW - 8, 154);
+        ctx.fillStyle = '#c4d4da';
+        for (let y = 50; y < 204; y += 16) ctx.fillRect(4, y, SW - 8, 1);
+        for (let x = 4; x < SW - 4; x += 16) ctx.fillRect(x, 50, 1, 154);
+        ctx.drawImage(nik.down[0], SW - 50, 56, 36, 36);
+        ctx.fillStyle = '#484858'; ctx.fillRect(4, 204, SW - 8, 32);
+        ctx.fillStyle = '#303040'; ctx.fillRect(4, 204, SW - 8, 3);
+        // the flame
+        for (let i = 0; i < 8; i++) {
+          const fx = FLAME.x + 4 + i * 10, h = 8 + ((tick + i * 5) >> 2) % 4 * 2;
+          ctx.fillStyle = '#f0b030'; ctx.fillRect(fx, 204 - h, 6, h);
+          ctx.fillStyle = '#d83020'; ctx.fillRect(fx + 1, 204 - h + 3, 4, h - 3);
+          ctx.fillStyle = '#3868c8'; ctx.fillRect(fx, 202, 6, 2);
+        }
+        // the wok, with its handle
+        ctx.fillStyle = '#5a3420'; ctx.fillRect(wx + HALF, WOK_Y + 1, 22, 4);
+        ctx.fillStyle = col.dark;
+        for (let i = 0; i < 6; i++) ctx.fillRect(wx - HALF + i * 3, WOK_Y + 3 + i * 2, (HALF - i * 3) * 2, 2);
+        ctx.fillStyle = '#686878'; ctx.fillRect(wx - HALF, WOK_Y + 3, HALF * 2, 1);
+        // the food
+        for (const f of food) {
+          const x = Math.round(f.inWok ? wx + f.off : f.x), y = Math.round(f.inWok ? WOK_Y + 1 + ((tick + f.off) >> 4 & 1) : f.y);
+          ctx.fillStyle = col.dark; ctx.fillRect(x - 4, y - 4, 9, 7);
+          ctx.fillStyle = FOOD[f.kind]; ctx.fillRect(x - 3, y - 3, 7, 5);
+        }
+        if (msg) { box(60, 100, 200, 30); ctext(msg.s, 112); }
+        if (state === 'ready') readyBox(t, 'Space: toss  Arrows: catch');
+        else if (state === 'done') doneBox([served > NIK ? 'You out-cooked Nik!' : 'Nik\'s still the chef.',
+          'Served ' + served + ' (' + perfect + ' perfect)  Nik ' + NIK,
+          record ? 'New record!' : 'Best ' + getBest('wokdishes') + ' dishes'], t);
+        else text('Space: toss  Arrows: move  Esc: quit', 16, SH - 12, 1, '#f8f8f8');
+      },
+    };
+    return self;
+  }
+
+  // ---------- Dmitriy's knife skills: chop the carrot on the marked lines ----------
+  // Each carrot slides under the knife with dashed lines marked along it. Press A to
+  // bring the knife down; the closer to a line, the better the cut. Lines you miss
+  // and extra cuts both count against you. Beat Dmitriy's evenness to win.
+  function CarrotGame() {
+    const KNIFE = 120, CY = 128, CH = 16, DMITRIY = 75;
+    // [lines, gap between them in px, speed in px a frame]
+    const CARROTS = [[5, 26, 0.9], [6, 24, 1.05], [6, 22, 1.2], [7, 20, 1.3], [8, 18, 1.4]];
+    const REMARKS = [[90, 'Clean. Very clean.'], [75, 'Not bad. Not Nik bad, either.'], [50, 'Hmm. Rustic.'], [0, 'Chunks? Really?']];
+    const dima = spritesFor('Dmitriy');
+    let state = 'ready', t = 0, round = 0, cx = 0, lines = [], cuts = [], len = 0, speed = 0;
+    let total = 0, count = 0, roundSum = 0, roundN = 0, chop = 0, pop = null, remark = 'Watch the lines, then chop.', record = false;
+    function newCarrot() {
+      const [n, gap, sp] = CARROTS[round];
+      len = gap * (n + 1); speed = sp;
+      lines = Array.from({ length: n }, (_, i) => ({ at: gap * (i + 1), cut: false }));
+      cuts = []; cx = SW + 10; roundSum = 0; roundN = 0;
+    }
+    newCarrot();
+    const pct = () => (count ? Math.round(total / count) : 0);
+    function score(pts, label) {
+      total += pts; count++; roundSum += pts; roundN++;
+      if (label) pop = { s: label, t: 0 };
+    }
+    const self = {
+      music: 'kitchen',
+      update() {
+        t++;
+        if (pop && ++pop.t > 30) pop = null;
+        if (chop) chop--;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(pct() > DMITRIY ? 'Dmitriy: "...Fine. You could work my line. Don\'t tell Nik."'
+              : 'Dmitriy: "Back to peeling potatoes with you."');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('Dmitriy takes the knife back. "Fingers first, then technique."'); return; }
+        cx -= speed;
+        const at = KNIFE - cx; // where on the carrot the knife is right now
+        // the windows are about the same number of frames whatever the speed
+        const reach = Math.max(8, CARROTS[round][1] / 2), perfect = 1.5 + speed * 1.5, good = 3 + speed * 3;
+        // a line that's gone past the knife without a cut counts as a miss
+        for (const l of lines) if (!l.cut && at > l.at + reach) { l.cut = true; score(0, 'Missed one!'); }
+        if (pressed.has('a') && !chop && at > 0 && at < len) {
+          chop = 10; cuts.push(at); sfx('chop');
+          let best = null;
+          for (const l of lines) if (!l.cut && (!best || Math.abs(l.at - at) < Math.abs(best.at - at))) best = l;
+          const err = best ? Math.abs(best.at - at) : 99;
+          if (err <= reach) {
+            best.cut = true;
+            score(err <= perfect ? 100 : err <= good ? 75 : 40, err <= perfect ? 'Perfect!' : err <= good ? 'Good' : 'Sloppy');
+          } else score(0, 'Extra cut!');
+        }
+        if (cx + len < KNIFE - 20) {
+          const avg = roundN ? roundSum / roundN : 0;
+          remark = REMARKS.find(([min]) => avg >= min)[1];
+          if (++round >= CARROTS.length) {
+            state = 'done'; t = 0;
+            questNote('carrot', pct() > DMITRIY ? 1 : 0);
+            record = saveBest('carrot', pct());
+            sfx(pct() > DMITRIY ? 'cup' : 'buzz');
+            return;
+          }
+          newCarrot();
+        }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('Carrot ' + Math.min(round + 1, CARROTS.length) + '/' + CARROTS.length, 16, 10);
+        const e = 'Even ' + pct() + '%   Dmitriy ' + DMITRIY + '%';
+        text(e, SW - 16 - e.length * 6, 10);
+        const b = 'Best ' + getBest('carrot') + '%';
+        text(b, SW - 16 - b.length * 6, 22);
+        // Dmitriy, with what he thought of the last carrot
+        ctx.drawImage(dima.down[0], 14, 30, 36, 36);
+        box(54, 36, 250, 24); text(remark, 64, 45);
+        // the cutting board
+        ctx.fillStyle = '#6a4a20'; ctx.fillRect(14, 86, SW - 28, 96);
+        ctx.fillStyle = '#c89058'; ctx.fillRect(16, 88, SW - 32, 92);
+        ctx.fillStyle = '#b88048';
+        for (let y = 94; y < 178; y += 9) ctx.fillRect(18, y, SW - 36, 1);
+        // the carrot: orange, leafy top on the right, only drawn on the board
+        ctx.save();
+        ctx.beginPath(); ctx.rect(16, 88, SW - 32, 92); ctx.clip();
+        const x0 = Math.round(cx);
+        ctx.fillStyle = '#58a848';
+        for (let i = 0; i < 4; i++) ctx.fillRect(x0 + len + 1, CY - 8 + i * 6, 10 + (i & 1) * 4, 3);
+        ctx.fillStyle = col.dark; ctx.fillRect(x0 - 1, CY - CH / 2 - 1, len + 2, CH + 2);
+        ctx.fillStyle = '#f08a20'; ctx.fillRect(x0, CY - CH / 2, len, CH);
+        ctx.fillStyle = '#f8b060'; ctx.fillRect(x0, CY - CH / 2 + 2, len, 2);
+        ctx.fillStyle = '#c86a10'; ctx.fillRect(x0, CY + CH / 2 - 3, len, 2);
+        ctx.fillStyle = '#c89058'; ctx.fillRect(x0 - 1, CY - CH / 2 - 1, 4, 3); ctx.fillRect(x0 - 1, CY + CH / 2 - 2, 4, 3);
+        // the lines to cut on, and the cuts you've made
+        for (const l of lines) {
+          if (l.cut) continue;
+          ctx.fillStyle = '#f8f8f8';
+          for (let y = CY - CH / 2 - 6; y < CY + CH / 2 + 6; y += 4) ctx.fillRect(x0 + l.at, y, 1, 2);
+        }
+        ctx.fillStyle = '#c89058';
+        for (const c of cuts) ctx.fillRect(x0 + Math.round(c), CY - CH / 2 - 1, 2, CH + 2);
+        ctx.restore();
+        // the knife: up and ready, or down mid-chop
+        const ky = chop ? CY - CH / 2 - 4 : CY - 52;
+        ctx.fillStyle = col.dark; ctx.fillRect(KNIFE - 2, ky - 22, 5, 14);
+        ctx.fillStyle = '#5a3420'; ctx.fillRect(KNIFE - 1, ky - 21, 3, 12);
+        ctx.fillStyle = col.dark; ctx.fillRect(KNIFE - 6, ky - 9, 9, 22);
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(KNIFE - 5, ky - 8, 7, 20);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(KNIFE + 1, ky - 8, 1, 20);
+        if (!chop) { ctx.fillStyle = 'rgba(24,24,32,0.25)'; ctx.fillRect(KNIFE, 92, 1, 84); }
+        if (pop) text(pop.s, KNIFE + 14, 98, 1, pop.s === 'Perfect!' ? '#2c6a34' : pop.s === 'Good' ? '#3050a8' : '#b83028');
+        if (state === 'ready') readyBox(t, 'Space: chop on the line');
+        else if (state === 'done') doneBox([pct() > DMITRIY ? 'Dmitriy is impressed!' : 'Dmitriy shakes his head.',
+          'Evenness ' + pct() + '%  Dmitriy ' + DMITRIY + '%',
+          record ? 'New record!' : 'Best ' + getBest('carrot') + '%'], t);
+        else text('Space: chop   Esc: put the knife down', 16, SH - 14);
+      },
+    };
+    return self;
+  }
+
   // ---------- Patrick's dance-off: hit the arrows on the beat of the rave song ----------
   // Arrows rise up their lanes and you press each one as it reaches the targets at the
   // top. Timing follows the rave song itself (or a steady 140bpm with the music off),
@@ -5321,6 +5875,9 @@
     { name: 'Richard', task: 'Win Richard\'s air duel', key: 'battle', need: 1, thanks: 'Richard bows. Your air handling knowledge is sound.' },
     { name: 'Damir', task: 'Fix the lights in Damir\'s office', key: 'dark', need: 1, thanks: 'Damir feels safe in the dark again, thanks to you.' },
     { name: 'Patrick', task: 'Win Patrick\'s dance-off', key: 'danceoff', need: 1, thanks: 'Patrick is out of breath. "Same time next week?"' },
+    { name: 'Nik', task: 'Out-cook Nik at the wok', key: 'wok', need: 1, thanks: 'Nik hands you a pair of chopsticks. "You can cook. Don\'t let it go to your head."' },
+    { name: 'Dmitriy', task: 'Pass Dmitriy\'s knife skills test', key: 'carrot', need: 1, thanks: 'Dmitriy nods. "Even slices. Nik never managed that."' },
+    { name: 'Joe', task: 'Win Joe\'s Lego brick battle', key: 'lego', need: 1, thanks: 'Joe builds you a tiny trophy out of yellow bricks. "Master builder."' },
   ];
   const helped = new Set();
   let eotm = false; // Kiki has given you the award
@@ -5432,14 +5989,14 @@
         const X = 30, Y = 6, W = 260, H = 214, INK = '#2a3a8a';
         ctx.fillStyle = '#c8bc98'; ctx.fillRect(X + 3, Y + 3, W, H);
         ctx.fillStyle = '#f4ecd0'; ctx.fillRect(X, Y, W, H);
-        ctx.fillStyle = '#b8d0e8'; for (let y = Y + 40; y < Y + H - 8; y += 20) ctx.fillRect(X + 4, y + 11, W - 8, 1);
+        const list = items(), gap = list.length > 7 ? Math.min(17, Math.floor(130 / (list.length - 1))) : 20; // long lists sit closer together
+        ctx.fillStyle = '#b8d0e8'; for (let y = Y + 40; y < Y + H - 8; y += gap) ctx.fillRect(X + 4, y + 11, W - 8, 1);
         ctx.fillStyle = '#e8a0a0'; ctx.fillRect(X + 24, Y + 4, 1, H - 8);
         const tx0 = X + 24 + ((W - 24 - title.length * 6) >> 1);
         text(title, tx0, Y + 12, 1, '#a03030');
         ctx.fillStyle = '#a03030'; ctx.fillRect(tx0, Y + 21, title.length * 6 - 1, 1);
-        const list = items();
         list.forEach((task, i) => {
-          const y = Y + 40 + i * 20, tx = X + 34;
+          const y = Y + 40 + i * gap, tx = X + 34;
           // the box, ticked once done
           ctx.fillStyle = INK; ring(X + 8, y + 1, 9, 9);
           text(task.text, tx, y + 2, 1, task.done ? '#7080b0' : INK);
@@ -5722,7 +6279,8 @@
         });
         return;
       }
-      // name: [what they offer, yes label, the game, what they say if you decline, no label]
+      // name: [what they offer (or a list of lines, the last one asked), yes label, the game,
+      //        what they say if you decline, no label]
       const OFFERS = {
         Nathan: ['Have you seen all of my trophies? Go on, grab one.', 'GRAB ONE', NathanGame, 'Your loss. They are lovely.'],
         Wade: ['Fancy a quick three holes?', 'YOU ARE ON', WadeGolfGame, 'Another time, then.'],
@@ -5730,12 +6288,20 @@
         Jhonna: ['Have you done your Manulife dependant forms?', 'DO THEM NOW', FormsGame, 'They are not going to fill themselves in.', 'NOT YET'],
         Richard: ['Do you want to test your air handling knowledge?', 'YES', BattleGame, 'Come back when you are ready.', 'NO'],
         Patrick: ['Dance-off! Think you can keep up with me?', 'BRING IT', DanceGame, 'Suit yourself. More floor for me.'],
+        Nik: [['Dmitriy\'s my younger brother. I taught him all he knows about being a chef.', 'Here, I\'ll show you.'], 'HAND ME THE WOK', WokGame, 'Your loss. My fried rice is legendary.', 'NOT NOW'],
+        Dmitriy: ['Nik says he taught me to cook? I ran the line, not him. Let\'s see your knife skills.', 'PICK UP THE KNIFE', CarrotGame, 'Keep your fingers, then.', 'NOT NOW'],
+        Joe: ['Lego brick battle! Winner is the office master builder. You in?', 'CHALLENGE ACCEPTED', LegoGame, 'Scared of a few bricks? My baseplate is always open.', 'NOT TODAY'],
       };
       if (OFFERS[npc.name]) {
         const [msg, yes, Game, no, noLabel] = OFFERS[npc.name];
-        ask(says(msg), [yes, noLabel || 'NO THANKS'], (i) => {
-          if (i === 0) { sfx('menu'); ui.push(Game()); } else say(says(no));
-        });
+        const lines = [].concat(msg);
+        const offer = (k) => {
+          if (k < lines.length - 1) { say(says(lines[k]), () => offer(k + 1)); return; }
+          ask(says(lines[k]), [yes, noLabel || 'NO THANKS'], (i) => {
+            if (i === 0) { sfx('menu'); ui.push(Game()); } else say(says(no));
+          });
+        };
+        offer(0);
         return;
       }
       if (npc.ghost) { lindaTalk(npc, says); return; } // Linda, her list and her stapler
@@ -5759,6 +6325,8 @@
         : 'Just a gym bag, some old sneakers and a faint chill.');
       return;
     }
+    if (t === '&') { sfx('select'); say('Joe\'s Lego shelf: a red house, a spaceship and a little green tree. Every brick is in its place.'); return; }
+    if (t === '%') { sfx('select'); say('One of Joe\'s Lego builds. A sticky note on it says DO NOT TOUCH.'); return; }
     if (t === '$' && eotm) { sfx('menu'); ui.push(EmployeeOfMonth()); return; }
     if (t === 'E') {
       const ends = findLink(P.floor, tx, ty);
@@ -6104,7 +6672,7 @@
   addEventListener('resize', layout);
   addEventListener('orientationchange', layout);
 
-  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|jar|poker|blackjack, or locker|list|eotm with &quest=)
+  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|lego|wok|carrot|jar|poker|blackjack, or locker|list|eotm with &quest=)
   if (location.hash.startsWith('#play')) {
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
@@ -6138,7 +6706,7 @@
       snake: SnakeGame, parts: PartsGame, cable: CableGame, cpr: CprGame,
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
-      dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
+      dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
       locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth }[q.get('game')];
     if (GAME) ui.push(GAME());
   }

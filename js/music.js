@@ -261,6 +261,38 @@ window.MUSIC = {
     ],
   },
 
+  // the brothers' kitchen: quick and busy, like a dinner rush
+  kitchen: {
+    bpm: 144,
+    voices: [
+      { type: 'square', vol: 0.03, notes:
+        'D5 - A4 - D5 E5 F#5 - | E5 - D5 - B4 - A4 - | B4 - D5 - E5 - F#5 A5 | F#5 - E5 - D5 - . . |' +
+        'G5 - F#5 - E5 - D5 - | E5 - F#5 - A5 - F#5 - | E5 - D5 - B4 - A4 - | D5 - - - - - . . |' },
+      { type: 'triangle', vol: 0.09, notes:
+        'D3 . A2 . D3 . A2 . | G2 . D3 . G2 . D3 . | B2 . F#2 . B2 . F#2 . | A2 . E3 . A2 . C#3 . |' +
+        'G2 . D3 . G2 . D3 . | D3 . A2 . D3 . A2 . | A2 . E3 . A2 . E3 . | D3 . A2 . D3 . . . |' },
+      { type: 'drums', vol: 0.5, notes: 'k h s h k k s h | k h s h k h s s' },
+    ],
+  },
+
+  // Joe's Lego brick battle: bouncy and busy, like snapping bricks together
+  lego: {
+    bpm: 152,
+    voices: [
+      { type: 'square', vol: 0.03, notes:
+        'C5 - G4 - C5 E5 G5 - | F5 - E5 - D5 - C5 - | D5 - B4 - D5 F5 A5 - | G5 - F5 - E5 - D5 - |' +
+        'E5 - C5 - E5 G5 C6 - | B5 - A5 - G5 - F5 - | E5 - D5 - C5 - D5 - | C5 - - - - - . . |' +
+        'A4 - C5 - A4 - C5 - | F5 - E5 - D5 - C5 - | B4 - D5 - B4 - D5 - | G5 - F5 - E5 - D5 - |' +
+        'C5 E5 G5 - C5 E5 G5 - | A5 - G5 - F5 - E5 - | D5 - G4 - B4 - D5 - | C5 - - - - - . .' },
+      { type: 'triangle', vol: 0.09, notes:
+        'C3 . C3 G3 C3 . C3 G3 | F2 . F2 C3 F2 . F2 C3 | G2 . G2 D3 G2 . G2 D3 | C3 . C3 G3 G2 . B2 . |' +
+        'C3 . C3 G3 C3 . C3 G3 | F2 . F2 C3 F2 . F2 C3 | G2 . G2 D3 G2 . G2 D3 | C3 . G2 . C3 . . . |' +
+        'A2 . A2 E3 A2 . A2 E3 | F2 . F2 C3 F2 . F2 C3 | G2 . G2 D3 G2 . G2 D3 | C3 . C3 G3 G2 . B2 . |' +
+        'C3 . C3 G3 C3 . C3 G3 | F2 . F2 C3 F2 . F2 C3 | G2 . G2 D3 G2 . G2 D3 | C3 . G2 . C3 . . .' },
+      { type: 'drums', vol: 0.5, notes: 'k . h k s . h . | k . h k s . h h' },
+    ],
+  },
+
   // compressions: locked to 110 bpm, because that is the whole point
   cpr: {
     bpm: 110,

@@ -83,6 +83,20 @@ Some coworkers have a game for you. Walk up to them and press A:
   she does. The first time you talk to her she hands you her Employee of the
   Month list instead (see below); after that she offers the bet.
 - **Jhonna** (office 118): fill in her Manulife dependant forms, at last.
+- **Nik** (2nd floor, office 106): he taught his younger brother Dmitriy
+  everything about being a chef, and shows you at the wok. Toss the stir-fry
+  with Space and slide the wok to catch it. Food cooks in the wok (faster over
+  the flame) but scorches if you don't keep it moving. Serve more than Nik's 4
+  dishes in a minute.
+- **Dmitriy** (2nd floor, cubicle 173): says he ran the line, not Nik, and
+  tests your knife skills. Five carrots slide under the knife, each faster with
+  more lines; chop on the dotted lines. Beat his 75% evenness.
+- **Joe** (2nd floor, office 146, with the Lego shelf): a Lego brick battle.
+  Falling bricks on two baseplates, you against Joe, with the same bricks in
+  the same order. Clear 2 or more rows at once to push grey bricks up under
+  Joe (2 rows send 1, 3 send 2, 4 send 4); his clears do the same to you. Your
+  bricks reaching the top loses. Left/right move, Space turns, Down drops
+  faster, Up drops straight down.
 
 ## Linda's list
 
@@ -115,12 +129,15 @@ Linda's list, it isn't saved.
 - **Richard** (office 122): his air handling duel (win it)
 - **Damir** (office 108): fix the lights in his dark office
 - **Patrick** (office 171): out-dance him in his dance-off
+- **Nik** (2nd floor, office 106): out-cook him at the wok
+- **Dmitriy** (2nd floor, cubicle 173): pass his knife skills test
+- **Joe** (2nd floor, office 146): win his Lego brick battle
 
 Best scores are saved in the browser. For testing, `index.html#play&game=punch`
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
-`forms`, `nathan`, `wade`, `jar`, `dance`, `party`, `poker`, `blackjack`) opens a game straight away.
+`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `blackjack`) opens a game straight away.
 For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,
 `&quest=done` finished), `&name=Sam` sets your name, and `game=locker`, `list`
 or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,

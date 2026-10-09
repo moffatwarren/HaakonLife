@@ -1042,6 +1042,60 @@ window.Art = (function () {
     if (!r) { rect(b, 13, 12, 1, 2, 'K'); set(b, 13, 14, 'k'); }
   }
 
+  // One Lego brick seen from above: outlined, with a raised stud on every
+  // second pixel in the lighter shade.
+  function legoBrick(b, x, y, w, h, c, hi) {
+    rect(b, x, y, w, h, 'k');
+    rect(b, x + 1, y + 1, w - 2, h - 2, c);
+    for (let j = y + 2; j < y + h - 1; j += 2)
+      for (let i = x + 2; i < x + w - 1; i += 2) set(b, i, j, hi);
+  }
+
+  // Joe's Lego shelf, fixed to a left-hand wall: a wooden plank running down the
+  // tile with a different little build on each tile.
+  function paintLegoShelf(b, get, x, y) {
+    const up = get(x, y - 1) === '&', dn = get(x, y + 1) === '&';
+    const y0 = up ? 0 : 1, y1 = dn ? 15 : 14;
+    rect(b, 0, y0, 14, y1 - y0 + 1, 'k');
+    rect(b, 0, y0 + (up ? 0 : 1), 13, y1 - y0 + 1 - (up ? 0 : 1) - (dn ? 0 : 1), 'N');
+    rect(b, 0, y0, 2, y1 - y0 + 1, 'n');
+    switch (y % 3) {
+      case 0: // a red house with a white door and a yellow minifig out front
+        legoBrick(b, 2, 2, 10, 8, 'r', 'R');
+        rect(b, 5, 6, 3, 3, 'w');
+        legoBrick(b, 4, 10, 5, 5, 'o', 'y');
+        break;
+      case 1: // a blue spaceship with white wings and a cockpit
+        legoBrick(b, 2, 1, 4, 14, 'W', 'w');
+        legoBrick(b, 9, 1, 4, 14, 'W', 'w');
+        legoBrick(b, 4, 3, 7, 10, 'u', 'U');
+        rect(b, 6, 6, 3, 3, 'i');
+        break;
+      default: // a green tree and a stack of loose bricks
+        legoBrick(b, 2, 1, 8, 7, 'E', 'l');
+        rect(b, 5, 8, 2, 2, 'n');
+        legoBrick(b, 2, 10, 5, 5, 'o', 'y');
+        legoBrick(b, 7, 9, 6, 6, 'u', 'U');
+        break;
+    }
+  }
+
+  // A desk with one of Joe's builds sitting on it.
+  function paintLegoDesk(b, x, y) {
+    if ((x + y) & 1) { // a half-built red and yellow tower, with spare bricks
+      legoBrick(b, 1, 1, 8, 10, 'r', 'R');
+      legoBrick(b, 3, 3, 4, 6, 'o', 'y');
+      legoBrick(b, 9, 1, 6, 5, 'E', 'l');
+      legoBrick(b, 9, 6, 5, 5, 'u', 'U');
+    } else { // a little blue car with a minifig driver
+      rect(b, 2, 1, 3, 2, 'k'); rect(b, 11, 1, 3, 2, 'k');
+      rect(b, 2, 10, 3, 2, 'k'); rect(b, 11, 10, 3, 2, 'k');
+      legoBrick(b, 1, 2, 14, 9, 'u', 'U');
+      rect(b, 6, 4, 4, 5, 'i');
+      rect(b, 7, 5, 2, 2, 'o'); set(b, 7, 7, 'r'); set(b, 8, 7, 'r');
+    }
+  }
+
   // Build the 16x16 buffer for map tile (x, y).
   function tile(get, floorCh, x, y) {
     const b = buf();
@@ -1059,9 +1113,11 @@ window.Art = (function () {
       case 'D': paintDoor(b, get, x, y); break;
       case 'S': paintStairs(b, get, x, y); break;
       case 'd': case 'm':
-        block(b, con('dm'), 'N', 'n', 'y');
+        block(b, con('dm%'), 'N', 'n', 'y');
         stamp(b, t === 'm' ? ART.monitor : ((x * 7 + y * 5) % 3 === 0 ? ART.papers : []));
         break;
+      case '%': block(b, con('dm%'), 'N', 'n', 'y'); paintLegoDesk(b, x, y); break;
+      case '&': paintLegoShelf(b, get, x, y); break;
       case 'T': block(b, con('T'), 'y', 'N', 'w'); break;
       case 'k': case 'M': block(b, con('kMnP'), 'W', 'g', 'w'); if (t === 'M') stamp(b, ART.appliance); break;
       case 'P':

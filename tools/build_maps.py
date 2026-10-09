@@ -21,6 +21,7 @@ Map glyphs
              I lat pulldown machine  e dumbbell rack  g shelf of snacks  l railing
              z server rack  y rack of computers  u stretcher  t trophy shelf
              i putting green  s engraving machine
+             & Joe's Lego shelf (on a left-hand wall)  % desk with Lego on it
              P coffee machine (two tiles tall)  C curtain (opened from the game; closes when you leave the room)
   walkable:  j computer parts scattered on the floor
 
@@ -611,6 +612,8 @@ f2.clear((59, 4), (60, 4), (59, 5))
 f2.l_desk(col(58, 6, 9) + row(9, 59, 60), (58, 9), (59, 8))             # Gigi
 f2.clear((67, 4), (68, 4), (67, 5))
 f2.fill(66, 7, 71, 8, 'd'); f2.put(68, 7, 'm'); f2.put(68, 6, 'c')      # Joe
+f2.put(66, 7, '%'); f2.put(71, 7, '%'); f2.put(69, 8, '%')            # ...with his Lego on it
+f2.fill(64, 4, 64, 6, '&')                                              # Joe's Lego shelf
 f2.clear((77, 5))
 f2.l_desk(row(4, 73, 78) + col(77, 5, 9), (75, 4), (75, 5))             # Mauro / Alyssa
 f2.put(77, 7, 'm'); f2.put(76, 7, 'c')
