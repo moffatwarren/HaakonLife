@@ -80,7 +80,8 @@ Some coworkers have a game for you. Walk up to them and press A:
   before the sweeping hand runs away with you.
 - **Wade** (2nd floor, office 137): a three-hole putting grudge match.
 - **Kiki** (Reception): guess how many sweets are in the candy jar, closer than
-  she does. The first time you talk to her she hands you her Employee of the
+  she does, over 3 rounds. A round where you're both equally close goes to
+  nobody, and if no one wins 2 rounds it's a draw and you play again. The first time you talk to her she hands you her Employee of the
   Month list instead (see below); after that she offers the bet.
 - **Jhonna** (office 118): fill in her Manulife dependant forms, at last.
 - **Nik** (2nd floor, office 106): he taught his younger brother Dmitriy

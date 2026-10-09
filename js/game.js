@@ -5343,7 +5343,7 @@
           if (++round >= CARROTS.length) {
             state = 'done'; t = 0;
             questNote('carrot', pct() > DMITRIY ? 1 : 0);
-            record = saveBest('carrot', pct());
+            record = saveBest('carrotpct', pct());
             sfx(pct() > DMITRIY ? 'cup' : 'buzz');
             return;
           }
@@ -5355,7 +5355,7 @@
         text('Carrot ' + Math.min(round + 1, CARROTS.length) + '/' + CARROTS.length, 16, 10);
         const e = 'Even ' + pct() + '%   Dmitriy ' + DMITRIY + '%';
         text(e, SW - 16 - e.length * 6, 10);
-        const b = 'Best ' + getBest('carrot') + '%';
+        const b = 'Best ' + getBest('carrotpct') + '%';
         text(b, SW - 16 - b.length * 6, 22);
         // Dmitriy, with what he thought of the last carrot
         ctx.drawImage(dima.down[0], 14, 30, 36, 36);
@@ -5397,7 +5397,7 @@
         if (state === 'ready') readyBox(t, 'Space: chop on the line');
         else if (state === 'done') doneBox([pct() > DMITRIY ? 'Dmitriy is impressed!' : 'Dmitriy shakes his head.',
           'Evenness ' + pct() + '%  Dmitriy ' + DMITRIY + '%',
-          record ? 'New record!' : 'Best ' + getBest('carrot') + '%'], t);
+          record ? 'New record!' : 'Best ' + getBest('carrotpct') + '%'], t);
         else text('Space: chop   Esc: put the knife down', 16, SH - 14);
       },
     };
@@ -5593,10 +5593,13 @@
   }
 
   // ---------- Kiki's candy jar: closest guess takes the round ----------
+  // A round where you're both the same distance off goes to nobody. Nobody on 2 rounds
+  // after 3 (1-1 with a tie, say) is a draw, and you play the whole match again.
   function CandyJarGame() {
     const ROUNDS = 3, COLS = ['#f85848', '#f8d848', '#78e060', '#68a0f8', '#d870d0', '#f0b030'];
     const kiki = spritesFor('Kiki');
     let round = 0, state = 'look', t = 0, real = 0, guess = 0, hers = 0, score = [0, 0], record = false;
+    const decided = () => Math.max(score[0], score[1]) >= 2;
     function newJar() {
       real = 18 + Math.floor(Math.random() * 75);
       guess = 40; hers = 0; state = 'look'; t = 0;
@@ -5608,10 +5611,11 @@
         t++;
         if (state === 'look') { if (t > 150) { state = 'guess'; t = 0; } return; }
         if (state === 'done') {
+          if (t > 30 && !decided() && pressed.has('a')) { round = 0; score = [0, 0]; record = false; newJar(); return; }
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
-            say(score[0] > score[1] ? 'You out-guessed Kiki ' + score[0] + '-' + score[1] + '. She hands over the jar.'
-              : score[0] === score[1] ? 'Dead even with Kiki. She calls it a draw and gives you one anyway.'
+            say(!decided() ? 'Kiki: "We\'ll settle this another time."'
+              : score[0] > score[1] ? 'You out-guessed Kiki ' + score[0] + '-' + score[1] + '. She hands over the jar.'
                 : 'Kiki wins ' + score[1] + '-' + score[0] + '. She has had a lot of practice.');
           }
           return;
@@ -5619,7 +5623,12 @@
         if (pressed.has('b')) { remove(self); say('You leave the jar alone. Mostly.'); return; }
         if (state === 'reveal') {
           if (t > 110) {
-            if (++round >= ROUNDS) { state = 'done'; t = 0; record = saveBest('jar', score[0]); return; }
+            if (++round >= ROUNDS) {
+              state = 'done'; t = 0;
+              // only a decided match counts; 2 rounds always beats Kiki's 1 or fewer
+              if (decided()) record = saveBest('jar', score[0]);
+              return;
+            }
             newJar();
           }
           return;
@@ -5632,7 +5641,7 @@
           // Kiki guesses close, but not perfectly, and never the same as you
           do { hers = Math.max(1, real + Math.round((Math.random() - 0.5) * 26)); } while (hers === guess);
           const mine = Math.abs(guess - real), theirs = Math.abs(hers - real);
-          if (mine < theirs) { score[0]++; sfx('ding'); } else { score[1]++; sfx('buzz'); }
+          if (mine < theirs) { score[0]++; sfx('ding'); } else if (mine > theirs) { score[1]++; sfx('buzz'); } else sfx('bump');
           state = 'reveal'; t = 0;
         }
       },
@@ -5671,11 +5680,15 @@
           text('Really: ' + real, 40, 186);
           text('You: ' + guess + '   Kiki: ' + hers, 40, 202);
           const mine = Math.abs(guess - real), theirs = Math.abs(hers - real);
-          text(mine < theirs ? 'You take the round!' : 'Kiki takes the round!', 40, 218, 1,
-            mine < theirs ? '#2c6a34' : '#b83028');
+          text(mine < theirs ? 'You take the round!' : mine > theirs ? 'Kiki takes the round!' : 'Tied! Nobody scores.', 40, 218, 1,
+            mine < theirs ? '#2c6a34' : mine > theirs ? '#b83028' : '#3050a8');
         }
-        if (state === 'done') doneBox([score[0] > score[1] ? 'You win the jar!' : score[0] === score[1] ? 'A draw!' : 'Kiki wins.',
-          'Rounds: ' + score[0] + ' - ' + score[1], record ? 'New record!' : 'Best ' + getBest('jar')], t);
+        if (state === 'done') {
+          if (!decided()) doneBox([score[0] === score[1] ? 'Dead even!' : 'Too close to call!',
+            'Rounds: ' + score[0] + ' - ' + score[1], 'Space: play again  Esc: leave'], t);
+          else doneBox([score[0] > score[1] ? 'You win the jar!' : 'Kiki wins.',
+            'Rounds: ' + score[0] + ' - ' + score[1], record ? 'New record!' : 'Best ' + getBest('jar')], t);
+        }
       },
     };
     return self;
@@ -5724,7 +5737,7 @@
     { key: 'candy', need: 5, text: 'Sneak 5 candies off the table' },
     { key: 'desk', need: 7, text: 'Send 7 visitors the right way' },
     { key: 'forms', need: 1, text: 'Help Jhonna with her forms' },
-    { key: 'cpr', need: 0, text: 'Practise CPR on the dummy' },
+    { key: 'cpr', need: 15, text: 'Get 15 perfect CPR compressions' },
     { key: 'engrave', need: 70, text: 'Engrave a nameplate (70% on)' },
     { key: 'golf', need: 1, text: 'Play a round on Wade\'s green' },
   ];
