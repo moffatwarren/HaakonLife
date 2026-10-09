@@ -52,7 +52,7 @@ window.PEOPLE = {
   "Eugene": { body: 'male', hair: '#e8c050', skin: '#f8d0a8', top: '#808898', accent: '#f8f8f8', pants: '#686878', lines: [] },
   "Damir": { body: 'male', hair: '#181010', skin: '#f8d0a8', top: '#f0b030', accent: '#3050a8', pants: '#b09870', lines: [] },
   "Derek": { body: 'male', hair: '#8a5a3a', skin: '#f8d0a8', top: '#58a848', accent: '#f0b030', pants: '#3a3050', lines: [] },
-  "Tho": { body: 'male', hair: '#5a3420', skin: '#f0c098', top: '#808898', accent: '#b83028', pants: '#484858', lines: ["Hey man, I left my office once today. And I may or may have not used the bathroom twice."] },
+  "Tho": { body: 'male', hair: '#5a3420', skin: '#f0c098', top: '#808898', accent: '#b83028', pants: '#484858', lines: ["Go Leafs Go!!!"] },
   "Mike H.": { body: 'male', hair: '#5a3420', skin: '#d8a070', top: '#58a848', accent: '#f8e070', pants: '#3a3050', lines: [] },
   "Jhonna": { body: 'female', hair: '#8a5a3a', skin: '#d8a070', top: '#3868c8', accent: '#2c6a34', pants: '#383848', lines: ["Make sure you have your dependant forms filled out for Manulife!"] },
   "Max": { body: 'male', hair: '#181010', skin: '#f8d0a8', top: '#40a0a0', accent: '#f8e070', pants: '#b09870', lines: [] },
