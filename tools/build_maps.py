@@ -221,6 +221,7 @@ f1.office('134 Carlos', 57, 17, 60, 21, 'S'); f1.door((58, 22), (59, 22))
 
 # --- kitchen + lunch room ---
 f1.room('Lunch Room 183', 74, 4, 106, 10, ':')
+f1.rooms[-1].update(person='Chris', area=[75, 5, 85, 9])  # Chris guards the kitchen side
 f1.hline(73, 107, 11); f1.door((86, 11), (87, 11))
 # counter, fridges and recycling all against the top wall
 f1.fill(75, 4, 79, 4, 'k'); f1.put(76, 4, 'n')

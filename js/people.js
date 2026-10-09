@@ -52,7 +52,7 @@ window.PEOPLE = {
   "Eugene": { body: 'male', hair: '#e8c050', skin: '#f8d0a8', top: '#808898', accent: '#f8f8f8', pants: '#686878', lines: [] },
   "Damir": { body: 'male', hair: '#181010', skin: '#f8d0a8', top: '#f0b030', accent: '#3050a8', pants: '#b09870', lines: [] },
   "Derek": { body: 'male', hair: '#8a5a3a', skin: '#f8d0a8', top: '#58a848', accent: '#f0b030', pants: '#3a3050', lines: [] },
-  "Tho": { body: 'male', hair: '#5a3420', skin: '#f0c098', top: '#808898', accent: '#b83028', pants: '#484858', lines: [] },
+  "Tho": { body: 'male', hair: '#5a3420', skin: '#f0c098', top: '#808898', accent: '#b83028', pants: '#484858', lines: ["Hey man, I left my office once today. And I may or may have not used the bathroom twice."] },
   "Mike H.": { body: 'male', hair: '#5a3420', skin: '#d8a070', top: '#58a848', accent: '#f8e070', pants: '#3a3050', lines: [] },
   "Jhonna": { body: 'female', hair: '#8a5a3a', skin: '#d8a070', top: '#3868c8', accent: '#2c6a34', pants: '#383848', lines: ["Make sure you have your dependant forms filled out for Manulife!"] },
   "Max": { body: 'male', hair: '#181010', skin: '#f8d0a8', top: '#40a0a0', accent: '#f8e070', pants: '#b09870', lines: [] },
@@ -88,6 +88,7 @@ window.PEOPLE = {
   "Desirae": { body: 'female', hair: '#181010', skin: '#f8d0a8', top: '#f8f8f8', accent: '#f0b030', pants: '#303040', lines: ["Everyone else signed up for the Gran Fondo already. Everyone. You don't want to be the only one left out, do you?"] },
   "Wade": { body: 'male', hair: '#181010', skin: '#f0c098', top: '#78a8e8', accent: '#283878', pants: '#303040', lines: [] },
   "Visitor": visitor(),
+  "Chris": { body: 'male', hair: '#5a3420', skin: '#f0c098', top: '#808898', accent: '#f0b030', pants: '#484858', lines: ["I may work in the shop but the kitchen is my territory."] },
   "Kim": { body: 'female', hair: '#201818', skin: '#8a5838', top: '#3868c8', accent: '#283878', pants: '#b09870', lines: ["What do you mean John ate all of the peanut butter cups?"] },
   "Matthew": { body: 'male', hair: '#5a3420', skin: '#f0c098', top: '#f0b030', accent: '#d03868', pants: '#b09870', lines: ["Don't tell anyone, but this is my third coffee."] },
   "Richard": { body: 'male', hair: '#201818', skin: '#c08860', top: '#b83028', accent: '#f8f8f8', pants: '#303040', lines: [] },
@@ -114,6 +115,7 @@ window.PEOPLE = {
 //   coat / ears / chest / collar: colours
 //   sound: what they say when you walk up to them (small: true for a higher bark)
 //   speed: how fast they run after a frisbee (1 is average)
+//   cat: true for a cat, who sits in the middle of their owner's office and never moves
 window.DOGS = {
   "Cashew": { breed: 'Golden Retriever', owner: 'Walker', coat: '#e0a050', ears: '#b87830', chest: '#f0c880', collar: '#b83028', sound: 'Woof! Woof!', speed: 1.05 },
   "Bella": { breed: 'Border Collie/Australian Shepherd', owner: 'Desirae', coat: '#30303a', ears: '#181820', chest: '#f8f8f8', collar: '#3868c8', sound: 'Arf! Arf arf!', speed: 1.25 },
@@ -122,4 +124,5 @@ window.DOGS = {
   "Louie": { breed: 'Doodle', owner: 'Rob', coat: '#d8b078', ears: '#b08850', chest: '#ecd0a0', collar: '#f0b030', sound: 'Ruff! Ruff!', speed: 1.1 },
   "Mocha": { breed: 'Havanese/Shih Tzu/Poodle', owner: 'Sidney', coat: '#8a5a3a', ears: '#5a3420', chest: '#c09068', collar: '#9868c8', sound: 'Yap yap!', small: true, speed: 0.85 },
   "Nala": { breed: 'Rhodesian Ridgeback Terrier Mix', owner: 'Jhonna', coat: '#c8783a', ears: '#8a4a20', chest: '#d89858', collar: '#40a0a0', sound: 'Woof!', speed: 1.2 },
+  "Felix": { breed: 'Siberian', owner: 'Kim', cat: true, coat: '#e88a30', ears: '#b85a18', chest: '#f8d8a8', collar: '#e88a30', sound: 'Meow... *yawn*... zzzz', speed: 0 },
 };

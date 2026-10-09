@@ -161,11 +161,14 @@
         for (let x = room.x1; x <= room.x2; x++)
           if (NPC_FLOOR.includes(t[y][x]) && !npcAt(fi, x, y) && !(fi === S.floor && x === S.x && y === S.y)) spots.push([x, y]);
       if (!spots.length) continue;
-      const [x, y] = spots[Math.floor(Math.random() * spots.length)];
+      // a cat takes the spot nearest the middle of the office and stays there
+      const mx = (r.x1 + r.x2) / 2, my = (r.y1 + r.y2) / 2, dist = ([x, y]) => (x - mx) ** 2 + (y - my) ** 2;
+      const [x, y] = d.cat ? spots.reduce((a, b) => (dist(b) < dist(a) ? b : a))
+        : spots[Math.floor(Math.random() * spots.length)];
       dogs.push({
         name, dog: d, floor: fi, room,
-        x, y, dir: 'down', moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, wait: 20 + Math.floor(Math.random() * 90),
-        sprites: Art.renderDog({ h: d.coat, D: d.ears, y: d.chest, u: d.collar }),
+        x, y, dir: 'down', moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, wait: d.cat ? Infinity : 20 + Math.floor(Math.random() * 90),
+        sprites: Art.renderDog({ h: d.coat, D: d.ears, y: d.chest, u: d.collar, cat: d.cat }),
       });
     }
   })();
@@ -277,6 +280,7 @@
       tone(f, 0.07, 'square', 0.06, -f * 0.4); noise(0.05, f * 2, 0.05);
       tone(f * 1.05, 0.09, 'square', 0.06, -f * 0.45, 0.13);
     },
+    meow: () => { tone(620, 0.12, 'triangle', 0.07, 260); tone(880, 0.35, 'triangle', 0.07, -420, 0.12); },
     swish: () => { noise(0.25, 2200, 0.06); tone(600, 0.15, 'triangle', 0.05, 500, 0.1); },
   };
   function sfx(name, arg) { if (soundOn && actx) SFX[name](arg); }
@@ -1721,11 +1725,20 @@
   // ---------- office dogs: play catch, then see how they stack up ----------
   function dogTalk(n) {
     const d = n.dog;
-    sfx('bark', d.small);
-    say(n.name + ' the ' + d.breed + ': ' + d.sound, () =>
+    sfx(d.cat ? 'meow' : 'bark', d.small);
+    say(n.name + ' the ' + d.breed + (d.cat ? ' cat' : '') + ': ' + d.sound, () =>
       ask('Play catch with ' + n.name + '?', ['THROW THE FRISBEE', 'NOT NOW'], (i) => {
         if (i === 0) { sfx('menu'); ui.push(CatchGame(n)); } else say(n.name + ' wanders off, tail wagging.');
       }));
+  }
+  // A sleeping cat's "z Z z", drifting up and fading out over (x, y).
+  function drawZzz(x, y, scale) {
+    for (let i = 0; i < 3; i++) {
+      const k = ((tick + i * 30) % 90) / 90;
+      ctx.globalAlpha = 1 - k;
+      text(i === 1 ? 'Z' : 'z', x + i * 4 * scale + Math.round(Math.sin(k * 6) * scale), y - Math.round(k * 14 * scale), scale);
+    }
+    ctx.globalAlpha = 1;
   }
   // Each dog's best catch game, or null if nobody has played catch with them yet.
   const dogBest = (name) => { const v = store.get('best.dog.' + name); return v === null ? null : +v; };
@@ -1733,11 +1746,13 @@
   // The dog runs out while the power meter swings: throw so the frisbee comes down
   // near the dog, then steer the dog under it and jump to snag it before it lands.
   function CatchGame(n) {
-    const d = n.dog, THROWS = 10, GY = 196, TOP = 34, HAND = { x: 44, y: GY - 26 };
+    // A cat doesn't play: it sleeps through two throws and that's the end of it.
+    const d = n.dog, THROWS = d.cat ? 2 : 10, GY = 196, TOP = 34, HAND = { x: 44, y: GY - 26 };
     const RUN = 1.15 * d.speed, CHASE = 1.05 * d.speed;
     let state = 'ready', t = 0, throwNo = 0, caught = 0, record = false, msg = '';
     let p = 0, pdir = 1, wind = 0, disc = null;
-    const dog = { x: 56, dir: 1, h: 0, vh: 0, moving: false };
+    const HOME = d.cat ? 150 : 56;
+    const dog = { x: HOME, dir: 1, h: 0, vh: 0, moving: false };
     const newWind = () => { wind = (Math.random() * 2 - 1) * (0.04 + throwNo * 0.014); };
     // where the dog's mouth is, so a frisbee touching it is caught
     const mouth = () => {
@@ -1762,8 +1777,8 @@
         }
         if (state === 'aim') {
           // the dog sprints out and back; the meter gets quicker every throw
-          dog.moving = true;
-          dog.x += dog.dir * RUN;
+          dog.moving = !d.cat;
+          if (dog.moving) dog.x += dog.dir * RUN;
           if (dog.x > SW - 44) dog.dir = -1;
           if (dog.x < 56) dog.dir = 1;
           p += pdir * (0.012 + throwNo * 0.0018);
@@ -1779,16 +1794,18 @@
           // you steer the dog now
           dog.moving = false;
           const spd = dog.h > 0 ? CHASE * 1.4 : CHASE;
-          if (held.left) { dog.x -= spd; dog.dir = -1; dog.moving = true; }
-          if (held.right) { dog.x += spd; dog.dir = 1; dog.moving = true; }
-          dog.x = Math.max(8, Math.min(SW - 40, dog.x));
-          if (pressed.has('a') && dog.h === 0) { dog.vh = 3; dog.h = 0.01; sfx('jump'); }
+          if (!d.cat) {
+            if (held.left) { dog.x -= spd; dog.dir = -1; dog.moving = true; }
+            if (held.right) { dog.x += spd; dog.dir = 1; dog.moving = true; }
+            dog.x = Math.max(8, Math.min(SW - 40, dog.x));
+            if (pressed.has('a') && dog.h === 0) { dog.vh = 3; dog.h = 0.01; sfx('jump'); }
+          }
           disc.x += disc.vx; disc.vy = Math.min(disc.vy + 0.045, 0.6); disc.y += disc.vy;
           const m = mouth();
-          if (disc.x + 4 > m.x1 && disc.x - 4 < m.x2 && disc.y + 2 > m.y1 && disc.y - 1 < m.y2) {
+          if (!d.cat && disc.x + 4 > m.x1 && disc.x - 4 < m.x2 && disc.y + 2 > m.y1 && disc.y - 1 < m.y2) {
             caught++; sfx('cup'); finish(dog.h > 4 ? 'What a leap! Caught it!' : 'Caught it!');
-          } else if (disc.y >= GY - 2) { sfx('bump'); disc.y = GY - 2; finish('It hit the grass.'); }
-          else if (disc.x > SW - 8) { sfx('bump'); disc = null; finish('Way too far!'); }
+          } else if (disc.y >= GY - 2) { sfx('bump'); disc.y = GY - 2; finish(d.cat ? n.name + ' didn\'t even open an eye.' : 'It hit the grass.'); }
+          else if (disc.x > SW - 8) { sfx('bump'); disc = null; finish(d.cat ? n.name + ' didn\'t even open an eye.' : 'Way too far!'); }
           return;
         }
         if (state === 'result') {
@@ -1801,7 +1818,7 @@
               sfx('ding');
               return;
             }
-            Object.assign(dog, { x: 56, dir: 1, h: 0, vh: 0 });
+            Object.assign(dog, { x: HOME, dir: 1, h: 0, vh: 0 });
             disc = null; p = 0; pdir = 1; newWind(); state = 'aim'; t = 0;
           }
         }
@@ -1809,7 +1826,7 @@
       draw() {
         box(0, 0, SW, SH);
         text('Catch with ' + n.name + '!', 12, 8);
-        text('Frisbee ' + Math.min(throwNo + 1, THROWS) + '/' + THROWS, 12, 20);
+        text('Frisbee ' + Math.min(throwNo + 1, THROWS) + '/10', 12, 20); // a cat gives up early
         const right = (str, y) => text(str, SW - 12 - str.length * 6, y);
         right('Caught ' + caught, 8);
         right('Best ' + (dogBest(n.name) || 0), 20);
@@ -1835,6 +1852,7 @@
         // the dog (2x), running, leaping or sitting
         const img = n.sprites[dog.dir > 0 ? 'right' : 'left'][dog.moving && dog.h === 0 ? 1 + ((tick >> 3) & 1) : dog.h > 0 ? 1 : 0];
         ctx.drawImage(img, Math.round(dog.x), Math.round(GY - 32 - dog.h), 32, 32);
+        if (d.cat) drawZzz(Math.round(dog.x) + 22, GY - 30, 2);
         if (disc && state === 'result' && caught && msg.indexOf('Caught') >= 0) {
           const m = mouth(); drawDisc(dog.dir > 0 ? m.x2 - 3 : m.x1 + 3, m.y1 + 8);
         } else if (disc) drawDisc(disc.x, disc.y);
@@ -1848,10 +1866,11 @@
           ctx.fillStyle = col.dark; ctx.fillRect(Math.round(B.x + 2 + p * (B.w - 6)), B.y - 3, 2, B.h + 6);
         }
         if (state === 'ready') readyBox(t, 'Space: throw, then run + jump!');
-        else if (state === 'done') doneBox([n.name + ' caught ' + caught + ' of ' + THROWS + '!', record ? 'A new record for ' + n.name + '!' : 'Best ' + (dogBest(n.name) || 0)], t);
+        else if (state === 'done') doneBox(d.cat ? [n.name + ' refuses to move.']
+          : [n.name + ' caught ' + caught + ' of ' + THROWS + '!', record ? 'A new record for ' + n.name + '!' : 'Best ' + (dogBest(n.name) || 0)], t);
         else {
-          if (state === 'result') { box(70, 92, 180, 32); ctext(msg, 104); }
-          text(state === 'aim' ? 'Space: throw   Esc: give up' : 'Arrows: run   Space: jump', 12, SH - 14, 1, '#f8f8f8');
+          if (state === 'result') { box(50, 92, 220, 32); ctext(msg, 104); }
+          text(state === 'aim' ? 'Space: throw   Esc: give up' : d.cat ? 'Esc: give up' : 'Arrows: run   Space: jump', 12, SH - 14, 1, '#f8f8f8');
         }
       },
     };
@@ -1867,13 +1886,17 @@
 
   // Every dog's best catch game, the one you just played with picked out.
   function DogBoard(n) {
-    const names = Object.keys(window.DOGS || {}).sort((a, b) =>
+    // cats always come last: they never catch anything
+    const isCat = (name) => (window.DOGS[name].cat ? 1 : 0);
+    const names = Object.keys(window.DOGS || {}).sort((a, b) => isCat(a) - isCat(b) ||
       (dogBest(b) === null ? -1 : dogBest(b)) - (dogBest(a) === null ? -1 : dogBest(a)) || a.localeCompare(b));
     const sprite = (name) => { const dg = dogs.find((x) => x.name === name); return dg && dg.sprites.down[0]; };
     const self = {
       update() {
         if (pressed.has('a') || pressed.has('b')) {
-          remove(self); sfx('bark', n.dog.small);
+          remove(self);
+          if (n.dog.cat) { sfx('meow'); say(n.name + ' rolls over and goes back to sleep.'); return; }
+          sfx('bark', n.dog.small);
           say(n.name + ' drops the frisbee at your feet and wags. Again sometime?');
         }
       },
@@ -1882,8 +1905,8 @@
         ctext('FRISBEE LEADERBOARD', 12);
         ctext('Most caught out of 10', 26);
         names.forEach((name, i) => {
-          const y = 44 + i * 24, me = name === n.name, best = dogBest(name);
-          if (me) { ctx.fillStyle = col.dark; ctx.fillRect(16, y - 4, SW - 32, 22); }
+          const y = 42 + i * 21, me = name === n.name, best = dogBest(name);
+          if (me) { ctx.fillStyle = col.dark; ctx.fillRect(16, y - 3, SW - 32, 20); }
           const c = me ? col.light : col.dark;
           text((i + 1) + '.', 24, y + 4, 1, c);
           const img = sprite(name);
@@ -6807,6 +6830,7 @@
         ctx.globalAlpha = 1;
       } else ctx.drawImage(a.img, sx, sy);
     }
+    for (const n of dogs) if (n.dog.cat && n.floor === P.floor) drawZzz(n.x * 16 - cx + 10, n.y * 16 - cy - 2, 1);
     // rooms with the lights off (drawn over the player too)
     ctx.fillStyle = 'rgba(8, 8, 28, 0.78)';
     for (const r of MAPS.floors[P.floor].rooms)

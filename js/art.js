@@ -1281,9 +1281,29 @@ window.Art = (function () {
     left: [['...khk.....khk..', '...khk.....khk..', '...kk......kk...'],
       ['..khk......khk..', '.khk........khk.', '.kk..........kk.']],
   };
-  // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a dog.
+  // A cat, curled up sitting and fast asleep. h = coat, D = stripes, y = chest.
+  const CAT = [
+    '................',
+    '................',
+    '................',
+    '................',
+    '....kk....kk....',
+    '....khk..khk....',
+    '....khhkkhhk....',
+    '...khhDhhDhhk...',
+    '...khkkhhkkhk...',
+    '...khhhyyhhhk...',
+    '....khhkkhhk....',
+    '...khDhhhhDhk...',
+    '..khhhyyyyhhhk..',
+    '..khDhyyyyhDhkk.',
+    '..khhhyyyyhhkDk.',
+    '...kkkkkkkkkkk..',
+  ];
+  // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a dog (or, with
+  // look.cat, the same sleeping cat every way round).
   function renderDog(look) {
-    const pal = palette(look), out = {};
+    const { cat, ...colours } = look, pal = palette(colours), out = {};
     const make = (art, flip) => {
       const cv = document.createElement('canvas');
       cv.width = cv.height = 16;
@@ -1293,6 +1313,11 @@ window.Art = (function () {
       ctx.putImageData(img, 0, 0);
       return cv;
     };
+    if (cat) {
+      const img = make(CAT);
+      for (const d of ['down', 'up', 'left', 'right']) out[d] = [img, img, img];
+      return out;
+    }
     const frame = (d, i) => DOG[d].concat(DOG_LEGS[d][i]);
     out.down = [make(frame('down', 0)), make(frame('down', 1)), make(frame('down', 1), true)];
     out.up = [make(frame('up', 0)), make(frame('up', 1)), make(frame('up', 1), true)];

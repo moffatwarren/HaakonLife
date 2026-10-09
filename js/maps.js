@@ -207,7 +207,14 @@ window.OFFICE_MAPS = {
      "x1": 74,
      "y1": 4,
      "x2": 106,
-     "y2": 10
+     "y2": 10,
+     "person": "Chris",
+     "area": [
+      75,
+      5,
+      85,
+      9
+     ]
     },
     {
      "name": "Washroom",
