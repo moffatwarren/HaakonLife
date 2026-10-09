@@ -36,7 +36,7 @@ window.PEOPLE = {
   "Kiki": { body: 'female', hair: '#201818', skin: '#d8a070', top: '#e07898', accent: '#f8e070', pants: '#303040', lines: ["Welcome to Richmond! Help yourself to some candy."] },
   "Jonathan": { body: 'male', hair: '#181010', skin: '#8a5838', top: '#e07898', accent: '#d03868', pants: '#383848', lines: [] },
   "Sharon": { body: 'female', hair: '#5a3420', skin: '#f8d8b8', top: '#e07898', accent: '#f8e070', pants: '#303040', lines: [] },
-  "Lam": { body: 'male', hair: '#8a5a3a', skin: '#8a5838', top: '#b83028', accent: '#2c6a34', pants: '#b09870', lines: [] },
+  "Lam": { body: 'male', hair: '#8a5a3a', skin: '#8a5838', top: '#b83028', accent: '#2c6a34', pants: '#b09870', lines: ["You're in for a good time when I MC the Christmas party."] },
   "Lia": { body: 'female', hair: '#d06030', skin: '#f8d8b8', top: '#40a0a0', accent: '#f8e070', pants: '#484858', lines: [] },
   "Charles": { body: 'male', hair: '#181010', skin: '#8a5838', top: '#58a848', accent: '#f0b030', pants: '#484858', lines: [] },
   "Yeunie": { body: 'female', hair: '#5a3420', skin: '#f0c098', top: '#3868c8', accent: '#f8f8f8', pants: '#303040', lines: [] },
