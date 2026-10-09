@@ -139,6 +139,8 @@ Best scores are saved in the browser. For testing, `index.html#play&game=punch`
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
 `forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `blackjack`) opens a game straight away.
+`&dog=Bella` puts that dog right in front of you; `game=catch` plays catch with it
+and `game=dogs` shows the frisbee leaderboard.
 For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,
 `&quest=done` finished), `&name=Sam` sets your name, and `game=locker`, `list`
 or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
@@ -156,6 +158,17 @@ Everyone with an office or cubicle wanders around it. Walk up to someone and
 press A (E / Space) to talk. Their appearance and what they say live in
 `js/people.js`: set `body` to `'male'` or `'female'`, change the colours, and
 add your own `lines`. The starting appearances are random placeholders.
+
+## Dogs
+
+Seven office dogs wander in and around their owners' offices: Cashew (Walker),
+Bella (Desirae), Birdie (Diane), Bandit (Jenn), Louie (Rob), Mocha (Sidney) and
+Nala (Jhonna). Walk
+up to one and press A: it barks, and you can play catch. The dog runs out while
+the power meter swings; throw so the frisbee comes down near the dog, then steer
+it with the arrows and press A to jump. After 10 frisbees you see the leaderboard
+of every dog's best game. Names, owners, breeds, colours, barks and running speed live in
+`DOGS` at the bottom of `js/people.js`.
 
 ## Editing the map
 

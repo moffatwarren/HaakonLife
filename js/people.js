@@ -106,3 +106,20 @@ window.PEOPLE = {
   "John": { body: 'male', hair: '#8a5a3a', skin: '#d8a070', top: '#808898', accent: '#d03868', pants: '#303040', lines: [] },
   "Dmitriy": { body: 'male', hair: '#201818', skin: '#f8d8b8', top: '#58a848', accent: '#f8f8f8', pants: '#686878', lines: ["Nik says he taught me to cook? I ran the line, not him."] },
 };
+
+// Office dogs. Each one wanders around its owner's office (in and out of it);
+// talk to one to play catch with it.
+//   breed: shown with their name
+//   owner: whose dog it is (a name from PEOPLE above)
+//   coat / ears / chest / collar: colours
+//   sound: what they say when you walk up to them (small: true for a higher bark)
+//   speed: how fast they run after a frisbee (1 is average)
+window.DOGS = {
+  "Cashew": { breed: 'Golden Retriever', owner: 'Walker', coat: '#e0a050', ears: '#b87830', chest: '#f0c880', collar: '#b83028', sound: 'Woof! Woof!', speed: 1.05 },
+  "Bella": { breed: 'Border Collie/Australian Shepherd', owner: 'Desirae', coat: '#30303a', ears: '#181820', chest: '#f8f8f8', collar: '#3868c8', sound: 'Arf! Arf arf!', speed: 1.25 },
+  "Birdie": { breed: 'Beagle', owner: 'Diane', coat: '#c07838', ears: '#6a3c20', chest: '#f8f8f8', collar: '#58a848', sound: 'Aroooooo!', speed: 0.95 },
+  "Bandit": { breed: 'Shih Tzu/Bichon', owner: 'Jenn', coat: '#f0ece0', ears: '#c8b090', chest: '#f8f8f8', collar: '#e07898', sound: 'Yip! Yip yip!', small: true, speed: 0.8 },
+  "Louie": { breed: 'Doodle', owner: 'Rob', coat: '#d8b078', ears: '#b08850', chest: '#ecd0a0', collar: '#f0b030', sound: 'Ruff! Ruff!', speed: 1.1 },
+  "Mocha": { breed: 'Havanese/Shih Tzu/Poodle', owner: 'Sidney', coat: '#8a5a3a', ears: '#5a3420', chest: '#c09068', collar: '#9868c8', sound: 'Yap yap!', small: true, speed: 0.85 },
+  "Nala": { breed: 'Rhodesian Ridgeback Terrier Mix', owner: 'Jhonna', coat: '#c8783a', ears: '#8a4a20', chest: '#d89858', collar: '#40a0a0', sound: 'Woof!', speed: 1.2 },
+};

@@ -1236,6 +1236,71 @@ window.Art = (function () {
     return out;
   }
 
+  // Dogs: h = coat, D = ears and darker patches, y = chest and belly, u = collar.
+  const DOG_TOP = ['................', '................', '................', '................'];
+  const DOG = {
+    down: DOG_TOP.concat([
+      '...kk......kk...',
+      '..kDDk....kDDk..',
+      '..kDhhkkkkhhDk..',
+      '...khhhhhhhhk...',
+      '...khkhhhhkhk...',
+      '...khhhhhhhhk...',
+      '....khhkkhhk....',
+      '....kuuuuuuk....',
+      '...khyyyyyyhk...',
+    ]),
+    up: DOG_TOP.concat([
+      '...kk......kk...',
+      '..kDDk....kDDk..',
+      '..kDhhkkkkhhDk..',
+      '...khhhhhhhhk...',
+      '...khhhhhhhhk...',
+      '....khhhhhhk....',
+      '....kuuuuuuk....',
+      '...khhhhhhhhk...',
+      '...khhhkkhhhk...',
+    ]),
+    left: DOG_TOP.concat([
+      '...kk...........',
+      '..kDDk..........',
+      '.khhhDk.......k.',
+      'kkhkhhhk.....khk',
+      'khhhhhhhkkkkkhk.',
+      '.kkhhuhhhhhhhhk.',
+      '...kuhhhhhhhhhk.',
+      '...khhhhhhhhhhk.',
+      '...khyyyyyyyhhk.',
+    ]),
+  };
+  const DOG_LEGS = {
+    down: [['...khk....khk...', '...khk....khk...', '...kkk....kkk...'],
+      ['...khk....khk...', '...kkk....khk...', '..........kkk...']],
+    up: [['...khk.kk.khk...', '...khk....khk...', '...kkk....kkk...'],
+      ['...khk.kk.khk...', '...kkk....khk...', '..........kkk...']],
+    left: [['...khk.....khk..', '...khk.....khk..', '...kk......kk...'],
+      ['..khk......khk..', '.khk........khk.', '.kk..........kk.']],
+  };
+  // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a dog.
+  function renderDog(look) {
+    const pal = palette(look), out = {};
+    const make = (art, flip) => {
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 16;
+      const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16), b = buf();
+      stamp(b, art);
+      blit(img, b, 0, 0, pal, flip);
+      ctx.putImageData(img, 0, 0);
+      return cv;
+    };
+    const frame = (d, i) => DOG[d].concat(DOG_LEGS[d][i]);
+    out.down = [make(frame('down', 0)), make(frame('down', 1)), make(frame('down', 1), true)];
+    out.up = [make(frame('up', 0)), make(frame('up', 1)), make(frame('up', 1), true)];
+    out.left = [make(frame('left', 0)), make(frame('left', 1)), make(frame('left', 1))];
+    out.right = [make(frame('left', 0), true), make(frame('left', 1), true), make(frame('left', 1), true)];
+    return out;
+  }
+
   // Tiny overview map (1 pixel per tile) for the MAP screen.
   function renderMini(floor) {
     const H = floor.tiles.length, W = floor.tiles[0].length;
@@ -1253,5 +1318,5 @@ window.Art = (function () {
     return cv;
   }
 
-  return { LOOKS, UI, renderFloor, renderSprites, renderMini, renderTileAs };
+  return { LOOKS, UI, renderFloor, renderSprites, renderDog, renderMini, renderTileAs };
 })();

@@ -82,6 +82,7 @@
     return h >>> 0;
   }
   const npcs = [];
+  const dogs = []; // the office dogs, from js/people.js
   // Someone's body type and colours: from js/people.js, with a random-but-stable
   // look filling in anything they don't set.
   function lookFor(name) {
@@ -99,8 +100,8 @@
     return Art.renderSprites(body, look);
   }
   function npcAt(fi, x, y) {
-    return npcs.find((n) => n.floor === fi &&
-      ((n.x === x && n.y === y) || (n.moving && n.x + n.mdx === x && n.y + n.mdy === y))) || null;
+    const at = (n) => n.floor === fi && ((n.x === x && n.y === y) || (n.moving && n.x + n.mdx === x && n.y + n.mdy === y));
+    return npcs.find(at) || dogs.find(at) || null;
   }
   function playerAt(x, y) {
     return (P.x === x && P.y === y) || (P.moving && P.x + P.mdx === x && P.y + P.mdy === y);
@@ -144,20 +145,47 @@
     });
   })();
 
+  // Each office dog roams the area around its owner's office: in and out of the office
+  // itself, and the hallway and neighbours within a few steps of it.
+  const DOG_ROAM = 5;
+  (function spawnDogs() {
+    const S = MAPS.start, DOGS = window.DOGS || {};
+    for (const name in DOGS) {
+      const d = DOGS[name], owner = npcs.find((p) => p.name === d.owner);
+      if (!owner) continue;
+      const fi = owner.floor, t = MAPS.floors[fi].tiles, r = owner.room;
+      const room = { x1: Math.max(0, r.x1 - DOG_ROAM), y1: Math.max(0, r.y1 - DOG_ROAM),
+        x2: Math.min(t[0].length - 1, r.x2 + DOG_ROAM), y2: Math.min(t.length - 1, r.y2 + DOG_ROAM) };
+      const spots = [];
+      for (let y = room.y1; y <= room.y2; y++)
+        for (let x = room.x1; x <= room.x2; x++)
+          if (NPC_FLOOR.includes(t[y][x]) && !npcAt(fi, x, y) && !(fi === S.floor && x === S.x && y === S.y)) spots.push([x, y]);
+      if (!spots.length) continue;
+      const [x, y] = spots[Math.floor(Math.random() * spots.length)];
+      dogs.push({
+        name, dog: d, floor: fi, room,
+        x, y, dir: 'down', moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, wait: 20 + Math.floor(Math.random() * 90),
+        sprites: Art.renderDog({ h: d.coat, D: d.ears, y: d.chest, u: d.collar }),
+      });
+    }
+  })();
+
   function updateNpcs() {
-    for (const n of npcs) {
+    for (const n of npcs.concat(dogs)) {
       if (n.floor !== P.floor) continue;
       if (n.moving) {
         if (++n.prog >= 16) { n.x += n.mdx; n.y += n.mdy; n.moving = false; n.prog = 0; }
         continue;
       }
       if (--n.wait > 0) continue;
-      n.wait = 40 + Math.floor(Math.random() * 140);
+      n.wait = n.dog ? 10 + Math.floor(Math.random() * 70) : 40 + Math.floor(Math.random() * 140);
       n.dir = ['up', 'down', 'left', 'right'][Math.floor(Math.random() * 4)];
       if (Math.random() < 0.25) continue; // sometimes just look around
       const [dx, dy] = DIRS[n.dir], tx = n.x + dx, ty = n.y + dy, r = n.room;
       if (tx < r.x1 || tx > r.x2 || ty < r.y1 || ty > r.y2) continue;
-      if (!NPC_FLOOR.includes(tileAt(n.floor, tx, ty)) || npcAt(n.floor, tx, ty) || playerAt(tx, ty)) continue;
+      // dogs can trot through doorways too
+      const tt = tileAt(n.floor, tx, ty);
+      if (!(NPC_FLOOR.includes(tt) || (n.dog && tt === 'D')) || npcAt(n.floor, tx, ty) || playerAt(tx, ty)) continue;
       Object.assign(n, { moving: true, prog: 0, mdx: dx, mdy: dy });
       n.step ^= 1;
     }
@@ -244,6 +272,11 @@
     buzz: () => { tone(90, 0.4, 'square', 0.07); noise(0.3, 400, 0.06); },
     sizzle: () => { noise(0.3, 3200, 0.07); noise(0.15, 1200, 0.04); },
     chop: () => { noise(0.05, 500, 0.12); tone(160, 0.06, 'square', 0.05, -80); },
+    bark: (small) => {
+      const f = small ? 880 : 380;
+      tone(f, 0.07, 'square', 0.06, -f * 0.4); noise(0.05, f * 2, 0.05);
+      tone(f * 1.05, 0.09, 'square', 0.06, -f * 0.45, 0.13);
+    },
     swish: () => { noise(0.25, 2200, 0.06); tone(600, 0.15, 'triangle', 0.05, 500, 0.1); },
   };
   function sfx(name, arg) { if (soundOn && actx) SFX[name](arg); }
@@ -1683,6 +1716,187 @@
     box(40, 72, 240, 84);
     lines.forEach((l, i) => ctext(l, 86 + i * 16));
     if (t > 30 && (tick >> 4) & 1) ctext('Press Space', 136);
+  }
+
+  // ---------- office dogs: play catch, then see how they stack up ----------
+  function dogTalk(n) {
+    const d = n.dog;
+    sfx('bark', d.small);
+    say(n.name + ' the ' + d.breed + ': ' + d.sound, () =>
+      ask('Play catch with ' + n.name + '?', ['THROW THE FRISBEE', 'NOT NOW'], (i) => {
+        if (i === 0) { sfx('menu'); ui.push(CatchGame(n)); } else say(n.name + ' wanders off, tail wagging.');
+      }));
+  }
+  // Each dog's best catch game, or null if nobody has played catch with them yet.
+  const dogBest = (name) => { const v = store.get('best.dog.' + name); return v === null ? null : +v; };
+
+  // The dog runs out while the power meter swings: throw so the frisbee comes down
+  // near the dog, then steer the dog under it and jump to snag it before it lands.
+  function CatchGame(n) {
+    const d = n.dog, THROWS = 10, GY = 196, TOP = 34, HAND = { x: 44, y: GY - 26 };
+    const RUN = 1.15 * d.speed, CHASE = 1.05 * d.speed;
+    let state = 'ready', t = 0, throwNo = 0, caught = 0, record = false, msg = '';
+    let p = 0, pdir = 1, wind = 0, disc = null;
+    const dog = { x: 56, dir: 1, h: 0, vh: 0, moving: false };
+    const newWind = () => { wind = (Math.random() * 2 - 1) * (0.04 + throwNo * 0.014); };
+    // where the dog's mouth is, so a frisbee touching it is caught
+    const mouth = () => {
+      const top = GY - 32 - dog.h;
+      return { x1: dog.x + (dog.dir > 0 ? 18 : 0), x2: dog.x + (dog.dir > 0 ? 32 : 14), y1: top + 8, y2: top + 22 };
+    };
+    function finish(text) { msg = text; state = 'result'; t = 0; }
+    const self = {
+      music: 'run',
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'aim'; t = 0; newWind(); } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) { remove(self); ui.push(DogBoard(n)); }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say(n.name + ' looks at you, then at the frisbee, then back at you.'); return; }
+        // jumping, whatever is going on
+        if (dog.h > 0 || dog.vh > 0) {
+          dog.h += dog.vh; dog.vh -= 0.14;
+          if (dog.h <= 0) { dog.h = 0; dog.vh = 0; }
+        }
+        if (state === 'aim') {
+          // the dog sprints out and back; the meter gets quicker every throw
+          dog.moving = true;
+          dog.x += dog.dir * RUN;
+          if (dog.x > SW - 44) dog.dir = -1;
+          if (dog.x < 56) dog.dir = 1;
+          p += pdir * (0.012 + throwNo * 0.0018);
+          if (p >= 1) { p = 1; pdir = -1; }
+          if (p <= 0) { p = 0; pdir = 1; }
+          if (pressed.has('a')) {
+            disc = { x: HAND.x, y: HAND.y, vx: 0.5 + p * 1.1 + wind, vy: -2 };
+            sfx('swish'); state = 'fly'; t = 0;
+          }
+          return;
+        }
+        if (state === 'fly') {
+          // you steer the dog now
+          dog.moving = false;
+          const spd = dog.h > 0 ? CHASE * 1.4 : CHASE;
+          if (held.left) { dog.x -= spd; dog.dir = -1; dog.moving = true; }
+          if (held.right) { dog.x += spd; dog.dir = 1; dog.moving = true; }
+          dog.x = Math.max(8, Math.min(SW - 40, dog.x));
+          if (pressed.has('a') && dog.h === 0) { dog.vh = 3; dog.h = 0.01; sfx('jump'); }
+          disc.x += disc.vx; disc.vy = Math.min(disc.vy + 0.045, 0.6); disc.y += disc.vy;
+          const m = mouth();
+          if (disc.x + 4 > m.x1 && disc.x - 4 < m.x2 && disc.y + 2 > m.y1 && disc.y - 1 < m.y2) {
+            caught++; sfx('cup'); finish(dog.h > 4 ? 'What a leap! Caught it!' : 'Caught it!');
+          } else if (disc.y >= GY - 2) { sfx('bump'); disc.y = GY - 2; finish('It hit the grass.'); }
+          else if (disc.x > SW - 8) { sfx('bump'); disc = null; finish('Way too far!'); }
+          return;
+        }
+        if (state === 'result') {
+          dog.moving = false;
+          if (t > 70) {
+            if (++throwNo >= THROWS) {
+              state = 'done'; t = 0;
+              record = saveBest('dog.' + n.name, caught);
+              if (dogBest(n.name) === null) store.set('best.dog.' + n.name, caught);
+              sfx('ding');
+              return;
+            }
+            Object.assign(dog, { x: 56, dir: 1, h: 0, vh: 0 });
+            disc = null; p = 0; pdir = 1; newWind(); state = 'aim'; t = 0;
+          }
+        }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('Catch with ' + n.name + '!', 12, 8);
+        text('Frisbee ' + Math.min(throwNo + 1, THROWS) + '/' + THROWS, 12, 20);
+        const right = (str, y) => text(str, SW - 12 - str.length * 6, y);
+        right('Caught ' + caught, 8);
+        right('Best ' + (dogBest(n.name) || 0), 20);
+        // the park: sky, a couple of clouds, striped grass
+        ctx.fillStyle = '#bce0f8'; ctx.fillRect(4, TOP, SW - 8, GY - TOP);
+        ctx.fillStyle = '#f8f8f8';
+        for (const [cx, cy] of [[70, 56], [210, 70]]) {
+          const x = Math.round(((cx + tick * 0.1) % (SW + 60)) - 30);
+          ctx.fillRect(x, cy, 34, 8); ctx.fillRect(x + 8, cy - 5, 18, 6);
+        }
+        ctx.fillStyle = '#58a848'; ctx.fillRect(4, GY, SW - 8, SH - GY - 4);
+        ctx.fillStyle = '#4c9840';
+        for (let x = 4; x < SW - 4; x += 24) ctx.fillRect(x, GY, 12, SH - GY - 4);
+        // wind
+        if (state === 'aim' || state === 'fly') {
+          const arrows = Math.round(Math.abs(wind) / 0.05);
+          right('Wind ' + (arrows ? (wind > 0 ? '>' : '<').repeat(arrows) : 'calm'), TOP + 10);
+        }
+        // you, with the frisbee until it's thrown
+        const throwing = state === 'fly' && t < 10;
+        ctx.drawImage(sprites.right[throwing ? 1 : 0], 12, GY - 30, 32, 32);
+        if (state === 'aim') drawDisc(HAND.x, HAND.y);
+        // the dog (2x), running, leaping or sitting
+        const img = n.sprites[dog.dir > 0 ? 'right' : 'left'][dog.moving && dog.h === 0 ? 1 + ((tick >> 3) & 1) : dog.h > 0 ? 1 : 0];
+        ctx.drawImage(img, Math.round(dog.x), Math.round(GY - 32 - dog.h), 32, 32);
+        if (disc && state === 'result' && caught && msg.indexOf('Caught') >= 0) {
+          const m = mouth(); drawDisc(dog.dir > 0 ? m.x2 - 3 : m.x1 + 3, m.y1 + 8);
+        } else if (disc) drawDisc(disc.x, disc.y);
+        // power meter
+        if (state === 'aim') {
+          const B = { x: 60, y: TOP + 8, w: 160, h: 10 };
+          text('POWER', 12, B.y + 2);
+          ctx.fillStyle = col.dark; ctx.fillRect(B.x, B.y, B.w, B.h);
+          ctx.fillStyle = '#f8f8f8'; ctx.fillRect(B.x + 2, B.y + 2, B.w - 4, B.h - 4);
+          ctx.fillStyle = '#f0b030'; ctx.fillRect(B.x + 2, B.y + 2, Math.round((B.w - 4) * p), B.h - 4);
+          ctx.fillStyle = col.dark; ctx.fillRect(Math.round(B.x + 2 + p * (B.w - 6)), B.y - 3, 2, B.h + 6);
+        }
+        if (state === 'ready') readyBox(t, 'Space: throw, then run + jump!');
+        else if (state === 'done') doneBox([n.name + ' caught ' + caught + ' of ' + THROWS + '!', record ? 'A new record for ' + n.name + '!' : 'Best ' + (dogBest(n.name) || 0)], t);
+        else {
+          if (state === 'result') { box(70, 92, 180, 32); ctext(msg, 104); }
+          text(state === 'aim' ? 'Space: throw   Esc: give up' : 'Arrows: run   Space: jump', 12, SH - 14, 1, '#f8f8f8');
+        }
+      },
+    };
+    function drawDisc(x, y) {
+      const w = (tick >> 2) & 1 ? 10 : 8;
+      x = Math.round(x); y = Math.round(y);
+      ctx.fillStyle = col.dark; ctx.fillRect(x - w / 2 - 1, y - 2, w + 2, 5);
+      ctx.fillStyle = '#e04040'; ctx.fillRect(x - w / 2, y - 1, w, 3);
+      ctx.fillStyle = '#f8a0a0'; ctx.fillRect(x - w / 2 + 1, y - 1, w - 3, 1);
+    }
+    return self;
+  }
+
+  // Every dog's best catch game, the one you just played with picked out.
+  function DogBoard(n) {
+    const names = Object.keys(window.DOGS || {}).sort((a, b) =>
+      (dogBest(b) === null ? -1 : dogBest(b)) - (dogBest(a) === null ? -1 : dogBest(a)) || a.localeCompare(b));
+    const sprite = (name) => { const dg = dogs.find((x) => x.name === name); return dg && dg.sprites.down[0]; };
+    const self = {
+      update() {
+        if (pressed.has('a') || pressed.has('b')) {
+          remove(self); sfx('bark', n.dog.small);
+          say(n.name + ' drops the frisbee at your feet and wags. Again sometime?');
+        }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        ctext('FRISBEE LEADERBOARD', 12);
+        ctext('Most caught out of 10', 26);
+        names.forEach((name, i) => {
+          const y = 44 + i * 24, me = name === n.name, best = dogBest(name);
+          if (me) { ctx.fillStyle = col.dark; ctx.fillRect(16, y - 4, SW - 32, 22); }
+          const c = me ? col.light : col.dark;
+          text((i + 1) + '.', 24, y + 4, 1, c);
+          const img = sprite(name);
+          if (img) ctx.drawImage(img, 42, y - 6);
+          text(name, 64, y, 1, c);
+          text(window.DOGS[name].breed, 64, y + 9, 1, me ? '#c8ccd8' : '#686878');
+          const sc = best === null ? '-' : String(best);
+          text(sc, SW - 26 - sc.length * 12, y, 2, c);
+        });
+        if ((tick >> 4) & 1) ctext('Press Space', SH - 16);
+      },
+    };
+    return self;
   }
 
   // ---------- punching bag: hit A when the marker is in the middle ----------
@@ -6289,6 +6503,7 @@
       // Everyone speaks as "Name: ...", including the offers below and whatever
       // they say when you turn them down, so you always know who is talking.
       const says = (line) => npc.name + ': ' + line;
+      if (npc.dog) { dogTalk(npc); return; }
       if (npc.name === 'Damir') {
         say(says('Do you feel safe in the dark?'), () => ui.push(DarkGame()));
         return;
@@ -6574,7 +6789,7 @@
         actors.push({ x: d.x * 16, y: d.y * 16 - hop(b), img: d.sprites[DANCE[b & 7]][1 + (b & 1)] });
       }
     }
-    for (const n of npcs) {
+    for (const n of npcs.concat(dogs)) {
       if (n.floor !== P.floor || (party && party.names.has(n.name))) continue;
       const frame = n.moving && n.prog < 8 ? (n.step ? 1 : 2) : 0;
       actors.push({ x: n.x * 16 + (n.moving ? n.mdx * n.prog : 0), y: n.y * 16 + (n.moving ? n.mdy * n.prog : 0),
@@ -6736,13 +6951,21 @@
       const [dx, dy] = DIRS[P.dir];
       Object.assign(stapler, { floor: P.floor, x: P.x + dx, y: P.y + dy, room: roomAt(P.floor, P.x, P.y) || stapler.room });
     }
+    // &dog=Bella puts that dog right in front of you (and keeps it still); game=catch plays
+    // catch with it and game=dogs shows the frisbee leaderboard
+    const testDog = dogs.find((x) => x.name === q.get('dog')) || dogs[0];
+    if (q.has('dog') && testDog) {
+      const [dx, dy] = DIRS[P.dir];
+      Object.assign(testDog, { floor: P.floor, x: P.x + dx, y: P.y + dy, wait: 1e9 });
+    }
     const GAME = { coffee: CoffeeGame, punch: PunchGame, run: RunGame, pong: PongGame, toss: TossGame, stack: StackGame, simon: SimonGame, lunch: LunchGame, candy: CandyGame, squat: SquatGame, golf: GolfGame, dark: DarkGame, battle: BattleGame,
       fan: FanGame, coil: CoilGame, damper: DamperGame, filter: FilterGame,
       snake: SnakeGame, parts: PartsGame, cable: CableGame, cpr: CprGame,
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
       dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
-      locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth }[q.get('game')];
+      locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
+      catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog) }[q.get('game')];
     if (GAME) ui.push(GAME());
   }
 
