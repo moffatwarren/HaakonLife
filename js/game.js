@@ -1728,7 +1728,9 @@
     sfx(d.cat ? 'meow' : 'bark', d.small);
     say(n.name + ' the ' + d.breed + (d.cat ? ' cat' : '') + ': ' + d.sound, () =>
       ask('Play catch with ' + n.name + '?', ['THROW THE FRISBEE', 'NOT NOW'], (i) => {
-        if (i === 0) { sfx('menu'); ui.push(CatchGame(n)); } else say(n.name + ' wanders off, tail wagging.');
+        if (i === 0) { sfx('menu'); ui.push(CatchGame(n)); return; }
+        say(d.cat ? n.name + ' stretches, curls back into a ball and goes back to sleep.'
+          : n.name + ' wanders off, tail wagging.');
       }));
   }
   // A sleeping cat's "z Z z", drifting up and fading out over (x, y).
