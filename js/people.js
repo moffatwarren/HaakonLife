@@ -73,7 +73,7 @@ window.PEOPLE = {
   "Patrick": { body: 'male', hair: '#201818', skin: '#f8d0a8', top: '#e07898', accent: '#283878', pants: '#484858', lines: ["Did you get your Hyrox tickets? Let's get a workout in!"] },
   "Rob": { body: 'male', hair: '#a8a8b0', skin: '#f8d0a8', top: '#9868c8', accent: '#3050a8', pants: '#686878', lines: [] },
   "Warren": { body: 'male', hair: '#d06030', skin: '#c08860', top: '#f8f8f8', accent: '#d03868', pants: '#303040', lines: ["The dumbbell rack is my legacy."] },
-  "Bob": { body: 'male', hair: '#8a5a3a', skin: '#8a5838', top: '#3868c8', accent: '#f0b030', pants: '#484858', lines: [] },
+  "Bob": { body: 'male', hair: '#8a5a3a', skin: '#8a5838', top: '#3868c8', accent: '#f0b030', pants: '#484858', lines: ["Have you read the Globe & Mail today?"] },
   "Walker": { body: 'male', hair: '#d06030', skin: '#c08860', top: '#40a0a0', accent: '#d03868', pants: '#686878', lines: [] },
   "Hudson": { body: 'male', hair: '#181010', skin: '#d8a070', top: '#808898', accent: '#f0b030', pants: '#686878', lines: [] },
   "Jenn": { body: 'female', hair: '#6a3c20', skin: '#f8d0a8', top: '#b83028', accent: '#2c6a34', pants: '#484858', lines: ["Sure Nik and Dmitriy can cook, but baking is where its really at."] },
