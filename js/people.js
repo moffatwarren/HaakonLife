@@ -60,7 +60,7 @@ window.PEOPLE = {
   "Maya W": { body: 'female', hair: '#181010', skin: '#d8a070', top: '#78a8e8', accent: '#f8f8f8', pants: '#303040', lines: [] },
   // ---- Second floor ----
   "Linda": { body: 'ghost', lines: ["Boooooo...", "Ooooo... has anyone seen my stapler?", "This Haunted Office is MY office now. Boo."] },
-  "Davisson": { body: 'male', hair: '#d06030', skin: '#f8d0a8', top: '#f8f8f8', accent: '#f8f8f8', pants: '#3a3050', lines: [] },
+  "Davisson": { body: 'male', hair: '#d06030', skin: '#f8d0a8', top: '#f8f8f8', accent: '#f8f8f8', pants: '#3a3050', lines: ["Everything perfectly organised."] },
   "Michael Tam": { body: 'male', hair: '#181010', skin: '#f8d8b8', top: '#40a0a0', accent: '#3050a8', pants: '#484858', lines: [] },
   "Lauren": { body: 'female', hair: '#181010', skin: '#8a5838', top: '#f0b030', accent: '#f8f8f8', pants: '#303040', lines: [] },
   "Gigi": { body: 'female', hair: '#8a5a3a', skin: '#8a5838', top: '#40a0a0', accent: '#283878', pants: '#383848', lines: [] },
