@@ -1752,10 +1752,15 @@
     const d = n.dog, THROWS = d.cat ? 2 : 10, GY = 196, TOP = 34, HAND = { x: 44, y: GY - 26 };
     const RUN = 1.15 * d.speed, CHASE = 1.05 * d.speed;
     let state = 'ready', t = 0, throwNo = 0, caught = 0, record = false, msg = '';
-    let p = 0, pdir = 1, wind = 0, disc = null;
+    let p = 0, pdir = 1, wind = 0, disc = null, runMul = 1, meterMul = 1;
     const HOME = d.cat ? 150 : 56;
     const dog = { x: HOME, dir: 1, h: 0, vh: 0, moving: false };
-    const newWind = () => { wind = (Math.random() * 2 - 1) * (0.04 + throwNo * 0.014); };
+    // each throw gets its own wind, dog sprint speed and meter speed
+    const newWind = () => {
+      wind = (Math.random() * 2 - 1) * (0.04 + throwNo * 0.014);
+      runMul = 0.75 + Math.random() * 0.55;
+      meterMul = 0.75 + Math.random() * 0.6;
+    };
     // where the dog's mouth is, so a frisbee touching it is caught
     const mouth = () => {
       const top = GY - 32 - dog.h;
@@ -1780,10 +1785,10 @@
         if (state === 'aim') {
           // the dog sprints out and back; the meter gets quicker every throw
           dog.moving = !d.cat;
-          if (dog.moving) dog.x += dog.dir * RUN;
+          if (dog.moving) dog.x += dog.dir * RUN * runMul;
           if (dog.x > SW - 44) dog.dir = -1;
           if (dog.x < 56) dog.dir = 1;
-          p += pdir * (0.012 + throwNo * 0.0018);
+          p += pdir * (0.012 + throwNo * 0.0018) * meterMul;
           if (p >= 1) { p = 1; pdir = -1; }
           if (p <= 0) { p = 0; pdir = 1; }
           if (pressed.has('a')) {
