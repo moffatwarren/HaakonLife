@@ -135,6 +135,71 @@ Linda's list, it isn't saved.
 - **Dmitriy** (2nd floor, cubicle 173): pass his knife skills test
 - **Joe** (2nd floor, office 146): win his Lego brick battle
 
+## Halloween
+
+All through October (by your device's date) the office does Halloween:
+
+- After your name you pick a **costume**: Clown, Vampire, Skeleton, Witch, Pumpkin,
+  Mummy, Haakon Fan or SDG Sign. You wear it all game, and the game remembers it.
+- A note at the entrance sends you to the downstairs boardroom (114), which is
+  decorated. Press A on any **boardroom chair** to start the party.
+- The lights dim, the doors shut, and Lam, Linda and eight coworkers picked at random
+  turn up in costume. Talk to them to hear about their outfits.
+- While the party is on there are five **party games** around the room (and the
+  boardroom's usual games, the fan, coil, dampers, fridge and TVs, are switched off):
+  - **Tub of water** (bottom-left corner): bobbing for apples. Slide along the tub and
+    dunk when an apple is under you. Golden apples are worth 3; a rubber duck costs 2 seconds.
+  - **Toilet rolls** (top-left corner): mummy wrap. Alternate left and right to wrap a
+    coworker faster than the other team, but mash too fast and the paper tears.
+  - **Pumpkin on the counter**: pumpkin carving. Remember the face, then carve it one
+    feature at a time. One wrong cut and the knife slips.
+  - **Candy bowl** (on the table, door side): trick-or-treat catch. Sweets in the bag;
+    spiders, toothbrushes and dropped sweets are strikes. Three and you're out.
+  - **Bookshelves** (by the doors): ghost in the cupboard. Press the arrow for the
+    cupboard a ghost pops out of, before it floats off. Leave Linda alone.
+- Talk to **Lam** when you're ready for the **costume contest**: three coworkers walk
+  the catwalk, then you strike ten poses, the ring closing faster each time. Press the arrow
+  shown as the ring closes onto the mark; three judges score you out of 10 each.
+- Then it's "Happy Haakon Halloween", and you're back by your chair with the office
+  as it was. Sit down again to run the party again.
+
+The costumes are drawn in `COSTUMES` in `js/art.js`. What people say about their
+costume is `COSTUME_LINES` at the bottom of `js/people.js`, and anyone in `PEOPLE` can
+have a `halloween:` line of their own.
+
+## Shortcuts
+
+Add these to the end of the address (after `index.html`) and press Enter.
+
+**Halloween outside October**
+
+- `index.html#halloween=1`: the whole game with Halloween switched on, from the title
+  screen: character, name, costume picker, then the party waiting in the boardroom.
+- `index.html#play&halloween=1&party=1`: skip straight to the boardroom party.
+- `index.html#play&halloween=1&game=contest`: skip straight to the costume contest.
+- Add `&costume=witch` (or `clown`, `vampire`, `skeleton`, `pumpkin`, `mummy`, `fan`,
+  `sdg`) to a `#play` link to pick what you're wearing.
+- `#halloween=0` switches it off during October.
+
+**Straight into a mini-game**
+
+`index.html#play&game=NAME` skips the title screen and opens that game, for example
+`index.html#play&game=punch`. The names:
+
+| | |
+| --- | --- |
+| Office and lunch room | `coffee`, `toss`, `lunch`, `candy`, `stack`, `jam`, `desk`, `filter`, `simon` |
+| Fitness room | `punch`, `squat`, `run`, `pulldown`, `ball`, `laundry` |
+| TVs and computers | `pong`, `snake`, `poker`, `blackjack` |
+| Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf` |
+| Coworkers | `dark` (Damir), `battle` (Richard), `dance` (Patrick), `nathan`, `wade`, `jar` (Kiki), `forms` (Jhonna), `wok` (Nik), `carrot` (Dmitriy), `lego` (Joe) |
+| Dogs | `catch`, `dogs` (the leaderboard) |
+| Halloween | `contest`, `bob`, `mummy`, `carve`, `treat`, `ghosts`, `hsplash` (the closing screen) |
+
+Plain `index.html#play` skips the title screen and drops you at the entrance.
+
+## Testing
+
 Best scores are saved in the browser. For testing, `index.html#play&game=punch`
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
@@ -148,6 +213,12 @@ or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
 and `&stapler=near` puts it right in front of you. `&helped=5` counts the
 first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gives you Kiki's list, and
 `game=kiki` opens it.
+`&halloween=1` turns Halloween on outside October (`&halloween=0` turns it off),
+`&costume=witch` (or `clown`, `vampire`, `skeleton`, `pumpkin`, `mummy`, `fan`, `sdg`)
+wears that costume, `&costumes` opens the costume picker, `&party=1` starts the
+boardroom party (add `&f=0&x=43&y=13` to stand somewhere particular), and `game=contest`,
+`bob`, `mummy`, `carve`, `treat`, `ghosts` or `hsplash` opens the contest, a party game
+or the closing splash screen.
 `&visitor=Alex` puts that visitor in the visitor office, and `&visit=120` has
 whoever is there leave through the portal in 120 ticks (2 seconds).
 

@@ -66,6 +66,27 @@
   });
   const PANEL_LIGHTS = ['#58e048', '#f05040', '#f0b030'];
 
+  // Halloween: all through October there's a costume to pick after your name and a party
+  // waiting in the downstairs boardroom (see "Halloween" further down). Adding
+  // &halloween=1 (or =0) to a #play link forces it on (or off) for testing.
+  const hw = (function () {
+    const state = { floor: -1, room: null, doors: [], props: [], costume: store.get('costume'), worn: false, state: 'idle', guests: [], back: null };
+    MAPS.floors.forEach((f, fi) => {
+      const room = !state.room && f.rooms.find((r) => /^Boardroom/.test(r.name));
+      if (!room) return;
+      // party games that stand on the floor: the apple tub and the toilet rolls
+      Object.assign(state, { floor: fi, room, props: [{ kind: 'bucket', x: room.x1 + 1, y: room.y2 - 2 }, { kind: 'rolls', x: room.x1 + 1, y: room.y1 + 2 }] });
+      for (let y = room.y1 - 1; y <= room.y2 + 1; y++)
+        for (let x = room.x1 - 1; x <= room.x2 + 1; x++)
+          if ((f.tiles[y] || '')[x] === 'D') state.doors.push({ x, y });
+    });
+    return state;
+  })();
+  const HALLOWEEN = !!hw.room && (function () {
+    const m = /[#&]halloween=(\d)/.exec(location.hash);
+    return m ? m[1] !== '0' : new Date().getMonth() === 9;
+  })();
+
   // ---------- NPCs: one per person, pacing around their own office ----------
   // Everything a person says is shown as "Name: ...", so these no longer introduce
   // themselves. {n} still works if you want to use a name mid-sentence.
@@ -300,7 +321,7 @@
       if (tx < r.x1 || tx > r.x2 || ty < r.y1 || ty > r.y2) continue;
       // dogs can trot through doorways too
       const tt = tileAt(n.floor, tx, ty);
-      if (!(NPC_FLOOR.includes(tt) || (n.dog && tt === 'D')) || npcAt(n.floor, tx, ty) || playerAt(tx, ty)) continue;
+      if (!(NPC_FLOOR.includes(tt) || (n.dog && tt === 'D' && !doorShut(n.floor, tx, ty))) || npcAt(n.floor, tx, ty) || playerAt(tx, ty) || propAt(n.floor, tx, ty)) continue;
       Object.assign(n, { moving: true, prog: 0, mdx: dx, mdy: dy });
       n.step ^= 1;
     }
@@ -496,6 +517,7 @@
   function pickMusic() {
     if (!musicOn) return null;
     for (let i = ui.length - 1; i >= 0; i--) if (ui[i].music) return ui[i].music;
+    if (mode === 'play' && hw.state === 'party') return 'halloween';
     if (mode === 'play' && curRoom && ((curRoom.name === 'Haunted Office' && !lindaFree) || curRoom.dark)) return 'spooky';
     if (mode === 'play' && curRoom && curRoom.rave) return 'rave';
     return 'office';
@@ -731,6 +753,7 @@
   // Most computers run SDG; a room with a 'computer' option (see tools/build_maps.py)
   // runs that program instead.
   const sdgIcon = new Image();
+  sdgIcon.onload = () => { if (hw.worn) wearCostume(hw.costume); if (mode === 'costume') openCostumes(); }; // the SDG Sign costume wears the logo
   sdgIcon.src = 'assets/sdg.png';
   const PROGRAMS = {
     sdg: { label: 'SDG', App: () => SdgApp(),
@@ -6052,6 +6075,864 @@
     return self;
   }
 
+  // ---------- Halloween: costumes, the boardroom party and Lam's costume contest ----------
+  // Sit on a boardroom chair to start the party. The guests are ordinary NPCs added to
+  // `npcs` for as long as it lasts (so they wander and talk like anyone else); the real
+  // coworkers stay at their desks, out of sight behind the shut doors. Lam runs the
+  // costume contest, and once that's over the splash screen puts everything back.
+  const COSTUME_KEYS = Object.keys(Art.COSTUMES);
+  if (!Art.COSTUMES[hw.costume]) hw.costume = COSTUME_KEYS[0];
+  const shuffled = (list) => {
+    const a = list.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  };
+  function wearCostume(key) {
+    if (Art.COSTUMES[key]) hw.costume = key;
+    hw.worn = true;
+    sprites = Art.renderCostume(pick.gender, Art.LOOKS[pick.gender][pick.index], hw.costume, sdgIcon);
+  }
+  const propAt = (fi, x, y) => (hw.state === 'party' && fi === hw.floor && hw.props.find((p) => p.x === x && p.y === y)) || null;
+  const doorShut = (fi, x, y) => hw.state === 'party' && fi === hw.floor && hw.doors.some((d) => d.x === x && d.y === y);
+
+  // Who comes: Lam (the MC), eight others at random, each in a different costume, and Linda.
+  function pickGuests() {
+    const lines = window.COSTUME_LINES || {};
+    const others = shuffled(npcs.filter((n) => !n.ghost && !n.guest && n.name !== 'Lam' && !(visit && n === visit.npc))).slice(0, 8);
+    const outfits = shuffled(COSTUME_KEYS.concat(['ghost']));
+    const guests = ['Lam'].concat(others.map((n) => n.name)).map((name, i) => {
+      const costume = outfits[i % outfits.length], { body, look } = lookFor(name);
+      const own = ((window.PEOPLE || {})[name] || {}).halloween;
+      return {
+        name, costume, guest: true, ghost: false,
+        outfit: costume === 'ghost' ? 'Bedsheet Ghost' : Art.COSTUMES[costume].name,
+        sprites: costume === 'ghost' ? Art.renderSprites('ghost', {}) : Art.renderCostume(body, look, costume, sdgIcon),
+        lines: (lines[costume] || ['Happy Halloween!']).concat(own ? [own] : []),
+      };
+    });
+    guests.push({
+      name: 'Linda', costume: 'none', outfit: 'Actual Ghost', guest: true, ghost: true, sprites: Art.renderSprites('ghost', {}),
+      lines: ['Everyone keeps complimenting my costume. I\'m not wearing a costume.', 'Finally, a party where I blend in. Boo.'],
+    });
+    return guests;
+  }
+  function startParty() {
+    const r = hw.room, fi = hw.floor;
+    hw.back = { x: P.x, y: P.y, dir: P.dir };
+    hw.state = 'party';
+    const nearDoor = (x, y) => hw.doors.some((d) => Math.abs(d.x - x) <= 1 && Math.abs(d.y - y) <= 2);
+    const spots = [];
+    for (let y = r.y1; y <= r.y2; y++)
+      for (let x = r.x1; x <= r.x2; x++)
+        if (NPC_FLOOR.includes(tileAt(fi, x, y)) && !npcAt(fi, x, y) && !nearDoor(x, y) && !playerAt(x, y) && !propAt(fi, x, y)) spots.push([x, y]);
+    const free = shuffled(spots);
+    hw.guests = pickGuests();
+    for (const g of hw.guests) {
+      // Lam waits at the head of the table by the TVs, so he's easy to find
+      const mc = g.name === 'Lam', li = mc ? free.findIndex(([x, y]) => x === r.x2 - 2 && y === r.y1 + 5) : -1;
+      const at = li >= 0 ? free.splice(li, 1)[0] : free.pop();
+      if (!at) continue;
+      Object.assign(g, { floor: fi, room: r, x: at[0], y: at[1], dir: mc ? 'left' : 'down', moving: false, prog: 0, mdx: 0, mdy: 0, step: 0,
+        wait: mc ? Infinity : 30 + Math.floor(Math.random() * 120) });
+      npcs.push(g);
+    }
+    say('The lights dim and the doors swing shut. Happy Halloween! Mingle, and try the games dotted around the room. When you\'re ready for the costume contest, go and see Lam.');
+  }
+  function endParty() {
+    for (let i = npcs.length - 1; i >= 0; i--) if (npcs[i].guest) npcs.splice(i, 1);
+    hw.guests = [];
+    if (hw.back) Object.assign(P, hw.back, { floor: hw.floor, moving: false, prog: 0, walked: false, bump: 0 });
+    hw.back = null;
+    hw.state = 'done';
+    curRoom = roomAt(P.floor, P.x, P.y);
+    roomName = curRoom ? curRoom.name : null;
+    questQueue.push('The lights come back up and everyone drifts back to their desks. Back to work!');
+  }
+  function guestTalk(npc, says) {
+    if (npc.name !== 'Lam') { say(says(npc.lines[Math.floor(Math.random() * npc.lines.length)])); return; }
+    ask(says('I\'m your MC tonight! Are you ready to walk the catwalk in the Haakon costume contest?'), ['I\'M READY', 'STILL MINGLING'], (i) => {
+      if (i === 0) { sfx('menu'); ui.push(CostumeContest()); } else say(says('Take your time. The punch is... a colour.'));
+    });
+  }
+
+  // Decorations, drawn over the boardroom. Pass 0 goes under the people; pass 1 goes over
+  // them: the dimmed lights (while the party is on), what glows in the dark, and the bats.
+  function drawPumpkinAt(x, y, lit) {
+    ctx.fillStyle = '#2c6a34'; ctx.fillRect(x + 4, y, 2, 2);
+    ctx.fillStyle = '#f08020'; ctx.fillRect(x + 1, y + 2, 8, 7); ctx.fillRect(x, y + 3, 10, 5);
+    ctx.fillStyle = '#c05810'; ctx.fillRect(x + 3, y + 2, 1, 7); ctx.fillRect(x + 6, y + 2, 1, 7);
+    ctx.fillStyle = lit ? ((tick >> 3) % 3 ? '#f8e040' : '#f8b830') : '#402008';
+    ctx.fillRect(x + 2, y + 4, 2, 2); ctx.fillRect(x + 6, y + 4, 2, 2);
+    ctx.fillRect(x + 2, y + 7, 6, 1); ctx.fillRect(x + 3, y + 6, 1, 1); ctx.fillRect(x + 6, y + 6, 1, 1);
+  }
+  function drawBatAt(x, y, up, color) {
+    ctx.fillStyle = color || '#4a2c78';
+    ctx.fillRect(x - 1, y, 2, 3); ctx.fillRect(x - 2, y - 1, 1, 1); ctx.fillRect(x + 1, y - 1, 1, 1);
+    const wy = up ? y - 2 : y + 1;
+    ctx.fillRect(x - 5, wy, 4, 2); ctx.fillRect(x + 1, wy, 4, 2);
+    ctx.fillRect(x - 7, wy + (up ? -1 : 1), 2, 2); ctx.fillRect(x + 5, wy + (up ? -1 : 1), 2, 2);
+  }
+  const BUNTING = ['#f08020', '#7b3fb8', '#181820'];
+  function drawHalloween(cx, cy, pass) {
+    const r = hw.room, on = hw.state === 'party';
+    const X = (tx) => tx * 16 - cx, Y = (ty) => ty * 16 - cy;
+    const x0 = X(r.x1), y0 = Y(r.y1), w = (r.x2 - r.x1 + 1) * 16, h = (r.y2 - r.y1 + 1) * 16;
+    if (x0 > SW || y0 - 16 > SH || x0 + w < 0 || y0 + h + 16 < 0) return;
+    // table tiles the pumpkins and candles sit on, and one pumpkin on the counter
+    const pumpkins = [[r.x1 + 5, r.y1 + 4], [r.x1 + 14, r.y1 + 6], [r.x1 + 2, r.y2]].map(([tx, ty]) => [X(tx) + 3, Y(ty) + 2]);
+    const candles = [[r.x1 + 7, r.y1 + 6], [r.x1 + 12, r.y1 + 5]].map(([tx, ty]) => [X(tx) + 7, Y(ty) + 3]);
+    if (pass === 0) {
+      // bunting and cobwebs along the top wall, and a spider on a thread
+      const by = y0 - 9;
+      ctx.fillStyle = '#181820'; ctx.fillRect(x0, by - 1, w, 1);
+      for (let i = 0; i * 8 < w; i++) {
+        ctx.fillStyle = BUNTING[i % 3];
+        for (let k = 0; k < 3; k++) ctx.fillRect(x0 + i * 8 + 1 + k, by + k * 2, 6 - k * 2, 2);
+      }
+      ctx.fillStyle = '#f8f8f8';
+      for (let i = 0; i < 11; i++) {
+        ctx.fillRect(x0 + i, y0 - 11 + i, 1, 1); ctx.fillRect(x0 + w - 1 - i, y0 - 11 + i, 1, 1);
+        if (i % 4 === 3) { ctx.fillRect(x0, y0 - 11 + i, i, 1); ctx.fillRect(x0 + w - i, y0 - 11 + i, i, 1); }
+      }
+      const sx = X(r.x1 + 9) + 8, drop = 10 + Math.round(Math.sin(tick / 40) * 5);
+      ctx.fillStyle = '#f8f8f8'; ctx.fillRect(sx, y0 - 10, 1, drop);
+      ctx.fillStyle = '#181820'; ctx.fillRect(sx - 2, y0 - 10 + drop, 5, 3); ctx.fillRect(sx - 1, y0 - 11 + drop, 3, 5);
+      ctx.fillRect(sx - 4, y0 - 10 + drop, 1, 1); ctx.fillRect(sx + 4, y0 - 10 + drop, 1, 1);
+      ctx.fillRect(sx - 4, y0 - 8 + drop, 1, 1); ctx.fillRect(sx + 4, y0 - 8 + drop, 1, 1);
+      // a bowl of candy on the near edge of the table
+      const bx = X(r.x1 + 10), byy = Y(r.y1 + 7) + 4;
+      ctx.fillStyle = '#181820'; ctx.fillRect(bx, byy, 16, 9);
+      ctx.fillStyle = '#7b3fb8'; ctx.fillRect(bx + 1, byy + 1, 14, 7);
+      ['#f08020', '#f8f8f8', '#f8e040', '#58a848', '#f08020', '#e03030'].forEach((c, i) => {
+        ctx.fillStyle = c; ctx.fillRect(bx + 2 + (i % 3) * 4, byy + 2 + (i > 2 ? 3 : 0), 3, 2);
+      });
+      for (const [px, py] of pumpkins) drawPumpkinAt(px, py, false);
+      for (const [px, py] of candles) { ctx.fillStyle = '#f8f8f8'; ctx.fillRect(px, py + 3, 2, 6); ctx.fillStyle = '#f0b030'; ctx.fillRect(px, py + (tick >> 3 & 1), 2, 3); }
+      // the party games: the apple tub, the toilet rolls, a knife by the counter pumpkin
+      // and whatever is in the cupboard
+      if (on) {
+        for (const p of hw.props) {
+          const px = X(p.x), py = Y(p.y);
+          if (p.kind === 'bucket') {
+            ctx.fillStyle = '#181820'; ctx.fillRect(px + 1, py + 3, 14, 12);
+            ctx.fillStyle = '#7a5028'; ctx.fillRect(px + 2, py + 4, 12, 10);
+            ctx.fillStyle = '#a8a8b0'; ctx.fillRect(px + 2, py + 10, 12, 1);
+            ctx.fillStyle = '#3878c8'; ctx.fillRect(px + 3, py + 4, 10, 4);
+            ctx.fillStyle = '#d02830';
+            [4, 8, 11].forEach((ax, i) => ctx.fillRect(px + ax, py + 4 + (((tick >> 4) + i) & 1), 2, 2));
+          } else {
+            [[2, 8], [9, 8], [5, 2]].forEach(([rx, ry]) => {
+              ctx.fillStyle = '#181820'; ctx.fillRect(px + rx - 1, py + ry - 1, 7, 8);
+              ctx.fillStyle = '#f8f8f8'; ctx.fillRect(px + rx, py + ry, 5, 6);
+              ctx.fillStyle = '#a8a8b0'; ctx.fillRect(px + rx + 2, py + ry + 2, 1, 2);
+            });
+          }
+        }
+        const kx = X(r.x1 + 3) + 4, ky = Y(r.y2) + 7;
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(kx, ky, 7, 2); ctx.fillStyle = '#5a3420'; ctx.fillRect(kx + 7, ky, 4, 2);
+        const gx = X(r.x1 + 11) - 4, gy = Y(r.y2) - 2 - ((tick >> 5) & 1);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(gx, gy, 8, 6); ctx.fillRect(gx + 1, gy - 1, 6, 1);
+        ctx.fillStyle = '#181820'; ctx.fillRect(gx + 2, gy + 2, 1, 2); ctx.fillRect(gx + 5, gy + 2, 1, 2);
+      }
+      // the doors, barred until it's over
+      if (on) for (const d of hw.doors) {
+        ctx.fillStyle = '#181820'; ctx.fillRect(X(d.x), Y(d.y) + 6, 16, 4);
+        ctx.fillStyle = '#f08020'; ctx.fillRect(X(d.x), Y(d.y) + 7, 16, 2);
+      }
+      return;
+    }
+    if (on) {
+      ctx.fillStyle = 'rgba(10, 4, 30, 0.55)';
+      ctx.fillRect(x0, y0 - 4, w, h + 4);
+      // candlelight: the pumpkins and candles glow through the dark
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x0, y0 - 4, w, h + 4); ctx.clip();
+      ctx.globalCompositeOperation = 'lighter';
+      pumpkins.concat(candles).forEach(([px, py], i) => {
+        const flick = Math.sin(tick / 5 + i * 2.3) * 2;
+        ctx.fillStyle = '#f08020';
+        ctx.globalAlpha = 0.16; ctx.beginPath(); ctx.arc(px + 5, py + 5, 26 + flick, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.2; ctx.beginPath(); ctx.arc(px + 5, py + 5, 13 + flick, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.restore();
+      for (const [px, py] of pumpkins) drawPumpkinAt(px, py, true);
+      for (const [px, py] of candles) { ctx.fillStyle = '#f8e040'; ctx.fillRect(px, py + (tick >> 3 & 1), 2, 3); }
+    }
+    for (let i = 0; i < 4; i++) {
+      const a = tick / (50 + i * 9) + i * 1.9;
+      drawBatAt(Math.round(x0 + w / 2 + Math.sin(a) * w * 0.42), Math.round(y0 + h / 2 + Math.sin(a * 1.7 + i) * h * 0.38), (tick >> 3) + i & 1, on ? '#a070e0' : '#4a2c78');
+    }
+  }
+
+  // ---------- Halloween party games: things to do in the boardroom while you mingle ----------
+  // What's at (tx, ty) to play with, while the party is on: [what it says, the yes option, the game].
+  function partyGameAt(tx, ty, t) {
+    const r = hw.room;
+    if (hw.state !== 'party' || P.floor !== hw.floor || tx < r.x1 || tx > r.x2 || ty < r.y1 || ty > r.y2) return null;
+    const p = propAt(P.floor, tx, ty);
+    if (p) return p.kind === 'bucket' ? ['A tub of water with apples bobbing in it.', 'BOB FOR APPLES', BobGame]
+      : ['A mountain of toilet rolls. Somebody raided the supply cupboard.', 'WRAP A MUMMY', MummyGame];
+    if (t === 'k') return ['A pumpkin, a knife and a picture of how it should look.', 'CARVE IT', CarveGame];
+    if (tx === r.x1 + 10 && ty === r.y1 + 7) return ['A huge bowl of Halloween candy. Somebody is about to tip it out.', 'TRICK OR TREAT', TreatGame];
+    if (t === 'b') return ['The cupboard doors keep creaking open. Something is in there.', 'SHUT THEM IN', GhostGame];
+    return null;
+  }
+
+  // Bobbing for apples: slide along the tub and dunk when an apple is under you.
+  function BobGame() {
+    const TIME = 30 * 60, WATER = 152, X0 = 44, X1 = 276;
+    const float = () => {
+      const r = Math.random();
+      return { x: X0 + 14 + Math.random() * (X1 - X0 - 28), v: (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.9),
+        kind: r < 0.12 ? 'gold' : r < 0.32 ? 'duck' : 'apple', ph: Math.random() * 6 };
+    };
+    const things = [0, 1, 2, 3, 4, 5].map(float);
+    let state = 'ready', t = 0, left = TIME, x = 160, dunk = 0, score = 0, record = false, msg = '', msgT = 0;
+    const self = {
+      music: 'halloween',
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say('You come up dripping, with ' + score + (score === 1 ? ' apple.' : ' apples.') + (record ? ' A new record!' : ''));
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You dry your face on your costume.'); return; }
+        if (msgT > 0) msgT--;
+        const rush = 1 + (TIME - left) / TIME * 0.7; // the apples get livelier as the clock runs down
+        for (const o of things) {
+          o.x += o.v * rush;
+          if (o.x < X0 + 10) { o.x = X0 + 10; o.v = Math.abs(o.v); }
+          if (o.x > X1 - 10) { o.x = X1 - 10; o.v = -Math.abs(o.v); }
+        }
+        if (dunk) {
+          if (++dunk === 11) {
+            const hit = things.find((o) => Math.abs(o.x - x) < 9);
+            if (!hit) { sfx('splash'); msg = 'Just water.'; }
+            else if (hit.kind === 'duck') { left -= 120; sfx('buzz'); msg = 'A rubber duck! -2 seconds'; }
+            else { score += hit.kind === 'gold' ? 3 : 1; sfx(hit.kind === 'gold' ? 'cup' : 'ding'); msg = hit.kind === 'gold' ? 'A golden apple! +3' : 'Got one!'; }
+            if (hit) Object.assign(hit, float());
+            msgT = 50;
+          }
+          if (dunk > 24) dunk = 0;
+        } else {
+          if (held.left) x -= 2.4;
+          if (held.right) x += 2.4;
+          x = Math.max(X0 + 12, Math.min(X1 - 12, x));
+          if (pressed.has('a')) dunk = 1;
+        }
+        if (--left <= 0) { left = 0; state = 'done'; t = 0; record = saveBest('bob', score); sfx('ding'); }
+      },
+      draw() {
+        ctx.fillStyle = '#1c1230'; ctx.fillRect(0, 0, SW, SH);
+        ctx.fillStyle = '#2a1c44'; ctx.fillRect(0, 190, SW, 50);
+        text('Bobbing for apples', 12, 10, 1, '#f08020');
+        text('Apples ' + score, 12, 24, 1, '#f8f8f8');
+        const tm = 'Time ' + Math.ceil(left / 60), bs = 'Best ' + getBest('bob');
+        text(tm, SW - 12 - tm.length * 6, 10, 1, left < 300 ? '#f05040' : '#f8f8f8');
+        text(bs, SW - 12 - bs.length * 6, 24, 1, '#c8ccd8');
+        // the back of the tub, you, then the water and what's floating in it
+        ctx.fillStyle = '#4a3018'; ctx.fillRect(X0 - 8, WATER - 8, X1 - X0 + 16, 64);
+        const depth = dunk ? Math.sin(dunk / 24 * Math.PI) * 58 : 0;
+        ctx.drawImage(sprites.down[0], Math.round(x) - 24, Math.round(72 + depth), 48, 48);
+        ctx.globalAlpha = 0.8; ctx.fillStyle = '#3878c8'; ctx.fillRect(X0, WATER, X1 - X0, 50); ctx.globalAlpha = 1;
+        ctx.fillStyle = '#78b0f0';
+        for (let i = X0; i < X1; i += 8) ctx.fillRect(i + ((t >> 3) & 1 ? 0 : 4), WATER, 4, 1);
+        for (const o of things) {
+          const ox = Math.round(o.x), oy = Math.round(WATER + 1 + Math.sin(t / 9 + o.ph) * 2);
+          if (o.kind === 'duck') {
+            ctx.fillStyle = '#f8e040'; ctx.fillRect(ox - 7, oy - 3, 13, 7); ctx.fillRect(ox + 1, oy - 9, 7, 7);
+            ctx.fillStyle = '#f08020'; ctx.fillRect(ox + 8, oy - 6, 3, 2);
+            ctx.fillStyle = '#181820'; ctx.fillRect(ox + 5, oy - 7, 1, 1);
+          } else {
+            ctx.fillStyle = '#181820'; ctx.fillRect(ox - 7, oy - 6, 14, 13);
+            ctx.fillStyle = o.kind === 'gold' ? '#f8d030' : '#d02830'; ctx.fillRect(ox - 6, oy - 5, 12, 11);
+            ctx.fillStyle = o.kind === 'gold' ? '#f8f0a0' : '#f07868'; ctx.fillRect(ox - 4, oy - 3, 2, 3);
+            ctx.fillStyle = '#5a3420'; ctx.fillRect(ox, oy - 9, 1, 4);
+            ctx.fillStyle = '#58a848'; ctx.fillRect(ox + 1, oy - 9, 3, 2);
+          }
+        }
+        // the front of the tub: staves and a hoop
+        ctx.fillStyle = '#7a5028'; ctx.fillRect(X0 - 8, WATER + 14, X1 - X0 + 16, 44);
+        ctx.fillStyle = '#4a3018'; for (let i = X0 - 8; i < X1 + 8; i += 16) ctx.fillRect(i, WATER + 14, 1, 44);
+        ctx.fillStyle = '#a8a8b0'; ctx.fillRect(X0 - 8, WATER + 30, X1 - X0 + 16, 3);
+        if (msgT > 0) ctext(msg, 48, '#f8e040');
+        if (state === 'ready') readyBox(t, 'Arrows: move  Space: dunk');
+        else if (state === 'done') doneBox(['Time!', 'Apples: ' + score, record ? 'New record!' : 'Best ' + getBest('bob')], t);
+        else text('Arrows: move   Space: dunk   Esc: give up', 12, SH - 14, 1, '#c8ccd8');
+      },
+    };
+    return self;
+  }
+
+  // Mummy wrap: alternate left and right to wind the paper round, quicker than the other
+  // team. Wind faster than the paper can take and it tears.
+  function MummyGame() {
+    const NEED = 70, pool = shuffled(hw.guests.filter((g) => !g.ghost && g.name !== 'Lam'));
+    const mine = pool[0] || { name: 'Kiki', sprites: spritesFor('Kiki') }, theirs = pool[1] || { name: 'Nathan', sprites: spritesFor('Nathan') };
+    let state = 'ready', t = 0, me = 0, them = 0, last = null, strain = 0, torn = 0, ticks = 0, won = false, record = false;
+    const best = () => +store.get('best.mummy') || 0; // quickest wrap, in tenths of a second
+    const secs = (n) => (n / 10).toFixed(1) + 's';
+    function finish(w) {
+      won = w; state = 'done'; t = 0;
+      const mine10 = Math.round(ticks / 6);
+      if (won && (!best() || mine10 < best())) { store.set('best.mummy', mine10); record = true; }
+      sfx(won ? 'cup' : 'buzz');
+    }
+    function wrapped(g, x, n, flip) {
+      ctx.drawImage(g.sprites.down[0], x, 76, 80, 80);
+      // bandages from the feet up
+      const rows = Math.floor(Math.min(1, n / NEED) * 20);
+      for (let i = 0; i < rows; i++) {
+        const y = 76 + 76 - i * 4, head = i >= 8;
+        ctx.fillStyle = (i + (flip ? 1 : 0)) & 1 ? '#e8e0c8' : '#c8c0a0';
+        ctx.fillRect(x + (head ? 12 : 16), y, head ? 56 : 48, 4);
+        ctx.fillStyle = '#a89c78'; ctx.fillRect(x + (head ? 12 : 16) + ((i * 13) % 40), y + 3, 10, 1);
+      }
+      if (rows >= 20) { ctx.fillStyle = '#181820'; ctx.fillRect(x + 26, 76 + 30, 6, 4); ctx.fillRect(x + 48, 76 + 30, 6, 4); }
+    }
+    const self = {
+      music: 'halloween',
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(won ? mine.name + ': Mmmph! (You wrapped ' + mine.name + ' in ' + secs(Math.round(ticks / 6)) + '.' + (record ? ' A new record!)' : ')')
+              : theirs.name + ' is a mummy already. ' + mine.name + ' is mostly just tangled.');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say(mine.name + ' unwinds, looking relieved.'); return; }
+        ticks++;
+        them += 0.068 + Math.random() * 0.012;
+        strain = Math.max(0, strain - 0.02);
+        if (torn > 0) torn--;
+        else {
+          const d = pressed.has('left') ? 'left' : pressed.has('right') ? 'right' : null;
+          if (d && d === last) sfx('bump');
+          else if (d) {
+            last = d; me++; strain += 0.2; sfx('blip', me & 1);
+            if (strain > 1) { torn = 50; strain = 0.3; sfx('buzz'); }
+          }
+        }
+        if (me >= NEED) finish(true); else if (them >= NEED) finish(false);
+      },
+      draw() {
+        ctx.fillStyle = '#1c1230'; ctx.fillRect(0, 0, SW, SH);
+        ctx.fillStyle = '#2a1c44'; ctx.fillRect(0, 150, SW, 90);
+        text('Mummy wrap', 12, 10, 1, '#f08020');
+        const tm = (ticks / 60).toFixed(1) + 's', bs = 'Best ' + (best() ? secs(best()) : '-');
+        text(tm, SW - 12 - tm.length * 6, 10, 1, '#f8f8f8');
+        text(bs, SW - 12 - bs.length * 6, 24, 1, '#c8ccd8');
+        wrapped(mine, 40, me, me & 1); wrapped(theirs, 200, them, Math.floor(them) & 1);
+        ctext('VS', 112, '#f08020');
+        text('YOU + ' + mine.name, 80 - (6 + mine.name.length) * 3, 56, 1, '#f8f8f8');
+        text(theirs.name + '\'s team', 240 - (7 + theirs.name.length) * 3, 56, 1, '#c8ccd8');
+        // how much of each mummy is done
+        [[40, me], [200, them]].forEach(([x, n]) => {
+          ctx.fillStyle = '#181820'; ctx.fillRect(x, 164, 80, 8);
+          ctx.fillStyle = '#e8e0c8'; ctx.fillRect(x + 1, 165, Math.round(78 * Math.min(1, n / NEED)), 6);
+        });
+        // how close the paper is to tearing
+        text('Paper', 40, 184, 1, '#c8ccd8');
+        ctx.fillStyle = '#181820'; ctx.fillRect(76, 183, 204, 10);
+        ctx.fillStyle = strain > 0.75 ? '#f05040' : strain > 0.5 ? '#f0b030' : '#58a848';
+        ctx.fillRect(78, 185, Math.round(200 * Math.min(1, strain)), 6);
+        if (torn > 0) ctext('RIP! The paper tore!', 200, '#f05040');
+        if (state === 'ready') readyBox(t, 'Left, Right, Left, Right...');
+        else if (state === 'done') doneBox([won ? 'Fully wrapped!' : theirs.name + '\'s team wins!', won ? 'Your time: ' + secs(Math.round(ticks / 6)) : 'You got ' + Math.round(100 * me / NEED) + '% done',
+          record ? 'New record!' : 'Best ' + (best() ? secs(best()) : '-')], t);
+        else text('Arrows: left, right, left...   Esc: give up', 12, SH - 14, 1, '#c8ccd8');
+      },
+    };
+    return self;
+  }
+
+  // Pumpkin carving: look at the face, then carve it from memory, one feature at a time.
+  function CarveGame() {
+    const PARTS = [['Eyes', 4], ['Nose', 3], ['Mouth', 4], ['Brows', 3]];
+    let state = 'ready', t = 0, round = 0, face = [], mine = [], step = 0, cur = 0, record = false;
+    const parts = () => (round >= 2 ? 4 : 3), look = () => Math.max(45, 150 - round * 22);
+    function newFace() {
+      face = PARTS.map(([, n]) => Math.floor(Math.random() * n));
+      mine = []; step = 0; state = 'show'; t = 0;
+    }
+    const tri = (x, y, s, down) => { ctx.beginPath(); ctx.moveTo(x, y + (down ? s : -s)); ctx.lineTo(x + s, y + (down ? -s : s)); ctx.lineTo(x - s, y + (down ? -s : s)); ctx.fill(); };
+    // f: the features to draw; anything undefined hasn't been cut yet
+    function pumpkin(cx, cy, f, lit) {
+      ctx.fillStyle = '#2c6a34'; ctx.fillRect(cx - 4, cy - 58, 8, 14);
+      ctx.fillStyle = '#c05810'; ctx.beginPath(); ctx.ellipse(cx, cy, 66, 48, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#f08020';
+      for (const dx of [-38, 0, 38]) { ctx.beginPath(); ctx.ellipse(cx + dx, cy, 25, 47, 0, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = lit ? '#f8e040' : '#402008';
+      const [e, n, m, b] = f;
+      for (const s of [-1, 1]) {
+        const ex = cx + s * 26, ey = cy - 12;
+        if (e === 0) tri(ex, ey, 9);
+        else if (e === 1) { ctx.beginPath(); ctx.arc(ex, ey, 8, 0, Math.PI * 2); ctx.fill(); }
+        else if (e === 2) ctx.fillRect(ex - 10, ey - 2, 20, 5);
+        else if (e === 3) { ctx.beginPath(); ctx.moveTo(ex - s * 10, ey - 8); ctx.lineTo(ex + s * 10, ey + 6); ctx.lineTo(ex - s * 10, ey + 6); ctx.fill(); }
+        if (b === 1) ctx.fillRect(ex - 10, ey - 20, 20, 3);
+        else if (b === 2) { ctx.beginPath(); ctx.moveTo(ex - s * 11, ey - 16); ctx.lineTo(ex + s * 11, ey - 24); ctx.lineTo(ex + s * 11, ey - 20); ctx.lineTo(ex - s * 11, ey - 12); ctx.fill(); }
+      }
+      if (n === 0) tri(cx, cy + 4, 5);
+      else if (n === 1) ctx.fillRect(cx - 3, cy + 1, 6, 6);
+      else if (n === 2) tri(cx, cy + 4, 5, true);
+      if (m === 0) { ctx.fillRect(cx - 30, cy + 18, 60, 10); ctx.fillStyle = '#f08020'; for (let i = 0; i < 4; i++) ctx.fillRect(cx - 22 + i * 15, cy + 18, 6, 4); }
+      else if (m === 1) for (let i = 0; i < 6; i++) tri(cx - 25 + i * 10, cy + 23, 6, i & 1);
+      else if (m === 2) { ctx.beginPath(); ctx.ellipse(cx, cy + 23, 10, 9, 0, 0, Math.PI * 2); ctx.fill(); }
+      else if (m === 3) { ctx.fillRect(cx - 22, cy + 18, 44, 6); ctx.fillRect(cx - 30, cy + 24, 10, 6); ctx.fillRect(cx + 20, cy + 24, 10, 6); }
+    }
+    const self = {
+      music: 'halloween',
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) newFace(); return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say('You carved ' + round + (round === 1 ? ' pumpkin' : ' pumpkins') + ' before the knife slipped.' + (record ? ' A new record!' : ''));
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You put the knife down. Carefully.'); return; }
+        if (state === 'show') { if (t > look()) { state = 'carve'; t = 0; cur = Math.floor(Math.random() * PARTS[0][1]); } return; }
+        if (state === 'right') { if (t > 50) { round++; newFace(); } return; }
+        const n = PARTS[step][1];
+        if (pressed.has('left')) { cur = (cur + n - 1) % n; sfx('select'); }
+        if (pressed.has('right')) { cur = (cur + 1) % n; sfx('select'); }
+        if (pressed.has('a')) {
+          mine[step] = cur;
+          if (cur !== face[step]) { state = 'done'; t = 0; record = saveBest('carve', round); sfx('buzz'); return; }
+          sfx('chop');
+          if (++step >= parts()) { state = 'right'; t = 0; sfx('cup'); }
+          else cur = Math.floor(Math.random() * PARTS[step][1]);
+        }
+      },
+      draw() {
+        ctx.fillStyle = '#1c1230'; ctx.fillRect(0, 0, SW, SH);
+        ctx.fillStyle = '#6a4a28'; ctx.fillRect(0, 176, SW, 64);
+        text('Pumpkin carving', 12, 10, 1, '#f08020');
+        text('Carved ' + round, 12, 24, 1, '#f8f8f8');
+        const bs = 'Best ' + getBest('carve');
+        text(bs, SW - 12 - bs.length * 6, 10, 1, '#c8ccd8');
+        const showing = state === 'show' || state === 'ready';
+        const f = state === 'show' ? face.slice(0, parts()) : state === 'done' ? face.slice(0, parts())
+          : mine.slice(0, step).concat(state === 'carve' ? [cur] : []);
+        pumpkin(160, 122, showing && state === 'ready' ? [] : f, state === 'show' || state === 'right' || state === 'done');
+        if (state === 'show') {
+          ctext('Remember this face!', 42, '#f8e040');
+          ctx.fillStyle = '#f8e040'; ctx.fillRect(60, 56, Math.round(200 * (1 - t / look())), 3);
+        } else if (state === 'carve') {
+          const label = '<  ' + PARTS[step][0] + ' ' + (step + 1) + '/' + parts() + '  >';
+          ctext(label, 42, '#f8f8f8');
+          text('Arrows: choose   Space: cut   Esc: give up', 12, SH - 14, 1, '#f8f8f8');
+        } else if (state === 'right') ctext('Spot on!', 42, '#58e048');
+        if (state === 'ready') readyBox(t, 'Remember the face, then carve it');
+        else if (state === 'done') {
+          ctext('It should have looked like this.', 42, '#f05040');
+          doneBox(['The knife slipped!', 'Pumpkins carved: ' + round, record ? 'New record!' : 'Best ' + getBest('carve')], t);
+        }
+      },
+    };
+    return self;
+  }
+
+  // Trick-or-treat catch: sweets in the bag, spiders and toothbrushes not.
+  function TreatGame() {
+    const SWEETS = ['#f08020', '#e03030', '#7b3fb8', '#58a848', '#f8e040'], BAG_Y = 196;
+    const items = [];
+    let state = 'ready', t = 0, x = 160, score = 0, strikes = 0, gap = 30, record = false, msg = '', msgT = 0;
+    function strike(why) {
+      strikes++; msg = why; msgT = 50; sfx('buzz');
+      if (strikes >= 3) { state = 'done'; t = 0; record = saveBest('treat', score); }
+    }
+    const self = {
+      music: 'halloween',
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say('You bagged ' + score + (score === 1 ? ' sweet.' : ' sweets.') + (record ? ' A new record!' : '') + ' Your dentist will hear about this.');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You put the bag down and step away from the candy.'); return; }
+        if (msgT > 0) msgT--;
+        if (held.left) x -= 3.2;
+        if (held.right) x += 3.2;
+        x = Math.max(20, Math.min(SW - 20, x));
+        if (--gap <= 0) {
+          gap = Math.max(16, 46 - score * 0.8) * (0.7 + Math.random() * 0.6);
+          const r = Math.random();
+          items.push({ x: 16 + Math.random() * (SW - 32), y: 30, v: 1.3 + score * 0.035 + Math.random() * 0.5,
+            kind: r < 0.14 ? 'spider' : r < 0.26 ? 'brush' : 'sweet', c: SWEETS[Math.floor(Math.random() * SWEETS.length)] });
+        }
+        for (let i = items.length - 1; i >= 0 && state === 'play'; i--) {
+          const o = items[i];
+          o.y += o.v;
+          if (o.y >= BAG_Y - 4 && o.y <= BAG_Y + 10 && Math.abs(o.x - x) < 17) {
+            items.splice(i, 1);
+            if (o.kind === 'sweet') { score++; sfx('blip', score & 1); }
+            else strike(o.kind === 'spider' ? 'A spider! In the bag!' : 'A toothbrush. Who gives out toothbrushes?');
+          } else if (o.y > SH - 8) {
+            items.splice(i, 1);
+            if (o.kind === 'sweet') strike('Dropped one!');
+          }
+        }
+      },
+      draw() {
+        ctx.fillStyle = '#1c1230'; ctx.fillRect(0, 0, SW, SH);
+        ctx.fillStyle = '#2a1c44'; ctx.fillRect(0, SH - 12, SW, 12);
+        text('Trick or treat!', 12, 10, 1, '#f08020');
+        text('Sweets ' + score, 12, 24, 1, '#f8f8f8');
+        const bs = 'Best ' + getBest('treat');
+        text(bs, SW - 12 - bs.length * 6, 10, 1, '#c8ccd8');
+        for (let i = 0; i < 3; i++) drawPumpkinAt(SW - 22 - i * 14, 22, i >= strikes);
+        for (const o of items) {
+          const ox = Math.round(o.x), oy = Math.round(o.y);
+          if (o.kind === 'sweet') {
+            ctx.fillStyle = o.c; ctx.fillRect(ox - 4, oy - 3, 8, 6);
+            ctx.fillRect(ox - 8, oy - 3, 3, 2); ctx.fillRect(ox - 8, oy + 1, 3, 2); ctx.fillRect(ox + 5, oy - 3, 3, 2); ctx.fillRect(ox + 5, oy + 1, 3, 2);
+            ctx.fillStyle = '#f8f8f8'; ctx.fillRect(ox - 2, oy - 2, 2, 1);
+          } else if (o.kind === 'spider') {
+            ctx.fillStyle = '#c8ccd8'; ctx.fillRect(ox, oy - 20, 1, 16);
+            ctx.fillStyle = '#080810'; ctx.fillRect(ox - 4, oy - 4, 9, 7);
+            for (const s of [-1, 1]) for (let k = 0; k < 3; k++) { ctx.fillRect(ox + s * 5 + (s < 0 ? -2 : 0), oy - 3 + k * 2, 3, 1); ctx.fillRect(ox + s * 8, oy - 2 + k * 2, 1, 2); }
+            ctx.fillStyle = '#f05040'; ctx.fillRect(ox - 2, oy - 2, 1, 1); ctx.fillRect(ox + 2, oy - 2, 1, 1);
+          } else {
+            ctx.fillStyle = '#40a0e0'; ctx.fillRect(ox - 1, oy - 8, 3, 16);
+            ctx.fillStyle = '#f8f8f8'; ctx.fillRect(ox - 4, oy - 9, 4, 6);
+          }
+        }
+        // you and your bag
+        ctx.drawImage(sprites.down[held.left || held.right ? 1 + ((t >> 3) & 1) : 0], Math.round(x) - 16, BAG_Y - 4, 32, 32);
+        ctx.fillStyle = '#181820'; ctx.fillRect(Math.round(x) - 15, BAG_Y + 4, 30, 18);
+        ctx.fillStyle = '#f08020'; ctx.fillRect(Math.round(x) - 13, BAG_Y + 6, 26, 14);
+        ctx.fillStyle = '#402008'; ctx.fillRect(Math.round(x) - 7, BAG_Y + 10, 4, 4); ctx.fillRect(Math.round(x) + 3, BAG_Y + 10, 4, 4); ctx.fillRect(Math.round(x) - 6, BAG_Y + 16, 12, 2);
+        if (msgT > 0) ctext(msg, 48, '#f05040');
+        if (state === 'ready') readyBox(t, 'Left/Right: catch the sweets');
+        else if (state === 'done') doneBox(['Three strikes!', 'Sweets: ' + score, record ? 'New record!' : 'Best ' + getBest('treat')], t);
+        else if (!msgT) text('Arrows: move   Esc: give up', 12, 40, 1, '#8890a0');
+      },
+    };
+    return self;
+  }
+
+  // Ghost in the cupboard: shut the door on each ghost with its arrow. Not on Linda.
+  function GhostGame() {
+    const SPOTS = { up: [138, 34], down: [138, 150], left: [44, 92], right: [232, 92] }, DIR_LIST = Object.keys(SPOTS);
+    const sheet = Art.renderSprites('ghost', {});
+    let state = 'ready', t = 0, score = 0, strikes = 0, pop = null, wait = 40, slam = null, record = false, msg = '', msgT = 0;
+    function strike(why) {
+      strikes++; msg = why; msgT = 50; sfx('buzz'); pop = null; wait = 40;
+      if (strikes >= 3) { state = 'done'; t = 0; record = saveBest('ghosts', score); }
+    }
+    const self = {
+      music: 'halloween',
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say('You shut ' + score + (score === 1 ? ' ghost' : ' ghosts') + ' back in the cupboard.' + (record ? ' A new record!' : ''));
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You back away from the cupboards. Slowly.'); return; }
+        if (msgT > 0) msgT--;
+        if (slam && --slam.t <= 0) slam = null;
+        const dir = DIR_LIST.find((d) => pressed.has(d));
+        if (!pop) {
+          if (dir) sfx('bump'); // nobody there: no harm done
+          if (--wait <= 0) {
+            pop = { dir: DIR_LIST[Math.floor(Math.random() * 4)], t: 0, life: Math.max(24, 72 - score * 2.5), linda: score > 2 && Math.random() < 0.2 };
+            sfx('swish');
+          }
+          return;
+        }
+        pop.t++;
+        if (dir) {
+          if (dir !== pop.dir) strike('Wrong cupboard!');
+          else if (pop.linda) strike('Linda: Rude. I work here.');
+          else { score++; slam = { dir, t: 12 }; pop = null; wait = Math.max(8, 34 - score) + Math.random() * 20; sfx('hit', 60); }
+        } else if (pop.t > pop.life) {
+          if (pop.linda) { pop = null; wait = 20; } else strike('One got out!');
+        }
+      },
+      draw() {
+        ctx.fillStyle = '#1c1230'; ctx.fillRect(0, 0, SW, SH);
+        text('Ghost in the cupboard', 12, 10, 1, '#f08020');
+        text('Shut in ' + score, 12, 24, 1, '#f8f8f8');
+        const bs = 'Best ' + getBest('ghosts');
+        text(bs, SW - 12 - bs.length * 6, 10, 1, '#c8ccd8');
+        for (let i = 0; i < 3; i++) drawPumpkinAt(SW - 22 - i * 14, 22, i >= strikes);
+        for (const d of DIR_LIST) {
+          const [x, y] = SPOTS[d], open = pop && pop.dir === d, shut = slam && slam.dir === d;
+          ctx.fillStyle = '#181820'; ctx.fillRect(x - 2, y - 2, 48, 60);
+          ctx.fillStyle = '#080810'; ctx.fillRect(x, y, 44, 56);
+          if (open) {
+            const rise = Math.min(1, pop.t / 8), gy = y + 40 - Math.round(rise * 28) + Math.round(Math.sin(t / 6) * 2);
+            ctx.save(); ctx.beginPath(); ctx.rect(x, y, 44, 56); ctx.clip();
+            ctx.drawImage(sheet.down[(t >> 3) & 1], x + 6, gy, 32, 32);
+            if (pop.linda) { // Linda has her red stapler with her
+              ctx.fillStyle = '#d02030'; ctx.fillRect(x + 24, gy + 22, 10, 4); ctx.fillStyle = '#181820'; ctx.fillRect(x + 24, gy + 26, 10, 1);
+              ctx.fillStyle = '#e07898'; ctx.fillRect(x + 12, gy + 2, 6, 3); ctx.fillRect(x + 20, gy + 2, 6, 3); ctx.fillRect(x + 18, gy + 3, 2, 2);
+            }
+            ctx.restore();
+            // the door, swung open to one side
+            ctx.fillStyle = '#6a4a28'; ctx.fillRect(x + 40, y, 8, 56);
+            // how long before it floats off
+            ctx.fillStyle = pop.linda ? '#e07898' : '#f8e040'; ctx.fillRect(x, y + 60, Math.round(44 * (1 - pop.t / pop.life)), 3);
+          } else {
+            ctx.fillStyle = shut ? '#a87840' : '#8a6030'; ctx.fillRect(x, y, 44, 56);
+            ctx.fillStyle = '#6a4a28'; ctx.fillRect(x + 21, y, 2, 56); ctx.fillRect(x + 4, y + 4, 14, 48); ctx.fillRect(x + 26, y + 4, 14, 48);
+            ctx.fillStyle = '#f0b030'; ctx.fillRect(x + 17, y + 26, 3, 5); ctx.fillRect(x + 24, y + 26, 3, 5);
+          }
+        }
+        // which arrow is which
+        ctx.fillStyle = '#4a3068';
+        ctx.fillRect(152, 104, 16, 34); ctx.fillRect(143, 113, 34, 16);
+        if (msgT > 0) ctext(msg, 222, '#f05040');
+        else if (state === 'play') ctext('Arrows: shut that door   Esc: give up', 222, '#8890a0');
+        if (state === 'ready') readyBox(t, 'Arrows: shut the ghosts in');
+        else if (state === 'done') doneBox(['Three strikes!', 'Ghosts shut in: ' + score, record ? 'New record!' : 'Best ' + getBest('ghosts')], t);
+      },
+    };
+    return self;
+  }
+
+  // Lam's costume contest. Three coworkers walk the catwalk and get their scorecards, then
+  // it's your turn: ten poses, each an arrow with a ring closing in on it, faster every
+  // time. Hit that arrow as the ring meets the mark. The three judges' cards come from how well you timed them.
+  function CostumeContest() {
+    const pool = hw.guests.length ? hw.guests : pickGuests();
+    const mc = pool.find((g) => g.name === 'Lam'), linda = pool.find((g) => g.name === 'Linda');
+    const rest = shuffled(pool.filter((g) => g !== mc && g !== linda));
+    const judges = [rest[3], linda, rest[4]];
+    const POSES = 10, GAP = 23, CX = 144, RUN_Y = 92, STOPS = (k) => 50 + k * GAP;
+    const acts = rest.slice(0, 3).map((g) => ({ name: g.name, outfit: g.outfit, sprites: g.sprites, cards: [0, 1, 2].map(() => 5 + Math.floor(Math.random() * 5)) }));
+    const me = { name: playerName || 'You', outfit: Art.COSTUMES[hw.costume].name, sprites, cards: null, me: true };
+    acts.push(me);
+    const sum = (a) => a.cards.reduce((x, y) => x + y, 0);
+    const QUIPS = ['Give it up for {n} the {o}!', 'Next on the catwalk: {n} the {o}. Health and Safety has questions.',
+      'And here comes {n} the {o}! Ten minutes and a glue gun, I\'m told.'];
+    const DIR_LIST = ['up', 'right', 'down', 'left'];
+    let state = 'intro', t = 0, ai = 0, pose = 0, pts = 0, want = null, need = 0, got = null, label = '', record = false, order = null;
+    let quip = 'Welcome to the Haakon Halloween costume contest! I\'m Lam, your MC.';
+    const intro = (a) => (a.me ? 'And finally... ' + a.name + ' the ' + a.outfit + '! Strike a pose!' : QUIPS[ai % QUIPS.length].replace('{n}', a.name).replace('{o}', a.outfit));
+    function nextAct() {
+      const a = acts[ai];
+      quip = intro(a); t = 0;
+      state = a.me ? 'ready' : 'walk';
+    }
+    function nextPose() {
+      want = DIR_LIST[Math.floor(Math.random() * 4)];
+      // the ring closes faster every pose: 56 ticks down to 20
+      need = 56 - pose * 4; got = null; state = 'pose'; t = 0;
+    }
+    function judge(dir) {
+      const err = Math.abs(t - need);
+      const p = dir !== want || err > 13 ? 0 : err <= 3 ? 5 : err <= 7 ? 4 : 2;
+      label = p === 5 ? 'PERFECT!' : p === 4 ? 'GREAT!' : p === 2 ? 'OK' : dir && dir !== want ? 'WRONG WAY!' : 'MISSED!';
+      pts += p; got = p ? want : null;
+      sfx(p === 5 ? 'cup' : p ? 'ding' : 'buzz');
+      state = 'judged'; t = 0;
+    }
+    const self = {
+      music: 'halloween',
+      update() {
+        t++;
+        const a = acts[ai];
+        if (state === 'intro') { if (t > 150 || (t > 30 && pressed.has('a'))) nextAct(); return; }
+        if (state === 'walk') { if (t > 80) { state = 'spin'; t = 0; } return; }
+        if (state === 'spin') { if (t > 72) { state = 'cards'; t = 0; sfx('ding'); } return; }
+        if (state === 'cards') {
+          if (t > 110 || (t > 30 && pressed.has('a'))) {
+            if (a.me) {
+              order = acts.slice().sort((p, q) => sum(q) - sum(p) || (q.me ? 1 : 0) - (p.me ? 1 : 0));
+              record = saveBest('costume', sum(me));
+              state = 'done'; t = 0; sfx(order[0] === me ? 'cup' : 'ding');
+            } else { state = 'exit'; t = 0; }
+          }
+          return;
+        }
+        if (state === 'exit') { if (t > 50) { ai++; nextAct(); } return; }
+        if (state === 'ready') { if (t > 75) { state = 'step'; t = 0; } return; }
+        if (state === 'step') { if (t % 8 === 1) sfx('blip'); if (t > 16) nextPose(); return; }
+        if (state === 'pose') {
+          const dir = DIR_LIST.find((d) => pressed.has(d));
+          if (dir) judge(dir); else if (t > need + 13) judge(null);
+          return;
+        }
+        if (state === 'judged') {
+          if (t > 30) {
+            if (++pose < POSES) { state = 'step'; t = 0; return; }
+            // the judges mark you out of 10 each, on how well you hit your poses
+            me.cards = [0.3, -0.3, 0].map((d) => Math.max(1, Math.min(10, Math.round(pts * 2 / POSES + d))));
+            quip = 'Judges, your scores please!';
+            state = 'cards'; t = 0; sfx('ding');
+          }
+          return;
+        }
+        if (state === 'done' && t > 40 && (pressed.has('a') || pressed.has('b'))) {
+          const won = order[0] === me;
+          remove(self);
+          say('Lam: ' + (won ? 'Best costume of the night goes to ' + me.name + ' the ' + me.outfit + '! Take a bow!'
+            : 'Best costume goes to ' + order[0].name + ' the ' + order[0].outfit + '! Hard luck, ' + me.name + '. There\'s always next October.'),
+          () => ui.push(HalloweenSplash()));
+        }
+      },
+      draw() {
+        const a = acts[ai];
+        ctx.fillStyle = '#140c20'; ctx.fillRect(0, 0, SW, SH);
+        ctx.fillStyle = '#2a1840'; ctx.fillRect(0, 0, SW, 84);
+        for (let i = 0; i < 40; i++) {
+          ctx.fillStyle = BUNTING[i % 2];
+          for (let k = 0; k < 3; k++) ctx.fillRect(i * 8 + 1 + k, 2 + k * 2, 6 - k * 2, 2);
+        }
+        const title = 'COSTUME CONTEST';
+        text(title, (SW - title.length * 12) >> 1, 12, 2, '#f08020');
+        // the catwalk, with footlights
+        ctx.fillStyle = '#4a3068'; ctx.fillRect(0, RUN_Y + 20, SW, 20);
+        ctx.fillStyle = '#7b3fb8'; ctx.fillRect(0, RUN_Y + 20, SW, 2); ctx.fillRect(0, RUN_Y + 38, SW, 2);
+        for (let i = 0; i < 20; i++) {
+          ctx.fillStyle = ((tick >> 4) + i) % 3 ? '#f8e040' : '#f08020';
+          ctx.fillRect(i * 16 + 7, RUN_Y + 42, 2, 2);
+        }
+        // Lam and what he's saying
+        ctx.drawImage(mc.sprites.right[0], 6, 46, 32, 32);
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(36, 60, 2, 8); ctx.fillStyle = '#181820'; ctx.fillRect(35, 57, 4, 4);
+        if (state !== 'pose' && state !== 'judged') wrap(quip, 44).slice(0, 3).forEach((l, i) => text(l, 46, 42 + i * 11, 1, '#f8f8f8'));
+        // the crowd, in the dark beyond the judges
+        ctx.fillStyle = '#241838';
+        for (let i = 0; i < 14; i++) {
+          const hx = i * 24 + ((i * 7) % 5), hy = 152 + ((i * 5) % 3) * 3 + (((tick >> 4) + i) % 5 ? 0 : -1);
+          ctx.fillRect(hx + 2, hy, 12, 12); ctx.fillRect(hx, hy + 8, 16, 20);
+        }
+        // whoever is on the catwalk
+        let x = CX, img = a.sprites.down[0], lift = 0;
+        if (state === 'walk') { x = -32 + (CX + 32) * Math.min(1, t / 80); img = a.sprites.right[(t >> 3) & 1 ? 1 : 0]; }
+        else if (state === 'spin') { img = a.sprites[['down', 'left', 'up', 'right'][(t / 12 | 0) & 3]][0]; lift = (t / 12 | 0) & 1 ? 2 : 0; }
+        else if (state === 'exit') { x = CX + (SW - CX + 8) * Math.min(1, t / 50); img = a.sprites.right[(t >> 3) & 1 ? 1 : 0]; }
+        else if (a.me) {
+          x = STOPS(Math.min(pose, POSES - 1));
+          if (state === 'ready') x = STOPS(0) - GAP;
+          else if (state === 'step') { x -= GAP * (1 - Math.min(1, t / 16)); img = sprites.right[(t >> 3) & 1 ? 1 : 0]; }
+          else if (state === 'judged' && got) { img = sprites[got][1 + ((t >> 3) & 1)]; lift = Math.max(0, 6 - Math.abs(t - 8)); }
+          else if (state === 'cards' || state === 'done') { x = CX; lift = (tick >> 4) & 1; }
+        }
+        if (state !== 'intro') {
+          ctx.globalAlpha = 0.22; ctx.fillStyle = '#f8e8a0';
+          ctx.beginPath(); ctx.ellipse(Math.round(x) + 16, RUN_Y + 32, 26, 9, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.drawImage(img, Math.round(x), RUN_Y - lift, 32, 32);
+        }
+        // the pose to strike: an arrow, the mark round it, and a ring closing in
+        if (state === 'pose' || state === 'judged') {
+          const px = Math.round(x) + 16, py = RUN_Y - 22;
+          if (state === 'pose') {
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#f8f8f8'; ctx.beginPath(); ctx.arc(px, py, 13, 0, Math.PI * 2); ctx.stroke();
+            ctx.strokeStyle = '#f08020'; ctx.beginPath(); ctx.arc(px, py, 13 + Math.max(0, need - t) * 0.4, 0, Math.PI * 2); ctx.stroke();
+          }
+          ctx.save();
+          ctx.translate(px, py); ctx.rotate(DIR_LIST.indexOf(want) * Math.PI / 2);
+          ctx.fillStyle = state === 'judged' ? (got ? '#58e048' : '#f05040') : '#f8e040';
+          ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(8, 0); ctx.lineTo(3, 0); ctx.lineTo(3, 8); ctx.lineTo(-3, 8); ctx.lineTo(-3, 0); ctx.lineTo(-8, 0); ctx.fill();
+          ctx.restore();
+          if (state === 'judged') text(label, px - label.length * 3, RUN_Y + 48, 1, got ? '#58e048' : '#f05040');
+        }
+        // the judges, with their backs to us, and their scorecards
+        ctx.fillStyle = '#181820'; ctx.fillRect(58, 176, 204, 14);
+        ctx.fillStyle = '#6a4a28'; ctx.fillRect(60, 178, 200, 10);
+        judges.forEach((j, i) => {
+          const jx = 84 + i * 60;
+          if (j.ghost) ctx.globalAlpha = 0.8;
+          ctx.drawImage(j.sprites.up[0], jx, 184, 32, 32);
+          ctx.globalAlpha = 1;
+          if ((state === 'cards' || state === 'done') && a.cards && t > i * 14) {
+            const n = String(a.cards[i]);
+            ctx.fillStyle = '#181820'; ctx.fillRect(jx + 3, 150, 26, 24);
+            ctx.fillStyle = '#f8f8f8'; ctx.fillRect(jx + 5, 152, 22, 20);
+            text(n, jx + 16 - n.length * 6, 155, 2, '#181820');
+          }
+        });
+        if (state === 'cards' && t > 42) ctext(a.name + ': ' + sum(a) + ' points', 224, '#f8e040');
+        else if (a.me && state !== 'intro' && state !== 'done') {
+          text('Pose ' + Math.min(pose + 1, POSES) + '/' + POSES, 8, 224, 1, '#c8ccd8');
+          const hint = 'Arrows: strike the pose';
+          text(hint, SW - 8 - hint.length * 6, 224, 1, '#c8ccd8');
+        } else if (state !== 'intro' && state !== 'done') ctext(a.name + ' the ' + a.outfit, 224, '#c8ccd8');
+        if (state === 'ready') readyBox(t, 'Arrows: pose as the ring closes');
+        if (state === 'done') {
+          box(24, 34, SW - 48, 172);
+          ctext('THE JUDGES HAVE SPOKEN', 46);
+          order.forEach((o, i) => {
+            const y = 68 + i * 22, sc = String(sum(o));
+            if (o.me) { ctx.fillStyle = '#f8e8a0'; ctx.fillRect(30, y - 5, SW - 60, 20); }
+            text((i + 1) + '.', 36, y);
+            ctx.drawImage(o.sprites.down[0], 52, y - 5);
+            text(o.name + ' the ' + o.outfit, 74, y);
+            text(sc, SW - 38 - sc.length * 6, y);
+          });
+          ctext(order[0] === me ? 'BEST COSTUME! You win!' : 'Best costume: ' + order[0].name, 160, '#c05810');
+          ctext(record ? 'New record!' : 'Your best: ' + getBest('costume'), 174);
+          if (t > 40 && (tick >> 4) & 1) ctext('Press Space', 190);
+        }
+      },
+    };
+    return self;
+  }
+
+  // The last word: Happy Haakon Halloween. When it fades, you're back by your chair.
+  function HalloweenSplash() {
+    let t = 0;
+    const bats = [0, 1, 2, 3, 4, 5, 6].map((i) => ({ x: Math.random() * SW, y: 16 + Math.random() * 190, v: 0.4 + Math.random() * 0.8, i }));
+    sfx('cup');
+    const self = {
+      music: 'halloween',
+      update() {
+        t++;
+        for (const b of bats) { b.x += b.v; if (b.x > SW + 10) b.x = -10; }
+        if (t > 300 || (t > 60 && (pressed.has('a') || pressed.has('b')))) startFade(() => { remove(self); endParty(); }, '#000000');
+      },
+      draw() {
+        ctx.fillStyle = '#0c0614'; ctx.fillRect(0, 0, SW, SH);
+        // a big moon, and a bigger pumpkin
+        ctx.fillStyle = '#f8f0c0'; ctx.beginPath(); ctx.arc(258, 150, 34, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e0d8a0'; ctx.fillRect(244, 136, 8, 6); ctx.fillRect(266, 158, 10, 8); ctx.fillRect(270, 132, 5, 5);
+        for (const b of bats) drawBatAt(Math.round(b.x), Math.round(b.y + Math.sin(t / 14 + b.i) * 8), ((t >> 3) + b.i) & 1, '#7b3fb8');
+        const cx = 160, cy = 162, bob = Math.round(Math.sin(t / 16) * 2);
+        ctx.fillStyle = '#2c6a34'; ctx.fillRect(cx - 4, cy - 46 + bob, 8, 12);
+        ctx.fillStyle = '#c05810'; ctx.beginPath(); ctx.ellipse(cx, cy + bob, 52, 38, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f08020';
+        for (const dx of [-30, 0, 30]) { ctx.beginPath(); ctx.ellipse(cx + dx, cy + bob, 20, 37, 0, 0, Math.PI * 2); ctx.fill(); }
+        ctx.fillStyle = (t >> 3) % 3 ? '#f8e040' : '#f8b830';
+        const tri = (x, y, s) => { ctx.beginPath(); ctx.moveTo(x, y - s); ctx.lineTo(x + s, y + s); ctx.lineTo(x - s, y + s); ctx.fill(); };
+        tri(cx - 22, cy - 10 + bob, 9); tri(cx + 22, cy - 10 + bob, 9); tri(cx, cy + 2 + bob, 5);
+        ctx.fillRect(cx - 30, cy + 12 + bob, 60, 10);
+        ctx.fillStyle = '#f08020';
+        for (let i = 0; i < 4; i++) { ctx.fillRect(cx - 22 + i * 16, cy + 12 + bob, 6, 4); ctx.fillRect(cx - 30 + i * 16, cy + 18 + bob, 6, 4); }
+        ctx.drawImage(sprites.down[[1, 0, 2, 0][(t >> 3) & 3]], 28, 150, 48, 48);
+        ['HAPPY HAAKON', 'HALLOWEEN'].forEach((line, i) => {
+          const x = (SW - line.length * 18) >> 1, y = 22 + i * 34 + Math.round(Math.sin(t / 10 + i) * 2);
+          text(line, x + 2, y + 2, 3, '#7b3fb8');
+          text(line, x, y, 3, '#f08020');
+        });
+      },
+    };
+    return self;
+  }
+
   function openStartMenu() {
     sfx('menu');
     // Linda's and Kiki's lists show up in the menu once you've got them
@@ -6475,7 +7356,11 @@
     playerName = playerName.trim() || 'New Hire';
     store.set('name', playerName);
     sfx('menu');
-    startFade(() => { mode = 'play'; roomName = null; curRoom = null; updateRoom(); });
+    startFade(HALLOWEEN ? openCostumes : enterOffice);
+  }
+  function enterOffice() {
+    mode = 'play'; roomName = null; curRoom = null; updateRoom();
+    if (HALLOWEEN) questQueue.push('It\'s Halloween at Haakon! When you\'re ready for the party, go and take a seat in the downstairs boardroom.');
   }
   function nameType(tok) {
     if (tok === 'OK') { nameDone(); return; }
@@ -6582,7 +7467,7 @@
   const S0 = MAPS.start;
   const P = { floor: S0.floor, x: S0.x, y: S0.y, dir: S0.dir, moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, turnWait: 0, walked: false, bump: 0 };
   let mode = 'title', tick = 0, roomName = null, curRoom = null, banner = null;
-  let fade = null; // {t, cb}
+  let fade = null; // {t, cb, color}
 
   function showBanner(t) { banner = { text: t, t: 0 }; }
   function updateRoom() {
@@ -6596,7 +7481,7 @@
     if (r.say) say(r.say);
   }
 
-  function startFade(cb) { fade = { t: 0, cb }; }
+  function startFade(cb, color) { fade = { t: 0, cb, color }; }
   function warpTo(end) {
     startFade(() => {
       P.floor = end.floor;
@@ -6633,6 +7518,7 @@
 
   function walkable(fi, x, y) {
     const t = tileAt(fi, x, y);
+    if (doorShut(fi, x, y) || propAt(fi, x, y)) return false;
     return WALKABLE.includes(t) || (t === 'C' && curtainOpen === fi) || (t === '$' && !eotm);
   }
 
@@ -6662,6 +7548,7 @@
       // they say when you turn them down, so you always know who is talking.
       const says = (line) => npc.name + ': ' + line;
       if (npc.dog) { dogTalk(npc); return; }
+      if (npc.guest) { guestTalk(npc, says); return; }
       if (npc.name === 'Damir') {
         say(says('Do you feel safe in the dark?'), () => ui.push(DarkGame()));
         return;
@@ -6732,6 +7619,20 @@
         : 'Just a gym bag, some old sneakers and a faint chill.');
       return;
     }
+    const partyGame = partyGameAt(tx, ty, t);
+    if (partyGame) {
+      const [msg, opt, Game] = partyGame;
+      sfx('select');
+      ask(msg, [opt, 'CANCEL'], (i) => { if (i === 0) { sfx('menu'); ui.push(Game()); } });
+      return;
+    }
+    if (doorShut(P.floor, tx, ty)) { sfx('bump'); say('The doors are shut until the party\'s over.'); return; }
+    if (HALLOWEEN && t === 'c' && hw.state !== 'party' && P.floor === hw.floor && roomAt(P.floor, tx, ty) === hw.room) {
+      sfx('select');
+      ask(hw.state === 'done' ? 'Take a seat and start the Halloween celebration all over again?' : 'Take a seat and start the Halloween celebration?',
+        ['START THE PARTY', 'NOT YET'], (i) => { if (i === 0) { sfx('ding'); startFade(startParty, '#000000'); } });
+      return;
+    }
     if (t === '@') { sfx('select'); say('A shimmering portal. It hums with out-of-town energy.'); return; }
     if (t === '&') { sfx('select'); say('Joe\'s Lego shelf: a red house, a spaceship and a little green tree. Every brick is in its place.'); return; }
     if (t === '%') { sfx('select'); say('One of Joe\'s Lego builds. A sticky note on it says DO NOT TOUCH.'); return; }
@@ -6796,6 +7697,12 @@
       W: ['A washer, mid-cycle. A pile of coveralls waits.', 'SORT THE WASH', LaundryGame],
       O: ['A dryer, still warm. A pile of coveralls waits.', 'SORT THE WASH', LaundryGame],
     };
+    // the boardroom's everyday games are off while the Halloween party is on
+    if (GAMES[t] && hw.state === 'party' && P.floor === hw.floor && roomAt(P.floor, tx, ty) === hw.room) {
+      sfx('select');
+      say('Someone has hung a sign on it: "NOT TONIGHT. IT\'S A PARTY!"');
+      return;
+    }
     if (GAMES[t]) {
       const [msg, opt, Game] = GAMES[t];
       sfx('select');
@@ -6851,6 +7758,8 @@
       updateSelect();
     } else if (mode === 'name') {
       updateName();
+    } else if (mode === 'costume') {
+      updateCostume();
     } else if (ui.length) {
       top().update();
     } else if (questQueue.length) {
@@ -6899,6 +7808,40 @@
       });
     });
     ctext('Arrows: choose   Space: start', SH - 24);
+  }
+
+  // ---------- Halloween costume select ----------
+  let costumeCur = 0, costumeSheets = [];
+  function openCostumes() {
+    const look = Art.LOOKS[pick.gender][pick.index];
+    costumeSheets = COSTUME_KEYS.map((k) => Art.renderCostume(pick.gender, look, k, sdgIcon));
+    costumeCur = Math.max(0, COSTUME_KEYS.indexOf(hw.costume));
+    mode = 'costume';
+  }
+  function updateCostume() {
+    const n = COSTUME_KEYS.length, row = costumeCur - (costumeCur % 4);
+    if (pressed.has('left')) { costumeCur = row + ((costumeCur + 3) % 4); sfx('select'); }
+    if (pressed.has('right')) { costumeCur = row + ((costumeCur + 1) % 4); sfx('select'); }
+    if (pressed.has('up') || pressed.has('down')) { costumeCur = (costumeCur + 4) % n; sfx('select'); }
+    if (pressed.has('a') || pressed.has('start')) {
+      sfx('menu');
+      wearCostume(COSTUME_KEYS[costumeCur]);
+      store.set('costume', hw.costume);
+      startFade(enterOffice);
+    } else if (pressed.has('b')) { sfx('select'); startFade(() => { mode = 'name'; }); }
+  }
+  function drawCostume() {
+    ctx.fillStyle = col.light; ctx.fillRect(0, 0, SW, SH);
+    ctx.fillStyle = col.dark; ring(4, 4, SW - 8, SH - 8); ring(6, 6, SW - 12, SH - 12);
+    const title = 'Choose your costume';
+    text(title, (SW - title.length * 12) >> 1, 18, 2, '#c05810');
+    COSTUME_KEYS.forEach((k, i) => {
+      const x = 32 + (i % 4) * 70, y = 50 + (i >> 2) * 78, sel = i === costumeCur, name = Art.COSTUMES[k].name;
+      ctx.drawImage(costumeSheets[i].down[sel ? [1, 0, 2, 0][(tick >> 3) & 3] : 0], x, y, 48, 48);
+      text(name, x + 24 - name.length * 3, y + 54);
+      if (sel) { ctx.fillStyle = col.dark; ring(x - 8, y - 6, 64, 72); ring(x - 7, y - 5, 62, 70); }
+    });
+    ctext('Arrows: choose   Space: wear it', SH - 24);
   }
 
   // ---------- render ----------
@@ -6959,6 +7902,8 @@
         ctx.fillStyle = c; ctx.fillRect(x + 4 + i * 3, y + 3, 2, 2);
       });
     }
+    const spooky = HALLOWEEN && P.floor === hw.floor;
+    if (spooky) drawHalloween(cx, cy, 0);
     // people, drawn back to front so nearer ones overlap farther ones
     const actors = [{ x: px, y: py, img: sprites[P.dir][frameIndex()] }];
     if (party) {
@@ -7002,6 +7947,7 @@
     for (const r of MAPS.floors[P.floor].rooms)
       if (r.dark) ctx.fillRect(r.x1 * 16 - cx, r.y1 * 16 - cy - 4, (r.x2 - r.x1 + 1) * 16, (r.y2 - r.y1 + 1) * 16 + 4);
     for (const r of MAPS.floors[P.floor].rooms) if (r.rave) drawRave(r, cx, cy);
+    if (spooky) drawHalloween(cx, cy, 1);
   }
 
   // Party lights: dim the room, light the floor tiles up in colour and sweep spotlights
@@ -7079,6 +8025,7 @@
     if (mode === 'title') drawTitle();
     else if (mode === 'select') drawSelect();
     else if (mode === 'name') drawName();
+    else if (mode === 'costume') drawCostume();
     else {
       drawWorld();
       drawBanner();
@@ -7087,7 +8034,7 @@
     if (fade) {
       const lvl = fade.t < 16 ? fade.t / 16 : (32 - fade.t) / 16;
       ctx.globalAlpha = Math.min(1, Math.ceil(lvl * 4) / 4);
-      ctx.fillStyle = col.light;
+      ctx.fillStyle = fade.color || col.light;
       ctx.fillRect(0, 0, SW, SH);
       ctx.globalAlpha = 1;
     }
@@ -7117,9 +8064,18 @@
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
     if (q.has('x')) { P.x = +q.get('x'); P.y = +q.get('y'); }
-    if (q.has('char')) { const [g, i] = q.get('char').split(':'); pick.gender = g; sprites = charSprites[g][+i || 0]; }
+    if (q.has('char')) { const [g, i] = q.get('char').split(':'); pick.gender = g; pick.index = +i || 0; sprites = charSprites[g][pick.index]; }
     if (q.has('dir')) P.dir = q.get('dir');
+    // &costume=vampire wears that costume (in October you wear your last one anyway);
+    // &party=1 starts the boardroom party with you standing by a chair (or at &x=&y=)
+    if (q.has('name')) playerName = q.get('name');
+    if (HALLOWEEN || q.has('costume')) wearCostume(q.get('costume'));
+    if (q.has('party')) {
+      if (!q.has('x')) Object.assign(P, { floor: hw.floor, x: hw.room.x2 - 2, y: hw.room.y1 + 6, dir: 'up' });
+      startParty();
+    }
     mode = q.has('title') ? 'title' : q.has('select') ? 'select' : q.has('naming') ? 'name' : 'play';
+    if (q.has('costumes')) openCostumes();
     updateRoom();
     if (q.has('say')) ask('The elevator. Which floor?', ['GROUND', '2F', 'CANCEL'], () => {});
     if (q.has('menu')) openStartMenu();
@@ -7161,10 +8117,15 @@
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
       dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
-      locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
+      contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog) }[q.get('game')];
     if (GAME) ui.push(GAME());
   }
+
+  // The shortcuts above are only read when the page loads, and a browser doesn't reload
+  // a page whose address changed only after the #. So reload when that happens: then
+  // pasting a shortcut into a tab that already has the game open works.
+  addEventListener('hashchange', () => location.reload());
 
   // ---------- main loop ----------
   layout();

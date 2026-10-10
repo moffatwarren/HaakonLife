@@ -4,6 +4,7 @@
 //   hair / skin / top / accent (tie or necklace) / pants:  colours
 //   lines: what they say when you talk to them (one is picked at random).
 //          Leave it empty to use the generic greetings.
+//   halloween: (optional) something extra they might say at the Halloween party
 // Body types are a best guess from each name; colours are random placeholders.
 // Office 182 is the visitor office: people from out of town take turns in it,
 // coming and going through the portal in the corner (in a new order every time
@@ -61,7 +62,7 @@ window.PEOPLE = {
   "Eugene": { body: 'male', hair: '#e8c050', skin: '#f8d0a8', top: '#808898', accent: '#f8f8f8', pants: '#686878', lines: [] },
   "Damir": { body: 'male', hair: '#181010', skin: '#f8d0a8', top: '#f0b030', accent: '#3050a8', pants: '#b09870', lines: [] },
   "Derek": { body: 'male', hair: '#8a5a3a', skin: '#f8d0a8', top: '#58a848', accent: '#f0b030', pants: '#3a3050', lines: [] },
-  "Tho": { body: 'male', hair: '#5a3420', skin: '#f0c098', top: '#808898', accent: '#b83028', pants: '#484858', lines: ["Go Leafs Go!!!"] },
+  "Tho": { body: 'male', hair: '#5a3420', skin: '#f0c098', top: '#808898', accent: '#b83028', pants: '#484858', lines: ["Go Leafs Go!!!"], halloween: "Scariest thing I've seen all year? The Leafs in the playoffs." },
   "Mike H.": { body: 'male', hair: '#5a3420', skin: '#d8a070', top: '#58a848', accent: '#f8e070', pants: '#3a3050', lines: [] },
   "Jhonna": { body: 'female', hair: '#8a5a3a', skin: '#d8a070', top: '#3868c8', accent: '#2c6a34', pants: '#383848', lines: ["Make sure you have your dependant forms filled out for Manulife!"] },
   "Max": { body: 'male', hair: '#181010', skin: '#f8d0a8', top: '#40a0a0', accent: '#f8e070', pants: '#b09870', lines: [] },
@@ -74,7 +75,7 @@ window.PEOPLE = {
   "Lauren": { body: 'female', hair: '#181010', skin: '#8a5838', top: '#f0b030', accent: '#f8f8f8', pants: '#303040', lines: [] },
   "Gigi": { body: 'female', hair: '#8a5a3a', skin: '#8a5838', top: '#40a0a0', accent: '#283878', pants: '#383848', lines: [] },
   "Joe": { body: 'male', hair: '#8a5a3a', skin: '#8a5838', top: '#b83028', accent: '#3050a8', pants: '#b09870', lines: ["Have you seen my Lego shelf? That spaceship took me all weekend."] },
-  "Mauro": { body: 'male', hair: '#d06030', skin: '#8a5838', top: '#40a0a0', accent: '#2c6a34', pants: '#3a3050', lines: ["I'm young and Italian!"] },
+  "Mauro": { body: 'male', hair: '#d06030', skin: '#8a5838', top: '#40a0a0', accent: '#2c6a34', pants: '#3a3050', lines: ["I'm young and Italian!"], halloween: "This costume makes me look even younger. And even more Italian." },
   "Alyssa": { body: 'female', hair: '#a8a8b0', skin: '#f8d0a8', top: '#78a8e8', accent: '#283878', pants: '#b09870', lines: ["Why do I feel so old? Did Mauro steal my youth?"] },
   "JP": { body: 'male', hair: '#d06030', skin: '#c08860', top: '#78a8e8', accent: '#2c6a34', pants: '#3a3050', lines: [] },
   "James": { body: 'male', hair: '#d06030', skin: '#f8d0a8', top: '#58a848', accent: '#283878', pants: '#686878', lines: [] },
@@ -82,7 +83,7 @@ window.PEOPLE = {
   "Patrick": { body: 'male', hair: '#201818', skin: '#f8d0a8', top: '#e07898', accent: '#283878', pants: '#484858', lines: ["Did you get your Hyrox tickets? Let's get a workout in!"] },
   "Rob": { body: 'male', hair: '#a8a8b0', skin: '#f8d0a8', top: '#9868c8', accent: '#3050a8', pants: '#686878', lines: [] },
   "Warren": { body: 'male', hair: '#d06030', skin: '#c08860', top: '#f8f8f8', accent: '#d03868', pants: '#303040', lines: ["The dumbbell rack is my legacy."] },
-  "Bob": { body: 'male', hair: '#8a5a3a', skin: '#8a5838', top: '#3868c8', accent: '#f0b030', pants: '#484858', lines: ["Have you read the Globe & Mail today?"] },
+  "Bob": { body: 'male', hair: '#8a5a3a', skin: '#8a5838', top: '#3868c8', accent: '#f0b030', pants: '#484858', lines: ["Have you read the Globe & Mail today?"], halloween: "There is only ONE true Bob under this costume." },
   "Walker": { body: 'male', hair: '#d06030', skin: '#c08860', top: '#40a0a0', accent: '#d03868', pants: '#686878', lines: [] },
   "Hudson": { body: 'male', hair: '#181010', skin: '#d8a070', top: '#808898', accent: '#f0b030', pants: '#686878', lines: [] },
   "Jenn": { body: 'female', hair: '#6a3c20', skin: '#f8d0a8', top: '#b83028', accent: '#2c6a34', pants: '#484858', lines: ["Sure Nik and Dmitriy can cook, but baking is where its really at."] },
@@ -92,7 +93,7 @@ window.PEOPLE = {
   "Nik": { body: 'male', hair: '#6a3c20', skin: '#f8d8b8', top: '#808898', accent: '#f8e070', pants: '#383848', lines: ["Have you met Dmitriy? He's my younger brother. I taught him all he knows about being a chef."] },
   "Leon": { body: 'male', hair: '#181010', skin: '#8a5838', top: '#808898', accent: '#2c6a34', pants: '#b09870', lines: [] },
   "Mike Friesen": { body: 'male', hair: '#a8a8b0', skin: '#f0c098', top: '#40a0a0', accent: '#d03868', pants: '#383848', lines: ["Yes"] },
-  "STEPHEN": { body: 'male', hair: '#5a3420', skin: '#d8a070', top: '#40a0a0', accent: '#f8e070', pants: '#484858', lines: ["EMAILS ARE MUCH EASIER TO READ IF EVERYTHING IS ALL CAPS"] },
+  "STEPHEN": { body: 'male', hair: '#5a3420', skin: '#d8a070', top: '#40a0a0', accent: '#f8e070', pants: '#484858', lines: ["EMAILS ARE MUCH EASIER TO READ IF EVERYTHING IS ALL CAPS"], halloween: "BOO. SORRY, WAS THAT TOO LOUD?" },
   "Dave": { body: 'male', hair: '#a8a8b0', skin: '#f0c098', top: '#e07898', accent: '#f8e070', pants: '#383848', lines: ["If you see my mug, its the one with the tweety bird on it."] },
   "Desirae": { body: 'female', hair: '#181010', skin: '#f8d0a8', top: '#f8f8f8', accent: '#f0b030', pants: '#303040', lines: ["Everyone else signed up for the Gran Fondo already. Everyone. You don't want to be the only one left out, do you?"] },
   "Wade": { body: 'male', hair: '#181010', skin: '#f0c098', top: '#78a8e8', accent: '#283878', pants: '#303040', lines: [] },
@@ -111,8 +112,8 @@ window.PEOPLE = {
   "Dalia": { body: 'female', hair: '#5a3420', skin: '#d8a070', top: '#e07898', accent: '#f8f8f8', pants: '#303040', lines: [] },
   "Avery": { body: 'male', hair: '#d06030', skin: '#8a5838', top: '#78a8e8', accent: '#d03868', pants: '#686878', lines: [] },
   "Muhammad": { body: 'male', hair: '#5a3420', skin: '#f8d0a8', top: '#b83028', accent: '#2c6a34', pants: '#686878', lines: [] },
-  "Cody": { body: 'male', hair: '#6a3c20', skin: '#f0c098', top: '#f8f8f8', accent: '#f0b030', pants: '#b09870', lines: ["I'm down this week on spring rolls. I guess I just won't eat this weekend :("] },
-  "Leo": { body: 'male', hair: '#d06030', skin: '#d8a070', top: '#808898', accent: '#f0b030', pants: '#303040', lines: ["Make sure to check the sender's email address and don't click on any links."] },
+  "Cody": { body: 'male', hair: '#6a3c20', skin: '#f0c098', top: '#f8f8f8', accent: '#f0b030', pants: '#b09870', lines: ["I'm down this week on spring rolls. I guess I just won't eat this weekend :("], halloween: "I bet my costume on a hand of blackjack. I nearly came as nothing at all." },
+  "Leo": { body: 'male', hair: '#d06030', skin: '#d8a070', top: '#808898', accent: '#f0b030', pants: '#303040', lines: ["Make sure to check the sender's email address and don't click on any links."], halloween: "You want scary? An email from the CEO asking for gift cards." },
   "John": { body: 'male', hair: '#8a5a3a', skin: '#d8a070', top: '#808898', accent: '#d03868', pants: '#303040', lines: [] },
   "Dmitriy": { body: 'male', hair: '#201818', skin: '#f8d8b8', top: '#58a848', accent: '#f8f8f8', pants: '#686878', lines: ["Nik says he taught me to cook? I ran the line, not him."] },
 };
@@ -134,4 +135,18 @@ window.DOGS = {
   "Mocha": { breed: 'Havanese/Shih Tzu/Poodle', owner: 'Sidney', coat: '#8a5a3a', ears: '#5a3420', chest: '#c09068', collar: '#9868c8', sound: 'Yap yap!', small: true, speed: 0.85 },
   "Nala": { breed: 'Rhodesian Ridgeback Terrier Mix', owner: 'Jhonna', coat: '#c8783a', ears: '#8a4a20', chest: '#d89858', collar: '#40a0a0', sound: 'Woof!', speed: 1.2 },
   "Felix": { breed: 'Siberian', owner: 'Kim', cat: true, coat: '#e88a30', ears: '#b85a18', chest: '#f8d8a8', collar: '#e88a30', sound: 'Meow... *yawn*... zzzz', speed: 0 },
+};
+
+// Halloween party: what somebody says about the costume they turned up in (one is
+// picked at random). 'ghost' is the bedsheet only coworkers wear.
+window.COSTUME_LINES = {
+  clown: ["I'm not saying the budget meeting is a circus, but I did come dressed for it.", "These shoes are a size 22. Same as our lead time in weeks.", "Honk honk. That's clown for 'per my last email'."],
+  vampire: ["I vant to suck... the air through a properly sized return duct.", "I can't see myself in the mirror. Or on the org chart.", "I only come out at night. And for free lunch."],
+  skeleton: ["I've got no body to go with. Story of my month-end.", "This is what I look like after quoting season.", "I'm chilled to the bone. Who set the supply air to 12 degrees?"],
+  witch: ["My broom has better airflow than half our competitors' units.", "Double, double, toil and trouble. That's just the submittal process.", "I put a hex on the printer. Turns out it was already cursed."],
+  pumpkin: ["I carved this myself. Engineering signed off on the structure.", "I am officially pumpkin spice certified.", "Don't leave me out on the porch. I go soft by November."],
+  mummy: ["I'm all wrapped up in this project. Have been for years.", "This is three rolls of duct tape. Don't tell the shop.", "Mmmph mmph mmmph. (I can't find the mouth hole.)"],
+  fan: ["I'm a plenum fan. Ask me about my static pressure. Please. Nobody has.", "I'm a big fan of this party.", "Careful, I'm running at full speed. I've had two coffees."],
+  sdg: ["I'm SDG. Double-click me and wait ninety seconds.", "I came as the scariest thing in the office: SDG on a Monday morning.", "Please don't close me without saving."],
+  ghost: ["Two eye holes and a bedsheet. Lean manufacturing.", "Boo! Sorry, was that on schedule?", "Linda says I'm doing it all wrong."],
 };

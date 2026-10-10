@@ -306,4 +306,24 @@ window.MUSIC = {
       { type: 'drums', vol: 0.55, notes: 'k . s . k . s . | k . s . k . s .' },
     ],
   },
+  // the Halloween party in the boardroom: minor, creeping, but you can dance to it
+  halloween: {
+    bpm: 120,
+    voices: [
+      { type: 'square', vol: 0.03, notes:
+        'A4 . E5 . A4 . E5 D#5 | E5 . C5 . A4 - . . | A4 . E5 . A4 . E5 D#5 | E5 . G5 . F5 E5 D5 C5 |' +
+        'D5 . F5 . D5 . F5 E5 | F5 . D5 . B4 - . . | E5 . G#5 . B5 . G#5 E5 | A5 - - - . . E5 . |' +
+        'A5 . G5 . F5 . E5 . | D#5 - E5 - C5 - A4 - | F5 . E5 . D5 . C5 . | B4 - C5 - D5 - E5 - |' +
+        'A5 . G5 . F5 . E5 . | D#5 - E5 - C5 - A4 - | B4 . D5 . G#4 . B4 . | A4 - - - - - . .' },
+      { type: 'sine', vol: 0.03, notes:
+        '. . . . . . . . | . . . . E6 - D#6 - | . . . . . . . . | . . . . . . . . |' +
+        '. . . . . . . . | . . . . F6 - E6 - | . . . . . . . . | A6 - - - . . . .' },
+      { type: 'triangle', vol: 0.09, notes:
+        'A2 . A3 . E3 . A3 . | A2 . A3 . E3 . A3 . | A2 . A3 . E3 . A3 . | C3 . C4 . G3 . C4 . |' +
+        'D3 . D4 . A3 . D4 . | D3 . D4 . B2 . B3 . | E3 . E4 . B3 . E4 . | A2 . A3 . E3 . E2 . |' +
+        'F2 . F3 . C3 . F3 . | A2 . A3 . E3 . A3 . | D3 . D4 . A3 . D4 . | E3 . E4 . B3 . E4 . |' +
+        'F2 . F3 . C3 . F3 . | A2 . A3 . E3 . A3 . | E3 . E4 . E3 . G#3 . | A2 . A3 . E3 . A2 .' },
+      { type: 'drums', vol: 0.45, notes: 'k . h . s . h h | k . h k s . h .' },
+    ],
+  },
 };

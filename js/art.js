@@ -820,6 +820,347 @@ window.Art = (function () {
     ],
   };
 
+  // ---------- Halloween costumes ----------
+  // Each costume is drawn over the ordinary body: `pal` recolours it (and adds any new
+  // colour letters), and down / up / left are overlays stamped on top, row 0 first.
+  // In an overlay '.' leaves the body showing and '_' rubs it out (long hair under a mask).
+  const below = (n, rows) => new Array(n).fill('').concat(rows);
+  const COSTUMES = {
+    clown: {
+      name: 'Clown',
+      pal: { h: '#e03030', M: '#e03030', F: '#f8f8f8', w: '#f8e040', u: '#3868c8', K: '#7b3fb8' },
+      down: [
+        '',
+        '...kkkkkkkkkk...',
+        '..kMMMMMMMMMMk..',
+        '.kMMMMMMMMMMMMk.',
+        '.kMMMMMMMMMMMMk.',
+        '.kMMkFFFFFFkMMk.',
+        '.kMMkFkFFkFkMMk.',
+        '..kkkFFMMFFkkk..',
+        '..__kMFFFFMk__..',
+        '..___kkkkkk___..',
+        '..__kFGFFGFk__..',
+      ],
+      up: [
+        '',
+        '...kkkkkkkkkk...',
+        '..kMMMMMMMMMMk..',
+        '.kMMMMMMMMMMMMk.',
+        '.kMMMMMMMMMMMMk.',
+        '.kMMMMMMMMMMMMk.',
+        '.kMMMMMMMMMMMMk.',
+        '..kkMMMMMMMMkk..',
+        '..__kMMMMMMk__..',
+        '..___kkkkkk___..',
+        '..__kFGFFGFk__..',
+      ],
+      left: [
+        '',
+        '...kkkkkkkkk....',
+        '..kMMMMMMMMMk...',
+        '.kMMMMMMMMMMMk..',
+        '.kMMMMMMMMMMMk..',
+        '..kFFFkMMMMMMk..',
+        '..kFFFFkMMMMMk..',
+        '.MFFkFFFkMMMMk..',
+        '...kFFFFFkMMk_..',
+        '....kkkkkkkk__..',
+        '....kFGFFGFk_...',
+      ],
+    },
+    vampire: {
+      name: 'Vampire',
+      pal: { h: '#181018', s: '#e4e4f0', w: '#f8f8f8', u: '#d02030', K: '#30303c', M: '#d02030', x: '#3a2848' },
+      down: [
+        '', '', '', '', '', '',
+        '.k............k.',
+        '.kM..........Mk.',
+        '.kMk..w..w..kMk.',
+        '.kMMk......kMMk.',
+        '.kxk........kxk.',
+        '.kxk........kxk.',
+        '.kxk........kxk.',
+        '.kxk........kxk.',
+        '..k..........k..',
+      ],
+      up: [
+        '', '', '', '', '', '',
+        '.k............k.',
+        '.kx..........xk.',
+        '.kxk........kxk.',
+        '.kxxkkkkkkkkxxk.',
+        '.kxxxxxxxxxxxxk.',
+        '.kxxxxxxxxxxxxk.',
+        '.kxxxxxxxxxxxxk.',
+        '.kxxxxxxxxxxxxk.',
+        '..kkk......kkk..',
+      ],
+      left: [
+        '', '', '', '', '', '', '',
+        '............kk..',
+        '....w......kMk..',
+        '...........kMk..',
+        '.........xxxxk..',
+        '.........xxxxk..',
+        '.........xxxxk..',
+        '..........kxxk..',
+        '...........kk...',
+      ],
+    },
+    skeleton: {
+      name: 'Skeleton',
+      pal: { h: '#f0ecd8', s: '#f0ecd8', b: '#f0ecd8', w: '#2c2c38', x: '#2c2c38', u: '#f0ecd8', K: '#3c3c4a' },
+      down: [
+        '',
+        '.....kkkkkk.....',
+        '....kbbbbbbk....',
+        '...kbbbbbbbbk...',
+        '.._kbbbbbbbbk_..',
+        '.._kbkkbbkkbk_..',
+        '.._kbkkbbkkbk_..',
+        '.._kbbbkkbbbk_..',
+        '..__kbkbbkbk__..',
+        '..___kkkkkk___..',
+        '..__kxbbbbxk__..',
+        '...kbxbkkbxbk...',
+        '...kbxbbbbxbk...',
+      ],
+      up: [
+        '',
+        '.....kkkkkk.....',
+        '....kbbbbbbk....',
+        '...kbbbbbbbbk...',
+        '.._kbbbbbbbbk_..',
+        '.._kbbbbbbbbk_..',
+        '.._kbbbbbbbbk_..',
+        '.._kbbbbbbbbk_..',
+        '..__kbbbbbbk__..',
+        '..___kkkkkk___..',
+        '..__kxxbbxxk__..',
+        '...kbxbbbbxbk...',
+        '...kbxxbbxxbk...',
+      ],
+      left: [
+        '',
+        '.....kkkkkk.....',
+        '....kbbbbbbk....',
+        '...kbbbbbbbbk...',
+        '...kbbbbbbbbk_..',
+        '...kkkbbbbbbk_..',
+        '..kbkkbbbbbbk_..',
+        '..kbbbbbbbbbk_..',
+        '...kbkbkbbbk__..',
+        '....kkkkkkk___..',
+        '....kxbbxxxk_...',
+      ],
+    },
+    witch: {
+      name: 'Witch',
+      pal: { s: '#80c868', w: '#7b3fb8', u: '#f08020', K: '#30283c', x: '#30283c', V: '#7b3fb8', O: '#f0b030' },
+      down: [
+        '.......kk.......',
+        '......kxxk......',
+        '.....kxxxxk.....',
+        '....kVVOOVVk....',
+        '.kkkxxxxxxxxkkk.',
+        '.kxxxxxxxxxxxxk.',
+        '.kk..........kk.',
+      ],
+      up: [
+        '.......kk.......',
+        '......kxxk......',
+        '.....kxxxxk.....',
+        '....kVVVVVVk....',
+        '.kkkxxxxxxxxkkk.',
+        '.kxxxxxxxxxxxxk.',
+        '.kk..........kk.',
+      ],
+      left: [
+        '.......kk.......',
+        '......kxxk......',
+        '.....kxxxxk.....',
+        '....kVVVVVVk....',
+        '.kkkxxxxxxxxkkk.',
+        '.kxxxxxxxxxxxxk.',
+        '.kk..........kk.',
+      ],
+    },
+    pumpkin: {
+      name: 'Pumpkin',
+      pal: { O: '#f08020', q: '#c05810', h: '#58a848', w: '#58a848', u: '#2c6a34', K: '#5a4a30' },
+      down: [
+        '.......ee.......',
+        '....kkkeekkk....',
+        '...kOOOOOOOOk...',
+        '..kOOqOOOOqOOk..',
+        '..kOOOOOOOOOOk..',
+        '..kOOkOOOOkOOk..',
+        '..kOkkkOOkkkOk..',
+        '..kOOOOOOOOOOk..',
+        '..kOkkOkkOkkOk..',
+        '...kOOOOOOOOk...',
+        '..__kkkkkkkk__..',
+      ],
+      up: [
+        '.......ee.......',
+        '....kkkeekkk....',
+        '...kOOOOOOOOk...',
+        '..kOOqOOOOqOOk..',
+        '..kOOqOOOOqOOk..',
+        '..kOOqOOOOqOOk..',
+        '..kOOqOOOOqOOk..',
+        '..kOOqOOOOqOOk..',
+        '..kOOqOOOOqOOk..',
+        '...kOOOOOOOOk...',
+        '..__kkkkkkkk__..',
+      ],
+      left: [
+        '.......ee.......',
+        '....kkkeekkk....',
+        '...kOOOOOOOOk...',
+        '..kOOOOOqOOOOk..',
+        '..kOOOOOqOOOOk..',
+        '..kOkOOOqOOOOk..',
+        '..kkkOOOqOOOOk..',
+        '..kOOOOOqOOOOk..',
+        '..kkOkOOqOOOOk..',
+        '...kOOOOOOOOk...',
+        '....kkkkkkkk_...',
+      ],
+    },
+    mummy: {
+      name: 'Mummy',
+      pal: { h: '#e8e0c8', s: '#e8e0c8', b: '#e8e0c8', B: '#a89c78', w: '#e8e0c8', u: '#a89c78', K: '#c8c0a0', Y: '#f8e040' },
+      down: [
+        '',
+        '.....kkkkkk.....',
+        '....kbbbbbbk....',
+        '...kbBBbbbbbk...',
+        '.._kbbbbBBBbk_..',
+        '.._kBBbbbbbbk_..',
+        '.._kbbbBBbbbk_..',
+        '.._kkYkkkkYkk_..',
+        '..__kbbBBbbk__..',
+        '..___kkkkkk___..',
+        '..__kbBBbbBk__..',
+        '...kbbbbBBbbk...',
+        '...kbBBbbbbbk...',
+      ],
+      up: [
+        '',
+        '.....kkkkkk.....',
+        '....kbbbbbbk....',
+        '...kbBBbbbbbk...',
+        '.._kbbbbBBBbk_..',
+        '.._kBBbbbbbbk_..',
+        '.._kbbbBBbbbk_..',
+        '.._kbBBbbbBBk_..',
+        '..__kbbbbbbk__..',
+        '..___kkkkkk___..',
+        '..__kbBBbbBk__..',
+        '...kbbbbBBbbk...',
+        '...kbBBbbbbbk...',
+      ],
+      left: [
+        '',
+        '.....kkkkkk.....',
+        '....kbbbbbbk....',
+        '...kbBBbbbbbk...',
+        '...kbbbbBBBbk_..',
+        '...kBBbbbbbbk_..',
+        '..kbbbBBbbbbk_..',
+        '..kkYkkkbBBbk_..',
+        '...kbbBBbbbk__..',
+        '....kkkkkkk___..',
+        '....kbBBbbbk_...',
+      ],
+    },
+    // an air handling fan: the blower housing, worn round the middle
+    fan: {
+      name: 'Haakon Fan',
+      pal: { Y: '#f0b030' },
+      down: below(9, [
+        '..kkkkkkkkkkkk..',
+        '.skggkGkkGkggks.',
+        '..kggkkYYkkggk..',
+        '..kggkGkkGkggk..',
+        '..kkkkkkkkkkkk..',
+      ]),
+      up: below(9, [
+        '..kkkkkkkkkkkk..',
+        '.skggggggggggks.',
+        '..kggggKKggggk..',
+        '..kggggKKggggk..',
+        '..kkkkkkkkkkkk..',
+      ]),
+      left: below(9, [
+        '...kkkkkkkkk....',
+        '...kgggggggk....',
+        '..skgGggggGk....',
+        '...kgggggggk....',
+        '...kkkkkkkkk....',
+      ]),
+    },
+    // a sandwich board with the SDG logo on the front (the logo itself is drawn on
+    // by renderCostume, from assets/sdg.png)
+    sdg: {
+      name: 'SDG Sign',
+      pal: { Y: '#f8d838', O: '#c8a020' },
+      sign: [4, 10, 8, 4],
+      down: below(9, [
+        '...kkkkkkkkkk...',
+        '...kYYYYYYYYk...',
+        '..skYYYYYYYYks..',
+        '...kYYYYYYYYk...',
+        '...kYYYYYYYYk...',
+        '...kkkkkkkkkk...',
+      ]),
+      up: below(9, [
+        '...kkkkkkkkkk...',
+        '...kYYYYYYYYk...',
+        '..skYOOOOOOYks..',
+        '...kYYYYYYYYk...',
+        '...kYOOOOOOYk...',
+        '...kkkkkkkkkk...',
+      ]),
+      left: below(9, [
+        '...kkkkkkkkk....',
+        '..kYk.....kYk...',
+        '..kYk.....kYk...',
+        '..kYk.....kYk...',
+        '..kYk.....kYk...',
+        '..kkk.....kkk...',
+      ]),
+    },
+  };
+  // The sprite sheet for someone in a costume: the same shape renderSprites returns.
+  // `logo` is the SDG logo image, for the costume that wears it.
+  function renderCostume(gender, look, key, logo) {
+    const c = COSTUMES[key];
+    if (!c) return renderSprites(gender, look);
+    const pal = palette(Object.assign({}, look, c.pal)), out = {};
+    const SP = gender === 'female' ? SPRITES_F : SPRITES;
+    const make = (art, over, flip, sign) => {
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 16;
+      const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16), b = buf();
+      stamp(b, art);
+      over.forEach((row, j) => [...row].forEach((ch, i) => {
+        if (ch === '_') b[j * 16 + i] = null; else if (ch !== '.') set(b, i, j, ch);
+      }));
+      blit(img, b, 0, 0, pal, flip);
+      ctx.putImageData(img, 0, 0);
+      if (sign && logo && logo.complete && logo.naturalWidth) ctx.drawImage(logo, sign[0], sign[1], sign[2], sign[3]);
+      return cv;
+    };
+    out.down = [make(SP.down[0], c.down, false, c.sign), make(SP.down[1], c.down, false, c.sign), make(SP.down[1], c.down, true, c.sign)];
+    out.up = [make(SP.up[0], c.up), make(SP.up[1], c.up), make(SP.up[1], c.up, true)];
+    out.left = [make(SP.left[0], c.left), make(SP.left[1], c.left), make(SP.left[1], c.left)];
+    out.right = [make(SP.left[0], c.left, true), make(SP.left[1], c.left, true), make(SP.left[1], c.left, true)];
+    return out;
+  }
+
   // ---------- tile painters ----------
   const isWall = (c) => c === '#' || c === 'X' || c === 'E';
 
@@ -1343,5 +1684,5 @@ window.Art = (function () {
     return cv;
   }
 
-  return { LOOKS, UI, renderFloor, renderSprites, renderDog, renderMini, renderTileAs };
+  return { LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs };
 })();
