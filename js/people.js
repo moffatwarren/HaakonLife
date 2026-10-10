@@ -5,8 +5,9 @@
 //   lines: what they say when you talk to them (one is picked at random).
 //          Leave it empty to use the generic greetings.
 // Body types are a best guess from each name; colours are random placeholders.
-// Office 182 is the visitor office: someone different from out of town every
-// time the game is launched. 'name' is who they show up as in the game.
+// Office 182 is the visitor office: people from out of town take turns in it,
+// coming and going through the portal in the corner (in a new order every time
+// the game is launched). 'name' is who they show up as in the game.
 //   name: { body (best guess from the name), lines (optional: what they say;
 //           leave it out to use the "visiting from out of town" line) }
 const VISITORS = {
@@ -15,22 +16,30 @@ const VISITORS = {
   Garrett: { body: 'male', lines: ["We have finally recovered from all of that flooding. Do you want to move to Asheville?"] },
   Ali: { body: 'female', lines: ["You look like a C to me with shading of D."] },
   Courtney: { body: 'female' },
+  Ryan: { body: 'male', lines: ["Have you tried naming yourself Bob?"] },
 };
-function visitor() {
+// Everyone in VISITORS with a random look, shuffled: the first one starts in the office.
+window.VISITORS = (function () {
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
-  const name = pick(Object.keys(VISITORS));
-  const v = VISITORS[name];
-  return {
-    name,
-    body: v.body,
-    hair: pick(['#181010', '#201818', '#5a3420', '#6a3c20', '#8a5a3a', '#d06030', '#e8c050', '#a8a8b0']),
-    skin: pick(['#f8d8b8', '#f8d0a8', '#f0c098', '#d8a070', '#c08860', '#8a5838']),
-    top: pick(['#e07898', '#b83028', '#40a0a0', '#58a848', '#3868c8', '#f8f8f8', '#78a8e8', '#f0b030', '#9868c8', '#808898']),
-    accent: pick(['#f8e070', '#d03868', '#2c6a34', '#f0b030', '#f8f8f8', '#b83028', '#3050a8', '#283878']),
-    pants: pick(['#303040', '#383848', '#484858', '#686878', '#b09870', '#3a3050']),
-    lines: v.lines || ["I am visiting from out of town. I'll be here all week!"],
-  };
-}
+  const list = Object.keys(VISITORS).map((name) => {
+    const v = VISITORS[name];
+    return {
+      name,
+      body: v.body,
+      hair: pick(['#181010', '#201818', '#5a3420', '#6a3c20', '#8a5a3a', '#d06030', '#e8c050', '#a8a8b0']),
+      skin: pick(['#f8d8b8', '#f8d0a8', '#f0c098', '#d8a070', '#c08860', '#8a5838']),
+      top: pick(['#e07898', '#b83028', '#40a0a0', '#58a848', '#3868c8', '#f8f8f8', '#78a8e8', '#f0b030', '#9868c8', '#808898']),
+      accent: pick(['#f8e070', '#d03868', '#2c6a34', '#f0b030', '#f8f8f8', '#b83028', '#3050a8', '#283878']),
+      pants: pick(['#303040', '#383848', '#484858', '#686878', '#b09870', '#3a3050']),
+      lines: v.lines || ["I am visiting from out of town. I'll be here all week!"],
+    };
+  });
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+})();
 window.PEOPLE = {
   // ---- Ground floor ----
   "Kiki": { body: 'female', hair: '#201818', skin: '#d8a070', top: '#e07898', accent: '#f8e070', pants: '#303040', lines: ["Welcome to Richmond! Help yourself to some candy."] },
@@ -87,7 +96,7 @@ window.PEOPLE = {
   "Dave": { body: 'male', hair: '#a8a8b0', skin: '#f0c098', top: '#e07898', accent: '#f8e070', pants: '#383848', lines: ["If you see my mug, its the one with the tweety bird on it."] },
   "Desirae": { body: 'female', hair: '#181010', skin: '#f8d0a8', top: '#f8f8f8', accent: '#f0b030', pants: '#303040', lines: ["Everyone else signed up for the Gran Fondo already. Everyone. You don't want to be the only one left out, do you?"] },
   "Wade": { body: 'male', hair: '#181010', skin: '#f0c098', top: '#78a8e8', accent: '#283878', pants: '#303040', lines: [] },
-  "Visitor": visitor(),
+  "Visitor": window.VISITORS[0],
   "Chris": { body: 'male', hair: '#5a3420', skin: '#f0c098', top: '#808898', accent: '#f0b030', pants: '#484858', lines: ["I may work in the shop but the kitchen is my territory."] },
   "Kim": { body: 'female', hair: '#201818', skin: '#8a5838', top: '#3868c8', accent: '#283878', pants: '#b09870', lines: ["What do you mean John ate all of the peanut butter cups?"] },
   "Matthew": { body: 'male', hair: '#5a3420', skin: '#f0c098', top: '#f0b030', accent: '#d03868', pants: '#b09870', lines: ["Don't tell anyone, but this is my third coffee."] },

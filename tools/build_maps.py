@@ -22,6 +22,7 @@ Map glyphs
              z server rack  y rack of computers  u stretcher  t trophy shelf
              i putting green  s engraving machine
              & Joe's Lego shelf (on a left-hand wall)  % desk with Lego on it
+             @ the visitor office portal (visitors come and go through it)
              P coffee machine (two tiles tall)  C curtain (opened from the game; closes when you leave the room)
   walkable:  j computer parts scattered on the floor
 
@@ -577,6 +578,7 @@ f2.office('144 Desirae', 56, 30, 63, 35, 'N'); f2.door((56, 29), (57, 29))
 f2.office('137 Wade', 65, 30, 71, 35, 'N'); f2.door((65, 29), (66, 29))
 f2.fill(65, 31, 66, 35, 'i')  # Wade's putting green
 f2.office('182 Visitor', 73, 30, 78, 35, 'N'); f2.door((73, 29), (74, 29))
+f2.put(78, 30, '@')  # the portal the visitors come and go through
 f2.office('119 Kim', 80, 30, 87, 35, 'N'); f2.door((80, 29), (81, 29))
 f2.office('143 Matthew', 89, 30, 95, 35, 'N'); f2.door((89, 29), (90, 29))
 f2.office('122 Richard', 97, 30, 105, 35, 'N'); f2.door((97, 29), (98, 29))

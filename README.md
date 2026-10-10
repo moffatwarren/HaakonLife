@@ -23,7 +23,8 @@ published ("Updated ...").
 
 - Walk onto a staircase to change floors, or face the elevator doors and press A.
 - After the title screen, pick a male or female character (four looks each),
-  then type your name. The game remembers your last pick and name.
+  then type your name. The game remembers your last pick and name. Don't try
+  calling yourself Bob, though: there is only one of those.
 - Character colours live in `LOOKS` at the top of `js/art.js` if you want to
   add or tweak outfits.
 
@@ -147,6 +148,8 @@ or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
 and `&stapler=near` puts it right in front of you. `&helped=5` counts the
 first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gives you Kiki's list, and
 `game=kiki` opens it.
+`&visitor=Alex` puts that visitor in the visitor office, and `&visit=120` has
+whoever is there leave through the portal in 120 ticks (2 seconds).
 
 `tools/shot.sh out.png "play&game=snake&ticks=60"` screenshots a game headlessly
 (it uses `tools/test.html`, which stubs the audio and can pin `Math.random` with
@@ -158,6 +161,14 @@ Everyone with an office or cubicle wanders around it. Walk up to someone and
 press A (E / Space) to talk. Their appearance and what they say live in
 `js/people.js`: set `body` to `'male'` or `'female'`, change the colours, and
 add your own `lines`. The starting appearances are random placeholders.
+
+Office 182 on the 2nd floor is the visitor office. The visitors from out of town
+take turns in it: about every 30 seconds the one who's there walks into the
+portal in the corner and the next one steps out, so you can meet all of them in
+one sitting. They come in a different order every time the game is launched, and
+nobody leaves while you're talking to them. Their names and lines live in
+`VISITORS` at the top of `js/people.js`; add a name there and they join the
+rotation.
 
 ## Dogs
 

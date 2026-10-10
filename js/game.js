@@ -51,6 +51,13 @@
     return list;
   });
 
+  // The visitor office portal ('@' tile) gets a swirl of light drawn over it.
+  const portals = MAPS.floors.map((f) => {
+    const list = [];
+    f.tiles.forEach((rowStr, y) => [...rowStr].forEach((c, x) => { if (c === '@') list.push({ x, y }); }));
+    return list;
+  });
+
   // Electrical panels ('K' tiles) get blinking status lights drawn over them.
   const panels = MAPS.floors.map((f) => {
     const list = [];
@@ -85,12 +92,14 @@
   const dogs = []; // the office dogs, from js/people.js
   // Someone's body type and colours: from js/people.js, with a random-but-stable
   // look filling in anything they don't set.
-  function lookFor(name) {
-    const p = (window.PEOPLE || {})[name] || {};
+  function lookOf(p, name) {
     const body = ['female', 'ghost'].includes(p.body) ? p.body : 'male';
     const looks = Art.LOOKS[body] || Art.LOOKS.male;
     const def = looks[hash(name) % looks.length];
     return { body, look: { h: p.hair || def.h, s: p.skin || def.s, w: p.top || def.w, u: p.accent || def.u, K: p.pants || def.K } };
+  }
+  function lookFor(name) {
+    return lookOf((window.PEOPLE || {})[name] || {}, name);
   }
   // The sprite sheet for a person, reusing the one their NPC already has.
   function spritesFor(name) {
@@ -145,6 +154,107 @@
     });
   })();
 
+  // ---------- the visitor office: visitors take turns, coming and going by portal ----------
+  // Everyone in VISITORS (js/people.js) gets a spell in the office. When their time is
+  // up they walk into the portal in the corner and the next one steps out of it.
+  const VISIT_TICKS = 1800; // how long each one stays: about 30 seconds of walking around
+  const visit = (function () {
+    const list = window.VISITORS || [];
+    for (let fi = 0; fi < MAPS.floors.length; fi++) {
+      const room = MAPS.floors[fi].rooms.find((r) => /^\d+ Visitor$/.test(r.name));
+      const npc = room && npcs.find((n) => n.floor === fi && n.room === room);
+      const inRoom = (k) => k.x >= room.x1 && k.x <= room.x2 && k.y >= room.y1 && k.y <= room.y2;
+      const gate = npc && portals[fi].find(inRoom);
+      if (!gate || list.length < 2) continue;
+      // they step out of the portal onto the floor tile next to it
+      const side = Object.values(DIRS).map(([dx, dy]) => ({ x: gate.x + dx, y: gate.y + dy }))
+        .find((k) => inRoom(k) && NPC_FLOOR.includes(tileAt(fi, k.x, k.y)));
+      if (!side) continue;
+      return { npc, room, gate, side, list, i: 0, t: VISIT_TICKS, phase: 'stay', a: 1, stuck: 0, sheets: [npc.sprites] };
+    }
+    return null;
+  })();
+  function setVisitor(i) {
+    const v = visit.list[i], n = visit.npc;
+    if (!visit.sheets[i]) {
+      const { body, look } = lookOf(v, v.name);
+      visit.sheets[i] = Art.renderSprites(body, look);
+    }
+    visit.i = i;
+    Object.assign(n, { name: v.name, sprites: visit.sheets[i], lines: v.lines && v.lines.length ? v.lines : n.lines });
+  }
+  // Which way the visitor should step to get to (tx, ty), around the furniture and
+  // anyone in the way; null if there's no way through right now.
+  function visitStep(tx, ty) {
+    const n = visit.npc, r = visit.room, key = (x, y) => x + ',' + y;
+    const seen = new Set([key(n.x, n.y)]), queue = [[n.x, n.y, null]];
+    while (queue.length) {
+      const [x, y, first] = queue.shift();
+      if (x === tx && y === ty) return first;
+      for (const d in DIRS) {
+        const nx = x + DIRS[d][0], ny = y + DIRS[d][1];
+        if (nx < r.x1 || nx > r.x2 || ny < r.y1 || ny > r.y2 || seen.has(key(nx, ny))) continue;
+        if (!NPC_FLOOR.includes(tileAt(n.floor, nx, ny)) || playerAt(nx, ny) || npcAt(n.floor, nx, ny)) continue;
+        seen.add(key(nx, ny));
+        queue.push([nx, ny, first || d]);
+      }
+    }
+    return null;
+  }
+  function visitWalk(d) {
+    const n = visit.npc;
+    Object.assign(n, { dir: d, moving: true, prog: 0, mdx: DIRS[d][0], mdy: DIRS[d][1] });
+    n.step ^= 1;
+  }
+  const dirTo = (a, b) => Object.keys(DIRS).find((d) => a.x + DIRS[d][0] === b.x && a.y + DIRS[d][1] === b.y);
+  function updateVisitor() {
+    if (!visit) return;
+    const n = visit.npc, next = (visit.i + 1) % visit.list.length, FADE = 24;
+    if (visit.phase === 'stay') {
+      if (--visit.t > 0) return;
+      // nobody is there to watch (or everyone is dancing): just swap them over
+      if (P.floor !== n.floor || party) { setVisitor(next); visit.t = VISIT_TICKS; return; }
+      if (!n.moving) { visit.phase = 'leave'; visit.stuck = 0; }
+      return;
+    }
+    if (P.floor !== n.floor) {
+      // you left halfway through a changeover: finish it off out of sight
+      if (['leave', 'in', 'out', 'swap'].includes(visit.phase)) setVisitor(next);
+      Object.assign(n, { x: visit.side.x, y: visit.side.y, moving: false, prog: 0 });
+      Object.assign(visit, { phase: 'stay', a: 1, t: VISIT_TICKS });
+      return;
+    }
+    if (visit.phase === 'leave') {
+      if (n.moving) return;
+      if (n.x === visit.side.x && n.y === visit.side.y) { visitWalk(dirTo(n, visit.gate)); visit.phase = 'in'; return; }
+      const d = visitStep(visit.side.x, visit.side.y);
+      if (d) { visitWalk(d); visit.stuck = 0; }
+      else if (++visit.stuck > 300) visit.phase = 'out'; // boxed in: vanish from where they stand
+    } else if (visit.phase === 'in') {
+      // fading away as they step into the portal
+      visit.a = n.moving ? 1 - n.prog / 16 : 0;
+      if (!n.moving) { visit.phase = 'swap'; visit.t = 40; }
+    } else if (visit.phase === 'out') {
+      visit.a = Math.max(0, visit.a - 1 / FADE);
+      if (visit.a === 0) { Object.assign(n, { x: visit.gate.x, y: visit.gate.y }); visit.phase = 'swap'; visit.t = 40; }
+    } else if (visit.phase === 'swap') {
+      if (--visit.t > 0) return;
+      setVisitor(next);
+      n.dir = dirTo(visit.gate, visit.side);
+      visit.phase = 'arrive';
+      if (Math.abs(P.x - n.x) < 12 && Math.abs(P.y - n.y) < 9) sfx('ding');
+    } else if (visit.phase === 'arrive') {
+      visit.a = Math.min(1, visit.a + 1 / FADE);
+      // wait in the portal until there's room to step out
+      if (visit.a < 1 || playerAt(visit.side.x, visit.side.y) || npcAt(n.floor, visit.side.x, visit.side.y)) return;
+      visitWalk(n.dir);
+      visit.phase = 'exit';
+    } else if (!n.moving) {
+      Object.assign(visit, { phase: 'stay', t: VISIT_TICKS });
+      n.wait = 60;
+    }
+  }
+
   // Each office dog roams the area around its owner's office: in and out of the office
   // itself, and the hallway and neighbours within a few steps of it.
   const DOG_ROAM = 5;
@@ -174,12 +284,14 @@
   })();
 
   function updateNpcs() {
+    updateVisitor();
     for (const n of npcs.concat(dogs)) {
       if (n.floor !== P.floor) continue;
       if (n.moving) {
         if (++n.prog >= 16) { n.x += n.mdx; n.y += n.mdy; n.moving = false; n.prog = 0; }
         continue;
       }
+      if (visit && n === visit.npc && visit.phase !== 'stay') continue; // on their way to or from the portal
       if (--n.wait > 0) continue;
       n.wait = n.dog ? 10 + Math.floor(Math.random() * 70) : 40 + Math.floor(Math.random() * 140);
       n.dir = ['up', 'down', 'left', 'right'][Math.floor(Math.random() * 4)];
@@ -6022,7 +6134,7 @@
   // "in Zin's office upstairs", "by the photocopier upstairs", ... for Linda's hints
   function staplerPlace() {
     const name = stapler.room.name, m = /^\d+ (.+)$/.exec(name);
-    const BY = { Photocopier: 'by the photocopier', Engraver: 'by the engraver' };
+    const BY = { Photocopier: 'by the photocopier', Engraver: 'by the engraver', Visitor: 'in the visitor office' };
     let place;
     if (BY[m ? m[1] : name]) place = BY[m ? m[1] : name];
     else if (m && !NOT_PEOPLE.includes(m[1])) {
@@ -6354,8 +6466,12 @@
   const NAME_ROWS = ['ABCDEFGHIJKLM', 'NOPQRSTUVWXYZ', 'abcdefghijklm', 'nopqrstuvwxyz'].map((r) => r.split(''))
     .concat([['-', '\'', '.', 'SPACE', 'DEL', 'OK']]);
   const nameCur = { r: 0, c: 0 };
+  // Bob owns the company, so nobody else gets to be Bob (or BOB, or B.o.b, or B0B).
+  const isBob = (name) => name.toLowerCase().replace(/0/g, 'o').replace(/[^a-z]/g, '') === 'bob';
+  let bobNote = 0; // ticks the "only ONE true Bob" message has been up; 0 when it isn't
   function nameDone() {
     if (fade) return;
+    if (isBob(playerName)) { playerName = ''; bobNote = 1; sfx('buzz'); return; }
     playerName = playerName.trim() || 'New Hire';
     store.set('name', playerName);
     sfx('menu');
@@ -6369,12 +6485,17 @@
   }
   // physical keyboard: type straight into the name
   function nameKey(e) {
+    if (bobNote) { if (!e.repeat && bobNote > 20) { bobNote = 0; sfx('select'); } return true; }
     if (e.code === 'Enter') { if (!e.repeat) nameDone(); return true; }
     if (e.code === 'Backspace') { nameType('DEL'); return true; }
     if (e.key && e.key.length === 1 && /[A-Za-z0-9 .'\-]/.test(e.key)) { nameType(e.key === ' ' ? 'SPACE' : e.key); return true; }
     return false;
   }
   function updateName() {
+    if (bobNote) {
+      if (++bobNote > 20 && (pressed.has('a') || pressed.has('b') || pressed.has('start'))) { bobNote = 0; sfx('select'); }
+      return;
+    }
     const row = () => NAME_ROWS[nameCur.r];
     if (pressed.has('up')) { nameCur.r = (nameCur.r + NAME_ROWS.length - 1) % NAME_ROWS.length; nameCur.c = Math.min(nameCur.c, row().length - 1); sfx('select'); }
     if (pressed.has('down')) { nameCur.r = (nameCur.r + 1) % NAME_ROWS.length; nameCur.c = Math.min(nameCur.c, row().length - 1); sfx('select'); }
@@ -6411,6 +6532,12 @@
     } else {
       text('Type your name, then press Enter', (SW - 32 * 6) >> 1, SH - 34);
       text('(or pick letters with the arrows + A)', (SW - 37 * 6) >> 1, SH - 22);
+    }
+    if (bobNote) {
+      box(20, 78, SW - 40, 84);
+      ['There is only ONE true Bob', 'in this company.', '', 'Name yourself something else.'].forEach((line, i) =>
+        text(line, (SW - line.length * 6) >> 1, 92 + i * 12));
+      if (bobNote > 20 && (tick >> 4) & 1) text(isTouch ? 'Press A' : 'Press any key', (SW - (isTouch ? 7 : 13) * 6) >> 1, 144);
     }
   }
 
@@ -6526,9 +6653,10 @@
   function interact() {
     const [dx, dy] = DIRS[P.dir];
     const tx = P.x + dx, ty = P.y + dy, t = tileAt(P.floor, tx, ty);
-    const npc = npcAt(P.floor, tx, ty);
+    let npc = npcAt(P.floor, tx, ty);
+    if (npc && visit && npc === visit.npc && visit.a < 1) npc = null; // halfway through the portal
     if (npc) {
-      if (!npc.moving) npc.dir = OPPOSITE[P.dir];
+      if (!npc.moving && !(visit && npc === visit.npc && visit.phase !== 'stay')) npc.dir = OPPOSITE[P.dir];
       sfx('select');
       // Everyone speaks as "Name: ...", including the offers below and whatever
       // they say when you turn them down, so you always know who is talking.
@@ -6604,6 +6732,7 @@
         : 'Just a gym bag, some old sneakers and a faint chill.');
       return;
     }
+    if (t === '@') { sfx('select'); say('A shimmering portal. It hums with out-of-town energy.'); return; }
     if (t === '&') { sfx('select'); say('Joe\'s Lego shelf: a red house, a spaceship and a little green tree. Every brick is in its place.'); return; }
     if (t === '%') { sfx('select'); say('One of Joe\'s Lego builds. A sticky note on it says DO NOT TOUCH.'); return; }
     if (t === '$' && eotm) { sfx('menu'); ui.push(EmployeeOfMonth()); return; }
@@ -6780,6 +6909,25 @@
     return 0;
   }
 
+  // The visitor office portal: a disc of light on the floor, two arms spiralling
+  // round it. It spins faster and glows brighter while someone is coming or going.
+  const PORTAL_COLS = ['#281850', '#7b2ff7', '#05d9e8', '#7b2ff7'];
+  const PORTAL_PIX = [];
+  for (let y = 0; y < 16; y++)
+    for (let x = 0; x < 16; x++) {
+      const dx = x - 7.5, dy = y - 7.5, r = Math.hypot(dx, dy);
+      if (r < 7.6) PORTAL_PIX.push({ x, y, r, a: Math.atan2(dy, dx) / (Math.PI * 2) });
+    }
+  function drawPortalAt(x, y, busy) {
+    const spin = tick / (busy ? 12 : 40);
+    for (const p of PORTAL_PIX) {
+      if (p.r > 6.6) ctx.fillStyle = '#181030';
+      else if (p.r < (busy ? 2.6 : 1.2)) ctx.fillStyle = '#f8f8f8';
+      else ctx.fillStyle = PORTAL_COLS[((Math.floor((p.a * 2 + p.r * 0.22 - spin) * 4) % 4) + 4) % 4];
+      ctx.fillRect(x + p.x, y + p.y, 1, 1);
+    }
+  }
+
   function drawWorld() {
     const px = P.x * 16 + (P.moving ? P.mdx * P.prog : 0);
     const py = P.y * 16 + (P.moving ? P.mdy * P.prog : 0);
@@ -6797,6 +6945,11 @@
       for (const e of easels[P.floor]) drawEaselAt(e.x * 16 - cx, e.y * 16 - cy);
     if (cookies.floor === P.floor) drawCookiesAt(cookies.x * 16 - cx, cookies.y * 16 - cy);
     if (!stapler.found && stapler.floor === P.floor) drawStaplerAt(stapler.x * 16 - cx, stapler.y * 16 - cy);
+    for (const k of portals[P.floor]) {
+      const x = k.x * 16 - cx, y = k.y * 16 - cy;
+      if (x < -16 || x > SW || y < -16 || y > SH) continue;
+      drawPortalAt(x, y, !!visit && visit.gate === k && visit.phase !== 'stay');
+    }
     for (const k of panels[P.floor]) {
       const x = k.x * 16 - cx, y = k.y * 16 - cy;
       if (x < -16 || x > SW || y < -16 || y > SH) continue;
@@ -6823,7 +6976,8 @@
       if (n.floor !== P.floor || (party && party.names.has(n.name))) continue;
       const frame = n.moving && n.prog < 8 ? (n.step ? 1 : 2) : 0;
       actors.push({ x: n.x * 16 + (n.moving ? n.mdx * n.prog : 0), y: n.y * 16 + (n.moving ? n.mdy * n.prog : 0),
-        img: n.sprites[n.dir][frame], ghost: n.ghost, freeing: freeing && freeing.npc === n });
+        img: n.sprites[n.dir][frame], ghost: n.ghost, freeing: freeing && freeing.npc === n,
+        alpha: visit && visit.npc === n ? visit.a : 1 });
     }
     actors.sort((a, b) => a.y - b.y);
     for (const a of actors) {
@@ -6835,7 +6989,12 @@
         ctx.globalAlpha = 0.75;
         ctx.drawImage(a.img, sx, sy - 2 + Math.round(Math.sin(tick / 12 + a.x) * 2));
         ctx.globalAlpha = 1;
-      } else ctx.drawImage(a.img, sx, sy);
+      } else {
+        // a visitor fades in and out as they go through the portal
+        if (a.alpha < 1) ctx.globalAlpha = a.alpha;
+        ctx.drawImage(a.img, sx, sy);
+        ctx.globalAlpha = 1;
+      }
     }
     for (const n of dogs) if (n.dog.cat && n.floor === P.floor) drawZzz(n.x * 16 - cx + 10, n.y * 16 - cy - 2, 1);
     // rooms with the lights off (drawn over the player too)
@@ -6981,6 +7140,13 @@
     if (q.get('stapler') === 'near') {
       const [dx, dy] = DIRS[P.dir];
       Object.assign(stapler, { floor: P.floor, x: P.x + dx, y: P.y + dy, room: roomAt(P.floor, P.x, P.y) || stapler.room });
+    }
+    // &visitor=Alex puts that visitor in the visitor office; &visit=120 has them leave
+    // through the portal in 120 ticks
+    if (visit) {
+      const vi = visit.list.findIndex((v) => v.name === q.get('visitor'));
+      if (vi >= 0) setVisitor(vi);
+      if (q.has('visit')) visit.t = +q.get('visit');
     }
     // &dog=Bella puts that dog right in front of you (and keeps it still); game=catch plays
     // catch with it and game=dogs shows the frisbee leaderboard
