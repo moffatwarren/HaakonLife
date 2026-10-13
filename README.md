@@ -35,7 +35,7 @@ Walk up to these and press A:
 - **Office computers**: SDG, lay out an air handling unit
 - **Zin's computer** (office 126): Spring Roll Hold'em, no-limit Texas Hold'em against Cody and Dmitriy, played for spring rolls
 - **Cody's computer** (cubicle 142): Spring Roll Blackjack against the house, for the same spring rolls (break the bank at 1000)
-- **Coffee machine** (lunch room): catch the coffee in your cup
+- **Coffee machine** (lunch room): catch the coffee in your cup. It pours 150 drops, and the nozzle gets quicker and twitchier as it goes; you're scored on how many you catch
 - **Recycling bin** (lunch room): toss crumpled paper into the bin; watch the wind
 - **Fridge**: keep your eye on your lunch while the containers shuffle
 - **Candy table**: hold A to reach for candy, and freeze when your coworker turns around
@@ -60,7 +60,60 @@ Walk up to these and press A:
 - **Front desk** (Reception): send each visitor to the right office; you have to know the building
 - **Printer**: ease five jammed sheets out without tearing them: watch for snags on the rollers, keep each sheet straight, and read whatever somebody printed
 - **Washer and dryer** (fitness room): catch the load the machine is asking for, let the rest drop
+- **Joe's Lego shelf** (2nd floor, office 146): the same falling bricks as Joe's brick battle, but on your own. Rows of grey bricks push up from the bottom, slowly at first and then faster and faster, so see how many lines you can clear before they reach the top
 - **Elevator**: every ride, a coworker gets in and makes conversation
+
+## Leaderboards
+
+When you finish a game that has a score, you see the top ten of everyone who has
+played it on the website, under the name they typed at the start, with your own row
+picked out (and added underneath if you didn't make the top ten). Each name has one
+row per game, holding its best score, so the same name on a phone and a computer is
+one person. Pong, Richard's duel, Wade's match and Kiki's jar are win-or-lose, so
+they have no board.
+
+Only the name and the score are sent. If the leaderboard can't be reached the game
+says so and carries on, and best scores are still kept in the browser as before.
+
+The scores live in a free Firebase Realtime Database. To set one up:
+
+1. Go to console.firebase.google.com, sign in with a Google account and create a
+   project (any name; Analytics can stay off).
+2. Build → Realtime Database → Create Database, pick a location, start in locked mode.
+3. On the Rules tab, replace what's there with the rules below and press Publish.
+4. Copy the database's web address from the top of the Data tab (it looks like
+   `https://something-default-rtdb.firebaseio.com`) into `BOARD_URL` near the top of
+   `js/game.js`. While that is empty there are no leaderboards.
+
+```json
+{
+  "rules": {
+    "scores": {
+      "$game": {
+        ".read": true,
+        ".indexOn": ["score"],
+        "$player": {
+          ".write": "newData.exists() && (!data.exists() || newData.child('score').val() > data.child('score').val())",
+          ".validate": "$game.length <= 24 && $player.length <= 12 && newData.hasChildren(['name','score','t']) && newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 12 && newData.child('score').isNumber() && newData.child('score').val() >= -100000 && newData.child('score').val() <= 1000000 && newData.child('t').val() == now",
+          "name": { ".validate": true },
+          "score": { ".validate": true },
+          "t": { ".validate": true },
+          "$other": { ".validate": false }
+        }
+      }
+    }
+  }
+}
+```
+
+With these rules anyone can read the boards and add or improve a row, but nobody can
+lower or delete one. The game runs in the browser, so a determined person could still
+send a made-up score or use somebody else's name. To remove a row (or wipe a whole
+board), delete it on the Data tab in the Firebase console: rows are under
+`scores`, then the game, then the name. The games where lowest wins (golf, Damir's
+lights, mummy wrap) are stored as negative numbers.
+
+Which games have a board, and their titles, is the `BOARDS` list in `js/game.js`.
 
 ## Coworker games
 
@@ -191,20 +244,22 @@ Add these to the end of the address (after `index.html`) and press Enter.
 | Office and lunch room | `coffee`, `toss`, `lunch`, `candy`, `stack`, `jam`, `desk`, `filter`, `simon` |
 | Fitness room | `punch`, `squat`, `run`, `pulldown`, `ball`, `laundry` |
 | TVs and computers | `pong`, `snake`, `poker`, `blackjack` |
-| Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf` |
+| Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf`, `build` (Joe's Lego shelf) |
 | Coworkers | `dark` (Damir), `battle` (Richard), `dance` (Patrick), `nathan`, `wade`, `jar` (Kiki), `forms` (Jhonna), `wok` (Nik), `carrot` (Dmitriy), `lego` (Joe) |
-| Dogs | `catch`, `dogs` (the leaderboard) |
+| Dogs | `catch`, `dogs` (the dogs' leaderboard) |
+| Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`) |
 | Halloween | `contest`, `bob`, `mummy`, `carve`, `treat`, `ghosts`, `hsplash` (the closing screen) |
 
 Plain `index.html#play` skips the title screen and drops you at the entrance.
 
 ## Testing
 
-Best scores are saved in the browser. For testing, `index.html#play&game=punch`
+Best scores are saved in the browser, and sent to the online leaderboards when
+`BOARD_URL` is set. For testing, `index.html#play&game=punch`
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
-`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `blackjack`) opens a game straight away.
+`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `blackjack`, `build`) opens a game straight away.
 `&dog=Bella` puts that dog right in front of you; `game=catch` plays catch with it
 and `game=dogs` shows the frisbee leaderboard.
 For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,
@@ -222,9 +277,13 @@ or the closing splash screen.
 `&visitor=Alex` puts that visitor in the visitor office, and `&visit=120` has
 whoever is there leave through the portal in 120 ticks (2 seconds).
 
+`game=board&key=snake` opens that game's leaderboard without sending anything.
+
 `tools/shot.sh out.png "play&game=snake&ticks=60"` screenshots a game headlessly
 (it uses `tools/test.html`, which stubs the audio and can pin `Math.random` with
-`&rand=0.4` so a run is repeatable).
+`&rand=0.4` so a run is repeatable). In `tools/test.html` the leaderboards show
+made-up rows and send nothing, unless you add `&board=live`; there, `&score=40` adds
+you to the made-up rows as if you had just played.
 
 ## People
 

@@ -19,6 +19,9 @@
     set(k, v) { try { localStorage.setItem('richmond.' + k, v); } catch (e) { /* storage unavailable */ } },
   };
   let soundOn = store.get('sound') !== 'off';
+  // The online leaderboards' database: the web address of a Firebase Realtime Database
+  // (see "Leaderboards" in the README). Left empty, scores stay in this browser only.
+  const BOARD_URL = 'https://haakonlife-d4ef2-default-rtdb.firebaseio.com';
 
   // ---------- art ----------
   const GENDERS = ['male', 'female'];
@@ -1307,10 +1310,10 @@
     }
     function finish() { state = 'over'; t = 0; record = saveBest('poker', seats[0].stack); sfx('ding'); }
     function leave() {
+      // walking away mid-hand forfeits what you've already put in
+      if (state !== 'over') record = saveBest('poker', seats[0].stack);
       remove(self);
       if (state === 'over') { if (pc) remove(pc); say('This gambling thing is too easy. You should do it full time.'); return; }
-      // walking away mid-hand forfeits what you've already put in
-      record = saveBest('poker', seats[0].stack);
       say('You log off with ' + seats[0].stack + ' spring rolls.' + (record ? ' A new record!' : ''));
     }
 
@@ -1607,10 +1610,10 @@
       lines = ['Place your bet.'];
     }
     function leave() {
+      // walking away mid-hand forfeits the bet on the table
+      if (state !== 'over') record = saveBest('blackjack', stack);
       remove(self);
       if (state === 'over') { if (pc) remove(pc); say('You broke the bank on Cody\'s computer. He looks nervous.'); return; }
-      // walking away mid-hand forfeits the bet on the table
-      record = saveBest('blackjack', stack);
       say('You log off with ' + stack + ' spring rolls.' + (record ? ' A new record!' : ''));
     }
     const askLeave = () => ask('Leave the table with ' + stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
@@ -1730,7 +1733,10 @@
     const AX = 12, AW = 248, HEAD = 18, CUP_Y = 184, CUP_W = 44, CUP_H = 34, FLOOR = 220;
     const COFFEE = '#6b3a1e', CREMA = '#b07040';
     const METER = { x: 280, y: 40, w: 24, h: 168 };
+    // the machine pours this many drops and stops; your score is how many land in the cup
+    const DROPS = 150;
     let cup = AX + AW / 2 - CUP_W / 2, fill = 0, caught = 0, missed = 0, t = 0, state = 'ready';
+    let poured = 0, wait = 0, record = false;
     let nozzle = AX + AW / 2, target = nozzle, drops = [], splashes = [];
     const self = {
       music: 'coffee',
@@ -1741,7 +1747,6 @@
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
             coffeesToday++;
-            questNote('coffee', 1);
             say(coffeesToday === 1
               ? 'You made a cup of coffee. Ahh, that hits the spot!'
               : 'Another cup of coffee! That\'s ' + coffeesToday + ' today...');
@@ -1751,14 +1756,19 @@
         if (pressed.has('b')) { remove(self); say('You leave the coffee for later.'); return; }
         if (held.left) cup = Math.max(AX, cup - 3);
         if (held.right) cup = Math.min(AX + AW - CUP_W, cup + 3);
-        // the nozzle wanders back and forth, faster as the cup fills
-        if (Math.abs(target - nozzle) < 2) target = AX + 12 + Math.random() * (AW - 24);
-        nozzle += Math.sign(target - nozzle) * Math.min(Math.abs(target - nozzle), 1 + fill / 40);
-        if (t % 8 === 0) drops.push({ x: nozzle - 1 + (Math.random() * 4 - 2), y: HEAD + 22, vy: 1 });
+        // the nozzle wanders back and forth. As the pour goes on it gets faster (in the end
+        // faster than the cup), drips more often and starts changing its mind halfway.
+        const p = poured / DROPS;
+        if (Math.abs(target - nozzle) < 2 || Math.random() < 0.025 * p) target = AX + 12 + Math.random() * (AW - 24);
+        nozzle += Math.sign(target - nozzle) * Math.min(Math.abs(target - nozzle), 1.2 + 4.4 * p);
+        if (poured < DROPS && --wait <= 0) {
+          drops.push({ x: nozzle - 1 + (Math.random() * 4 - 2), y: HEAD + 22, vy: 1 });
+          poured++; wait = Math.round(8 - 3 * p);
+        }
         for (const d of drops) { d.vy = Math.min(d.vy + 0.08, 4); d.y += d.vy; }
         drops = drops.filter((d) => {
           if (d.y + 6 >= CUP_Y && d.y < CUP_Y + 8 && d.x + 3 > cup + 3 && d.x < cup + CUP_W - 3) {
-            fill = Math.min(100, fill + 2); caught++;
+            caught++; fill = 100 * caught / DROPS;
             sfx('pour', fill);
             splashes.push({ x: d.x, y: CUP_Y + 2, t: 0 });
             return false;
@@ -1768,17 +1778,19 @@
         });
         splashes.forEach((sp) => sp.t++);
         splashes = splashes.filter((sp) => sp.t < 12);
-        if (fill >= 100) { state = 'done'; t = 0; drops = []; sfx('ding'); }
+        if (poured >= DROPS && !drops.length) { state = 'done'; t = 0; record = saveBest('coffee', caught); sfx('ding'); }
       },
       draw() {
         box(0, 0, SW, SH);
         text('Catch the coffee!', AX + 4, 6);
+        const b = 'Best ' + getBest('coffee');
+        text(b, AX + AW - b.length * 6, 6);
         // machine head + nozzle
         ctx.fillStyle = col.dark; ctx.fillRect(AX, HEAD, AW, 14);
         ctx.fillStyle = '#585868'; ctx.fillRect(AX + 1, HEAD + 1, AW - 2, 12);
         ctx.fillStyle = col.dark; ctx.fillRect(Math.round(nozzle) - 6, HEAD + 13, 12, 8);
         ctx.fillStyle = '#8890a0'; ctx.fillRect(Math.round(nozzle) - 5, HEAD + 14, 10, 6);
-        if (state === 'play') { ctx.fillStyle = COFFEE; ctx.fillRect(Math.round(nozzle) - 1, HEAD + 21, 2, 3); }
+        if (state === 'play' && poured < DROPS) { ctx.fillStyle = COFFEE; ctx.fillRect(Math.round(nozzle) - 1, HEAD + 21, 2, 3); }
         // falling coffee
         for (const d of drops) {
           ctx.fillStyle = COFFEE; ctx.fillRect(Math.round(d.x), Math.round(d.y), 3, 6);
@@ -1821,10 +1833,7 @@
           text(t < 50 ? 'Get ready...' : 'GO!', 70 + (t < 50 ? 54 : 81), 104);
           text('Left/Right: move cup', 70 + 30, 120);
         } else if (state === 'done') {
-          box(50, 76, 220, 72);
-          text("Coffee's ready!", 50 + 65, 88);
-          text('Caught ' + caught + '   Spilled ' + missed, 50 + 110 - (('Caught ' + caught + '   Spilled ' + missed).length * 3), 108);
-          if (t > 30 && (tick >> 4) & 1) text('Press Space', 50 + 77, 128);
+          doneBox(['Coffee\'s ready!', 'Caught ' + caught + ' of ' + DROPS + '   Spilled ' + missed, record ? 'New record!' : 'Best ' + getBest('coffee')], t);
         } else {
           text('Esc: give up', AX + 4, SH - 16);
         }
@@ -1841,11 +1850,113 @@
   // Save a high score; returns true if it's a new record.
   function saveBest(key, score) {
     questNote(key, score);
+    boardNote(key, score);
     if (score <= (+store.get('best.' + key) || 0)) return false;
     store.set('best.' + key, score);
     return true;
   }
   const getBest = (key) => +store.get('best.' + key) || 0;
+
+  // ---------- online leaderboards ----------
+  // Everyone's best score at each game, kept in a Firebase Realtime Database (BOARD_URL)
+  // as scores/<game>/<name> = { name, score, t }: one row per name. Only the games listed
+  // here have a board. A higher stored score is always better, so the fewest-strokes and
+  // fastest-time games (low) are stored negated.
+  const tenths = (n) => (n / 10).toFixed(1) + 's';
+  const BOARDS = {
+    coffee: { title: 'COFFEE MACHINE' }, punch5: { title: 'PUNCHING BAG' }, run: { title: 'TREADMILL', unit: 'm' }, toss: { title: 'PAPER TOSS' },
+    stack: { title: 'PHOTOCOPIER' }, simon: { title: 'CONTROL PANEL' }, lunch: { title: 'FIND MY LUNCH' },
+    candy: { title: 'CANDY TABLE' }, squat: { title: 'SQUAT RACK', unit: ' lb' }, fan: { title: 'FAN BALANCING' },
+    coil: { title: 'COOLING COIL', unit: 's' }, damper: { title: 'DAMPERS' }, filter: { title: 'FILTER CHANGE' },
+    snake: { title: 'SNAKE' }, parts: { title: 'PARTS SORTING' }, cable: { title: 'CABLE TIDY' }, cpr: { title: 'CPR' },
+    engrave: { title: 'ENGRAVER', unit: '%' }, pulldown: { title: 'LAT PULLDOWN' }, ball: { title: 'EXERCISE BALL', unit: 's' },
+    desk: { title: 'FRONT DESK' }, jam: { title: 'PAPER JAM' }, laundry: { title: 'LAUNDRY' },
+    forms: { title: 'JHONNA\'S FORMS' }, trophy: { title: 'NATHAN\'S TROPHIES' }, legolines: { title: 'JOE\'S BRICK BATTLE' },
+    legosolo: { title: 'LEGO BUILDING', unit: ' lines' },
+    wokdishes: { title: 'NIK\'S WOK' }, carrotpct: { title: 'DMITRIY\'S CARROTS', unit: '%' }, dance: { title: 'PATRICK\'S DANCE-OFF', unit: '%' },
+    poker: { title: 'SPRING ROLL HOLD\'EM' }, blackjack: { title: 'SPRING ROLL BLACKJACK' }, catch: { title: 'FRISBEE CATCH' },
+    bob: { title: 'BOBBING FOR APPLES' }, carve: { title: 'PUMPKIN CARVING' }, treat: { title: 'TRICK-OR-TREAT' },
+    ghosts: { title: 'GHOST IN THE CUPBOARD' }, costume: { title: 'COSTUME CONTEST' },
+    golf: { title: 'WADE\'S PUTTING GREEN', low: true }, dark: { title: 'DAMIR\'S LIGHTS', unit: 's', low: true },
+    mummy: { title: 'MUMMY WRAP', unit: tenths, low: true },
+  };
+  // tools/test.html sets BOARD_DEMO: the boards show made-up rows and nothing is sent
+  const boardDemo = !!window.BOARD_DEMO;
+  let pendingBoard = null;
+  // Called with every result; the board itself goes up once the game on top has closed (see update).
+  function boardNote(key, score) {
+    if (key.startsWith('dog.')) key = 'catch';
+    if (!BOARDS[key] || !(BOARD_URL || boardDemo)) return;
+    pendingBoard = { key, score, owner: top() };
+  }
+  // a name's row in the database: "Sam" and "sam" are the same person
+  const boardKey = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  function boardFetch(path, opts) {
+    const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 5000);
+    return fetch(BOARD_URL.replace(/\/+$/, '') + '/scores/' + path, Object.assign({ signal: ac.signal }, opts))
+      .finally(() => clearTimeout(timer));
+  }
+  const boardSort = (rows) => rows.sort((a, b) => b.score - a.score || a.t - b.t).slice(0, 10);
+  // Send the score (the database refuses anything that isn't an improvement on that name's
+  // row), then fetch the top ten and the name's own row.
+  function boardLoad(key, name, score) {
+    const val = BOARDS[key].low ? -score : score, id = boardKey(name), send = name && score > 0;
+    if (boardDemo) {
+      const rows = ['Ada', 'Grace', 'Linus', 'Margaret', 'Dennis', 'Barbara', 'Ken', 'Radia', 'Tim', 'Guido', 'Edsger']
+        .map((n, i) => ({ id: boardKey(n), name: n, score: BOARDS[key].low ? -(20 + i * 3) : 100 - i * 7, t: i }));
+      const mine = send ? { name, score: val } : null;
+      if (mine) rows.push({ id, name, score: val, t: 99 });
+      return Promise.resolve({ rows: boardSort(rows), mine });
+    }
+    const sent = !send ? Promise.resolve()
+      : boardFetch(key + '/' + id + '.json', { method: 'PUT', body: JSON.stringify({ name, score: val, t: { '.sv': 'timestamp' } }) })
+        .catch(() => {});
+    return sent.then(() => Promise.all([
+      boardFetch(key + '.json?orderBy=%22score%22&limitToLast=10'),
+      name ? boardFetch(key + '/' + id + '.json') : null,
+    ])).then(([all, mine]) => {
+      if (!all.ok) throw new Error('board ' + all.status);
+      return Promise.all([all.json(), mine && mine.ok ? mine.json() : null]);
+    }).then(([all, mine]) => ({
+      rows: boardSort(Object.entries(all || {}).filter(([, r]) => r && typeof r.score === 'number')
+        .map(([rid, r]) => ({ id: rid, name: String(r.name).slice(0, NAME_MAX), score: r.score, t: +r.t || 0 }))),
+      mine: mine && typeof mine.score === 'number' ? mine : null,
+    }));
+  }
+  // The top ten at one game, with your own row picked out (and added underneath if you didn't make the list).
+  function Leaderboard(p) {
+    const b = BOARDS[p.key], name = playerName || store.get('name') || '', id = boardKey(name);
+    const fmt = (v) => { const n = b.low ? -v : v; return typeof b.unit === 'function' ? b.unit(n) : n + (b.unit || ''); };
+    let rows = null, mine = null, failed = false, t = 0;
+    boardLoad(p.key, name, p.score).then((r) => { rows = r.rows; mine = r.mine; }, () => { failed = true; });
+    const row = (rank, who, score, y, me) => {
+      if (me) { ctx.fillStyle = col.dark; ctx.fillRect(16, y - 4, SW - 32, 15); }
+      const c = me ? col.light : col.dark, sc = fmt(score);
+      text(rank, 24, y, 1, c);
+      text(who, 50, y, 1, c);
+      text(sc, SW - 24 - sc.length * 6, y, 1, c);
+    };
+    const self = {
+      update() {
+        t++;
+        if (t > 20 && (pressed.has('a') || pressed.has('b'))) { sfx('menu'); remove(self); }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        ctext('LEADERBOARD', 10);
+        ctext(b.title, 23);
+        if (failed) ctext('Leaderboard unavailable', 110);
+        else if (!rows) ctext('Loading...', 110);
+        else if (!rows.length) ctext('No scores yet', 110);
+        else {
+          rows.forEach((r, i) => row((i + 1) + '.', r.name, r.score, 42 + i * 16, name && r.id === id));
+          if (mine && !rows.some((r) => r.id === id)) row('-', name, mine.score, 204, true);
+        }
+        if (t > 20 && (tick >> 4) & 1) ctext('Press Space', SH - 16);
+      },
+    };
+    return self;
+  }
   function readyBox(t, hint) {
     box(60, 92, 200, 48);
     ctext(t < 50 ? 'Get ready...' : 'GO!', 104);
@@ -2968,6 +3079,7 @@
             questNote('golf', 1);
             record = !best() || total() < best();
             if (record) store.set('best.golf', total());
+            boardNote('golf', total());
             sfx('ding');
           }
         }
@@ -3127,6 +3239,7 @@
           const secs = Math.ceil(time / 60), best = +store.get('best.dark') || 0;
           record = !best || secs < best;
           if (record) store.set('best.dark', secs);
+          boardNote('dark', secs);
           return;
         }
         // shadows creep while you're not looking, freeze in the beam, and melt away if you hold it on them
@@ -5238,9 +5351,10 @@
   // two or more at once and grey bricks push up from the bottom of Joe's baseplate
   // (2 rows -> 1, 3 -> 2, 4 -> 4), and his clears do the same to you. Whoever's bricks
   // reach the top first loses. The bricks fall faster every 15 seconds.
-  function LegoGame() {
+  // LegoGame(true) is the shelf's game: no Joe, one baseplate, and you clear as many rows as you can.
+  function LegoGame(solo) {
     const COLS = 10, ROWS = 20, C = 9, BY = 38;
-    const BX = [22, 208];
+    const BX = solo ? [115] : [22, 208];
     // each piece's cells in its first rotation, on an n x n grid
     const SHAPES = {
       I: [4, [[0, 1], [1, 1], [2, 1], [3, 1]]], O: [2, [[0, 0], [1, 0], [0, 1], [1, 1]]],
@@ -5279,7 +5393,7 @@
       const bx = x + cx, by = y + cy;
       return bx >= 0 && bx < COLS && by < ROWS && (by < 0 || !board[by][bx]);
     });
-    const players = [0, 1].map((i) => ({
+    const players = (solo ? [0] : [0, 1]).map((i) => ({
       ai: i === 1, board: empty(), cur: null, next: 0, fall: 0, lockT: 0, das: 0,
       clearing: null, pending: 0, lines: 0, sent: 0, dead: false, plan: null, wait: 0, dropping: false,
     }));
@@ -5287,12 +5401,19 @@
     let state = 'ready', t = 0, frames = 0, record = false, won = false;
     const gravity = () => Math.max(6, 42 - Math.floor(frames / 900) * 4);
     const level = () => 1 + Math.min(9, Math.floor(frames / 900));
+    const secs = () => Math.floor(frames / 60);
+    // On your own, rows of grey bricks push up from the bottom by themselves: one every 12
+    // seconds to begin with, each a little sooner than the last (down to one every 2 seconds),
+    // so no game lasts forever. The gap in them moves every third row.
+    let rise = 0, risen = 0, riseHole = 0;
+    const riseEvery = () => Math.max(120, Math.round(720 * Math.pow(0.95, risen)));
 
     function spawn(p) {
       // rows of grey bricks the other player sent push up from the bottom
       if (p.pending) {
-        const hole = Math.floor(Math.random() * COLS);
+        let hole = Math.floor(Math.random() * COLS);
         for (let i = 0; i < p.pending; i++) {
+          if (solo) { if (risen++ % 3 === 0) riseHole = Math.floor(Math.random() * COLS); hole = riseHole; }
           if (p.board.shift().some((c) => c)) p.dead = true;
           const row = Array(COLS).fill('G'); row[hole] = null;
           p.board.push(row);
@@ -5332,11 +5453,13 @@
       if (!rows.length) { if (!p.ai) sfx('blip'); spawn(p); return; }
       p.clearing = { rows, t: 0 };
       p.lines += rows.length;
-      let send = SEND[rows.length];
-      const cancel = Math.min(send, p.pending);
-      p.pending -= cancel; send -= cancel;
-      const other = p === you ? them : you;
-      other.pending += send; p.sent += send;
+      if (!solo) {
+        let send = SEND[rows.length];
+        const cancel = Math.min(send, p.pending);
+        p.pending -= cancel; send -= cancel;
+        const other = p === you ? them : you;
+        other.pending += send; p.sent += send;
+      }
       sfx(rows.length >= 2 ? 'cup' : 'blip', true);
     }
     function drop(p) { while (move(p, 0, 1)); lock(p); }
@@ -5417,13 +5540,14 @@
 
     function finish() {
       state = 'done'; t = 0;
+      if (solo) { record = saveBest('legosolo', you.lines); sfx('buzz'); return; }
       won = them.dead && !you.dead;
       questNote('lego', won ? 1 : 0);
       record = saveBest('legolines', you.lines);
       sfx(won ? 'cup' : 'buzz');
     }
 
-    spawn(you); spawn(them);
+    players.forEach(spawn);
     const self = {
       music: 'lego',
       update() {
@@ -5432,20 +5556,26 @@
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
+            if (solo) { say('You cleared ' + you.lines + (you.lines === 1 ? ' line' : ' lines') + ' in ' + secs() + ' seconds.' + (record ? ' A new record!' : '') + ' You put every brick back exactly where Joe had it. Probably.'); return; }
             say(won ? 'Joe: "My bricks! My beautiful bricks!" He bows to the new master builder.'
               : 'Joe: "Still the master builder!" He snaps another brick onto his tower.');
           }
           return;
         }
-        if (pressed.has('b')) { remove(self); say('Joe: "Ha! Knew you would crack." He starts sorting his bricks by colour.'); return; }
+        if (pressed.has('b')) {
+          remove(self);
+          say(solo ? 'You tip the bricks back into the tub before Joe notices.' : 'Joe: "Ha! Knew you would crack." He starts sorting his bricks by colour.');
+          return;
+        }
         frames++;
-        step(you); step(them);
-        if (you.dead || them.dead) finish();
+        if (solo && ++rise >= riseEvery()) { rise = 0; you.pending++; }
+        players.forEach(step);
+        if (players.some((p) => p.dead)) finish();
       },
       draw() {
         box(0, 0, SW, SH);
-        text('Lego Brick Battle', 16, 10);
-        const b = 'Best ' + getBest('legolines') + ' lines';
+        text(solo ? 'Lego Building' : 'Lego Brick Battle', 16, 10);
+        const b = 'Best ' + getBest(solo ? 'legosolo' : 'legolines') + ' lines';
         text(b, SW - 16 - b.length * 6, 10);
         const brick = (x, y, k, s, alpha) => {
           const [face, hi, lo] = COLOURS[k];
@@ -5485,14 +5615,14 @@
             }
             for (const [cx, cy] of ROTS[c.k][c.r]) if (c.y + cy >= 0) brick(X + (c.x + cx) * C, BY + (c.y + cy) * C, c.k, C);
           }
-          // incoming grey rows, as a red bar beside the baseplate
+          // incoming grey rows, as a red bar beside the baseplate (they arrive with your next brick)
           if (p.pending) {
             const mx = i ? X + COLS * C + 3 : X - 7, h = Math.min(ROWS, p.pending) * C;
             ctx.fillStyle = (tick >> 3) & 1 ? '#f05040' : '#b83028';
             ctx.fillRect(mx, BY + ROWS * C - h, 4, h);
           }
           // next brick, in the middle
-          const NX = i ? 164 : 118, NY = 54;
+          const NX = solo ? 40 : i ? 164 : 118, NY = 54;
           ctx.fillStyle = col.dark; ring(NX, NY, 38, 30);
           const k = piece(p.next), cells = ROTS[k][0];
           const w = Math.max(...cells.map((q) => q[0])) + 1, hgt = Math.max(...cells.map((q) => q[1])) + 1;
@@ -5503,6 +5633,18 @@
             text('TOPPED', X + 27, BY + 148);
           }
         });
+        if (solo) {
+          // next brick on the left of the baseplate, the clock and the controls on the right
+          text('NEXT', 47, 42);
+          text('Time ' + secs() + 's', 222, 54);
+          text('Speed ' + level(), 222, 68);
+          if (state === 'play') ['Space: turn', 'Up: drop', 'Esc: give up'].forEach((h, i) => text(h, 222, 176 + i * 12));
+          if (state === 'ready') readyBox(t, 'Clear rows as the bricks rise');
+          else if (state === 'done') doneBox(['The bricks reached the top!',
+            'Cleared ' + you.lines + (you.lines === 1 ? ' line' : ' lines') + ' in ' + secs() + 's',
+            record ? 'New record!' : 'Best ' + getBest('legosolo') + ' lines'], t);
+          return;
+        }
         ctext('NEXT', 42);
         ctx.drawImage(joe.down[0], 142, 92, 36, 36);
         ctext('VS', 134);
@@ -6380,6 +6522,7 @@
       won = w; state = 'done'; t = 0;
       const mine10 = Math.round(ticks / 6);
       if (won && (!best() || mine10 < best())) { store.set('best.mummy', mine10); record = true; }
+      if (won) boardNote('mummy', mine10);
       sfx(won ? 'cup' : 'buzz');
     }
     function wrapped(g, x, n, flip) {
@@ -6958,7 +7101,7 @@
   // is crossed off when value reaches its target. Finish them all, and find her stapler,
   // and Linda is free to move on. None of this is saved: it starts fresh every visit.
   const LINDA_TASKS = [
-    { key: 'coffee', need: 1, text: 'Make a cup of coffee. I miss it.' },
+    { key: 'coffee', need: 75, text: 'Catch 75 drops of coffee' },
     { key: 'pong', need: 1, text: 'Beat the TV at Pong' },
     { key: 'punch5', need: 300, text: 'Punch the bag for 300 points' },
     { key: 'squat', need: 175, text: 'Squat 175 lb' },
@@ -6979,6 +7122,7 @@
     { key: 'cpr', need: 15, text: 'Get 15 perfect CPR compressions' },
     { key: 'engrave', need: 70, text: 'Engrave a nameplate (70% on)' },
     { key: 'golf', need: 1, text: 'Play a round on Wade\'s green' },
+    { key: 'legosolo', need: 5, text: 'Clear 5 rows at Joe\'s Lego shelf' },
   ];
   const LINDA_COUNT = 7;
   const LINDA_WAITING = [
@@ -7634,7 +7778,13 @@
       return;
     }
     if (t === '@') { sfx('select'); say('A shimmering portal. It hums with out-of-town energy.'); return; }
-    if (t === '&') { sfx('select'); say('Joe\'s Lego shelf: a red house, a spaceship and a little green tree. Every brick is in its place.'); return; }
+    if (t === '&') {
+      sfx('select');
+      ask('Joe\'s Lego shelf: a red house, a spaceship and a tub of loose bricks.', ['BUILD SOMETHING', 'LEAVE IT'], (i) => {
+        if (i === 0) { sfx('menu'); ui.push(LegoGame(true)); }
+      });
+      return;
+    }
     if (t === '%') { sfx('select'); say('One of Joe\'s Lego builds. A sticky note on it says DO NOT TOUCH.'); return; }
     if (t === '$' && eotm) { sfx('menu'); ui.push(EmployeeOfMonth()); return; }
     if (t === 'E') {
@@ -7768,6 +7918,8 @@
       updatePlayer();
       updateNpcs();
     }
+    // a finished game's leaderboard goes up as soon as the game has closed, ahead of its parting line
+    if (pendingBoard && !ui.includes(pendingBoard.owner)) { ui.push(Leaderboard(pendingBoard)); pendingBoard = null; }
     if (banner && ++banner.t > 150) banner = null;
     playMusic(pickMusic());
     pressed.clear();
@@ -8116,9 +8268,10 @@
       snake: SnakeGame, parts: PartsGame, cable: CableGame, cpr: CprGame,
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
-      dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
+      dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
       contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
-      catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog) }[q.get('game')];
+      catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
+      board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];
     if (GAME) ui.push(GAME());
   }
 

@@ -108,11 +108,14 @@
     <b>Esc</b> back, cancel &nbsp;·&nbsp; <b>X / Shift</b> B &nbsp;·&nbsp; <b>Enter</b> Start menu &nbsp;·&nbsp; <b>M</b> Map
   </div>
 </div>
-<!-- dev harness: stub audio (headless browsers hang on AudioContext) and allow a fixed RNG -->
+<!-- dev harness: stub audio (headless browsers hang on AudioContext), allow a fixed RNG, and keep the leaderboards offline -->
 <script>
   window.AudioContext = undefined; window.webkitAudioContext = undefined;
   var _r = new URLSearchParams(location.hash.slice(1)).get('rand');
   if (_r !== null) Math.random = function () { return +_r; };
+  // the leaderboards show made-up rows here and send nothing (see BOARD_DEMO in game.js),
+  // unless the address has &board=live
+  window.BOARD_DEMO = !/board=live/.test(location.hash);
 </script>
 <script src="../js/font.js"></script>
 <script src="../js/art.js"></script>
