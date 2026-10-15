@@ -7586,7 +7586,7 @@
     t: ['Cookie monster champion!'],
     u: ['A stretcher, freshly made up. Hopefully nobody needs it today.'],
     l: ['A sturdy railing. Watch your step!'],
-    g: ['Shelves stocked with chips, granola bars and pop. Snack heaven!'],
+    g: ['Shelves stocked with chips, granola bars and pop. Snack heaven!\nWait, where did all the coke go? There\'s a John-shaped gap on the bottom shelf.'],
     W: ['A washing machine. Someone left their gym towels in it.'],
     O: ['A dryer. Still warm.'],
     N: ['A row of lockers. Most of them are locked.'],
