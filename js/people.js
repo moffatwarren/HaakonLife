@@ -114,7 +114,7 @@ window.PEOPLE = {
   "Muhammad": { body: 'male', hair: '#5a3420', skin: '#f8d0a8', top: '#b83028', accent: '#2c6a34', pants: '#686878', lines: [] },
   "Cody": { body: 'male', hair: '#6a3c20', skin: '#f0c098', top: '#f8f8f8', accent: '#f0b030', pants: '#b09870', lines: ["I'm down this week on spring rolls. I guess I just won't eat this weekend :("], halloween: "I bet my costume on a hand of blackjack. I nearly came as nothing at all." },
   "Leo": { body: 'male', hair: '#d06030', skin: '#d8a070', top: '#808898', accent: '#f0b030', pants: '#303040', lines: ["Make sure to check the sender's email address and don't click on any links."], halloween: "You want scary? An email from the CEO asking for gift cards." },
-  "John": { body: 'male', hair: '#8a5a3a', skin: '#d8a070', top: '#808898', accent: '#d03868', pants: '#303040', lines: [] },
+  "John": { body: 'male', hair: '#8a5a3a', skin: '#d8a070', top: '#808898', accent: '#d03868', pants: '#303040', lines: ["Am I getting fired? I'll sneak some cokes on the way out."] },
   "Dmitriy": { body: 'male', hair: '#201818', skin: '#f8d8b8', top: '#58a848', accent: '#f8f8f8', pants: '#686878', lines: ["Nik says he taught me to cook? I ran the line, not him."] },
 };
 
