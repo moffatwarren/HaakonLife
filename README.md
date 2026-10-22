@@ -78,11 +78,13 @@ cradle. The music stops while you're in his office, so all you hear is the phone
 Answer it and someone from the plant reads you a list of everything going
 wrong, until it all gets too much and you black out.
 
-You wake up in the **Kingston plant**. The front offices run down one side
-(reception, the plant manager, HR, purchasing, the production office, engineering,
-IT, health and safety, and the training room), and the plant floor has sheet
-metal, wall panels, bases and fans, sub-assembly, the assembly line, electrical,
-the test bay, finishing, the warehouse and shipping. Everyone who works there is
+You wake up in the **Kingston plant**. The plant floor takes up the north half,
+with sheet metal, wall panels, bases and fans, sub-assembly, the assembly line,
+electrical, the test bay, finishing, the warehouse, and shipping along the east
+wall at the loading dock. The front offices run along the south either side of a
+corridor (the plant manager, HR, purchasing, the production office, engineering,
+IT, health and safety, and the training room), with two halls up onto the floor
+and reception in the south-east corner by the entrance. Everyone who works there is
 in their own area to talk to. The fans, coils, dampers, filters, test bench
 controls and parts on the floor are the same mini-games as in the office.
 
