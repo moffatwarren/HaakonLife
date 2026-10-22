@@ -2,7 +2,7 @@
   // View: 20 x 15 tiles of 16px.
   const SW = 320, SH = 240;
   const MAPS = window.OFFICE_MAPS;
-  const WALKABLE = '.,:_DSj';
+  const WALKABLE = '.,:_;DSj';
   const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
   const canvas = document.getElementById('screen');
@@ -69,6 +69,18 @@
   });
   const PANEL_LIGHTS = ['#58e048', '#f05040', '#f0b030'];
 
+  // The Kingston plant: a map of its own (see tools/build_maps.py) that you only get to
+  // by answering Eugene's phone, and leave from the start menu.
+  const PLANT = MAPS.floors.findIndex((f) => f.plant);
+  // Eugene's desk phone ('!' tile). It rings the whole time, except while you're on it.
+  const phone = (function () {
+    for (let fi = 0; fi < MAPS.floors.length; fi++) {
+      const y = MAPS.floors[fi].tiles.findIndex((r) => r.includes('!'));
+      if (y >= 0) return { floor: fi, x: MAPS.floors[fi].tiles[y].indexOf('!'), y, ringing: true };
+    }
+    return null;
+  })();
+
   // Halloween: all through October there's a costume to pick after your name and a party
   // waiting in the downstairs boardroom (see "Halloween" further down). Adding
   // &halloween=1 (or =0) to a #play link forces it on (or off) for testing.
@@ -105,7 +117,7 @@
     "Have you seen the new parts upstairs?",
   ];
   const NOT_PEOPLE = ['Meeting Room', 'First Aid Station', 'Ansys Station', 'Reception', 'Engraver'];
-  const NPC_FLOOR = '.,:_j';
+  const NPC_FLOOR = '.,:_;j';
   const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
   function hash(str) {
     let h = 2166136261;
@@ -122,8 +134,9 @@
     const def = looks[hash(name) % looks.length];
     return { body, look: { h: p.hair || def.h, s: p.skin || def.s, w: p.top || def.w, u: p.accent || def.u, K: p.pants || def.K } };
   }
+  const personOf = (name) => (window.PEOPLE || {})[name] || (window.PLANT_CREW || {})[name] || {};
   function lookFor(name) {
-    return lookOf((window.PEOPLE || {})[name] || {}, name);
+    return lookOf(personOf(name), name);
   }
   // The sprite sheet for a person, reusing the one their NPC already has.
   function spritesFor(name) {
@@ -164,13 +177,13 @@
               if (NPC_FLOOR.includes(tileAt(fi, x, y)) && !npcAt(fi, x, y)) spots.push([x, y]);
           if (!spots.length) continue;
           placed.add(name);
-          const p = (window.PEOPLE || {})[name] || {};
+          const p = personOf(name);
           const { body, look } = lookFor(name);
           const [x, y] = spots[(hash(name) + npcs.length * 7) % spots.length];
           npcs.push({
             name: p.name || name, floor: fi, room: area, x, y, dir: 'down', moving: false, prog: 0, mdx: 0, mdy: 0, step: 0,
             wait: 30 + ((hash(name) + npcs.length * 37) % 120), sprites: Art.renderSprites(body, look),
-            ghost: body === 'ghost',
+            ghost: body === 'ghost', plant: fi === PLANT,
             lines: p.lines && p.lines.length ? p.lines : [NPC_LINES[hash(name) % NPC_LINES.length].replace('{n}', name)],
           });
         }
@@ -418,6 +431,13 @@
     },
     meow: () => { tone(620, 0.12, 'triangle', 0.07, 260); tone(880, 0.35, 'triangle', 0.07, -420, 0.12); },
     swish: () => { noise(0.25, 2200, 0.06); tone(600, 0.15, 'triangle', 0.05, 500, 0.1); },
+    // an old desk phone's trill, quieter from out in the hallway
+    ring: (vol) => { for (let i = 0; i < 10; i++) tone(i & 1 ? 1180 : 940, 0.04, 'square', 0.035 * (vol || 1), 0, i * 0.04); },
+    pickup: () => { tone(160, 0.05, 'square', 0.06); noise(0.05, 1400, 0.05); },
+    // somebody shouting down the line
+    caller: () => { tone(520, 0.06, 'square', 0.03, 140); tone(620, 0.06, 'square', 0.03, -160, 0.08); tone(480, 0.09, 'square', 0.03, 90, 0.16); },
+    thump: () => { tone(70, 0.12, 'sine', 0.14, -30); tone(62, 0.1, 'sine', 0.11, -25, 0.16); },
+    beep: () => tone(1480, 0.09, 'square', 0.03), // a forklift backing up
   };
   function sfx(name, arg) { if (soundOn && actx) SFX[name](arg); }
 
@@ -523,6 +543,8 @@
     if (mode === 'play' && hw.state === 'party') return 'halloween';
     if (mode === 'play' && curRoom && ((curRoom.name === 'Haunted Office' && !lindaFree) || curRoom.dark)) return 'spooky';
     if (mode === 'play' && curRoom && curRoom.rave) return 'rave';
+    if (mode === 'play' && inPhoneRoom()) return null; // nothing but the phone ringing in Eugene's office
+    if (mode === 'play' && P.floor === PLANT) return 'plant';
     return 'office';
   }
 
@@ -686,6 +708,7 @@
         if (!holding && shown >= pages[page].join('').length && (tick >> 4) & 1) text('~', SW - 14, SH - 12);
       },
       close() { remove(self); },
+      overlay: true,
     };
     return self;
   }
@@ -697,7 +720,7 @@
     const w = Math.max(opts.minChars || 0, ...options.map((o) => o.length)) * 6 + 22, h = options.length * 16 + 8;
     if (x < 0) x = SW - w + x + 1;
     const self = {
-      options,
+      options, overlay: true,
       update() {
         if (pressed.has('up')) { cur = (cur + options.length - 1) % options.length; sfx('select'); }
         if (pressed.has('down')) { cur = (cur + 1) % options.length; sfx('select'); }
@@ -724,10 +747,12 @@
 
   function MapView() {
     let fi = P.floor;
+    // the office floors flip between each other; the plant is a map on its own
+    const floors = MAPS.floors.map((f, i) => i).filter((i) => (i === PLANT) === (P.floor === PLANT));
     const self = {
       update() {
-        if (pressed.has('left') || pressed.has('right') || pressed.has('up') || pressed.has('down')) {
-          fi = (fi + 1) % MAPS.floors.length; sfx('select');
+        if (floors.length > 1 && (pressed.has('left') || pressed.has('right') || pressed.has('up') || pressed.has('down'))) {
+          fi = floors[(floors.indexOf(fi) + 1) % floors.length]; sfx('select');
         }
         if (pressed.has('a') || pressed.has('b') || pressed.has('start') || pressed.has('map')) { sfx('select'); remove(self); }
       },
@@ -735,7 +760,7 @@
         box(0, 0, SW, SH);
         const name = MAPS.floors[fi].name.toUpperCase();
         text(name, (SW - name.length * 6) >> 1, 12);
-        const m = miniCanvas[fi], k = Math.max(1, Math.floor((SW - 16) / m.width));
+        const m = miniCanvas[fi], k = Math.max(1, Math.min(Math.floor((SW - 16) / m.width), Math.floor(150 / m.height)));
         const mx = (SW - m.width * k) >> 1, my = 30;
         ctx.drawImage(m, mx, my, m.width * k, m.height * k);
         if (fi === P.floor && (tick >> 3) & 1) {
@@ -744,9 +769,9 @@
         }
         const r = fi === P.floor ? roomAt(P.floor, P.x, P.y) : null;
         const ty = my + m.height * k + 12;
-        text(r ? r.name : fi === P.floor ? 'Hallway' : '', 10, ty);
-        text('Arrows: other floor', 10, ty + 20);
-        text('Esc: close', 10, ty + 34);
+        text(r ? r.name : fi !== P.floor ? '' : fi === PLANT ? 'Plant floor' : 'Hallway', 10, ty);
+        if (floors.length > 1) text('Arrows: other floor', 10, ty + 20);
+        text('Esc: close', 10, ty + (floors.length > 1 ? 34 : 20));
       },
     };
     return self;
@@ -1879,6 +1904,7 @@
     ghosts: { title: 'GHOST IN THE CUPBOARD' }, costume: { title: 'COSTUME CONTEST' },
     golf: { title: 'WADE\'S PUTTING GREEN', low: true }, dark: { title: 'DAMIR\'S LIGHTS', unit: 's', low: true },
     mummy: { title: 'MUMMY WRAP', unit: tenths, low: true },
+    forklift: { title: 'FORKLIFT RUSH', unit: ' pallets' },
   };
   // tools/test.html sets BOARD_DEMO: the boards show made-up rows and nothing is sent
   const boardDemo = !!window.BOARD_DEMO;
@@ -2811,7 +2837,7 @@
   // ---------- candy table: sneak candy while nobody is looking ----------
   function CandyGame() {
     const FLOOR = 184, BOWL_X = 150, HAND_X0 = 50;
-    const pool = npcs.filter((n) => !n.ghost);
+    const pool = npcs.filter((n) => !n.ghost && !n.plant);
     const who = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
     const name = who ? who.name : 'Someone', look = who ? who.sprites : sprites;
     const CANDY = ['#f85848', '#f8d848', '#78e060', '#68a0f8', '#d870d0', '#f0b030'];
@@ -4531,14 +4557,14 @@
     const floorName = (fi) => (fi === 0 ? 'Ground' : fi + 1 + 'F');
     // Everyone sitting in a numbered office or cubicle. The option shows the room
     // NUMBER only, never the name on the door, or it would answer itself.
-    const DIRECTORY = npcs.filter((n) => !n.ghost).map((n) => {
+    const DIRECTORY = npcs.filter((n) => !n.ghost && !n.plant).map((n) => {
       const r = roomAt(n.floor, n.x, n.y), m = r && /^(\d+) /.exec(r.name);
       return m ? { name: n.name, where: 'Office ' + m[1] + ', ' + floorName(n.floor) } : null;
     }).filter(Boolean);
     if (!DIRECTORY.length) DIRECTORY.push({ name: 'Kiki', where: 'Office 101, Ground' });
     let state = 'ready', t = 0, who = null, opts = [], sel = 0, left = TIME;
     let n = 0, right = 0, last = null, record = false;
-    const FACES = npcs.filter((n) => !n.ghost);
+    const FACES = npcs.filter((n) => !n.ghost && !n.plant);
     let face = null;
     function nextVisitor() {
       who = DIRECTORY[Math.floor(Math.random() * DIRECTORY.length)];
@@ -6072,7 +6098,7 @@
     for (let y = room.y1; y <= room.y2; y++)
       for (let x = room.x1; x <= room.x2; x++)
         if (NPC_FLOOR.includes(tileAt(P.floor, x, y)) && !(x === P.x && y === P.y)) spots.push([x, y]);
-    const guests = npcs.filter((n) => !n.ghost);
+    const guests = npcs.filter((n) => !n.ghost && !n.plant);
     // the people already in the room stay where they are; everyone else squeezes in around them
     const taken = new Set();
     const dancers = [];
@@ -6240,7 +6266,7 @@
   // Who comes: Lam (the MC), eight others at random, each in a different costume, and Linda.
   function pickGuests() {
     const lines = window.COSTUME_LINES || {};
-    const others = shuffled(npcs.filter((n) => !n.ghost && !n.guest && n.name !== 'Lam' && !(visit && n === visit.npc))).slice(0, 8);
+    const others = shuffled(npcs.filter((n) => !n.ghost && !n.plant && !n.guest && n.name !== 'Lam' && !(visit && n === visit.npc))).slice(0, 8);
     const outfits = shuffled(COSTUME_KEYS.concat(['ghost']));
     const guests = ['Lam'].concat(others.map((n) => n.name)).map((name, i) => {
       const costume = outfits[i % outfits.length], { body, look } = lookFor(name);
@@ -7076,10 +7102,499 @@
     return self;
   }
 
+  // ---------- Eugene's phone and the Kingston plant ----------
+  // The phone on Eugene's desk never stops ringing. Answer it and the plant piles one
+  // problem after another on you until you black out, and wake up on the plant floor.
+  // 'Leave plant' in the start menu brings you back beside the phone, with the office
+  // just as you left it (and the phone ringing again).
+  const RING_EVERY = 240; // ticks from one ring-ring to the next
+  // true during either half of a ring-ring
+  const ringing = () => {
+    const ph = tick % RING_EVERY;
+    return !!phone && phone.ringing && (ph < 24 || (ph >= 30 && ph < 54));
+  };
+  const inPhoneRoom = () => !!phone && P.floor === phone.floor && !!curRoom && curRoom === roomAt(phone.floor, phone.x, phone.y);
+  function ringPhone() {
+    // only while you're walking around (or reading a line): not in a mini-game or menu screen
+    if (!phone || !phone.ringing || P.floor !== phone.floor || !ui.every((el) => el.overlay)) return;
+    const ph = tick % RING_EVERY;
+    if (ph !== 0 && ph !== 30) return;
+    // loud in Eugene's office, fainter from the hallway outside
+    const vol = inPhoneRoom() ? 1
+      : Math.hypot(P.x - phone.x, P.y - phone.y) < 10 ? 0.35 : 0;
+    if (vol) sfx('ring', vol);
+  }
+  const PHONE_BASE = [
+    '..kkkkkkkkkk..',
+    '.kKKKKKKKKKKk.',
+    'kKGkGkGKKKKKKk',
+    'kKKKKKKKKKKrKk',
+    'kKGkGkGKKKKKKk',
+    'kKKKKKKKKKKKKk',
+    '.kkkkkkkkkkkk.',
+  ];
+  const PHONE_HANDSET = [
+    'kkkk......kkkk',
+    'kKKkkkkkkkkKKk',
+    'kKKKKKKKKKKKKk',
+    '.kkkkkkkkkkkk.',
+  ];
+  function drawPix(rows, x, y, cols) {
+    rows.forEach((row, j) => [...row].forEach((c, i) => {
+      if (c === '.') return;
+      ctx.fillStyle = cols[c]; ctx.fillRect(x + i, y + j, 1, 1);
+    }));
+  }
+  // The phone on its desk tile: while it rings the handset rattles on the cradle,
+  // the light flashes and the ring comes off it either side.
+  function drawPhoneAt(x, y) {
+    if (x < -16 || x > SW || y < -16 || y > SH) return;
+    const on = ringing(), flash = on && (tick >> 2) & 1;
+    drawPix(PHONE_BASE, x + 1, y + 6, { k: '#181820', K: '#484858', G: '#c8ccd8', r: flash ? '#f05040' : '#782020' });
+    const jig = on ? ((tick >> 1) & 1 ? 1 : -1) : 0;
+    drawPix(PHONE_HANDSET, x + 1 + jig, y + 3 - (on && (tick >> 2) & 1 ? 2 : 0), { k: '#181820', K: '#484858' });
+    if (!on) return;
+    ctx.fillStyle = '#f0d040';
+    const far = (tick >> 3) & 1 ? 2 : 0;
+    for (const [sx, d] of [[x - 1 - far, -1], [x + 16 + far, 1]]) {
+      ctx.fillRect(sx, y + 4, 1, 4);
+      ctx.fillRect(sx - d, y + 2, 1, 2); ctx.fillRect(sx - d, y + 8, 1, 2);
+    }
+  }
+  // Where to stand to use the phone, and which way to face; whoever is standing there moves.
+  function phoneSpot() {
+    for (const d in DIRS) {
+      const x = phone.x - DIRS[d][0], y = phone.y - DIRS[d][1];
+      if (!walkable(phone.floor, x, y)) continue;
+      const n = npcAt(phone.floor, x, y);
+      if (n) {
+        const r = n.room;
+        for (let yy = r.y1; yy <= r.y2; yy++)
+          for (let xx = r.x1; xx <= r.x2; xx++)
+            if (!(xx === x && yy === y) && NPC_FLOOR.includes(tileAt(n.floor, xx, yy)) && !npcAt(n.floor, xx, yy)) {
+              Object.assign(n, { x: xx, y: yy, moving: false, prog: 0 });
+              yy = r.y2 + 1; break;
+            }
+      }
+      return [x, y, d];
+    }
+    return [MAPS.start.x, MAPS.start.y, MAPS.start.dir];
+  }
+
+  const CALL = [
+    'There is a problem with the fan design!',
+    'The unit won\'t pass the deflection test!',
+    'The coil is two inches too wide for the casing!',
+    'The motor nameplate says 575 volts. The drawings say 208!',
+    'Somebody put all the access doors on the wrong side!',
+    'The truck is here and the unit isn\'t even painted yet!',
+    'The customer is on the other line asking where their unit is!',
+    'And the coffee machine is broken!',
+  ];
+  const PANIC = ['WHERE ARE THE DRAWINGS?!', 'WE ARE OUT OF RIVETS!', 'IS THAT A 3 OR AN 8?!', 'THE DRAIN PAN LEAKS!',
+    'WHO SIGNED OFF ON THIS?!', 'THE DAMPERS ARE BACKWARDS!', 'THE FORKLIFT WON\'T STOP BEEPING!', 'CALL ENGINEERING!',
+    'IT SHIPS FRIDAY!', 'HELLO?! ARE YOU STILL THERE?!'];
+  function answerPhone() {
+    phone.ringing = false;
+    sfx('pickup');
+    say('You answer the phone. It is someone from the plant...', () => callLine(0));
+  }
+  function callLine(i) {
+    if (i < CALL.length) { sfx('caller'); say('"' + CALL[i] + '"', () => callLine(i + 1)); return; }
+    const panic = StressBurst(() => startFade(() => {
+      remove(panic);
+      blackout('You blacked out from all of the stress...', enterPlant);
+    }, '#000000'));
+    ui.push(panic);
+  }
+  // Everything else the plant has to say, all at once: shouts pop up faster and faster
+  // all over the screen, the room shakes and goes red, and your heart races.
+  function StressBurst(done) {
+    let t = 0, next = 30, gap = 46, beat = 1, over = false;
+    const pops = [];
+    const self = {
+      music: 'none', shake: 0,
+      update() {
+        t++;
+        self.shake = Math.min(3, t / 60);
+        if (pops.length < PANIC.length && t >= next) {
+          const str = PANIC[pops.length], w = str.length * 6 + 16;
+          pops.push({ str, w, x: 4 + Math.floor(Math.random() * (SW - w - 8)), y: 6 + Math.floor(Math.random() * (SH - 34)) });
+          sfx('caller');
+          next = t + gap; gap = Math.max(10, Math.round(gap * 0.8));
+        }
+        if (--beat <= 0) { sfx('thump'); beat = Math.max(14, 40 - pops.length * 3); }
+        if (!over && pops.length === PANIC.length && t >= next + 30) { over = true; done(); }
+      },
+      draw() {
+        ctx.fillStyle = 'rgba(150, 0, 0, ' + Math.min(0.45, t / 500) + ')';
+        ctx.fillRect(0, 0, SW, SH);
+        for (const p of pops) {
+          const jx = Math.round((Math.random() - 0.5) * self.shake), jy = Math.round((Math.random() - 0.5) * self.shake);
+          box(p.x + jx, p.y + jy, p.w, 24);
+          text(p.str, p.x + 8 + jx, p.y + 8 + jy);
+        }
+      },
+    };
+    return self;
+  }
+  // A black screen with one line on it. A or B (or waiting) moves on.
+  function Blackout(msg, done) {
+    const lines = wrap(msg, 50), len = lines.join('').length;
+    let t = 0, shown = 0, after = 0, gone = false;
+    const self = {
+      music: 'none',
+      update() {
+        t++;
+        if (shown < len) { if (t > 30) shown = Math.min(len, shown + (held.a || held.b ? 1 : 0.4)); return; }
+        if (!gone && (pressed.has('a') || pressed.has('b') || ++after > 210)) { gone = true; sfx('select'); done(); }
+      },
+      draw() {
+        ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, SW, SH);
+        const y0 = (SH - lines.length * 16) >> 1;
+        let left = Math.floor(shown);
+        lines.forEach((l, i) => {
+          text(l.slice(0, Math.max(0, left)), (SW - l.length * 6) >> 1, y0 + i * 16, 1, '#f8f8f8');
+          left -= l.length;
+        });
+        if (shown >= len && !gone && (tick >> 4) & 1) text('~', SW - 14, SH - 12, 1, '#f8f8f8');
+      },
+    };
+    return self;
+  }
+  // Show a Blackout, then fade from it into whatever `then` sets up.
+  function blackout(msg, then) {
+    const screen = Blackout(msg, () => startFade(() => { remove(screen); then(); }, '#000000'));
+    ui.push(screen);
+  }
+  function enterPlant() {
+    const S = MAPS.plant;
+    phone.ringing = true; // it'll be ringing again when you get back
+    placePlayer(S.floor, S.x, S.y, S.dir);
+    showBanner(MAPS.floors[S.floor].name);
+    say('You wake up in the Kingston plant. Time to start helping with production!');
+  }
+  function leavePlant() {
+    sfx('select');
+    startFade(() => blackout('You are exhausted and pass out...', () => {
+      placePlayer(phone.floor, ...phoneSpot());
+      say('You woke up from a nightmare and are exhausted.');
+    }), '#000000');
+  }
+  // The plant's own take on things you can use: the same games as the office, with
+  // what you'd find on a plant floor.
+  const PLANT_GAMES = {
+    F: ['A plenum fan, fresh off the line. It wobbles. Somebody has to balance it.', 'BALANCE IT', FanGame],
+    L: ['A coil on the test stand, waiting for its superheat check.', 'WATCH THE COIL', CoilGame],
+    a: ['Damper sections waiting to go into a unit. The blades need setting.', 'SET THE BLADES', DamperGame],
+    U: ['Racks of filters for the units that ship today. The sizes are all mixed up.', 'SORT FILTERS', FilterGame],
+    K: ['The test bench controls. Half the lights are red.', 'RUN THE TEST', SimonGame],
+    j: ['Rivets, screws and brackets all over the floor.', 'SORT THEM', PartsGame],
+    '^': ['A forklift with the keys in it. Jay says the truck still needs loading.', 'DRIVE IT', ForkliftGame],
+  };
+  const PLANT_INFO = {
+    X: ['The loading dock. A truck is backed up to it, waiting.', 'The loading dock. The driver waves at you. Then points at his watch.'],
+    M: ['The press brake. It folds sheet metal like paper.', 'The shear. It is very loud and very sharp.'],
+    T: ['A stack of galvanized panels, cut and waiting to be folded.'],
+    k: ['A workbench covered in rivet guns, drill bits and coffee cups.'],
+    b: ['Binders of drawings. Every one of them says REV C.', 'Shelves of motors, bearings and belts.'],
+    d: ['A desk buried in work orders.', 'A desk with a hard hat and three coffee cups on it.', 'A desk covered in drawings. Every one says REV C.'],
+    B: ['Crates of parts. Half of them say URGENT.', 'A crate marked RUSH. It has been here since March.'],
+    '=': ['A safety partition. Someone taped a drawing to it, covered in red pen.'],
+  };
+  // ...and for things in one particular room of the plant
+  const PLANT_ROOM_INFO = {
+    'Training Room': { T: ['The training table. Someone left a quiz on lockout/tagout. It is half done.'] },
+  };
+
+  // ---------- the plant forklift: load the truck before it has to leave ----------
+  // Top-down loading dock. The truck calls for one kind of pallet at a time; drive the
+  // forks into it and it's on, drive it into the trailer and it's off (or into an empty
+  // rack bay to put a wrong one back). The forklift steers from the back: left and right
+  // turn the wheels a notch at a time and they stay turned, so it only turns while it's
+  // moving. It beeps when it reverses, and Steve from Health and Safety keeps walking
+  // across the crosswalk. Hitting him, or bringing the wrong pallet, costs time.
+  const FORKLIFT_ART = [
+    '....K......K....',
+    '....K......K....',
+    '....K......K....',
+    '...kKkkkkkkKk...',
+    '...kGGGGGGGGk...',
+    '.kkkkkkkkkkkkkk.',
+    '.kkooooooooookk.',
+    '.kkokkkkkkkkokk.',
+    '..kokKKKKKKkok..',
+    '..kokKKKKKKkok..',
+    '..kokkkkkkkkok..',
+    '..kooooooooook..',
+    '.kkKKKKKKKKKKkk.',
+    '.kkKKKKKKKKKKkk.',
+    '..kkkkkkkkkkkk..',
+    '................',
+  ];
+  const FORKLIFT_COLS = { k: '#181820', K: '#585868', G: '#c8ccd8', o: '#f0b030' };
+  let forkliftSprite = null;
+  const PALLETS = [
+    { name: 'FAN', letter: 'F', c: '#3868c8' },
+    { name: 'COIL', letter: 'C', c: '#d08040' },
+    { name: 'DAMPER', letter: 'D', c: '#a8acb8' },
+    { name: 'MOTOR', letter: 'M', c: '#58a848' },
+  ];
+  function drawPallet(x, y, k) {
+    const p = PALLETS[k];
+    ctx.fillStyle = '#5c3c1c'; ctx.fillRect(x, y, 16, 16);
+    ctx.fillStyle = '#9a6434';
+    for (let i = 0; i < 3; i++) ctx.fillRect(x + 1, y + 1 + i * 5, 14, 4);
+    ctx.fillStyle = col.dark; ctx.fillRect(x + 2, y + 2, 12, 12);
+    ctx.fillStyle = p.c; ctx.fillRect(x + 3, y + 3, 10, 10);
+    text(p.letter, x + 6, y + 5, 1, col.dark);
+  }
+  function ForkliftGame() {
+    const TIME = 5400, TOP = 20, R = 6.5; // 90 seconds; the arena starts under the status bar
+    if (!forkliftSprite) {
+      forkliftSprite = document.createElement('canvas');
+      forkliftSprite.width = forkliftSprite.height = 16;
+      const g = forkliftSprite.getContext('2d');
+      FORKLIFT_ART.forEach((row, y) => [...row].forEach((c, x) => {
+        if (c !== '.') { g.fillStyle = FORKLIFT_COLS[c]; g.fillRect(x, y, 1, 1); }
+      }));
+    }
+    // racks along the top and bottom with a row of bays in front of each, two pillars,
+    // the dock wall and the trailer of the truck backed up to it
+    const BAY_X = [24, 58, 92, 126, 160, 194];
+    const BAYS = BAY_X.map((x) => ({ x, y: TOP + 22 })).concat(BAY_X.map((x) => ({ x, y: SH - 22 })));
+    const WALLS = [
+      { x: -20, y: 0, w: 22, h: SH }, { x: 0, y: -20, w: SW, h: TOP + 20 }, { x: 0, y: SH - 2, w: SW, h: 20 },
+      { x: 6, y: TOP, w: 206, h: 10 }, { x: 6, y: SH - 10, w: 206, h: 10 },
+      { x: 60, y: 124, w: 12, h: 12 }, { x: 168, y: 124, w: 12, h: 12 },
+      { x: 262, y: TOP, w: 6, h: 70 - TOP }, { x: 262, y: 176, w: 6, h: SH - 176 },
+      { x: 268, y: 64, w: 60, h: 6 }, { x: 268, y: 176, w: 60, h: 6 }, { x: 314, y: 64, w: 10, h: 118 },
+    ];
+    const TRUCK = { x1: 266, y1: 72, x2: 312, y2: 174 };
+    const STEVE_X = 238;
+    const steve = { y: 60, to: 60, wait: 30, dir: 'down', step: 0, sprites: spritesFor('Steve') };
+    const WHEEL = 4; // notches each way
+    const lift = { x: 118, y: 130, a: 0, v: 0, load: -1, wheel: 0 };
+    let pallets = [], state = 'ready', t = 0, left = TIME, loaded = 0, order = 0, record = false;
+    let msg = null, beepT = 0, hurt = 0, bumpT = 0, wheelT = 0;
+    // after picking up, setting down or being turned away at the truck, nothing more
+    // happens until the forks are clear of everything again
+    let armed = true;
+    const say2 = (str, good) => { msg = { str, t: 0, good }; };
+    const fx = () => Math.cos(lift.a), fy = () => Math.sin(lift.a);
+    const tipAt = (d) => ({ x: lift.x + fx() * d, y: lift.y + fy() * d });
+    function newOrder() {
+      // something that's actually out there (or already on the forks)
+      const kinds = pallets.map((p) => p.k).concat(lift.load >= 0 ? [lift.load] : []);
+      order = kinds[Math.floor(Math.random() * kinds.length)];
+    }
+    function restock() {
+      const free = BAYS.filter((b) => !pallets.some((p) => Math.hypot(p.x - b.x, p.y - b.y) < 16)
+        && Math.hypot(lift.x - b.x, lift.y - b.y) > 24);
+      if (!free.length) return;
+      const b = free[Math.floor(Math.random() * free.length)];
+      pallets.push({ x: b.x, y: b.y, k: Math.floor(Math.random() * PALLETS.length) });
+    }
+    BAYS.forEach((b, i) => { if (i % 4 !== 3) pallets.push({ x: b.x, y: b.y, k: (i * 3 + (i >> 2)) % PALLETS.length }); });
+    newOrder();
+    // push the circle at (x, y) out of everything solid; returns how far it moved
+    function pushOut(c, r, solid) {
+      let mx = 0, my = 0;
+      for (const o of solid) {
+        const cx = Math.max(o.x, Math.min(c.x + mx, o.x + o.w)), cy = Math.max(o.y, Math.min(c.y + my, o.y + o.h));
+        const dx = c.x + mx - cx, dy = c.y + my - cy, d = Math.hypot(dx, dy);
+        if (d >= r) continue;
+        if (d < 0.001) { my -= r; continue; }
+        mx += dx / d * (r - d); my += dy / d * (r - d);
+      }
+      return { x: mx, y: my };
+    }
+    function finish() {
+      state = 'done'; t = 0;
+      record = saveBest('forklift', loaded);
+      sfx(loaded ? 'cup' : 'buzz');
+    }
+    const self = {
+      music: 'run',
+      update() {
+        t++;
+        if (msg && ++msg.t > 70) msg = null;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(loaded ? 'You loaded ' + loaded + ' pallet' + (loaded === 1 ? '' : 's') + '. Jay says the truck can finally leave.'
+              : 'The truck driver sighs and opens another bag of your snacks.');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You park the forklift. Steve looks relieved.'); return; }
+        if (--left <= 0) { left = 0; finish(); return; }
+        // driving: it only turns while it's rolling, and backwards it steers the other way
+        const max = lift.load >= 0 ? 1.7 : 2.1;
+        if (held.up) lift.v = Math.min(max, lift.v + 0.07);
+        else if (held.down) lift.v = Math.max(-1.3, lift.v - 0.07);
+        else lift.v *= 0.92;
+        if (Math.abs(lift.v) < 0.02) lift.v = 0;
+        // the wheels stay where you turn them: a notch per press (and quickly, a notch every
+        // few ticks, while held), and Space straightens them
+        if (held.left || held.right) {
+          if (pressed.has('left') || pressed.has('right') || ++wheelT % 4 === 0) {
+            const w = Math.max(-WHEEL, Math.min(WHEEL, lift.wheel + (held.right ? 1 : -1)));
+            if (w !== lift.wheel) { lift.wheel = w; sfx('select'); }
+          }
+        } else wheelT = 0;
+        if (pressed.has('a') && lift.wheel) { lift.wheel = 0; sfx('select'); }
+        lift.a += lift.wheel / WHEEL * 0.05 * Math.max(-1, Math.min(1, lift.v / 1.2));
+        lift.x += fx() * lift.v; lift.y += fy() * lift.v;
+        if (lift.v < -0.1 && --beepT <= 0) { sfx('beep'); beepT = 22; }
+        // bump into things: the body, and the forks (or the pallet on them); loose pallets
+        // only stop the body, so the forks can slide in under one
+        const steveBox = { x: STEVE_X - 5, y: steve.y - 6, w: 10, h: 12 };
+        const solid = WALLS.concat(pallets.map((p) => ({ x: p.x - 8, y: p.y - 8, w: 16, h: 16 })), [steveBox]);
+        const body = { x: lift.x - fx() * 1.5, y: lift.y - fy() * 1.5 };
+        let push = pushOut(body, R, solid);
+        const front = lift.load >= 0 ? { c: tipAt(10), r: 7, s: solid } : { c: tipAt(7), r: 2, s: WALLS.concat([steveBox]) };
+        const push2 = pushOut({ x: front.c.x + push.x, y: front.c.y + push.y }, front.r, front.s);
+        push = { x: push.x + push2.x, y: push.y + push2.y };
+        if (push.x || push.y) {
+          const hitSteve = pushOut(body, R + 1, [steveBox]).x || pushOut(body, R + 1, [steveBox]).y
+            || pushOut(front.c, front.r + 1, [steveBox]).x || pushOut(front.c, front.r + 1, [steveBox]).y;
+          if (hitSteve && hurt <= 0 && Math.abs(lift.v) > 0.5) {
+            left = Math.max(0, left - 300); hurt = 90; sfx('buzz');
+            say2('Steve: Zero days since an incident! -5s', false);
+          } else if (Math.abs(lift.v) > 0.8 && bumpT <= 0) { sfx('bump'); bumpT = 12; }
+          lift.x += push.x; lift.y += push.y;
+          lift.v = 0;
+        }
+        if (hurt > 0) hurt--;
+        if (bumpT > 0) bumpT--;
+        // the forks load and unload themselves when you're in the right place
+        const tip = tipAt(8), held1 = tipAt(11); // the fork tips, and the middle of a pallet on them
+        // in the truck as soon as the pallet (or the empty forks) is through the doorway
+        const inTruck = held1.x > TRUCK.x1 && held1.x < TRUCK.x2 && held1.y > TRUCK.y1 && held1.y < TRUCK.y2;
+        const under = pallets.find((q) => Math.hypot(q.x - tip.x, q.y - tip.y) < 9);
+        // an empty bay you're facing into, with the pallet over it
+        const bay = BAYS.find((b) => Math.hypot(b.x - held1.x, b.y - held1.y) < 7 && (b.y < SH / 2 ? fy() < -0.7 : fy() > 0.7)
+          && !pallets.some((q) => Math.hypot(q.x - b.x, q.y - b.y) < 16));
+        if (!armed) {
+          armed = !inTruck && !pallets.some((q) => Math.hypot(q.x - tip.x, q.y - tip.y) < 16)
+            && !BAYS.some((b) => Math.hypot(b.x - held1.x, b.y - held1.y) < 12);
+        } else if (lift.load < 0 && under) {
+          lift.load = under.k; pallets = pallets.filter((q) => q !== under); sfx('lift', 0.6); armed = false;
+        } else if (lift.load >= 0 && inTruck) {
+          armed = false;
+          if (lift.load === order) {
+            loaded++; lift.load = -1; sfx('cup');
+            say2(['Loaded!', 'Nice!', 'On the truck!', 'Next!'][loaded % 4], true);
+            restock(); newOrder();
+          } else {
+            left = Math.max(0, left - 180); sfx('buzz');
+            say2('Wrong pallet! The truck wants ' + PALLETS[order].name + '. -3s', false);
+          }
+        } else if (lift.load >= 0 && bay) {
+          pallets.push({ x: bay.x, y: bay.y, k: lift.load }); lift.load = -1; sfx('putt'); armed = false;
+        }
+        // Steve wanders up and down the crosswalk, stopping now and then
+        if (steve.wait > 0) steve.wait--;
+        else if (Math.abs(steve.y - steve.to) < 1) {
+          steve.to = TOP + 14 + Math.random() * (SH - TOP - 28);
+          steve.wait = 20 + Math.floor(Math.random() * 70);
+        } else {
+          steve.dir = steve.to > steve.y ? 'down' : 'up';
+          const ny = steve.y + Math.sign(steve.to - steve.y) * Math.min(0.6, Math.abs(steve.to - steve.y));
+          // he waits for the forklift rather than walking into it
+          if (Math.hypot(lift.x - STEVE_X, lift.y - ny) > 14 && Math.hypot(tipAt(8).x - STEVE_X, tipAt(8).y - ny) > 10) steve.y = ny;
+          if (tick % 12 === 0) steve.step ^= 1;
+        }
+      },
+      draw() {
+        // concrete, the crosswalk, the dock and the trailer
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(0, TOP, SW, SH - TOP);
+        ctx.fillStyle = '#a4acc4';
+        for (let x = 0; x < SW; x += 64) ctx.fillRect(x, TOP, 1, SH - TOP);
+        for (let y = TOP; y < SH; y += 64) ctx.fillRect(0, y, SW, 1);
+        ctx.fillStyle = '#f0d040';
+        for (let y = TOP + 4; y < SH; y += 12) ctx.fillRect(STEVE_X - 10, y, 20, 6);
+        for (const o of WALLS) {
+          if (o.y >= SH - 2 || o.y + o.h <= TOP) continue;
+          ctx.fillStyle = col.dark; ctx.fillRect(o.x, o.y, o.w, o.h);
+        }
+        ctx.fillStyle = '#585868'; ctx.fillRect(268, TOP, SW - 268, SH - TOP); // the yard outside
+        ctx.fillStyle = '#383848'; ctx.fillRect(268, 70, 46, 106);
+        ctx.fillStyle = '#7a5430'; ctx.fillRect(270, 72, 42, 102);
+        ctx.fillStyle = '#5c3c1c';
+        for (let y = 76; y < 174; y += 8) ctx.fillRect(270, y, 42, 1);
+        ctx.fillStyle = '#f0d040'; ctx.fillRect(264, 72, 2, 102);
+        text('TRUCK', 276, 188, 1, col.light);
+        // what's been loaded so far, stacked from the back of the trailer
+        for (let i = 0; i < Math.min(loaded, 12); i++) {
+          ctx.fillStyle = '#9a6434'; ctx.fillRect(298 - (i % 2) * 13, 160 - Math.floor(i / 2) * 15, 12, 12);
+          ctx.fillStyle = '#585868'; ctx.fillRect(300 - (i % 2) * 13, 162 - Math.floor(i / 2) * 15, 8, 8);
+        }
+        // racks: orange beams on dark uprights, and yellow bay markings in front
+        for (const ry of [TOP, SH - 10]) {
+          ctx.fillStyle = '#484858'; ctx.fillRect(6, ry, 206, 10);
+          ctx.fillStyle = '#f08020'; ctx.fillRect(6, ry + 3, 206, 4);
+          ctx.fillStyle = col.dark;
+          for (let x = 6; x <= 212; x += 34) ctx.fillRect(x, ry, 3, 10);
+        }
+        ctx.fillStyle = '#f0d040';
+        for (const b of BAYS) { ring(b.x - 10, b.y - 10, 20, 20); }
+        for (const p of pallets) drawPallet(Math.round(p.x) - 8, Math.round(p.y) - 8, p.k);
+        // Steve, in his hi-vis
+        const img = steve.sprites[steve.dir][steve.wait > 0 ? 0 : 1 + steve.step];
+        ctx.drawImage(img, STEVE_X - 8, Math.round(steve.y) - 10);
+        // the forklift, turned to face where it's going (pixels kept square)
+        const a = Math.round(lift.a / (Math.PI / 16)) * (Math.PI / 16);
+        ctx.save();
+        ctx.translate(Math.round(lift.x), Math.round(lift.y));
+        ctx.rotate(a + Math.PI / 2);
+        if (lift.load >= 0) drawPallet(-8, -19, lift.load);
+        ctx.drawImage(forkliftSprite, -8, -8);
+        ctx.fillStyle = col.dark;
+        for (const wx of [-6, 6]) {
+          ctx.save();
+          ctx.translate(wx, 5);
+          ctx.rotate(-lift.wheel / WHEEL * 0.6);
+          ctx.fillRect(-1, -2, 3, 5);
+          ctx.restore();
+        }
+        ctx.restore();
+        // which way the wheels are turned
+        text('WHEELS', 274, 206, 1, col.light);
+        ctx.fillStyle = '#383848'; ctx.fillRect(272, 218, 41, 7);
+        ctx.fillStyle = '#8890a0';
+        for (let i = -WHEEL; i <= WHEEL; i++) ctx.fillRect(292 + i * 5, i ? 220 : 218, 1, i ? 3 : 7);
+        ctx.fillStyle = '#f0b030'; ctx.fillRect(291 + lift.wheel * 5, 216, 3, 11);
+        // status bar: the order, time and score
+        ctx.fillStyle = col.light; ctx.fillRect(0, 0, SW, TOP);
+        ctx.fillStyle = col.dark; ctx.fillRect(0, TOP - 1, SW, 1);
+        text('TRUCK WANTS:', 6, 6);
+        drawPallet(80, 2, order);
+        text(PALLETS[order].name, 100, 6);
+        const tm = 'Time ' + Math.ceil(left / 60);
+        text(tm, 160, 6, 1, left < 600 && (tick >> 3) & 1 ? '#c03030' : col.dark);
+        const sc = 'Loaded ' + loaded;
+        text(sc, SW - 6 - sc.length * 6, 6);
+        if (msg && state === 'play') {
+          const w = msg.str.length * 6 + 16, y = msg.good ? 96 : 104;
+          box((SW - w) >> 1, y, w, 24);
+          text(msg.str, ((SW - w) >> 1) + 8, y + 8, 1, msg.good ? '#2c6a34' : '#c03030');
+        }
+        if (state === 'ready') readyBox(t, 'Space: straighten the wheels');
+        else if (state === 'done') doneBox(['Time\'s up! The truck has to go.', 'Pallets loaded: ' + loaded,
+          record ? 'New record!' : 'Best ' + getBest('forklift')], t);
+      },
+    };
+    return self;
+  }
+
   function openStartMenu() {
     sfx('menu');
     // Linda's and Kiki's lists show up in the menu once you've got them
-    const items = () => [['MAP', () => ui.push(MapView())]]
+    const items = () => (P.floor === PLANT ? [['LEAVE PLANT', (self) => { remove(self); leavePlant(); }]] : [])
+      .concat([['MAP', () => ui.push(MapView())]])
       .concat(quest ? [['LINDA\'S LIST', () => ui.push(LindaList())]] : [])
       .concat(kikiList ? [['KIKI\'S LIST', () => ui.push(KikiList())]] : [])
       .concat([
@@ -7142,7 +7657,7 @@
   const stapler = (function hideStapler() {
     const spots = [];
     MAPS.floors.forEach((f, fi) => f.tiles.forEach((rowStr, y) => [...rowStr].forEach((c, x) => {
-      if (!STAPLER_ON.includes(c)) return;
+      if (!STAPLER_ON.includes(c) || fi === PLANT) return;
       // it has to be reachable: next to floor you can stand on, in a room you can walk into
       for (const [dx, dy] of Object.values(DIRS)) {
         const r = roomAt(fi, x + dx, y + dy);
@@ -7605,6 +8120,8 @@
     Q: ['A TV for video calls. The remote is missing.'],
     U: ['Cupboards stocked with paper, pens and sticky notes.', 'Boxes of staples, binder clips and printer paper.'],
     Y: ['A printer. It\'s out of toner. Again.', 'The printer is warming up...'],
+    '+': ['An air handling unit, halfway down the line.', 'A unit waiting on its deflection test. The panels look a bit wobbly.',
+      'This unit has its access doors on the wrong side. Hmm.', 'A finished unit. Someone wrote GOOD LUCK on the side in marker.'],
   };
 
   // ---------- player / world ----------
@@ -7626,13 +8143,14 @@
   }
 
   function startFade(cb, color) { fade = { t: 0, cb, color }; }
+  function placePlayer(fi, x, y, dir) {
+    Object.assign(P, { floor: fi, x, y, dir, moving: false, walked: false, bump: 0 });
+    curRoom = roomAt(fi, x, y);
+    roomName = curRoom ? curRoom.name : null;
+  }
   function warpTo(end) {
     startFade(() => {
-      P.floor = end.floor;
-      [P.x, P.y, P.dir] = end.arrive;
-      P.moving = false; P.walked = false; P.bump = 0;
-      curRoom = roomAt(P.floor, P.x, P.y);
-      roomName = curRoom ? curRoom.name : null;
+      placePlayer(end.floor, ...end.arrive);
       showBanner(MAPS.floors[P.floor].name);
     });
   }
@@ -7778,6 +8296,7 @@
       return;
     }
     if (t === '@') { sfx('select'); say('A shimmering portal. It hums with out-of-town energy.'); return; }
+    if (t === '!' && phone) { answerPhone(); return; }
     if (t === '&') {
       sfx('select');
       ask('Joe\'s Lego shelf: a red house, a spaceship and a tub of loose bricks.', ['BUILD SOMETHING', 'LEAVE IT'], (i) => {
@@ -7789,7 +8308,7 @@
     if (t === '$' && eotm) { sfx('menu'); ui.push(EmployeeOfMonth()); return; }
     if (t === 'E') {
       const ends = findLink(P.floor, tx, ty);
-      const names = MAPS.floors.map((f, i) => (i === 0 ? 'GROUND' : i + 1 + 'F'));
+      const names = MAPS.floors.filter((f) => !f.plant).map((f, i) => (i === 0 ? 'GROUND' : i + 1 + 'F'));
       sfx('select');
       ask('The elevator. Which floor?', names.concat(['CANCEL']), (i) => {
         if (i < 0 || i >= names.length) return;
@@ -7797,7 +8316,7 @@
         sfx('ding');
         const from = P.floor, go = () => warpTo(ends.find((e) => e.floor === i));
         // every ride, somebody gets in with you
-        const pool = npcs.filter((n) => !n.ghost);
+        const pool = npcs.filter((n) => !n.ghost && !n.plant);
         if (pool.length) {
           ui.push(ElevatorGame(pool[Math.floor(Math.random() * pool.length)], from, i, go));
         } else go();
@@ -7853,8 +8372,9 @@
       say('Someone has hung a sign on it: "NOT TONIGHT. IT\'S A PARTY!"');
       return;
     }
-    if (GAMES[t]) {
-      const [msg, opt, Game] = GAMES[t];
+    const game = (P.floor === PLANT && PLANT_GAMES[t]) || GAMES[t];
+    if (game) {
+      const [msg, opt, Game] = game;
       sfx('select');
       ask(msg, [opt, 'CANCEL'], (i) => {
         if (i === 0) { sfx('menu'); ui.push(Game()); }
@@ -7869,7 +8389,8 @@
       });
       return;
     }
-    const msgs = INFO[t];
+    const here = P.floor === PLANT && roomAt(P.floor, tx, ty);
+    const msgs = (here && (PLANT_ROOM_INFO[here.name] || {})[t]) || (P.floor === PLANT && PLANT_INFO[t]) || INFO[t];
     if (msgs) { sfx('select'); say(msgs[(tx * 3 + ty * 5) % msgs.length]); }
   }
 
@@ -7918,6 +8439,7 @@
       updatePlayer();
       updateNpcs();
     }
+    if (mode === 'play' && !fade) ringPhone();
     // a finished game's leaderboard goes up as soon as the game has closed, ahead of its parting line
     if (pendingBoard && !ui.includes(pendingBoard.owner)) { ui.push(Leaderboard(pendingBoard)); pendingBoard = null; }
     if (banner && ++banner.t > 150) banner = null;
@@ -8045,6 +8567,7 @@
       if (x < -16 || x > SW || y < -16 || y > SH) continue;
       drawPortalAt(x, y, !!visit && visit.gate === k && visit.phase !== 'stay');
     }
+    if (phone && phone.floor === P.floor) drawPhoneAt(phone.x * 16 - cx, phone.y * 16 - cy);
     for (const k of panels[P.floor]) {
       const x = k.x * 16 - cx, y = k.y * 16 - cy;
       if (x < -16 || x > SW || y < -16 || y > SH) continue;
@@ -8179,7 +8702,12 @@
     else if (mode === 'name') drawName();
     else if (mode === 'costume') drawCostume();
     else {
+      // the room shakes while the plant is yelling at you
+      const shake = ui.reduce((m, el) => Math.max(m, el.shake || 0), 0);
+      ctx.save();
+      if (shake) ctx.translate(Math.round((Math.random() - 0.5) * 2 * shake), Math.round((Math.random() - 0.5) * 2 * shake));
       drawWorld();
+      ctx.restore();
       drawBanner();
       ui.forEach((el) => el.draw());
     }
@@ -8226,12 +8754,17 @@
       if (!q.has('x')) Object.assign(P, { floor: hw.floor, x: hw.room.x2 - 2, y: hw.room.y1 + 6, dir: 'up' });
       startParty();
     }
+    // &plant=1 wakes you up in the Kingston plant; &phone=1 stands you at Eugene's phone,
+    // and &call=1 answers it
+    if (q.has('plant')) placePlayer(MAPS.plant.floor, MAPS.plant.x, MAPS.plant.y, MAPS.plant.dir);
+    if ((q.has('phone') || q.has('call')) && phone) placePlayer(phone.floor, ...phoneSpot());
     mode = q.has('title') ? 'title' : q.has('select') ? 'select' : q.has('naming') ? 'name' : 'play';
     if (q.has('costumes')) openCostumes();
     updateRoom();
     if (q.has('say')) ask('The elevator. Which floor?', ['GROUND', '2F', 'CANCEL'], () => {});
     if (q.has('menu')) openStartMenu();
     if (q.has('map')) ui.push(MapView());
+    if (q.has('call') && phone) answerPhone();
     // &name=Sam sets your name; &quest=1 hands you Linda's list, &quest=done finishes it
     if (q.has('name')) playerName = q.get('name');
     if (q.has('quest')) {
@@ -8269,7 +8802,7 @@
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
       dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
-      contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
+      forklift: ForkliftGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
       board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];
     if (GAME) ui.push(GAME());
@@ -8284,12 +8817,12 @@
   layout();
   if (location.hash.startsWith('#play')) {
     const q = new URLSearchParams(location.hash.slice(1));
-    // keys=left:40,a:1  -> hold each key for N ticks, in order
+    // keys=left:40,a:1  -> hold each key for N ticks, in order (up+left:20 holds both)
     for (const part of (q.get('keys') || '').split(',').filter(Boolean)) {
-      const [k, n] = part.split(':');
-      press(k);
+      const [k, n] = part.split(':'), ks = k.split(/[+ ]/); // a + in the address reads as a space
+      ks.forEach(press);
       for (let i = 0; i < +n; i++) update();
-      release(k);
+      ks.forEach(release);
     }
     const n = +q.get('ticks') || 0;
     for (let i = 0; i < n; i++) update();

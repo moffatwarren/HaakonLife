@@ -55,6 +55,24 @@ window.Art = (function () {
 
   // ---------- object art ----------
   const ART = {
+    forklift: [
+      '....K......K....',
+      '....K......K....',
+      '....K......K....',
+      '...kKkkkkkkKk...',
+      '...kGGGGGGGGk...',
+      '.kkkkkkkkkkkkkk.',
+      '.kkooooooooookk.',
+      '.kkokkkkkkkkokk.',
+      '..kokKKKKKKkok..',
+      '..kokKKKKKKkok..',
+      '..kokkkkkkkkok..',
+      '..kooooooooook..',
+      '.kkKKKKKKKKKKkk.',
+      '.kkKKKKKKKKKKkk.',
+      '..kkkkkkkkkkkk..',
+      '................',
+    ],
     chair: [
       '................',
       '................',
@@ -1197,6 +1215,12 @@ window.Art = (function () {
           case '.': c = ((x % 8 === 0 && y % 8 === 0) || (x % 8 === 4 && y % 8 === 4)) ? 'p' : 'P'; break;
           case ',': c = (x === 0 || y === 0) ? 'A' : ((tx + ty) & 1 ? 'a' : 'Z'); break;
           case ':': c = (x % 8 === 0 || y % 8 === 0) ? 'G' : 'w'; break;
+          case ';': {
+            // plant concrete: big poured slabs with saw cuts, and a few flecks of aggregate
+            const gx = tx * 16 + x, gy = ty * 16 + y;
+            c = gx % 64 === 0 || gy % 64 === 0 ? 'p' : (gx * 13 + gy * 7) % 29 === 0 ? 'p' : 'G';
+            break;
+          }
           case '_': {
             // long planks: 4px tall, a joint every 48px, staggered per row
             const gx = tx * 16 + x, row = Math.floor((ty * 16 + y) / 4);
@@ -1256,6 +1280,20 @@ window.Art = (function () {
         else if (!inM(x, y - 2)) c = 'w';
         set(b, x, y, c);
       }
+  }
+
+  // An air handling unit on the plant floor: grey casing panels with seams where
+  // they meet, and an access door with a handle on the front face.
+  function paintUnit(b, con) {
+    block(b, con, 'W', 'u', 'w');
+    const top = con.u ? 0 : 3, bottom = con.d ? 16 : 10;
+    if (con.r) rect(b, 15, top, 1, bottom - top, 'G');
+    if (!con.d) {
+      if (con.r) rect(b, 15, 11, 1, 3, 'k');
+      rect(b, 3, 11, 10, 3, 'k');
+      rect(b, 4, 11, 8, 2, 'U');
+      set(b, 10, 12, 'w');
+    }
   }
 
   function paintDoor(b, get, x, y) {
@@ -1479,10 +1517,13 @@ window.Art = (function () {
       case 'D': paintDoor(b, get, x, y); break;
       case 'S': paintStairs(b, get, x, y); break;
       case 'd': case 'm':
-        block(b, con('dm%'), 'N', 'n', 'y');
+        block(b, con('dm%!'), 'N', 'n', 'y');
         stamp(b, t === 'm' ? ART.monitor : ((x * 7 + y * 5) % 3 === 0 ? ART.papers : []));
         break;
-      case '%': block(b, con('dm%'), 'N', 'n', 'y'); paintLegoDesk(b, x, y); break;
+      case '%': block(b, con('dm%!'), 'N', 'n', 'y'); paintLegoDesk(b, x, y); break;
+      case '!': block(b, con('dm%!'), 'N', 'n', 'y'); break; // the phone itself is drawn by the game, so it can ring
+      case '+': paintUnit(b, con('+')); break;
+      case '^': stamp(b, ART.forklift); break;
       case '&': paintLegoShelf(b, get, x, y); break;
       case 'T': block(b, con('T'), 'y', 'N', 'w'); break;
       case 'k': case 'M': block(b, con('kMnP'), 'W', 'g', 'w'); if (t === 'M') stamp(b, ART.appliance); break;
@@ -1701,7 +1742,7 @@ window.Art = (function () {
     for (let y = 0; y < H; y++)
       for (let x = 0; x < W; x++) {
         const t = floor.tiles[y][x];
-        const c = t === ' ' ? 'w' : t === '#' ? 'k' : t === 'S' || t === 'E' ? 'r' : t === 'X' ? 'u' : '.,:_D$'.includes(t) ? 'G' : 'g';
+        const c = t === ' ' ? 'w' : t === '#' ? 'k' : t === 'S' || t === 'E' ? 'r' : t === 'X' ? 'u' : '.,:_;D$'.includes(t) ? 'G' : 'g';
         const rgb = pal[c], i = (y * W + x) * 4;
         img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2]; img.data[i + 3] = 255;
       }

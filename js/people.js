@@ -118,6 +118,46 @@ window.PEOPLE = {
   "Dmitriy": { body: 'male', hair: '#201818', skin: '#f8d8b8', top: '#58a848', accent: '#f8f8f8', pants: '#686878', lines: ["Nik says he taught me to cook? I ran the line, not him."] },
 };
 
+// The people at the Kingston plant (answer Eugene's phone to get there), keyed by
+// full name. 'name' is what the game calls them. Where each one works is set by
+// the 'people' on the plant's rooms in tools/build_maps.py. Same fields as PEOPLE,
+// and the colours are placeholders too. visits: true for someone who also turns up
+// in the Richmond visitor office (they look the same in both places).
+window.PLANT_CREW = {
+  // front offices
+  "Alex Bobyk": { name: 'Alex', visits: true, body: 'male', hair: '#5a3420', skin: '#f8d0a8', top: '#f8f8f8', accent: '#3050a8', pants: '#484858', lines: ["Oh good, you're awake. Six units ship Friday and the drawings are still on revision C.", "Have you seen our new coil storage? The nesting is top tier."] },
+  "Courtney den Otter": { name: 'Courtney', visits: true, body: 'female', hair: '#d06030', skin: '#f8d8b8', top: '#9868c8', accent: '#f8f8f8', pants: '#303040', lines: ["If anyone asks, you fainted from the heat. Not from the phone call.", "HR is here to help. Mostly with forms."] },
+  "Amelia Bailey": { name: 'Amelia', body: 'female', hair: '#6a3c20', skin: '#f0c098', top: '#40a0a0', accent: '#f8e070', pants: '#383848', lines: ["Welcome to Kingston! I just need you to fill in a few forms. And a few more after those.", "Your safety orientation is booked for Tuesday. Please don't touch anything until then."] },
+  "Fleur Storms": { name: 'Fleur', body: 'female', hair: '#e8c050', skin: '#f8d0a8', top: '#58a848', accent: '#f8f8f8', pants: '#303040', lines: ["Somebody changed the BOM again. Now I need 400 more rivets by Thursday.", "If it isn't on the BOM, it doesn't exist."] },
+  "Ashley Naylor": { name: 'Ashley', body: 'female', hair: '#201818', skin: '#d8a070', top: '#e07898', accent: '#f8f8f8', pants: '#484858', lines: ["Lead time on that motor is fourteen weeks. And I asked nicely.", "Every PO needs a number. Every number needs a PO."] },
+  "Samantha Fox": { name: 'Samantha', body: 'female', hair: '#8a5a3a', skin: '#f8d8b8', top: '#3868c8', accent: '#f8e070', pants: '#303040', lines: ["Welcome to the Kingston plant! Please sign in. Safety glasses are on the left.", "Somebody keeps calling Eugene's phone from out on the floor. No idea who."] },
+  "Mike Delaney": { name: 'Mike D.', body: 'male', hair: '#a8a8b0', skin: '#f0c098', top: '#78a8e8', accent: '#283878', pants: '#484858', lines: ["We're behind, we're over, and the coffee machine is broken. Normal Tuesday.", "Who called Richmond? Was it you? It was you, wasn't it."] },
+  "Jillian Henderson": { name: 'Jillian', body: 'female', hair: '#5a3420', skin: '#f8d0a8', top: '#f8f8f8', accent: '#58a848', pants: '#383848', lines: ["The drawing says this coil fits. The coil disagrees.", "Three ECNs open and it isn't even lunch."] },
+  "William Phippen": { name: 'William', body: 'male', hair: '#6a3c20', skin: '#f8d8b8', top: '#808898', accent: '#b83028', pants: '#303040', lines: ["I'm updating the drawings to revision D. Don't tell anyone about revision C.", "Production engineering: where every problem is my problem."] },
+  "Cedric Aloor": { name: 'Cedric', body: 'male', hair: '#181010', skin: '#8a5838', top: '#58a848', accent: '#f8f8f8', pants: '#3a3050', lines: ["Have you tried turning the plant off and on again?", "The ERP is down. No, I can't tell you when it'll be back up."] },
+  "Steve Goddard": { name: 'Steve', body: 'male', hair: '#8a5a3a', skin: '#f0c098', top: '#f0b030', accent: '#f8f070', pants: '#484858', lines: ["Safety glasses on! Yes, even in the hallway.", "It has been zero days since someone passed out on the plant floor. Thanks for that."] },
+  "Stephanie Weiler": { name: 'Stephanie', body: 'female', hair: '#d06030', skin: '#f8d0a8', top: '#f0b030', accent: '#b83028', pants: '#303040', lines: ["Today's training: how to answer the phone without blacking out.", "There's a course for everything. Even a course on finding courses."] },
+  // plant floor
+  "Graham Code": { name: 'Graham', body: 'male', hair: '#5a3420', skin: '#f8d0a8', top: '#f08020', accent: '#f8f070', pants: '#303040', lines: ["The FMS punches out a panel every few seconds. Try to keep up.", "These panels came off the brake two degrees out. Again."] },
+  "Josh Cadieux": { name: 'Josh', body: 'male', hair: '#201818', skin: '#f0c098', top: '#f0b030', accent: '#f8f070', pants: '#383848', lines: ["A problem with the fan design? Not my department. Probably.", "Sheet metal is just origami with more cuts."] },
+  "Kyle Bullock": { name: 'Kyle', body: 'male', hair: '#e8c050', skin: '#f8d8b8', top: '#f0b030', accent: '#f8f070', pants: '#484858', lines: ["It sagged a quarter inch on the deflection test? My walls don't sag. Must be the floor.", "Double wall, foam injected. You could stand on these panels. Please don't."] },
+  "John Kay": { name: 'John K.', body: 'male', hair: '#6a3c20', skin: '#d8a070', top: '#f0b030', accent: '#f8f070', pants: '#303040', lines: ["Grab one of those fans and balance it, would you? Mind your fingers.", "Every unit starts on one of my bases. No pressure."] },
+  "Mark Lake": { name: 'Mark L.', body: 'male', hair: '#181010', skin: '#c08860', top: '#f0b030', accent: '#f8f070', pants: '#686878', lines: ["Coils, dampers, drain pans. If it goes in a unit, it comes through here first.", "The dampers aren't backwards. They're facing the future."] },
+  "Mike Burnett": { name: 'Mike B.', body: 'male', hair: '#5a3420', skin: '#f8d0a8', top: '#f0b030', accent: '#f8f070', pants: '#383848', lines: ["Who put the access doors on the wrong side? Don't look at me.", "Keep it moving! Every minute this line stands still is a unit we don't ship."] },
+  "Mark Van Oudenaren": { name: 'Mark V.', body: 'male', hair: '#8a5a3a', skin: '#f8d8b8', top: '#f08020', accent: '#f8f070', pants: '#303040', lines: ["I've popped four hundred rivets today. My hands are rivet guns now.", "Is that a 3 or an 8 on the drawing? I went with 8."] },
+  "Scott Woodman": { name: 'Scott', body: 'male', hair: '#201818', skin: '#f0c098', top: '#f0b030', accent: '#f8f070', pants: '#484858', lines: ["The motor nameplate says 575 volts. The drawings say 208. Guess who gets to sort it out.", "Don't touch the panel with the red lights. Or the green ones."] },
+  "Brian Kelly": { name: 'Brian', body: 'male', hair: '#d06030', skin: '#f8d8b8', top: '#f08020', accent: '#f8f070', pants: '#3a3050', lines: ["If it leaks, sparks or squeaks, it ends up on my list.", "The compressor is making that noise again. I'm sure it's fine."] },
+  "Caleb Werner": { name: 'Caleb', body: 'male', hair: '#e8c050', skin: '#f8d0a8', top: '#f8f8f8', accent: '#3050a8', pants: '#383848', lines: ["I pre-check every unit before it goes on test. This one has its drain pan on upside down.", "No sticker, no ship. Those are the rules."] },
+  "Nick Stevens": { name: 'Nick', body: 'male', hair: '#181010', skin: '#d8a070', top: '#f08020', accent: '#f8f070', pants: '#686878', lines: ["The truck is here and this unit isn't even painted yet. No pressure.", "Finishing touches. Emphasis on the finishing."] },
+  "Justin Brennan": { name: 'Justin', body: 'male', hair: '#5a3420', skin: '#f0c098', top: '#f0b030', accent: '#f8f070', pants: '#303040', lines: ["Everything in this warehouse has a place. I just can't find it.", "We counted the filters. Then we counted them again. Different number."] },
+  "Jay Sorensen": { name: 'Jay', body: 'male', hair: '#6a3c20', skin: '#f8d8b8', top: '#f08020', accent: '#f8f070', pants: '#484858', lines: ["The truck's been here since seven. The driver has eaten all of our snacks.", "If it isn't on the truck by three, it ships Monday."] },
+};
+// Anyone at the plant who also visits Richmond looks the same in the visitor office.
+for (const v of window.VISITORS) {
+  const crew = Object.values(window.PLANT_CREW).find((c) => c.visits && c.name === v.name);
+  if (crew) for (const k of ['body', 'hair', 'skin', 'top', 'accent', 'pants']) v[k] = crew[k];
+}
+
 // Office dogs. Each one wanders around its owner's office (in and out of it);
 // talk to one to play catch with it.
 //   breed: shown with their name

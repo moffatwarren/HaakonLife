@@ -5,7 +5,7 @@
 Run:  python3 tools/build_maps.py
 
 Map glyphs
-  walkable:  . carpet   , hallway   : tile   _ wood   D doorway   S stairs
+  walkable:  . carpet   , hallway   : tile   _ wood   ; concrete   D doorway   S stairs
   solid:     # wall  (space) outside  X exit door  E elevator door
              d desk  m computer desk  c chair  p plant  b bookshelf
              k counter  M appliance  n sink  w toilet  f fridge  v recycling bin
@@ -23,8 +23,13 @@ Map glyphs
              i putting green  s engraving machine
              & Joe's Lego shelf (on a left-hand wall)  % desk with Lego on it
              @ the visitor office portal (visitors come and go through it)
+             ! Eugene's desk phone (always ringing; answering it takes you to the plant)
+             + an air handling unit on the plant floor   ^ forklift (plant)
              P coffee machine (two tiles tall)  C curtain (opened from the game; closes when you leave the room)
   walkable:  j computer parts scattered on the floor
+
+The Kingston plant is a third map, not linked to the office floors: Eugene's phone
+sends you there and 'Leave plant' in the start menu brings you back.
 
 Room options: 'dark': True draws the room with the lights off,
 'rave': True fills the room with strobing party lights and dance music,
@@ -44,18 +49,20 @@ W, H = 108, 40
 
 
 class Floor:
-    def __init__(self, name):
+    def __init__(self, name, w=W, h=H):
         self.name = name
-        self.g = [[' '] * W for _ in range(H)]
-        self.fl = [[' '] * W for _ in range(H)]  # floor layer under objects
+        self.w, self.h = w, h
+        self.g = [[' '] * w for _ in range(h)]
+        self.fl = [[' '] * w for _ in range(h)]  # floor layer under objects
         self.rooms = []
+        self.plant = False
 
     # --- primitives (all coordinates inclusive) ---
     def fill(self, x1, y1, x2, y2, ch):
         for y in range(y1, y2 + 1):
             for x in range(x1, x2 + 1):
                 self.g[y][x] = ch
-                if ch in '.,:_':
+                if ch in '.,:_;':
                     self.fl[y][x] = ch
 
     def hline(self, x1, x2, y, ch='#'):
@@ -125,12 +132,15 @@ class Floor:
             self.put(x, y, floor)
 
     def out(self):
-        return {
+        d = {
             'name': self.name,
             'tiles': [''.join(r) for r in self.g],
             'floor': [''.join(r) for r in self.fl],
             'rooms': self.rooms,
         }
+        if self.plant:
+            d['plant'] = True
+        return d
 
 
 # =====================================================================
@@ -664,6 +674,7 @@ f1.l_desk(col(49, 32, 37) + row(37, 50, 53), (51, 37), (51, 36))       # Sidney
 f1.clear((62, 37), (63, 37), (62, 36), (65, 37))
 f1.l_desk(col(65, 33, 37), (65, 35), (64, 35))                          # Troy
 f1.l_desk(col(67, 33, 37) + row(37, 68, 70), (69, 37), (69, 36))       # Eugene
+f1.put(67, 34, '!')                                                     # ...and his phone, ringing
 f1.clear((76, 37), (77, 37), (76, 36))
 f1.l_desk(row(33, 74, 77) + col(74, 34, 37), (74, 33), (75, 34))       # Damir
 f1.clear((83, 36))
@@ -730,14 +741,121 @@ links = {
     ],
 }
 
+# =====================================================================
+# KINGSTON PLANT: only reached by answering Eugene's phone (and left from the
+# start menu), so it isn't linked to the office floors. Front offices down the
+# west side, the plant floor to the east. Who works where is the 'people' on
+# each room (their looks and lines are PLANT_CREW in js/people.js).
+# =====================================================================
+fp = Floor('Kingston Plant', 64, 30)
+fp.plant = True
+fp.fill(1, 1, 62, 28, ';')
+fp.hline(0, 63, 0); fp.hline(0, 63, 29); fp.vline(0, 0, 29); fp.vline(63, 0, 29)
+
+# --- front offices: a corridor with offices either side, reception at the bottom ---
+fp.fill(1, 1, 16, 28, '.')
+fp.fill(8, 1, 9, 28, ',')
+fp.vline(7, 0, 29); fp.vline(10, 0, 29); fp.vline(17, 0, 29)
+for y in (6, 13, 20):
+    fp.hline(0, 7, y)
+for y in (6, 11, 14, 19, 24):
+    fp.hline(10, 17, y)
+fp.fill(10, 12, 16, 13, ',')                    # hallway out onto the plant floor
+fp.door((17, 12), (17, 13))
+
+fp.office("Plant Manager's Office", 1, 1, 6, 5, 'E'); fp.door((7, 3), (7, 4))
+fp.put(6, 1, 'b')
+fp.rooms[-1]['people'] = ['Alex Bobyk']
+fp.office('HR', 1, 7, 6, 12, 'E'); fp.door((7, 9), (7, 10))
+fp.put(2, 12, 'm'); fp.put(3, 12, 'd'); fp.put(2, 11, 'c')
+fp.rooms[-1]['people'] = ['Courtney den Otter', 'Amelia Bailey']
+fp.office('Purchasing', 1, 14, 6, 19, 'E'); fp.door((7, 16), (7, 17))
+fp.put(2, 19, 'm'); fp.put(3, 19, 'd'); fp.put(2, 18, 'c')
+fp.rooms[-1]['people'] = ['Fleur Storms', 'Ashley Naylor']
+fp.room('Reception', 1, 21, 6, 28); fp.door((7, 23), (7, 24))
+fp.l_desk(row(25, 1, 4), (2, 25), (2, 24))
+fp.put(6, 21, 'p'); fp.put(1, 28, 'p'); fp.put(6, 27, 'c'); fp.put(6, 28, 'c')
+fp.exit((3, 29), (4, 29))
+fp.rooms[-1]['people'] = ['Samantha Fox']
+
+fp.office('Production Office', 11, 1, 16, 5, 'W'); fp.door((10, 3), (10, 4))
+fp.rooms[-1]['people'] = ['Mike Delaney']
+fp.office('Engineering', 11, 7, 16, 10, 'W'); fp.door((10, 8), (10, 9))
+fp.put(12, 10, 'm'); fp.put(13, 10, 'd'); fp.put(12, 9, 'c')
+fp.rooms[-1]['people'] = ['Jillian Henderson', 'William Phippen']
+fp.office('IT', 11, 15, 16, 18, 'W'); fp.door((10, 16), (10, 17))
+fp.put(16, 15, 'z'); fp.put(16, 16, 'z')
+fp.rooms[-1]['people'] = ['Cedric Aloor']
+fp.office('Health and Safety', 11, 20, 16, 23, 'W'); fp.door((10, 21), (10, 22))
+fp.rooms[-1]['people'] = ['Steve Goddard']
+fp.room('Training Room', 11, 25, 16, 28); fp.door((10, 26), (10, 27))
+fp.fill(12, 26, 14, 27, 'T')
+fp.put(15, 26, 'c'); fp.put(15, 27, 'c'); fp.put(16, 28, 'p')
+fp.put(16, 26, 'V'); fp.put(16, 27, 'V')
+fp.rooms[-1]['people'] = ['Stephanie Weiler']
+
+# --- plant floor, top: sheet metal, walls, bases and fans, sub-assembly ---
+fp.room('Sheet Metal Shop', 18, 1, 29, 8, ';')
+fp.fill(19, 1, 21, 1, 'M'); fp.fill(25, 1, 26, 1, 'M')   # the FMS and the press brake
+fp.fill(20, 4, 22, 5, 'T')
+for x, y in ((25, 5), (27, 4), (19, 7), (23, 7)):
+    fp.put(x, y, 'j')                           # rivets and brackets on the floor
+fp.rooms[-1]['people'] = ['Graham Code', 'Josh Cadieux']
+fp.room('Wall Panels', 30, 1, 39, 8, ';')
+fp.fill(31, 1, 34, 1, 'k'); fp.fill(31, 4, 33, 5, 'T'); fp.fill(36, 4, 38, 5, 'T')
+fp.rooms[-1]['people'] = ['Kyle Bullock']
+fp.room('Bases and Fans', 40, 1, 50, 8, ';')
+for x in (41, 43, 45, 47, 49):
+    fp.put(x, 1, 'F')
+fp.rooms[-1]['people'] = ['John Kay']
+fp.room('Sub-Assembly', 51, 1, 62, 8, ';')
+for x in (52, 53, 55, 56, 58, 59):
+    fp.put(x, 1, 'L')
+fp.fill(62, 3, 62, 5, 'a')                      # damper sections waiting to go in
+fp.rooms[-1]['people'] = ['Mark Lake']
+
+# --- the assembly line: units in a row, each a stage further along ---
+fp.room('Assembly Line', 18, 11, 62, 17, ';')
+for x in (20, 27, 34, 41, 48, 55):
+    fp.fill(x, 13, x + 3, 14, '+')
+fp.rooms[-1]['people'] = ['Mike Burnett', 'Mark Van Oudenaren']
+
+# --- along the bottom, behind partitions ---
+fp.hline(18, 62, 18, '=')
+fp.clear((22, 18), (23, 18), (32, 18), (33, 18), (42, 18), (43, 18), (50, 18), (51, 18), (58, 18), (59, 18), floor=';')
+for x in (28, 38, 47, 55):
+    fp.vline(x, 18, 28, '=')
+fp.room('Electrical', 18, 19, 27, 28, ';')
+for y in (20, 22, 24, 26):
+    fp.put(18, y, 'K')
+fp.fill(23, 28, 26, 28, 'M')
+fp.rooms[-1]['people'] = ['Scott Woodman', 'Brian Kelly']
+fp.room('Test Bay', 29, 19, 37, 28, ';')
+fp.fill(31, 22, 35, 24, '+')                    # a unit on the deflection test stand
+fp.put(29, 20, 'K'); fp.put(29, 27, 'K')
+fp.rooms[-1]['people'] = ['Caleb Werner']
+fp.room('Finishing', 39, 19, 46, 28, ';')
+fp.fill(40, 21, 43, 22, '+'); fp.fill(40, 25, 43, 26, '+')
+fp.rooms[-1]['people'] = ['Nick Stevens']
+fp.room('Warehouse', 48, 19, 54, 28, ';')
+fp.fill(49, 28, 54, 28, 'U'); fp.fill(54, 20, 54, 24, 'b')
+fp.put(50, 22, '^')                             # the forklift
+fp.rooms[-1]['people'] = ['Justin Brennan']
+fp.room('Shipping', 56, 19, 62, 28, ';')
+fp.fill(57, 21, 60, 22, '+')                    # a finished unit, wrapped for the truck
+fp.fill(61, 24, 62, 25, 'B')
+fp.exit((57, 29), (58, 29), (60, 29), (61, 29))  # loading dock doors
+fp.rooms[-1]['people'] = ['Jay Sorensen']
+
 # Make sure floor layer exists under every object / door tile.
-for f in (f1, f2):
-    for y in range(H):
-        for x in range(W):
+for f in (f1, f2, fp):
+    for y in range(f.h):
+        for x in range(f.w):
             if f.fl[y][x] == ' ' and f.g[y][x] not in '# X':
                 f.fl[y][x] = ','
 
-data = {'floors': [f1.out(), f2.out()], 'links': links, 'start': {'floor': 0, 'x': 27, 'y': 36, 'dir': 'up'}}
+data = {'floors': [f1.out(), f2.out(), fp.out()], 'links': links, 'start': {'floor': 0, 'x': 27, 'y': 36, 'dir': 'up'},
+        'plant': {'floor': 2, 'x': 40, 'y': 9, 'dir': 'down'}}
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 out = os.path.join(root, 'js', 'maps.js')
@@ -747,7 +865,7 @@ with open(out, 'w') as fh:
     fh.write('window.OFFICE_MAPS = ' + json.dumps(data, indent=1) + ';\n')
 
 if __name__ == '__main__':
-    for f in (f1, f2):
+    for f in (f1, f2, fp):
         print(f.name)
         for i, r in enumerate(f.g):
             print(f'{i:2d} ' + ''.join(r))

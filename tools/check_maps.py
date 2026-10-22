@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Flood-fills js/maps.js from the start point (following stairs + elevator)
-and reports any walkable tiles or named rooms that can't be reached."""
+"""Flood-fills js/maps.js from the start point (following stairs + elevator) and
+from where you wake up in the Kingston plant, and reports any walkable tiles or
+named rooms that can't be reached."""
 import json, os
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 src = open(os.path.join(root, 'js', 'maps.js')).read()
 d = json.loads(src[src.index('{'):src.rindex('}') + 1])
-WALK = '.,:_DSjC'  # curtains can be opened
+WALK = '.,:_;DSjC'  # curtains can be opened
 
 
 def warp(f, x, y):
@@ -16,8 +17,7 @@ def warp(f, x, y):
     return []
 
 
-st = d['start']
-seen, q = set(), [(st['floor'], st['x'], st['y'])]
+seen, q = set(), [(p['floor'], p['x'], p['y']) for p in (d['start'], d['plant'])]
 while q:
     f, x, y = q.pop()
     if (f, x, y) in seen:

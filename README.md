@@ -62,6 +62,39 @@ Walk up to these and press A:
 - **Washer and dryer** (fitness room): catch the load the machine is asking for, let the rest drop
 - **Joe's Lego shelf** (2nd floor, office 146): the same falling bricks as Joe's brick battle, but on your own. Rows of grey bricks push up from the bottom, slowly at first and then faster and faster, so see how many lines you can clear before they reach the top
 - **Elevator**: every ride, a coworker gets in and makes conversation
+- **Forklift** (Kingston plant, in the warehouse): Forklift Rush. The truck at the dock
+  calls for one kind of pallet at a time (fan, coil, damper or motor); drive the forks
+  into it to pick it up, and into the trailer to load it (or into an empty rack bay to
+  put a wrong one back). 90 seconds, as many pallets as you can. Left and right turn the
+  wheels a notch at a time and they stay turned (Space straightens them); it steers from
+  the back, so it only turns while it's moving. Bringing the wrong pallet costs 3
+  seconds, and running into Steve on the crosswalk costs 5
+
+## Eugene's phone and the Kingston plant
+
+The phone on Eugene's desk (office 163) never stops ringing: you can hear it from
+his office (and faintly from the hallway outside), and the handset rattles on the
+cradle. The music stops while you're in his office, so all you hear is the phone.
+Answer it and someone from the plant reads you a list of everything going
+wrong, until it all gets too much and you black out.
+
+You wake up in the **Kingston plant**. The front offices run down one side
+(reception, the plant manager, HR, purchasing, the production office, engineering,
+IT, health and safety, and the training room), and the plant floor has sheet
+metal, wall panels, bases and fans, sub-assembly, the assembly line, electrical,
+the test bay, finishing, the warehouse and shipping. Everyone who works there is
+in their own area to talk to. The fans, coils, dampers, filters, test bench
+controls and parts on the floor are the same mini-games as in the office.
+
+To go back, open the Start menu (Esc or START) and pick **Leave plant**. You pass
+out, and wake up beside Eugene's phone with the office just as you left it. The
+phone is ringing again, so you can go back any time.
+
+What the caller says is `CALL` (and the shouting at the end is `PANIC`) in
+`js/game.js`. The people at the plant, their looks and their lines are `PLANT_CREW` in
+`js/people.js`; which area each one works in, and the plant's layout, are in the
+Kingston plant section at the end of `tools/build_maps.py`. Alex and Courtney also
+take turns in the Richmond visitor office, looking the same as they do at the plant.
 
 ## Leaderboards
 
@@ -247,10 +280,16 @@ Add these to the end of the address (after `index.html`) and press Enter.
 | Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf`, `build` (Joe's Lego shelf) |
 | Coworkers | `dark` (Damir), `battle` (Richard), `dance` (Patrick), `nathan`, `wade`, `jar` (Kiki), `forms` (Jhonna), `wok` (Nik), `carrot` (Dmitriy), `lego` (Joe) |
 | Dogs | `catch`, `dogs` (the dogs' leaderboard) |
+| Kingston plant | `forklift` |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`) |
 | Halloween | `contest`, `bob`, `mummy`, `carve`, `treat`, `ghosts`, `hsplash` (the closing screen) |
 
 Plain `index.html#play` skips the title screen and drops you at the entrance.
+
+**Eugene's phone and the plant**
+
+- `index.html#play&phone=1`: stand at Eugene's phone (`&call=1` answers it too).
+- `index.html#play&plant=1`: wake up in the Kingston plant.
 
 ## Testing
 
@@ -274,6 +313,8 @@ wears that costume, `&costumes` opens the costume picker, `&party=1` starts the
 boardroom party (add `&f=0&x=43&y=13` to stand somewhere particular), and `game=contest`,
 `bob`, `mummy`, `carve`, `treat`, `ghosts` or `hsplash` opens the contest, a party game
 or the closing splash screen.
+`&phone=1` stands you at Eugene's phone, `&call=1` answers it, and `&plant=1` starts
+you in the Kingston plant.
 `&visitor=Alex` puts that visitor in the visitor office, and `&visit=120` has
 whoever is there leave through the portal in 120 ticks (2 seconds).
 
@@ -321,5 +362,8 @@ of every dog's best game. Names, owners, breeds, colours, barks and running spee
 python3 tools/build_maps.py   # regenerate js/maps.js
 python3 tools/check_maps.py   # make sure every room is still reachable
 ```
+
+The Kingston plant is a third map in the same file. It isn't linked to the office
+floors, so the checker also starts from where you wake up in the plant.
 
 1 tile is about 0.1" on the printed plan (roughly half a metre).
