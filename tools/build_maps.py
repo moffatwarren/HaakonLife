@@ -774,27 +774,27 @@ fp.rooms[-1]['people'] = ['Mike Delaney']
 fp.office('Engineering', 14, 22, 22, 26, 'S'); fp.door((17, 27), (18, 27))
 fp.put(20, 22, 'm'); fp.put(21, 22, 'd'); fp.put(20, 23, 'c')
 fp.rooms[-1]['people'] = ['Jillian Henderson', 'William Phippen']
-fp.office('IT', 24, 22, 31, 26, 'S'); fp.door((27, 27), (28, 27))
-fp.put(31, 25, 'z'); fp.put(31, 26, 'z')
-fp.rooms[-1]['people'] = ['Cedric Aloor']
+fp.room('Training Room', 24, 22, 31, 26); fp.door((27, 27), (28, 27))
+fp.fill(26, 23, 29, 24, 'T')
+for x in (26, 27, 28, 29):
+    fp.put(x, 25, 'c')
+fp.put(31, 23, 'V'); fp.put(31, 24, 'V'); fp.put(24, 26, 'p'); fp.put(31, 26, 'p')
+fp.rooms[-1]['people'] = ['Stephanie Weiler']
 fp.office('Health and Safety', 36, 22, 45, 26, 'S'); fp.door((40, 27), (41, 27))
 fp.rooms[-1]['people'] = ['Steve Goddard']
 
-fp.office("Plant Manager's Office", 1, 31, 11, 35, 'N'); fp.door((5, 30), (6, 30))
-fp.put(1, 31, 'b'); fp.put(2, 31, 'b')
-fp.rooms[-1]['people'] = ['Alex Bobyk']
-fp.office('HR', 13, 31, 22, 35, 'N'); fp.door((17, 30), (18, 30))
+fp.office('IT', 1, 31, 11, 35, 'N'); fp.door((5, 30), (6, 30))
+fp.put(11, 31, 'z'); fp.put(11, 32, 'z')
+fp.rooms[-1]['people'] = ['Cedric Aloor']
+fp.office('Purchasing', 13, 31, 22, 35, 'N'); fp.door((17, 30), (18, 30))
 fp.put(19, 35, 'm'); fp.put(20, 35, 'd'); fp.put(19, 34, 'c')
-fp.rooms[-1]['people'] = ['Courtney den Otter', 'Amelia Bailey']
-fp.office('Purchasing', 24, 31, 33, 35, 'N'); fp.door((28, 30), (29, 30))
-fp.put(30, 35, 'm'); fp.put(31, 35, 'd'); fp.put(30, 34, 'c')
 fp.rooms[-1]['people'] = ['Fleur Storms', 'Ashley Naylor']
-fp.room('Training Room', 35, 31, 45, 35); fp.door((39, 30), (40, 30))
-fp.fill(38, 32, 42, 33, 'T')
-for x in (38, 40, 42):
-    fp.put(x, 34, 'c')
-fp.put(45, 32, 'V'); fp.put(45, 33, 'V'); fp.put(35, 35, 'p'); fp.put(45, 35, 'p')
-fp.rooms[-1]['people'] = ['Stephanie Weiler']
+fp.office("Plant Manager's Office", 24, 31, 33, 35, 'N'); fp.door((28, 30), (29, 30))
+fp.put(24, 31, 'b'); fp.put(25, 31, 'b')
+fp.rooms[-1]['people'] = ['Alex Bobyk']
+fp.office('HR', 35, 31, 45, 35, 'N'); fp.door((39, 30), (40, 30))
+fp.put(41, 35, 'm'); fp.put(42, 35, 'd'); fp.put(41, 34, 'c'); fp.put(35, 35, 'p')
+fp.rooms[-1]['people'] = ['Courtney den Otter', 'Amelia Bailey']
 
 # --- reception: in the corner, open onto shipping past the end of the half wall ---
 fp.room('Reception', 47, 22, 62, 35)
