@@ -69,6 +69,16 @@ Walk up to these and press A:
   wheels a notch at a time and they stay turned (Space straightens them); it steers from
   the back, so it only turns while it's moving. Bringing the wrong pallet costs 3
   seconds, and running into Steve on the crosswalk costs 5
+- **Grey unit in the paint booth** (Kingston plant, in the corner of sub-assembly): Even Coat.
+  Hold A to spray the job's colour and steer the gun with the arrows. One pass leaves a
+  stripe; passes that overlap by about half leave an even coat. Stay in one spot and the
+  paint runs. Nobody masked the portholes, latches or nameplate, so let go of the trigger
+  over them. Dust drifts down from the booth fans: catch it with the spray before it
+  lands. 45 seconds and one can of paint; press Enter (START) to call QC over early. QC
+  starts from the coverage (out of 100) and takes off 3 for each run (30 at most), 4 for
+  each part with paint on it and 2 for each bit of dust (10 at most), and shows you the
+  sheet. Paint that's on too thick goes darker (cream, for white) before it runs.
+  Afterwards the unit in the booth stays in the colour you painted it
 
 ## Eugene's phone and the Kingston plant
 
@@ -81,7 +91,10 @@ wrong, until it all gets too much and you black out.
 You wake up in the **Kingston plant**. The plant floor takes up the north half,
 with sheet metal, wall panels, bases and fans, sub-assembly, the assembly line,
 electrical, the test bay, finishing, the warehouse, and shipping along the east
-wall at the loading dock. The front offices run along the south either side of a
+wall at the loading dock, where five finished air handling units of different designs
+wait for the truck (one shrink-wrapped on a skid, one stacked, one rooftop unit and so on),
+and the paint booth, walled off in the corner of sub-assembly, with a grey unit waiting
+to be painted. The front offices run along the south either side of a
 corridor (the plant manager, HR, purchasing, the production office, engineering,
 IT, health and safety, and the training room), with two halls up onto the floor
 and reception in the south-east corner by the entrance. Everyone who works there is
@@ -109,6 +122,10 @@ they have no board.
 
 Only the name and the score are sent. If the leaderboard can't be reached the game
 says so and carries on, and best scores are still kept in the browser as before.
+
+Scores are only sent from the hosted copy (an address ending in `github.io`). Opening
+`index.html` straight from the folder still shows the boards, but your score isn't
+added, so testing locally never posts anything.
 
 The scores live in a free Firebase Realtime Database. To set one up:
 
@@ -282,7 +299,7 @@ Add these to the end of the address (after `index.html`) and press Enter.
 | Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf`, `build` (Joe's Lego shelf) |
 | Coworkers | `dark` (Damir), `battle` (Richard), `dance` (Patrick), `nathan`, `wade`, `jar` (Kiki), `forms` (Jhonna), `wok` (Nik), `carrot` (Dmitriy), `lego` (Joe) |
 | Dogs | `catch`, `dogs` (the dogs' leaderboard) |
-| Kingston plant | `forklift` |
+| Kingston plant | `forklift`, `paint` (Even Coat) |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`) |
 | Halloween | `contest`, `bob`, `mummy`, `carve`, `treat`, `ghosts`, `hsplash` (the closing screen) |
 
@@ -300,7 +317,7 @@ Best scores are saved in the browser, and sent to the online leaderboards when
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
-`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `blackjack`, `build`) opens a game straight away.
+`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `blackjack`, `build`, `forklift`, `paint`) opens a game straight away.
 `&dog=Bella` puts that dog right in front of you; `game=catch` plays catch with it
 and `game=dogs` shows the frisbee leaderboard.
 For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,
@@ -325,8 +342,8 @@ whoever is there leave through the portal in 120 ticks (2 seconds).
 `tools/shot.sh out.png "play&game=snake&ticks=60"` screenshots a game headlessly
 (it uses `tools/test.html`, which stubs the audio and can pin `Math.random` with
 `&rand=0.4` so a run is repeatable). In `tools/test.html` the leaderboards show
-made-up rows and send nothing, unless you add `&board=live`; there, `&score=40` adds
-you to the made-up rows as if you had just played.
+made-up rows and send nothing (`&score=40` adds you to the made-up rows as if you had
+just played). `&board=live` shows the real boards instead, still without sending.
 
 ## People
 

@@ -24,7 +24,9 @@ Map glyphs
              & Joe's Lego shelf (on a left-hand wall)  % desk with Lego on it
              @ the visitor office portal (visitors come and go through it)
              ! Eugene's desk phone (always ringing; answering it takes you to the plant)
-             + an air handling unit on the plant floor   ^ forklift (plant)
+             + a steel work table on the plant floor   ^ forklift (plant)
+             1-5 a finished air handling unit in shipping (the digit picks the design)
+             0 the unit in grey primer in the paint booth (Even Coat)
              P coffee machine (two tiles tall)  C curtain (opened from the game; closes when you leave the room)
   walkable:  j computer parts scattered on the floor
 
@@ -821,12 +823,12 @@ for x in (25, 27, 29, 31, 33):
     fp.put(x, 1, 'F')
 fp.rooms[-1]['people'] = ['John Kay']
 fp.room('Sub-Assembly', 35, 1, 46, 7, ';')
-for x in (36, 37, 39, 40, 42, 43):
+for x in (36, 37, 39, 40):
     fp.put(x, 1, 'L')
-fp.fill(46, 3, 46, 5, 'a')                      # damper sections waiting to go in
+fp.fill(40, 3, 40, 5, 'a')                      # damper sections waiting to go in
 fp.rooms[-1]['people'] = ['Mark Lake']
 
-# --- the assembly line: units in a row, each a stage further along, heading for shipping ---
+# --- the assembly line: a row of work tables, heading for shipping ---
 fp.room('Assembly Line', 1, 8, 46, 13, ';')
 for x in (3, 10, 17, 24, 31, 38):
     fp.fill(x, 10, x + 3, 11, '+')
@@ -844,7 +846,7 @@ for y in (16, 18):
 fp.fill(5, 20, 8, 20, 'M')
 fp.rooms[-1]['people'] = ['Scott Woodman', 'Brian Kelly']
 fp.room('Test Bay', 14, 15, 22, 20, ';')
-fp.fill(16, 17, 20, 18, '+')                    # a unit on the deflection test stand
+fp.fill(16, 17, 20, 18, '+')                    # the test bench
 fp.put(14, 16, 'K'); fp.put(14, 19, 'K')
 fp.rooms[-1]['people'] = ['Caleb Werner']
 fp.room('Finishing', 24, 15, 31, 20, ';')
@@ -859,10 +861,23 @@ fp.rooms[-1]['people'] = ['Justin Brennan']
 fp.vline(47, 1, 20, '=')
 fp.clear((47, 9), (47, 10), (47, 11), (47, 12), (47, 16), (47, 17), (47, 18), floor=';')
 fp.room('Shipping', 48, 1, 62, 20, ';')
-fp.fill(52, 3, 55, 4, '+'); fp.fill(52, 13, 55, 14, '+')   # finished units, wrapped for the truck
+# finished units waiting for the truck, each a different design (see SHIP_UNITS in js/art.js)
+fp.fill(51, 2, 55, 4, '4')                      # shrink-wrapped on a skid
+fp.fill(56, 8, 60, 9, '2')                      # long and low
+fp.fill(50, 11, 53, 14, '1')                    # intake louvre and portholes
+fp.fill(56, 12, 60, 16, '3')                    # stacked, with a rain hood
+fp.fill(51, 17, 54, 19, '5')                    # rooftop unit with its condenser fan
 fp.fill(61, 10, 62, 11, 'B'); fp.fill(49, 18, 50, 19, 'B')
 fp.exit((63, 3), (63, 4), (63, 7), (63, 8), (63, 15), (63, 16))  # loading dock doors
 fp.rooms[-1]['people'] = ['Jay Sorensen']
+
+# --- the paint booth: walled off in the corner of sub-assembly, with a unit in grey
+# primer waiting to be painted (Even Coat) and the paint supplies on benches ---
+fp.vline(41, 1, 6); fp.vline(47, 1, 6); fp.hline(41, 47, 6)
+fp.room('Paint Booth', 42, 1, 46, 5, ':')
+fp.door((43, 6), (44, 6))
+fp.fill(43, 2, 45, 3, '0')
+fp.put(42, 1, 'k'); fp.put(46, 5, 'k')
 
 # Make sure floor layer exists under every object / door tile.
 for f in (f1, f2, fp):

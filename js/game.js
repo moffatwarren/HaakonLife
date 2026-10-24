@@ -22,6 +22,10 @@
   // The online leaderboards' database: the web address of a Firebase Realtime Database
   // (see "Leaderboards" in the README). Left empty, scores stay in this browser only.
   const BOARD_URL = 'https://haakonlife-d4ef2-default-rtdb.firebaseio.com';
+  // Scores are only sent from the hosted copy on GitHub Pages, so playing a local copy
+  // (opening index.html straight from the folder) can't post test scores. Locally the
+  // boards still load; your score just isn't added.
+  const BOARD_POSTS = location.hostname.endsWith('.github.io');
 
   // ---------- art ----------
   const GENDERS = ['male', 'female'];
@@ -438,6 +442,7 @@
     caller: () => { tone(520, 0.06, 'square', 0.03, 140); tone(620, 0.06, 'square', 0.03, -160, 0.08); tone(480, 0.09, 'square', 0.03, 90, 0.16); },
     thump: () => { tone(70, 0.12, 'sine', 0.14, -30); tone(62, 0.1, 'sine', 0.11, -25, 0.16); },
     beep: () => tone(1480, 0.09, 'square', 0.03), // a forklift backing up
+    spray: () => noise(0.09, 5200, 0.03), // a spray gun's hiss
   };
   function sfx(name, arg) { if (soundOn && actx) SFX[name](arg); }
 
@@ -633,6 +638,7 @@
   const TOUCH_HINTS = [
     [/\bSpace(?=:| twice| to )|(?<=(?:Hold|Mash|Press|\+|then) )Space\b/g, 'A'],
     [/\bEsc(?=:)/g, 'B'],
+    [/\bEnter(?=:)/g, 'START'],
     [/\bArrows(?=:| \+)/g, 'D-pad'],
     [/PRESS ENTER/g, 'PRESS START'],
   ];
@@ -1904,7 +1910,7 @@
     ghosts: { title: 'GHOST IN THE CUPBOARD' }, costume: { title: 'COSTUME CONTEST' },
     golf: { title: 'WADE\'S PUTTING GREEN', low: true }, dark: { title: 'DAMIR\'S LIGHTS', unit: 's', low: true },
     mummy: { title: 'MUMMY WRAP', unit: tenths, low: true },
-    forklift: { title: 'FORKLIFT RUSH', unit: ' pallets' },
+    forklift: { title: 'FORKLIFT RUSH', unit: ' pallets' }, paint: { title: 'EVEN COAT' },
   };
   // tools/test.html sets BOARD_DEMO: the boards show made-up rows and nothing is sent
   const boardDemo = !!window.BOARD_DEMO;
@@ -1926,7 +1932,7 @@
   // Send the score (the database refuses anything that isn't an improvement on that name's
   // row), then fetch the top ten and the name's own row.
   function boardLoad(key, name, score) {
-    const val = BOARDS[key].low ? -score : score, id = boardKey(name), send = name && score > 0;
+    const val = BOARDS[key].low ? -score : score, id = boardKey(name), send = name && score > 0 && (BOARD_POSTS || boardDemo);
     if (boardDemo) {
       const rows = ['Ada', 'Grace', 'Linus', 'Margaret', 'Dennis', 'Barbara', 'Ken', 'Radia', 'Tim', 'Guido', 'Edsger']
         .map((n, i) => ({ id: boardKey(n), name: n, score: BOARDS[key].low ? -(20 + i * 3) : 100 - i * 7, t: i }));
@@ -7291,6 +7297,8 @@
     K: ['The test bench controls. Half the lights are red.', 'RUN THE TEST', SimonGame],
     j: ['Rivets, screws and brackets all over the floor.', 'SORT THEM', PartsGame],
     '^': ['A forklift with the keys in it. Jay says the truck still needs loading.', 'DRIVE IT', ForkliftGame],
+    0: [() => boothCoat ? 'Your paint job, drying. QC rolls another grey unit in behind it whenever you\'re ready.'
+      : 'A unit in grey primer, waiting for paint. Nobody masked the portholes.', 'PAINT IT', PaintGame],
   };
   const PLANT_INFO = {
     X: ['The loading dock. A truck is backed up to it, waiting.', 'The loading dock. The driver waves at you. Then points at his watch.'],
@@ -7301,10 +7309,23 @@
     d: ['A desk buried in work orders.', 'A desk with a hard hat and three coffee cups on it.', 'A desk covered in drawings. Every one says REV C.'],
     B: ['Crates of parts. Half of them say URGENT.', 'A crate marked RUSH. It has been here since March.'],
     '=': ['A safety partition. Someone taped a drawing to it, covered in red pen.'],
+    1: ['A finished unit, tagged for the truck. You can see the fan through the porthole.', 'A finished unit. The tag says SHIP TODAY. It has said that since Tuesday.'],
+    2: ['A long, low unit. The coil connections are capped so nothing gets in on the way.', 'A finished unit. Someone wrote GOOD LUCK on the side in marker.'],
+    3: ['A stacked unit, supply on top of return. It only just fits under the dock door.', 'A big stacked unit. The rain hood comes off for shipping. Nobody took it off.'],
+    4: ['A unit shrink-wrapped to a skid. It squeaks when you poke it.', 'Wrapped, strapped and labelled THIS SIDE UP. The arrow points sideways.'],
+    5: ['A rooftop unit. The condenser fan on top spins a little when the dock door opens.', 'A rooftop unit, ready for the crane. The tag says DO NOT STACK.'],
   };
   // ...and for things in one particular room of the plant
   const PLANT_ROOM_INFO = {
     'Training Room': { T: ['The training table. Someone left a quiz on lockout/tagout. It is half done.'] },
+    'Assembly Line': { '+': ['A work table on the line, covered in drill bits, rivets and half a muffin.',
+      'A work table on the line. The drawing taped to it says REV C. The parts on it say REV B.',
+      'A work table. Someone has written GOOD LUCK on it in marker.'] },
+    'Test Bay': { '+': ['The test bench. A pressure gauge, a roll of duct tape and a test sheet nobody has signed.',
+      'The test bench. The manometer tubes are tied in a knot.'] },
+    'Finishing': { '+': ['A finishing table: touch-up paint, labels and a box of door handles.',
+      'A work table covered in nameplates waiting for their rivets.'] },
+    'Paint Booth': { k: ['Paint cans, spray tips and a whole box of masking tape. Unopened.', 'A bench of paint cans. Every lid has a drip down the side.'] },
   };
 
   // ---------- the plant forklift: load the truck before it has to leave ----------
@@ -7585,6 +7606,274 @@
         if (state === 'ready') readyBox(t, 'Space: straighten the wheels');
         else if (state === 'done') doneBox(['Time\'s up! The truck has to go.', 'Pallets loaded: ' + loaded,
           record ? 'New record!' : 'Best ' + getBest('forklift')], t);
+      },
+    };
+    return self;
+  }
+
+  // ---------- Even Coat: spray the grey unit in the plant's paint booth ----------
+  // The front of the unit is a grid of 4px cells, each holding how thick its paint is.
+  // Holding A sprays a round pattern that's heaviest in the middle, so one pass leaves a
+  // stripe and passes that overlap by half leave an even coat; stay in one place and it
+  // runs. Nobody masked the portholes, latches or nameplate, so paint on those counts
+  // against you, and dust drifting down from the booth fans spoils the finish unless you
+  // blow it away with the spray before it lands. Enter calls QC over when you're done.
+  const PAINTS = [
+    { name: 'HAAKON BLUE', c: '#3868c8', l: '#6890e0', d: '#283878' },
+    { name: 'SAFETY YELLOW', c: '#f0c030', l: '#f8e070', d: '#b88810' },
+    { name: 'FOREST GREEN', c: '#4a9a50', l: '#78c070', d: '#2c6a34' },
+    { name: 'FIRE RED', c: '#c84038', l: '#f07858', d: '#8a2420' },
+    { name: 'DESERT TAN', c: '#c8a870', l: '#e8d0a0', d: '#8a6a38' },
+    { name: 'HOSPITAL WHITE', c: '#f4f4f8', l: '#ffffff', d: '#c8b078' }, // thick white goes creamy, not grey like the primer
+  ];
+  const PRIMER = '#a4acc4';
+  // the booth unit's tiles ('0'), and the same tiles in the last paint you finished
+  const boothTiles = [];
+  if (PLANT >= 0) MAPS.floors[PLANT].tiles.forEach((rowStr, y) => [...rowStr].forEach((c, x) => { if (c === '0') boothTiles.push({ x, y }); }));
+  let boothCoat = null;
+  function paintBooth(p) {
+    const f = MAPS.floors[PLANT];
+    boothCoat = boothTiles.map((k) => ({ x: k.x, y: k.y, img: Art.renderTileAs(f, k.x, k.y, '0', { P: p.l, p: p.c }) }));
+  }
+  // a colour part of the way from a to b
+  function mixHex(a, b, k) {
+    const h = (s, i) => parseInt(s.slice(i, i + 2), 16);
+    return '#' + [1, 3, 5].map((i) => Math.round(h(a, i) + (h(b, i) - h(a, i)) * k).toString(16).padStart(2, '0')).join('');
+  }
+
+  function PaintGame() {
+    const TOP = 20, CELL = 4, CW = 68, CH = 43, X0 = 24, Y0 = 30, FW = CW * CELL, FH = CH * CELL;
+    const TIME = 2700, CAN = 2100, R = 14, DOSE = 0.14, SPEED = 2.4;
+    const GOOD = 0.9, THIN = 0.5, HEAVY = 2.2, RUN = 2.9, FOUL = 0.5;
+    const paint = PAINTS[Math.floor(Math.random() * PAINTS.length)];
+    // shades from bare primer up to a full coat, then heavier and darker
+    const SHADES = [];
+    for (let i = 0; i <= 8; i++) SHADES.push(mixHex(PRIMER, paint.c, i / 8));
+    const heavy = mixHex(paint.c, paint.d, 0.55);
+    const coat = new Float32Array(CW * CH), ran = new Uint8Array(CW * CH), bare = new Int8Array(CW * CH).fill(-1);
+    // what nobody masked, in cells: two portholes, five latches and the nameplate
+    const BARE = [
+      { round: true, x: 9, y: 11, r: 3.3 }, { round: true, x: 26, y: 16, r: 3.3 },
+      { x1: 13, y1: 8, x2: 14, y2: 9 }, { x1: 13, y1: 33, x2: 14, y2: 34 },
+      { x1: 29, y1: 13, x2: 30, y2: 14 }, { x1: 29, y1: 34, x2: 30, y2: 35 },
+      { x1: 45, y1: 28, x2: 46, y2: 29 },
+      { x1: 38, y1: 5, x2: 47, y2: 9, plate: true },
+    ];
+    BARE.forEach((o, n) => {
+      o.cells = [];
+      for (let j = 0; j < CH; j++)
+        for (let i = 0; i < CW; i++) {
+          const inside = o.round ? Math.hypot(i - o.x, j - o.y) <= o.r : i >= o.x1 && i <= o.x2 && j >= o.y1 && j <= o.y2;
+          if (inside) { bare[j * CW + i] = n; o.cells.push(j * CW + i); }
+        }
+    });
+    let state = 'ready', t = 0, left = TIME, can = CAN, record = false, result = null, endMsg = '';
+    let gx = X0 + 20, gy = Y0 + 20, spraying = false, dustT = 200;
+    const drips = [], dust = [], puffs = [], specks = [];
+    function spray() {
+      const i0 = Math.max(0, Math.floor((gx - X0 - R) / CELL)), i1 = Math.min(CW - 1, Math.floor((gx - X0 + R) / CELL));
+      const j0 = Math.max(0, Math.floor((gy - Y0 - R) / CELL)), j1 = Math.min(CH - 1, Math.floor((gy - Y0 + R) / CELL));
+      for (let j = j0; j <= j1; j++)
+        for (let i = i0; i <= i1; i++) {
+          const dx = X0 + (i + 0.5) * CELL - gx, dy = Y0 + (j + 0.5) * CELL - gy, d2 = (dx * dx + dy * dy) / (R * R);
+          if (d2 >= 1) continue;
+          const k = j * CW + i;
+          coat[k] += DOSE * (1 - d2);
+          // too much in one place and it sags into a run; one run per blob
+          if (coat[k] >= RUN && !ran[k] && bare[k] < 0) {
+            for (let y = j - 4; y <= j + 4; y++)
+              for (let x = i - 4; x <= i + 4; x++) if (x >= 0 && y >= 0 && x < CW && y < CH) ran[y * CW + x] = 1;
+            const x = X0 + i * CELL + 1, y = Y0 + (j + 1) * CELL;
+            drips.push({ x, y0: y, y, end: Math.min(Y0 + FH - 2, y + 14 + Math.random() * 22) });
+            sfx('putt');
+          }
+        }
+    }
+    function score() {
+      let sum = 0, n = 0;
+      for (let k = 0; k < coat.length; k++) {
+        if (bare[k] >= 0) continue;
+        n++;
+        sum += coat[k] >= GOOD ? 1 : coat[k] >= THIN ? 0.5 : 0;
+      }
+      // QC starts from the coverage (out of 100) and takes off for each defect, up to a limit
+      const covered = Math.round(100 * sum / n);
+      const fouled = BARE.filter((o) => o.cells.some((k) => coat[k] >= FOUL)).length;
+      const lines = [
+        ['Coverage ' + covered + '%', covered],
+        ['Runs x' + drips.length, -Math.min(30, 3 * drips.length)],
+        ['Overspray x' + fouled, -4 * fouled],
+        ['Dust x' + specks.length, -Math.min(10, 2 * specks.length)],
+      ];
+      return { lines, total: Math.max(0, lines.reduce((a, l) => a + l[1], 0)) };
+    }
+    function finish(why) {
+      result = score(); endMsg = why; state = 'done'; t = 0;
+      record = saveBest('paint', result.total);
+      sfx('ding');
+    }
+    const self = {
+      music: 'plant',
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            paintBooth(paint);
+            const s = result.total;
+            say(s >= 85 ? 'QC runs the gauge over it and signs it off. "Now that\'s an even coat."'
+              : s >= 60 ? 'QC frowns at a couple of spots, then signs it off anyway. "It\'s going on a roof."'
+                : 'QC sticks a red tag on it. "Sand it back and do it again."');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You put the spray gun down. The unit stays grey.'); return; }
+        if (pressed.has('start')) { finish('You call QC over.'); return; }
+        const dx = (held.right ? 1 : 0) - (held.left ? 1 : 0), dy = (held.down ? 1 : 0) - (held.up ? 1 : 0);
+        const v = dx && dy ? SPEED * 0.7071 : SPEED;
+        gx = Math.max(X0 - 18, Math.min(X0 + FW + 18, gx + dx * v));
+        gy = Math.max(Y0 - 14, Math.min(Y0 + FH + 14, gy + dy * v));
+        spraying = held.a && can > 0;
+        if (spraying) {
+          can--;
+          spray();
+          if (t % 5 === 0) sfx('spray');
+        }
+        for (const d of drips) if (d.y < d.end) d.y += 0.3;
+        // dust drifts down from the fans; the spray blows it away, otherwise it lands
+        if (--dustT <= 0) {
+          dust.push({ x: X0 + 10 + Math.random() * (FW - 20), y: TOP + 2, land: Y0 + 20 + Math.random() * (FH - 30), ph: Math.random() * 6 });
+          dustT = 140 + Math.floor(Math.random() * 160);
+        }
+        for (let i = dust.length - 1; i >= 0; i--) {
+          const m = dust[i];
+          m.y += 0.4; m.ph += 0.05;
+          const x = m.x + Math.sin(m.ph) * 6;
+          if (spraying && Math.hypot(x - gx, m.y - gy) < R + 4) {
+            dust.splice(i, 1); puffs.push({ x, y: m.y, t: 0 }); sfx('blip', true);
+          } else if (m.y >= m.land) {
+            dust.splice(i, 1); specks.push({ x: Math.round(x), y: Math.round(m.y) }); sfx('bump');
+          }
+        }
+        for (let i = puffs.length - 1; i >= 0; i--) if (++puffs[i].t > 16) puffs.splice(i, 1);
+        if (--left <= 0) finish('Time\'s up! QC is here.');
+        else if (can <= 0) finish('The can\'s empty. QC is here.');
+      },
+      draw() {
+        // the booth: pale walls with the exhaust filters behind the unit
+        ctx.fillStyle = '#e4e4ec'; ctx.fillRect(0, 0, SW, SH);
+        ctx.fillStyle = '#c8ccd8';
+        for (let x = 4; x < SW; x += 26) ctx.fillRect(x, TOP + 2, 22, Y0 - TOP - 6);
+        ctx.fillStyle = '#8890a0'; ctx.fillRect(0, Y0 + FH + 10, SW, SH - Y0 - FH - 10);
+        // the unit's front: every cell its own thickness of paint
+        ctx.fillStyle = col.dark; ctx.fillRect(X0 - 2, Y0 - 2, FW + 4, FH + 4);
+        for (let j = 0; j < CH; j++)
+          for (let i = 0; i < CW; i++) {
+            const c = coat[j * CW + i];
+            ctx.fillStyle = c >= HEAVY ? heavy : c >= GOOD ? SHADES[8] : SHADES[Math.min(7, Math.floor(c / GOOD * 8))];
+            ctx.fillRect(X0 + i * CELL, Y0 + j * CELL, CELL, CELL);
+          }
+        // the base rail, panel seams, door edges, hinges and the louvre's blades
+        ctx.fillStyle = '#484858'; ctx.fillRect(X0 - 2, Y0 + FH + 2, FW + 4, 8);
+        ctx.fillStyle = col.dark;
+        for (let x = X0 + 6; x < X0 + FW - 6; x += 24) ctx.fillRect(x, Y0 + FH + 4, 6, 4);
+        ctx.fillStyle = 'rgba(24,24,32,0.45)';
+        for (const i of [17, 34, 51]) ctx.fillRect(X0 + i * CELL, Y0, 1, FH);
+        for (const [x1, y1, x2, y2] of [[3, 4, 15, 39], [20, 9, 31, 39], [37, 22, 47, 36]]) {
+          ring(X0 + x1 * CELL, Y0 + y1 * CELL, (x2 - x1 + 1) * CELL, (y2 - y1 + 1) * CELL);
+          ctx.fillRect(X0 + x1 * CELL - 1, Y0 + (y1 + 2) * CELL, 3, 6);
+          ctx.fillRect(X0 + x1 * CELL - 1, Y0 + (y2 - 3) * CELL, 3, 6);
+        }
+        ring(X0 + 54 * CELL, Y0 + 8 * CELL, 12 * CELL, 27 * CELL);
+        for (let y = Y0 + 8 * CELL + 4; y < Y0 + 35 * CELL - 2; y += 5) ctx.fillRect(X0 + 54 * CELL + 2, y, 12 * CELL - 4, 2);
+        // the bits that should have been masked, then whatever paint got on them
+        for (const o of BARE) {
+          if (o.round) {
+            const cx = X0 + (o.x + 0.5) * CELL, cy = Y0 + (o.y + 0.5) * CELL;
+            ctx.fillStyle = '#8890a0'; ctx.beginPath(); ctx.arc(cx, cy, o.r * CELL + 1, 0, 7); ctx.fill();
+            ctx.fillStyle = '#283038'; ctx.beginPath(); ctx.arc(cx, cy, o.r * CELL - 2, 0, 7); ctx.fill();
+            ctx.fillStyle = '#bce0f8'; ctx.fillRect(cx - 5, cy - 5, 3, 2);
+          } else if (o.plate) {
+            const x = X0 + o.x1 * CELL, y = Y0 + o.y1 * CELL, w = (o.x2 - o.x1 + 1) * CELL, h = (o.y2 - o.y1 + 1) * CELL;
+            ctx.fillStyle = col.dark; ctx.fillRect(x, y, w, h);
+            ctx.fillStyle = '#d8dce8'; ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+            text('HAAKON', x + 2, y + 3, 1, '#484858');
+            ctx.fillStyle = '#8890a0'; ctx.fillRect(x + 3, y + 12, w - 6, 1); ctx.fillRect(x + 3, y + 15, w - 12, 1);
+          } else {
+            const x = X0 + o.x1 * CELL, y = Y0 + o.y1 * CELL;
+            ctx.fillStyle = col.dark; ctx.fillRect(x - 3, y, 10, 8);
+            ctx.fillStyle = '#c8ccd8'; ctx.fillRect(x - 2, y + 1, 8, 3); ctx.fillRect(x + 3, y + 1, 3, 6);
+          }
+          for (const k of o.cells) {
+            if (coat[k] < 0.15) continue;
+            ctx.globalAlpha = Math.min(1, coat[k] / 1.2);
+            ctx.fillStyle = paint.c;
+            ctx.fillRect(X0 + (k % CW) * CELL, Y0 + Math.floor(k / CW) * CELL, CELL, CELL);
+          }
+          ctx.globalAlpha = 1;
+        }
+        // runs, and dust stuck in the finish
+        for (const d of drips) {
+          ctx.fillStyle = paint.d; ctx.fillRect(d.x, d.y0 - 3, 2, d.y - d.y0 + 3);
+          ctx.fillRect(d.x - 1, Math.round(d.y), 4, 3);
+        }
+        ctx.fillStyle = '#5c4c3a';
+        for (const m of specks) { ctx.fillRect(m.x, m.y, 2, 2); ctx.fillRect(m.x - 1, m.y + 1, 1, 1); }
+        // dust in the air, and puffs where the spray caught it
+        for (const m of dust) { ctx.fillStyle = '#8a7458'; ctx.fillRect(Math.round(m.x + Math.sin(m.ph) * 6), Math.round(m.y), 2, 2); }
+        for (const p of puffs) {
+          ctx.fillStyle = '#f8f8f8';
+          for (let a = 0; a < 6; a++) ctx.fillRect(Math.round(p.x + Math.cos(a) * p.t * 0.8), Math.round(p.y + Math.sin(a) * p.t * 0.8), 1, 1);
+        }
+        // the spray gun's pattern: a ring, and a mist of paint while the trigger's held
+        if (state === 'play') {
+          const x = Math.round(gx), y = Math.round(gy);
+          if (spraying) {
+            ctx.fillStyle = paint.l;
+            for (let i = 0; i < 14; i++) {
+              const a = Math.random() * 6.3, d = Math.sqrt(Math.random()) * R;
+              ctx.fillRect(Math.round(x + Math.cos(a) * d), Math.round(y + Math.sin(a) * d), 1, 1);
+            }
+          }
+          ctx.fillStyle = spraying ? col.dark : 'rgba(24,24,32,0.6)';
+          for (let a = 0; a < 24; a += 1) if (a & 1) ctx.fillRect(Math.round(x + Math.cos(a / 24 * 6.283) * R), Math.round(y + Math.sin(a / 24 * 6.283) * R), 1, 1);
+          ctx.fillRect(x, y - 2, 1, 5); ctx.fillRect(x - 2, y, 5, 1);
+          // the gun itself, held below and to the right of where it's aimed
+          ctx.fillStyle = col.dark; ctx.fillRect(x + 6, y + 6, 10, 5); ctx.fillRect(x + 13, y + 10, 4, 8);
+          ctx.fillStyle = '#8890a0'; ctx.fillRect(x + 7, y + 7, 8, 3); ctx.fillRect(x + 14, y + 11, 2, 6);
+          ctx.fillStyle = paint.c; ctx.fillRect(x + 9, y + 2, 5, 4);
+        }
+        // status bar: the job's colour, the can, the time
+        ctx.fillStyle = col.light; ctx.fillRect(0, 0, SW, TOP);
+        ctx.fillStyle = col.dark; ctx.fillRect(0, TOP - 1, SW, 1);
+        ctx.fillRect(6, 4, 12, 12); ctx.fillStyle = paint.c; ctx.fillRect(7, 5, 10, 10);
+        text(paint.name, 22, 7);
+        text('CAN', 150, 7);
+        ctx.fillStyle = col.dark; ctx.fillRect(170, 5, 62, 10);
+        ctx.fillStyle = '#585868'; ctx.fillRect(172, 7, 58, 6);
+        ctx.fillStyle = can < CAN * 0.15 && (tick >> 3) & 1 ? '#c03030' : paint.c;
+        ctx.fillRect(172, 7, Math.round(58 * can / CAN), 6);
+        const tm = 'Time ' + Math.ceil(left / 60);
+        text(tm, SW - 6 - tm.length * 6, 7, 1, left < 600 && (tick >> 3) & 1 ? '#c03030' : col.dark);
+        if (state === 'ready') {
+          readyBox(t, 'Hold Space: spray');
+          text('Keep it off the glass, latches and plate!', 8, SH - 12, 1, col.light);
+        } else if (state === 'done') {
+          // QC's sheet: the coverage, what each defect cost, and the score
+          box(40, 40, 240, 156);
+          ctext(endMsg, 52);
+          result.lines.forEach(([label, pts], i) => {
+            const v = (pts < 0 ? '-' : '+') + Math.abs(pts), y = 72 + i * 14;
+            text(label, 60, y);
+            text(v, 260 - v.length * 6, y, 1, pts < 0 ? '#c03030' : col.dark);
+          });
+          ctx.fillStyle = col.dark; ctx.fillRect(60, 128, 200, 1);
+          const sc = String(result.total);
+          text('QC score', 60, 134); text(sc, 260 - sc.length * 6, 134);
+          ctext(record ? 'New record!' : 'Best ' + getBest('paint'), 154);
+          if (t > 30 && (tick >> 4) & 1) ctext('Press Space', 176);
+        } else text('Esc: give up   Enter: call QC', 8, SH - 12, 1, col.light);
       },
     };
     return self;
@@ -8120,8 +8409,7 @@
     Q: ['A TV for video calls. The remote is missing.'],
     U: ['Cupboards stocked with paper, pens and sticky notes.', 'Boxes of staples, binder clips and printer paper.'],
     Y: ['A printer. It\'s out of toner. Again.', 'The printer is warming up...'],
-    '+': ['An air handling unit, halfway down the line.', 'A unit waiting on its deflection test. The panels look a bit wobbly.',
-      'This unit has its access doors on the wrong side. Hmm.', 'A finished unit. Someone wrote GOOD LUCK on the side in marker.'],
+    '+': ['A steel work table. Somebody\'s tape measure is holding down a drawing.'],
   };
 
   // ---------- player / world ----------
@@ -8376,7 +8664,7 @@
     if (game) {
       const [msg, opt, Game] = game;
       sfx('select');
-      ask(msg, [opt, 'CANCEL'], (i) => {
+      ask(typeof msg === 'function' ? msg() : msg, [opt, 'CANCEL'], (i) => {
         if (i === 0) { sfx('menu'); ui.push(Game()); }
       });
       return;
@@ -8558,6 +8846,8 @@
     if (w > 0 && h > 0) ctx.drawImage(cv, sx, sy, w, h, dx, dy, w, h);
     if (curtainOpen === P.floor)
       for (const c of curtains[P.floor]) ctx.drawImage(c.open, c.x * 16 - cx, c.y * 16 - cy);
+    if (boothCoat && P.floor === PLANT)
+      for (const c of boothCoat) ctx.drawImage(c.img, c.x * 16 - cx, c.y * 16 - cy);
     if (eotm)
       for (const e of easels[P.floor]) drawEaselAt(e.x * 16 - cx, e.y * 16 - cy);
     if (cookies.floor === P.floor) drawCookiesAt(cookies.x * 16 - cx, cookies.y * 16 - cy);
@@ -8802,7 +9092,7 @@
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
       dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
-      forklift: ForkliftGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
+      forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
       board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];
     if (GAME) ui.push(GAME());

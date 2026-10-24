@@ -1282,9 +1282,9 @@ window.Art = (function () {
       }
   }
 
-  // An air handling unit on the plant floor: grey casing panels with seams where
-  // they meet, and an access door with a handle on the front face.
-  function paintUnit(b, con) {
+  // A steel work table on the plant floor: a grey top with seams where the tables meet,
+  // and a drawer with a handle in the blue front.
+  function paintWorkTable(b, con) {
     block(b, con, 'W', 'u', 'w');
     const top = con.u ? 0 : 3, bottom = con.d ? 16 : 10;
     if (con.r) rect(b, 15, top, 1, bottom - top, 'G');
@@ -1295,6 +1295,154 @@ window.Art = (function () {
       set(b, 10, 12, 'w');
     }
   }
+
+  // Finished air handling units in shipping, waiting for the truck. Each one is drawn
+  // whole and then cut into tiles, so its doors, portholes and louvres can sit
+  // anywhere on it. The digit on the map picks the design ('0' is the one in the paint booth).
+  function paintShipUnit(b, get, x, y, t) {
+    let x0 = x, y0 = y, x1 = x, y1 = y;
+    while (get(x0 - 1, y) === t) x0--;
+    while (get(x, y0 - 1) === t) y0--;
+    while (get(x1 + 1, y) === t) x1++;
+    while (get(x, y1 + 1) === t) y1++;
+    const W = (x1 - x0 + 1) * 16, H = (y1 - y0 + 1) * 16, u = new Array(W * H).fill(null);
+    const s = (px, py, c) => { if (px >= 0 && px < W && py >= 0 && py < H) u[py * W + px] = c; };
+    const r = (px, py, w, h, c) => { for (let j = py; j < py + h; j++) for (let i = px; i < px + w; i++) s(i, j, c); };
+    SHIP_UNITS[t](W, H, s, r);
+    const ox = (x - x0) * 16, oy = (y - y0) * 16;
+    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) set(b, i, j, u[(oy + j) * W + ox + i]);
+  }
+
+  // Pieces the shipping units are built from (s = set a pixel, r = fill a rectangle).
+  const ahu = {
+    // Casing: the roof from y=2 to `roof`, the front face below it down to `base`,
+    // then the steel base rail with lifting holes. Returns where the face starts.
+    casing(W, H, s, r, roof, base, top, face, seam) {
+      r(1, 2, W - 2, base - 2, 'k');
+      r(2, 3, W - 4, roof - 3, top);
+      r(2, 3, W - 4, 1, 'w');
+      r(2, roof, W - 4, 1, 'g');
+      r(2, roof + 1, W - 4, base - roof - 2, face);
+      for (let i = 16; i < W - 8; i += 16) { r(i, 4, 1, roof - 4, seam); r(i, roof + 1, 1, base - roof - 2, seam); }
+      r(1, base, W - 2, H - base - 1, 'k');
+      r(2, base + 1, W - 4, H - base - 3, 'K');
+      for (let i = 6; i < W - 6; i += 12) r(i, base + 1, 3, H - base - 3, 'k');
+      return roof + 1;
+    },
+    // A round porthole: grey rim, dark glass, a glint.
+    porthole(s, r, x, y) {
+      r(x + 1, y, 4, 6, 'g'); r(x, y + 1, 6, 4, 'g');
+      r(x + 1, y + 1, 4, 4, 'k');
+      s(x + 2, y + 2, 'i');
+    },
+    // An access door, hinged on the left with lever latches on the right.
+    door(s, r, x, y, w, h, window, fill = 'w') {
+      r(x, y, w, h, 'g');
+      r(x + 1, y + 1, w - 2, h - 2, fill);
+      r(x, y + 2, 2, 2, 'K'); r(x, y + h - 4, 2, 2, 'K');
+      for (const ly of h > 14 ? [y + 3, y + h - 5] : [y + (h >> 1) - 1]) { r(x + w - 4, ly, 3, 2, 'K'); s(x + w - 4, ly + 2, 'K'); }
+      if (window) ahu.porthole(s, r, x + (w >> 1) - 4, y + 3);
+    },
+    // A louvred intake or discharge: a frame with sloping blades.
+    louvre(s, r, x, y, w, h) {
+      r(x, y, w, h, 'k');
+      r(x + 1, y + 1, w - 2, h - 2, 'G');
+      for (let j = y + 2; j < y + h - 2; j += 3) { r(x + 2, j, w - 4, 1, 'K'); r(x + 2, j + 1, w - 4, 1, 'g'); }
+    },
+    // The shipping tag taped on, with the job number scribbled across it.
+    tag(s, r, x, y) {
+      r(x, y, 8, 6, 'k');
+      r(x + 1, y + 1, 6, 4, 'o');
+      r(x + 2, y + 2, 4, 1, 'k'); r(x + 2, y + 3, 2, 1, 'k');
+    },
+    // A wooden shipping skid along the bottom.
+    skid(W, H, s, r, y) {
+      r(0, y, W, H - y - 1, 'D');
+      r(0, y, W, 2, 'N');
+      for (let i = 2; i < W - 4; i += 10) r(i, y + 2, 6, H - y - 3, 'n');
+    },
+  };
+
+  const SHIP_UNITS = {
+    // The unit in the paint booth, still in grey primer. P and p are its paint, so once
+    // you've painted it (Even Coat) the game redraws it with those two swapped out.
+    0(W, H, s, r) {
+      const f = ahu.casing(W, H, s, r, 13, H - 5, 'P', 'p', 'g');
+      ahu.door(s, r, 3, f + 1, 12, 12, true, 'P');
+      ahu.door(s, r, 19, f + 1, 10, 12, false, 'P');
+      ahu.louvre(s, r, 34, f + 1, 11, 12);
+    },
+    // Like the photo: white casing, a louvred intake on the end, a big fan door and a
+    // smaller coil door, both with portholes, and a little panel between them.
+    1(W, H, s, r) {
+      const f = ahu.casing(W, H, s, r, 20, H - 5, 'W', 'w', 'G');
+      ahu.louvre(s, r, 3, f + 14, 10, 17);
+      ahu.door(s, r, 15, f + 3, 17, 31, true);
+      ahu.door(s, r, 34, f + 12, 8, 11, false);
+      ahu.door(s, r, 45, f + 9, 15, 25, true);
+      r(51, f + 3, 3, 3, 'g'); s(52, f + 4, 'o');       // pressure gauge
+      ahu.tag(s, r, 6, 8);
+    },
+    // A long, low unit: intake louvre, filter door, coil with its pipe stubs poking
+    // out, then the fan section and a discharge opening on the far end.
+    2(W, H, s, r) {
+      const f = ahu.casing(W, H, s, r, 13, H - 5, 'W', 'w', 'G');
+      ahu.louvre(s, r, 3, f + 1, 9, 12);
+      ahu.door(s, r, 15, f + 1, 12, 12, false);
+      for (const py of [f + 2, f + 8]) { r(31, py, 3, 3, 'n'); s(32, py + 1, 'o'); r(36, py, 3, 3, 'n'); s(37, py + 1, 'o'); }
+      ahu.door(s, r, 46, f + 1, 15, 12, true);
+      r(65, f + 1, 12, 12, 'k'); r(66, f + 2, 10, 10, 'K'); r(66, f + 2, 10, 1, 'g');
+      ahu.tag(s, r, 5, 4);
+    },
+    // A stacked unit: a supply tier on top of a return tier, with a rain hood over the
+    // outdoor air intake on the roof and the main disconnect on the bottom tier.
+    3(W, H, s, r) {
+      const f = ahu.casing(W, H, s, r, 34, H - 5, 'W', 'w', 'G'), mid = f + 19;
+      r(2, mid, W - 4, 2, 'g'); r(2, mid + 2, W - 4, 1, 'G');
+      ahu.door(s, r, 6, f + 2, 14, 15, true);
+      ahu.door(s, r, 36, f + 2, 14, 15, true);
+      ahu.louvre(s, r, 60, f + 3, 14, 13);
+      ahu.door(s, r, 6, mid + 4, 14, 17, true);
+      ahu.door(s, r, 24, mid + 4, 9, 17, false);
+      r(52, mid + 6, 10, 13, 'k'); r(53, mid + 7, 8, 11, 'K');   // disconnect switch
+      r(55, mid + 9, 4, 2, 'r'); r(56, mid + 11, 2, 4, 'r');
+      r(4, 6, 24, 18, 'k'); r(5, 7, 22, 16, 'g');               // rain hood on the roof
+      for (let j = 9; j < 22; j += 3) r(6, j, 20, 1, 'K');
+      r(5, 7, 22, 1, 'G');
+      ahu.tag(s, r, 66, 8);
+    },
+    // Shrink-wrapped and strapped down to a skid, ready to go on the truck.
+    4(W, H, s, r) {
+      const base = H - 8;
+      ahu.skid(W, H, s, r, base);
+      r(1, 2, W - 2, base - 2, 'k');
+      r(2, 3, W - 4, 18, 'i');
+      r(2, 21, W - 4, 1, 'U');
+      r(2, 22, W - 4, base - 23, 'U');
+      for (let i = 4; i < W - 6; i += 9) { s(i, 5, 'w'); s(i + 1, 6, 'w'); s(i + 2, 7, 'w'); s(i + 3, 24, 'i'); s(i + 4, 25, 'i'); }
+      for (const i of [10, 16, 28, 34, 46, 52, 64, 70]) r(i, 4, 1, base - 6, 'G');  // the unit's seams under the wrap
+      for (const i of [20, W - 24]) { r(i, 2, 3, base - 2, 'k'); r(i + 1, 3, 1, base - 4, 'o'); }  // straps
+      r(36, 26, 10, 8, 'k'); r(37, 27, 8, 6, 'w'); r(38, 28, 6, 1, 'r'); r(38, 30, 4, 1, 'K'); r(38, 31, 5, 1, 'K');
+    },
+    // A rooftop unit: grey casing with the condenser fan in a grille on top, and its
+    // access doors along the front.
+    5(W, H, s, r) {
+      const f = ahu.casing(W, H, s, r, 27, H - 5, 'G', 'W', 'g');
+      const cx = 40, cy = 14;
+      for (let j = -10; j <= 10; j++)
+        for (let i = -10; i <= 10; i++) {
+          const d = i * i + j * j;
+          if (d <= 100) s(cx + i, cy + j, d > 81 ? 'k' : (i + j) % 3 === 0 || (i - j) % 3 === 0 ? 'K' : 'k');
+        }
+      for (let k = -7; k <= 7; k++) { s(cx + k, cy + (k >> 1), 'g'); s(cx - (k >> 1), cy + k, 'g'); }
+      r(cx - 1, cy - 1, 3, 3, 'G');
+      r(5, 6, 14, 16, 'k'); for (let j = 7; j < 21; j += 2) r(6, j, 12, 1, 'g');   // condenser coil
+      ahu.door(s, r, 4, f + 1, 14, 13, false);
+      ahu.door(s, r, 22, f + 1, 14, 13, true);
+      ahu.louvre(s, r, 42, f + 1, 18, 13);
+      ahu.tag(s, r, 54, 4);
+    },
+  };
 
   function paintDoor(b, get, x, y) {
     const lf = get(x - 1, y), rt = get(x + 1, y), up = get(x, y - 1), dn = get(x, y + 1);
@@ -1522,7 +1670,8 @@ window.Art = (function () {
         break;
       case '%': block(b, con('dm%!'), 'N', 'n', 'y'); paintLegoDesk(b, x, y); break;
       case '!': block(b, con('dm%!'), 'N', 'n', 'y'); break; // the phone itself is drawn by the game, so it can ring
-      case '+': paintUnit(b, con('+')); break;
+      case '+': paintWorkTable(b, con('+')); break;
+      case '0': case '1': case '2': case '3': case '4': case '5': paintShipUnit(b, get, x, y, t); break;
       case '^': stamp(b, ART.forklift); break;
       case '&': paintLegoShelf(b, get, x, y); break;
       case 'T': block(b, con('T'), 'y', 'N', 'w'); break;
@@ -1610,15 +1759,15 @@ window.Art = (function () {
   }
 
   // One tile drawn as if it were `ch` (used for things that change at runtime,
-  // like a curtain being pulled open).
-  function renderTileAs(floor, x, y, ch) {
+  // like a curtain being pulled open), with `over` swapping any colours.
+  function renderTileAs(floor, x, y, ch, over) {
     const H = floor.tiles.length, W = floor.tiles[0].length;
     const get = (xx, yy) => (xx === x && yy === y) ? ch
       : (xx < 0 || yy < 0 || xx >= W || yy >= H) ? ' ' : floor.tiles[yy][xx];
     const cv = document.createElement('canvas');
     cv.width = cv.height = 16;
     const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16);
-    blit(img, tile(get, floor.floor[y][x], x, y), 0, 0, palette(), false);
+    blit(img, tile(get, floor.floor[y][x], x, y), 0, 0, palette(over), false);
     ctx.putImageData(img, 0, 0);
     return cv;
   }
