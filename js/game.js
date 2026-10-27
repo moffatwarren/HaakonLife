@@ -776,6 +776,9 @@
         const m = miniCanvas[fi], k = Math.max(1, Math.min(Math.floor((SW - 16) / m.width), Math.floor(150 / m.height)));
         const mx = (SW - m.width * k) >> 1, my = 30;
         ctx.drawImage(m, mx, my, m.width * k, m.height * k);
+        // everyone else playing, in red
+        ctx.fillStyle = '#d83040';
+        for (const o of mpHere()) if (o.f === fi) ctx.fillRect(mx + o.x * k - 1, my + o.y * k - 1, k + 2, k + 2);
         if (fi === P.floor && (tick >> 3) & 1) {
           ctx.fillStyle = col.dark;
           ctx.fillRect(mx + P.x * k - 1, my + P.y * k - 1, k + 2, k + 2);
@@ -3589,16 +3592,20 @@
   };
   const MOVE_SFX = { fan: 'swish', coil: 'note', damper: 'bump' };
 
-  function BattleGame() {
+  // With `vs` (a match with another player, see "other players") it's you against them:
+  // each of you picks a move, and the round plays out once both are in.
+  function BattleGame(vs) {
     const MAX_HP = 3;
     const RX = 230, RY = 38, RS = 64;      // Richard, top right
     const PX = 26, PY = 100, PS = 76;      // you, seen from behind, bottom left
     const ECX = RX + RS / 2, ECY = RY + RS / 2, PCX = PX + PS / 2, PCY = PY + PS / 3;
-    const rSprites = spritesFor('Richard');
+    const foe = vs ? vs.name : 'Richard';
+    const rSprites = vs ? vs.sprites : spritesFor('Richard');
     // hp is the real score; shown drains towards it so the bar visibly empties.
     let hp = { you: MAX_HP, rich: MAX_HP }, shown = { you: MAX_HP, rich: MAX_HP };
     let state = 'msg', sel = 0, queue = [], lines = [], chars = 0;
     let fx = null, hurt = { you: 0, rich: 0 }, result = null;
+    let rounds = 0, mine = null; const theirs = {}; // against a player: the moves so far, by round
 
     // Each queued step is a line of text plus whatever happens once it is read.
     function push(str, step) { queue.push({ str, step: step || null }); }
@@ -3613,17 +3620,22 @@
       hp[who]--; hurt[who] = 24; sfx('hit');
       if (hp[who] > 0) return;
       result = who === 'rich' ? 'win' : 'lose';
-      push(who === 'rich' ? 'I have taught you the ways of airflow well!'
-        : 'You still have much to learn!', () => sfx(result === 'win' ? 'ding' : 'buzz'));
+      push(vs ? (who === 'rich' ? 'You win the duel!' : foe + ' wins the duel!')
+        : who === 'rich' ? 'I have taught you the ways of airflow well!'
+          : 'You still have much to learn!', () => sfx(result === 'win' ? 'ding' : 'buzz'));
     }
     function attack(mv, toward) {
       fx = { kind: mv.key, toward, t: 0 };
       sfx(MOVE_SFX[mv.key], 2);
     }
     function round(you) {
-      const rich = MOVES[Math.floor(Math.random() * MOVES.length)];
+      if (vs) { mine = you; vs.send({ r: rounds, mv: you.key }); state = 'wait'; return; }
+      play(you, MOVES[Math.floor(Math.random() * MOVES.length)]);
+    }
+    function play(you, rich) {
+      rounds++;
       push('You use ' + you.said + '!', () => attack(you, 'rich'));
-      push('Richard uses ' + rich.said + '!', () => attack(rich, 'you'));
+      push(foe + ' uses ' + rich.said + '!', () => attack(rich, 'you'));
       if (you.key === rich.key) push('You read each other\'s mind!');
       else if (BEATS[you.key] === rich.key) push(WIN_TEXT[you.key], () => damage('rich'));
       else push(WIN_TEXT[rich.key], () => damage('you'));
@@ -3646,6 +3658,18 @@
     const self = {
       music: 'battle',
       update() {
+        if (vs) {
+          for (let m; (m = vs.take());) {
+            const mv = MOVES.find((x) => x.key === m.mv);
+            if (mv && m.r >= 0) theirs[m.r] = mv;
+          }
+          if (state === 'wait' && theirs[rounds]) { play(mine, theirs[rounds]); return; }
+          if (vs.gone && !result) {
+            result = 'left'; queue = [];
+            push(foe + ' has left the duel.');
+            state = 'msg'; nextMsg();
+          }
+        }
         if (fx && ++fx.t > 34) fx = null;
         for (const k in hurt) if (hurt[k] > 0) hurt[k]--;
         // drain the bars before letting the next line through
@@ -3657,9 +3681,10 @@
           if (pressed.has('up')) { sel = (sel + MOVES.length - 1) % MOVES.length; sfx('select'); }
           if (pressed.has('down')) { sel = (sel + 1) % MOVES.length; sfx('select'); }
           if (pressed.has('a')) { sfx('menu'); round(MOVES[sel]); return; }
-          if (pressed.has('b')) { remove(self); say('You step away. Richard nods: another time, then.'); }
+          if (pressed.has('b')) giveUp();
           return;
         }
+        if (state === 'wait') { if (pressed.has('b')) giveUp(); return; }
         const len = lines.join('').length;
         if (chars < len) { chars += held.a || held.b ? 3 : 1; return; }
         if (draining || fx) return;
@@ -3667,6 +3692,12 @@
           // the last line of a finished duel closes it
           if (result && !queue.length) {
             remove(self);
+            if (vs) {
+              vs.end();
+              say(result === 'win' ? 'You beat ' + foe + ' in the air handling duel!'
+                : result === 'lose' ? foe + ' beat you in the air handling duel.' : 'The duel is off.');
+              return;
+            }
             questNote('battle', result === 'win' ? 1 : 0);
             say(result === 'win'
               ? 'You won the air handling duel! Richard looks genuinely proud.'
@@ -3689,7 +3720,7 @@
         const flash = (n) => n > 0 && (n >> 1) & 1;
         if (!flash(hurt.rich)) ctx.drawImage(rSprites.down[0], RX, RY, RS, RS);
         if (!flash(hurt.you)) ctx.drawImage(sprites.up[0], PX, PY, PS, PS);
-        hpBar(8, 10, 150, 'RICHARD', shown.rich);
+        hpBar(8, 10, 150, foe.toUpperCase(), shown.rich);
         hpBar(162, 112, 150, 'YOU', shown.you);
         // whichever move is flying across the screen
         if (fx) {
@@ -3722,6 +3753,12 @@
           });
           return;
         }
+        if (state === 'wait') {
+          box(0, SH - 48, SW, 48);
+          text('You picked ' + mine.said + '.', 12, SH - 38);
+          text('Waiting for ' + foe + '.'.repeat(1 + ((tick >> 4) % 3)), 12, SH - 22);
+          return;
+        }
         box(0, SH - 48, SW, 48);
         let left = chars;
         lines.forEach((l, i) => { text(l.slice(0, Math.max(0, left)), 12, SH - 38 + i * 16); left -= l.length; });
@@ -3729,7 +3766,11 @@
           && (tick >> 4) & 1) text('~', SW - 14, SH - 12);
       },
     };
-    push('Richard wants to test your air handling knowledge!');
+    function giveUp() {
+      remove(self);
+      if (vs) { vs.end(); say('You walk away from the duel.'); } else say('You step away. Richard nods: another time, then.');
+    }
+    push(vs ? 'An air handling duel with ' + foe + '! First to knock the other out wins.' : 'Richard wants to test your air handling knowledge!');
     nextMsg();
     return self;
   }
@@ -6333,20 +6374,47 @@
   // ---------- Kiki's candy jar: closest guess takes the round ----------
   // A round where you're both the same distance off goes to nobody. Nobody on 2 rounds
   // after 3 (1-1 with a tie, say) is a draw, and you play the whole match again.
-  function CandyJarGame() {
+  // With `vs` (a match with another player) you both get the same jars, from the match's
+  // shared random numbers, and each round is revealed once you've both locked in. A draw
+  // against a player is just a draw.
+  function CandyJarGame(vs) {
     const ROUNDS = 3, COLS = ['#f85848', '#f8d848', '#78e060', '#68a0f8', '#d870d0', '#f0b030'];
-    const kiki = spritesFor('Kiki');
+    const foe = vs ? vs.name : 'Kiki', rnd = vs ? vs.rng : Math.random;
+    const kiki = vs ? vs.sprites : spritesFor('Kiki');
     let round = 0, state = 'look', t = 0, real = 0, guess = 0, hers = 0, score = [0, 0], record = false;
+    const theirs = {}; // against a player: their guess, by round
     const decided = () => Math.max(score[0], score[1]) >= 2;
     function newJar() {
-      real = 18 + Math.floor(Math.random() * 75);
+      real = 18 + Math.floor(rnd() * 75);
       guess = 40; hers = 0; state = 'look'; t = 0;
+    }
+    function judge() {
+      const mine = Math.abs(guess - real), them = Math.abs(hers - real);
+      if (mine < them) { score[0]++; sfx('ding'); } else if (mine > them) { score[1]++; sfx('buzz'); } else sfx('bump');
+      state = 'reveal'; t = 0;
     }
     newJar();
     const self = {
       music: 'candy',
       update() {
         t++;
+        if (vs) {
+          for (let m; (m = vs.take());) if (m.r >= 0 && m.g >= 1) theirs[m.r] = Math.round(m.g);
+          if (vs.gone && state !== 'done' && state !== 'gone') { state = 'gone'; t = 0; }
+          if (state === 'gone') {
+            if (t > 30 && (pressed.has('a') || pressed.has('b'))) { remove(self); vs.end(); say(foe + ' has gone. The jar is all yours.'); }
+            return;
+          }
+          if (state === 'done') {
+            if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+              remove(self); vs.end();
+              say(!decided() ? 'You and ' + foe + ' are dead even.'
+                : score[0] > score[1] ? 'You out-guessed ' + foe + ' ' + score[0] + '-' + score[1] + '!'
+                  : foe + ' out-guessed you ' + score[1] + '-' + score[0] + '.');
+            }
+            return;
+          }
+        }
         if (state === 'look') { if (t > 150) { state = 'guess'; t = 0; } return; }
         if (state === 'done') {
           if (t > 30 && !decided() && pressed.has('a')) { round = 0; score = [0, 0]; record = false; newJar(); return; }
@@ -6358,13 +6426,14 @@
           }
           return;
         }
-        if (pressed.has('b')) { remove(self); say('You leave the jar alone. Mostly.'); return; }
+        if (pressed.has('b')) { remove(self); if (vs) vs.end(); say('You leave the jar alone. Mostly.'); return; }
+        if (state === 'wait') { if (theirs[round] !== undefined) { hers = theirs[round]; judge(); } return; }
         if (state === 'reveal') {
           if (t > 110) {
             if (++round >= ROUNDS) {
               state = 'done'; t = 0;
               // only a decided match counts; 2 rounds always beats Kiki's 1 or fewer
-              if (decided()) record = saveBest('jar', score[0]);
+              if (decided() && !vs) record = saveBest('jar', score[0]);
               return;
             }
             newJar();
@@ -6376,19 +6445,18 @@
         if (pressed.has('up') || (held.up && t % 4 === 0)) guess = Math.min(120, guess + step);
         if (pressed.has('down') || (held.down && t % 4 === 0)) guess = Math.max(1, guess - step);
         if (pressed.has('a') && t > 10) {
+          if (vs) { sfx('select'); vs.send({ r: round, g: guess }); state = 'wait'; return; }
           // Kiki guesses close, but not perfectly, and never the same as you
           do { hers = Math.max(1, real + Math.round((Math.random() - 0.5) * 26)); } while (hers === guess);
-          const mine = Math.abs(guess - real), theirs = Math.abs(hers - real);
-          if (mine < theirs) { score[0]++; sfx('ding'); } else if (mine > theirs) { score[1]++; sfx('buzz'); } else sfx('bump');
-          state = 'reveal'; t = 0;
+          judge();
         }
       },
       draw() {
         box(0, 0, SW, SH);
         text('Round ' + Math.min(round + 1, ROUNDS) + '/' + ROUNDS, 16, 10);
-        text('You ' + score[0] + ' - ' + score[1] + ' Kiki', 150, 10);
+        text('You ' + score[0] + ' - ' + score[1] + ' ' + foe, 150, 10);
         const b = 'Best ' + getBest('jar');
-        text(b, SW - 16 - b.length * 6, 26);
+        if (!vs) text(b, SW - 16 - b.length * 6, 26);
         // the jar, with the sweets drawn in a heap
         const JX = 96, JY = 54, JW = 92, JH = 108;
         ctx.fillStyle = col.dark; ctx.fillRect(JX - 8, JY - 10, JW + 16, 10);
@@ -6404,24 +6472,28 @@
           ctx.fillRect(cx, cy, 7, 7);
         }
         ctx.drawImage(kiki.down[0], 228, 96, 56, 56);
-        text('Kiki', 240, 158);
+        text(foe, 256 - foe.length * 3, 158);
         if (state === 'look') {
           ctext('Count them! ' + Math.ceil((150 - t) / 60) + 's', 196);
-        } else if (state === 'guess') {
-          ctext('How many sweets?', 180);
+        } else if (state === 'guess' || state === 'wait') {
+          ctext(state === 'wait' ? 'Waiting for ' + foe + '...' : 'How many sweets?', 180);
           box(110, 192, 100, 30);
           const g = String(guess);
           text(g, 160 - g.length * 6, 200, 2);
-          text('Up/Down, Space to lock in', 56, 228);
-        } else {
+          if (state === 'guess') text('Up/Down, Space to lock in', 56, 228);
+        } else if (state !== 'gone') {
           box(28, 176, 264, 56);
           text('Really: ' + real, 40, 186);
-          text('You: ' + guess + '   Kiki: ' + hers, 40, 202);
-          const mine = Math.abs(guess - real), theirs = Math.abs(hers - real);
-          text(mine < theirs ? 'You take the round!' : mine > theirs ? 'Kiki takes the round!' : 'Tied! Nobody scores.', 40, 218, 1,
-            mine < theirs ? '#2c6a34' : mine > theirs ? '#b83028' : '#3050a8');
+          text('You: ' + guess + '   ' + foe + ': ' + hers, 40, 202);
+          const mine = Math.abs(guess - real), them = Math.abs(hers - real);
+          text(mine < them ? 'You take the round!' : mine > them ? foe + ' takes the round!' : 'Tied! Nobody scores.', 40, 218, 1,
+            mine < them ? '#2c6a34' : mine > them ? '#b83028' : '#3050a8');
         }
-        if (state === 'done') {
+        if (state === 'gone') doneBox([foe + ' has gone.', 'The jar is all yours.'], t);
+        else if (state === 'done' && vs) {
+          doneBox([!decided() ? 'Dead even!' : score[0] > score[1] ? 'You win the jar!' : foe + ' wins the jar.',
+            'Rounds: ' + score[0] + ' - ' + score[1]], t);
+        } else if (state === 'done') {
           if (!decided()) doneBox([score[0] === score[1] ? 'Dead even!' : 'Too close to call!',
             'Rounds: ' + score[0] + ' - ' + score[1], 'Space: play again  Esc: leave'], t);
           else doneBox([score[0] > score[1] ? 'You win the jar!' : 'Kiki wins.',
@@ -8067,6 +8139,8 @@
     // Linda's and Kiki's lists show up in the menu once you've got them
     const items = () => (P.floor === PLANT ? [['LEAVE PLANT', (self) => { remove(self); leavePlant(); }]] : [])
       .concat([['MAP', () => ui.push(MapView())]])
+      .concat(MP_URL ? [['WHO\'S HERE', (self) => { remove(self); mpWho(); }], ['SAY SOMETHING', (self) => { remove(self); mpSayMenu(); }]] : [])
+      .concat(mp.newer ? [['UPDATE GAME', () => location.reload()]] : [])
       .concat(quest ? [['LINDA\'S LIST', () => ui.push(LindaList())]] : [])
       .concat(kikiList ? [['KIKI\'S LIST', () => ui.push(KikiList())]] : [])
       .concat([
@@ -8595,6 +8669,345 @@
     '+': ['A steel work table. Somebody\'s tape measure is holding down a drawing.'],
   };
 
+  // ---------- other players: everyone playing at once shares the office ----------
+  // Each copy of the game keeps a small record of where its player is at
+  // mp/<world>/players/<id> in the leaderboards' database, and streams everyone else's
+  // (Firebase sends the changes down an EventSource, so there's no SDK to load). Anything
+  // meant for one player (a challenge, a move in a match) goes into their
+  // mp/<world>/inbox/<id>. The hosted copy plays in the 'live' world; a copy opened from
+  // the folder or a local server joins 'test', so trying things out never puts anyone in
+  // the real office. tools/test.html stays offline unless its address has &mp=<database>.
+  const MP_URL = (window.MP_URL !== undefined ? window.MP_URL : BOARD_URL).replace(/\/+$/, '');
+  const MP_ROOT = MP_URL + '/mp/' + (BOARD_POSTS ? 'live' : 'test');
+  // Bump this whenever a player's record or a message changes shape: copies on different
+  // numbers don't see each other at all, rather than seeing each other wrong.
+  const MP_PROTO = 1;
+  // when this copy was published (see index.html): two players can only play a match on
+  // the same version, and an older copy is told to reload when a newer one turns up
+  const MP_VER = window.GAME_VERSION ? +window.GAME_VERSION : 0;
+  const MP_LIVE = 12000; // ms without word from a player before they count as gone
+  const MP_ASK = 30000; // ms a challenge waits for an answer
+  const MP_LINES = ['Hi!', 'Hello!', 'Follow me!', 'Wait up!', 'Over here!', 'Nice!', 'Ha ha!', 'Good game!', 'Bye!'];
+  const mp = {
+    id: Math.random().toString(36).slice(2, 12), on: false, others: {}, mail: [],
+    sending: false, sentKey: '', lastSend: 0, say: -1, sayN: 0, bubble: null, newer: false, nudged: false,
+    pending: null, invite: null, match: null,
+  };
+  // the head-to-head games: a challenge names one by key
+  const VERSUS = {
+    duel: { label: 'AIR DUEL', title: 'an air handling duel', Game: (m) => BattleGame(m) },
+    jar: { label: 'CANDY JAR', title: 'a candy jar guess-off', Game: (m) => CandyJarGame(m) },
+  };
+  // A small seeded random number generator (mulberry32), so both players in a match get
+  // the same jars.
+  function seeded(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = Math.imul(a ^ (a >>> 15), a | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const mpLive = (o) => !!o && Date.now() - o.seen < MP_LIVE;
+  const mpHere = () => Object.values(mp.others).filter(mpLive);
+  function mpAt(fi, x, y) {
+    return mpHere().find((o) => o.f === fi && ((o.x === x && o.y === y) || (Math.round(o.px / 16) === x && Math.round(o.py / 16) === y))) || null;
+  }
+  // where someone is, for the who's-here list
+  function mpWhere(o) {
+    const r = roomAt(o.f, o.x, o.y);
+    return r ? r.name : MAPS.floors[o.f].name;
+  }
+  // Their sprite sheet: the look they picked, in costume if they're wearing one.
+  const mpSheets = {};
+  function mpSprites(o) {
+    const key = o.g + ':' + o.l + ':' + o.c + ':' + sdgIcon.complete;
+    if (!mpSheets[key])
+      mpSheets[key] = o.c ? Art.renderCostume(o.g, Art.LOOKS[o.g][o.l], o.c, sdgIcon) : charSprites[o.g][o.l];
+    return mpSheets[key];
+  }
+
+  // Fold one Firebase stream event (a put or a patch at a path) into a copy of the tree.
+  function treeApply(root, path, data, merge) {
+    if (merge) { for (const k in data) root = treeApply(root, path + '/' + k, data[k]); return root; }
+    const ks = path.split('/').filter(Boolean);
+    if (!ks.length) return data && typeof data === 'object' ? data : {};
+    let o = root;
+    for (const k of ks.slice(0, -1)) { if (!o[k] || typeof o[k] !== 'object') o[k] = {}; o = o[k]; }
+    if (data === null) delete o[ks[ks.length - 1]]; else o[ks[ks.length - 1]] = data;
+    return root;
+  }
+  function mpStream(path, onTree) {
+    let tree = {};
+    const es = new EventSource(MP_ROOT + path + '.json');
+    const on = (merge) => (e) => {
+      let d; try { d = JSON.parse(e.data); } catch (err) { return; }
+      if (!d || typeof d.path !== 'string') return;
+      tree = treeApply(tree, d.path, d.data, merge);
+      onTree(tree);
+    };
+    es.addEventListener('put', on(false));
+    es.addEventListener('patch', on(true));
+    return es;
+  }
+  function mpFetch(path, method, body, keepalive) {
+    return fetch(MP_ROOT + path + '.json', { method, keepalive, body: body === undefined ? undefined : JSON.stringify(body) })
+      .then((r) => { if (!r.ok) throw new Error(r.status); });
+  }
+  const mpSend = (to, msg) => mpFetch('/inbox/' + to, 'POST',
+    Object.assign({ from: mp.id, n: playerName, t: { '.sv': 'timestamp' } }, msg)).catch(() => {});
+
+  // Everyone's records, as they come down the stream.
+  function mpPlayers(raw) {
+    const now = Date.now();
+    for (const id in mp.others) if (!raw[id]) delete mp.others[id];
+    for (const id in raw) {
+      const r = raw[id];
+      if (id === mp.id || !r || typeof r !== 'object') continue;
+      // a record nobody has touched in ten minutes is a closed tab that didn't get to say
+      // goodbye: tidy it (and anything still waiting in its inbox) away
+      if (now - (+r.t || 0) > 600000) { mpFetch('/players/' + id, 'DELETE').catch(() => {}); mpFetch('/inbox/' + id, 'DELETE').catch(() => {}); continue; }
+      if (r.p !== MP_PROTO) { if (r.p > MP_PROTO && now - r.t < 30000) mp.newer = true; delete mp.others[id]; continue; }
+      const g = GENDERS.includes(r.g) ? r.g : 'male', looks = Art.LOOKS[g];
+      const rec = {
+        n: String(r.n || '?').slice(0, NAME_MAX), g, l: looks[r.l] ? r.l : 0, c: Art.COSTUMES[r.c] ? r.c : '',
+        f: MAPS.floors[r.f] ? r.f : 0, x: +r.x || 0, y: +r.y || 0, d: DIRS[r.d] ? r.d : 'down', b: !!r.b,
+        s: MP_LINES[r.s] ? r.s : -1, sn: +r.sn || 0, v: +r.v || 0, t: +r.t || 0,
+      };
+      let o = mp.others[id];
+      if (!o) {
+        // someone already here when you arrive counts if their record is recent (by this
+        // device's clock); otherwise they show up as soon as their next update arrives
+        o = mp.others[id] = { id, px: rec.x * 16, py: rec.y * 16, dir: rec.d, dist: 0, seen: now - rec.t < 30000 ? now : 0, said: 0 };
+        Object.assign(o, rec);
+        o.sn0 = rec.sn; // what they'd said before you got here stays unsaid
+        continue;
+      }
+      if (rec.t !== o.t) o.seen = now;
+      if (rec.sn !== o.sn && rec.s >= 0) o.said = now;
+      Object.assign(o, rec);
+    }
+    if (MP_VER && mpHere().some((o) => o.v > MP_VER)) mp.newer = true;
+  }
+  // What's come into your inbox: dealt with (and deleted) one at a time, in order.
+  const mpDone = new Set();
+  function mpInbox(raw) {
+    for (const key of Object.keys(raw).sort()) {
+      const msg = raw[key];
+      if (mpDone.has(key) || !msg || typeof msg !== 'object') continue;
+      mpDone.add(key);
+      mp.mail.push(msg);
+      mpFetch('/inbox/' + mp.id + '/' + key, 'DELETE').catch(() => {});
+    }
+  }
+  function mpConnect() {
+    mp.on = true;
+    mpStream('/players', mpPlayers);
+    mpStream('/inbox/' + mp.id, mpInbox);
+    // closing the tab (or reloading it) takes you out of the office straight away
+    addEventListener('pagehide', () => {
+      if (mp.match && !mp.match.gone) mpFetch('/inbox/' + mp.match.opp, 'POST', { k: 'quit', m: mp.match.id, from: mp.id, t: { '.sv': 'timestamp' } }, true).catch(() => {});
+      mpFetch('/players/' + mp.id, 'DELETE', undefined, true).catch(() => {});
+      mpFetch('/inbox/' + mp.id, 'DELETE', undefined, true).catch(() => {});
+    });
+  }
+
+  // Your own record goes up whenever something about it changes (at most ten times a
+  // second), and every few seconds anyway so everyone knows you're still here.
+  function mpRecord() {
+    return {
+      n: playerName || 'New Hire', g: pick.gender, l: pick.index, c: hw.worn ? hw.costume : '', f: P.floor,
+      x: P.x + (P.moving ? P.mdx : 0), y: P.y + (P.moving ? P.mdy : 0), d: P.dir, b: ui.length || fade ? 1 : 0,
+      s: mp.say, sn: mp.sayN, v: MP_VER, p: MP_PROTO,
+    };
+  }
+  function mpPut() {
+    const rec = mpRecord(), key = JSON.stringify(rec), now = Date.now();
+    if (mp.sending || now < mp.lastSend + (key === mp.sentKey ? 4000 : 100)) return;
+    mp.sending = true; mp.lastSend = now; mp.sentKey = key;
+    rec.t = { '.sv': 'timestamp' };
+    mpFetch('/players/' + mp.id, 'PUT', rec)
+      // the database said no (or isn't there): try again in a while, not every tick
+      .catch(() => { mp.lastSend = Date.now() + 10000; mp.sentKey = ''; })
+      .finally(() => { mp.sending = false; });
+  }
+
+  // A match between two players. The games read the other player's moves with take(),
+  // send theirs with send(), and call end() when they close.
+  function mpMatch(id, opp, name, seed) {
+    const o = mp.others[opp];
+    const m = {
+      id, opp, name, gone: false, rng: seeded(seed), moves: [],
+      sprites: o ? mpSprites(o) : charSprites.male[0],
+      send(data) { mpSend(opp, Object.assign({ k: 'mv', m: id }, data)); },
+      take() { return m.moves.shift(); },
+      end() {
+        if (!m.gone) mpSend(opp, { k: 'quit', m: id });
+        m.gone = true;
+        if (mp.match === m) mp.match = null;
+      },
+    };
+    return m;
+  }
+  function mpStart(id, opp, name, seed, game) {
+    sfx('menu');
+    mp.match = mpMatch(id, opp, name, seed);
+    ui.push(VERSUS[game].Game(mp.match));
+  }
+  // Waiting for the other player to answer your challenge.
+  function MpWait(c) {
+    const until = Date.now() + MP_ASK;
+    const self = {
+      overlay: true,
+      update() {
+        const timeUp = Date.now() > until;
+        if (!pressed.has('b') && !timeUp) return;
+        mpSend(c.opp, { k: 'cancel', m: c.id });
+        remove(self); mp.pending = null;
+        if (timeUp) { sfx('bump'); say(c.name + ' didn\'t answer.'); } else sfx('select');
+      },
+      draw() {
+        box(0, SH - 48, SW, 48);
+        text('Waiting for ' + c.name + '.'.repeat(1 + ((tick >> 4) % 3)), 8, SH - 38);
+        text('Esc: call it off', 8, SH - 22);
+      },
+      close() { remove(self); },
+    };
+    return self;
+  }
+  // Somebody challenged you.
+  function mpInvite(msg) {
+    const inv = { msg, until: Date.now() + MP_ASK, els: [] };
+    const answer = (k) => { inv.els.forEach(remove); mp.invite = null; mpSend(msg.from, { k, m: msg.m }); };
+    const dlg = Dialog(msg.n + ' challenges you to ' + VERSUS[msg.g].title + '!', {
+      then() {
+        const ch = Choice(['ACCEPT', 'NO THANKS'], -1, SH - 48 - 40, (i) => {
+          answer(i === 0 ? 'yes' : 'no');
+          if (i === 0) mpStart(msg.m, msg.from, msg.n, msg.seed, msg.g);
+        });
+        inv.els.push(ch); ui.push(ch);
+      },
+    });
+    inv.els.push(dlg); ui.push(dlg);
+    mp.invite = inv;
+    sfx('ding');
+  }
+  function mpMail(msg) {
+    const c = mp.pending, inv = mp.invite, m = mp.match;
+    if (msg.k === 'ask') {
+      // only if you're free: walking around, not mid-conversation or mid-game
+      if (!VERSUS[msg.g] || c || inv || m || mode !== 'play' || fade || ui.length || questQueue.length) mpSend(msg.from, { k: 'busy', m: msg.m });
+      else mpInvite(msg);
+    } else if (c && msg.m === c.id) {
+      remove(c.el); mp.pending = null;
+      if (msg.k === 'yes') mpStart(c.id, c.opp, c.name, c.seed, c.game);
+      else if (msg.k === 'no') { sfx('bump'); say(c.name + ' said no thanks.'); }
+      else if (msg.k === 'busy') { sfx('bump'); say(c.name + ' is busy right now. Try again in a moment.'); }
+    } else if (inv && msg.m === inv.msg.m && msg.k === 'cancel') {
+      inv.els.forEach(remove); mp.invite = null;
+      say(msg.n + ' called off the challenge.');
+    } else if (m && msg.m === m.id) {
+      if (msg.k === 'quit' || msg.k === 'cancel') m.gone = true;
+      else if (msg.k === 'mv') m.moves.push(msg);
+    } else if (msg.k === 'yes') {
+      mpSend(msg.from, { k: 'quit', m: msg.m }); // too late: you'd already given up waiting
+    }
+  }
+
+  // Every tick: send your record, read your mail and walk everyone else towards where
+  // they last said they were.
+  function mpUpdate() {
+    if (!MP_URL || mode !== 'play') return;
+    if (!mp.on) mpConnect();
+    mpPut();
+    while (mp.mail.length) mpMail(mp.mail.shift());
+    if (mp.invite && Date.now() > mp.invite.until) {
+      mp.invite.els.forEach(remove); mp.invite = null;
+      say('The challenge ran out of time.');
+    }
+    if (mp.match && !mp.match.gone && !mpLive(mp.others[mp.match.opp])) mp.match.gone = true;
+    if (mp.newer && !mp.nudged && !ui.length && !fade) {
+      mp.nudged = true;
+      say('Somebody here has a newer version of the game. Reload the page (or START > UPDATE GAME) to get it.');
+    }
+    if (mp.bubble && ++mp.bubble.t > 180) mp.bubble = null;
+    for (const o of Object.values(mp.others)) {
+      const tx = o.x * 16, ty = o.y * 16, dx = tx - o.px, dy = ty - o.py;
+      // a floor change, or falling more than a few tiles behind, jumps straight there
+      if (o.f !== o.drawnF || Math.abs(dx) + Math.abs(dy) > 64) { o.px = tx; o.py = ty; o.drawnF = o.f; o.dir = o.d; continue; }
+      if (!dx && !dy) { o.dir = o.d; o.dist = 0; continue; }
+      // walk at your pace, a little quicker when lagging, one axis at a time like the player
+      const sp = Math.abs(dx) + Math.abs(dy) > 16 ? 3 : 2;
+      if (dx) { o.px += Math.sign(dx) * Math.min(sp, Math.abs(dx)); o.dir = dx < 0 ? 'left' : 'right'; }
+      else { o.py += Math.sign(dy) * Math.min(sp, Math.abs(dy)); o.dir = dy < 0 ? 'up' : 'down'; }
+      o.dist += sp;
+    }
+  }
+  // the same step cycle as yours: a foot forward, stand, the other foot, stand
+  const mpFrame = (o) => (o.px === o.x * 16 && o.py === o.y * 16 ? 0 : [1, 0, 2, 0][(o.dist >> 3) & 3]);
+
+  // Names over everyone's heads, and whatever they've just said in a bubble above that.
+  function mpBubble(str, x, y) {
+    const w = str.length * 6 + 7;
+    x = Math.max(1, Math.min(SW - w - 1, x - (w >> 1)));
+    ctx.fillStyle = col.dark; ctx.fillRect(x, y, w, 13);
+    ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 1, y + 1, w - 2, 11);
+    ctx.fillStyle = col.dark; ctx.fillRect(x + (w >> 1) - 1, y + 13, 3, 2);
+    text(str, x + 4, y + 3);
+  }
+  function mpDrawTags(cx, cy, px, py) {
+    const now = Date.now();
+    for (const o of mpHere()) {
+      if (o.f !== P.floor) continue;
+      const sx = o.px - cx + 8, sy = o.py - cy - 4;
+      if (sx < -40 || sx > SW + 40 || sy < -30 || sy > SH + 10) continue;
+      const w = o.n.length * 6 + 3;
+      ctx.globalAlpha = 0.7; ctx.fillStyle = col.dark; ctx.fillRect(sx - (w >> 1), sy - 11, w, 10); ctx.globalAlpha = 1;
+      text(o.n, sx - (w >> 1) + 2, sy - 10, 1, '#f8f8f8');
+      if (o.said && o.sn !== o.sn0 && now - o.said < 3000) mpBubble(MP_LINES[o.s], sx, sy - 28);
+      else if (o.b) mpBubble('.'.repeat(1 + ((tick >> 4) % 3)).padEnd(3), sx, sy - 28);
+    }
+    if (mp.bubble) mpBubble(MP_LINES[mp.bubble.s], px - cx + 8, py - cy - 22);
+  }
+
+  function mpSayMenu() {
+    ui.push(Choice(MP_LINES, -1, 0, (i) => {
+      if (i < 0) return;
+      mp.say = i; mp.sayN++; mp.bubble = { s: i, t: 0 };
+    }));
+  }
+  function mpChallenge(o) {
+    const keys = Object.keys(VERSUS);
+    ui.push(Choice(keys.map((k) => VERSUS[k].label).concat(['CANCEL']), -1, SH - 48 - (keys.length + 1) * 16 - 8, (i) => {
+      if (i < 0 || i >= keys.length) return;
+      if (!mpLive(o)) { say(o.n + ' has gone.'); return; }
+      if (o.b) { say(o.n + ' is busy right now. Try again in a moment.'); return; }
+      if (o.v !== MP_VER) {
+        say(o.v > MP_VER ? o.n + ' has a newer version of the game. Reload the page to play them.'
+          : o.n + ' has an older version of the game. They need to reload before you can play.');
+        return;
+      }
+      const c = { id: Math.random().toString(36).slice(2, 12), opp: o.id, name: o.n, game: keys[i], seed: Math.floor(Math.random() * 1e9) };
+      c.el = MpWait(c);
+      mp.pending = c;
+      mpSend(o.id, { k: 'ask', m: c.id, g: c.game, seed: c.seed });
+      ui.push(c.el);
+    }));
+  }
+  // Pressing A on another player.
+  function mpTalk(o) {
+    sfx('select');
+    ask(o.n + (o.b ? ' looks busy.' : ' is right here.'), ['SAY SOMETHING', 'CHALLENGE', 'CANCEL'], (i) => {
+      if (i === 0) mpSayMenu();
+      else if (i === 1) mpChallenge(o);
+    });
+  }
+  function mpWho() {
+    const here = mpHere();
+    say(here.length ? 'Also here: ' + here.map((o) => o.n + ' (' + mpWhere(o) + ')').join(', ') + '.' : 'Nobody else is playing right now.');
+  }
+
   // ---------- player / world ----------
   const S0 = MAPS.start;
   const P = { floor: S0.floor, x: S0.x, y: S0.y, dir: S0.dir, moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, turnWait: 0, walked: false, bump: 0 };
@@ -8672,6 +9085,8 @@
   function interact() {
     const [dx, dy] = DIRS[P.dir];
     const tx = P.x + dx, ty = P.y + dy, t = tileAt(P.floor, tx, ty);
+    const other = mpAt(P.floor, tx, ty);
+    if (other) { mpTalk(other); return; }
     let npc = npcAt(P.floor, tx, ty);
     if (npc && visit && npc === visit.npc && visit.a < 1) npc = null; // halfway through the portal
     if (npc) {
@@ -8912,6 +9327,7 @@
       updateNpcs();
     }
     if (mode === 'play' && !fade) ringPhone();
+    mpUpdate();
     // a finished game's leaderboard goes up as soon as the game has closed, ahead of its parting line
     if (pendingBoard && !ui.includes(pendingBoard.owner)) { ui.push(Leaderboard(pendingBoard)); pendingBoard = null; }
     if (banner && ++banner.t > 150) banner = null;
@@ -9080,6 +9496,7 @@
         img: n.sprites[n.dir][frame], ghost: n.ghost, freeing: freeing && freeing.npc === n,
         alpha: visit && visit.npc === n ? visit.a : 1 });
     }
+    for (const o of mpHere()) if (o.f === P.floor) actors.push({ x: o.px, y: o.py, img: mpSprites(o)[o.dir][mpFrame(o)] });
     actors.sort((a, b) => a.y - b.y);
     for (const a of actors) {
       const sx = a.x - cx, sy = a.y - cy - 4;
@@ -9104,6 +9521,7 @@
       if (r.dark) ctx.fillRect(r.x1 * 16 - cx, r.y1 * 16 - cy - 4, (r.x2 - r.x1 + 1) * 16, (r.y2 - r.y1 + 1) * 16 + 4);
     for (const r of MAPS.floors[P.floor].rooms) if (r.rave) drawRave(r, cx, cy);
     if (spooky) drawHalloween(cx, cy, 1);
+    mpDrawTags(cx, cy, px, py);
   }
 
   // Party lights: dim the room, light the floor tiles up in colour and sweep spotlights
@@ -9320,5 +9738,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, get quest() { return quest; } };
+  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, mp, press, release, get quest() { return quest; } };
 })();

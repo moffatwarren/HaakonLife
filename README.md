@@ -174,10 +174,38 @@ The scores live in a free Firebase Realtime Database. To set one up:
           "$other": { ".validate": false }
         }
       }
+    },
+    "mp": {
+      "$world": {
+        ".validate": "$world === 'live' || $world === 'test'",
+        "players": {
+          ".read": true,
+          "$id": {
+            ".write": true,
+            ".validate": "$id.length <= 16 && newData.hasChildren(['n','f','x','y','p','t']) && newData.child('t').val() == now",
+            "n": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12" },
+            "$other": { ".validate": "newData.isNumber() || newData.isBoolean() || (newData.isString() && newData.val().length <= 16)" }
+          }
+        },
+        "inbox": {
+          "$id": {
+            ".read": true,
+            ".write": "$id.length <= 16",
+            "$msg": {
+              ".validate": "newData.hasChildren(['k','from','t']) && newData.child('t').val() == now",
+              "$other": { ".validate": "newData.isNumber() || newData.isBoolean() || (newData.isString() && newData.val().length <= 16)" }
+            }
+          }
+        }
+      }
     }
   }
 }
 ```
+
+The `mp` part is for playing together (see below): where everyone is, and the messages
+players send each other. Without it the leaderboards still work, but nobody sees
+anybody else.
 
 With these rules anyone can read the boards and add or improve a row, but nobody can
 lower or delete one. The game runs in the browser, so a determined person could still
@@ -187,6 +215,48 @@ board), delete it on the Data tab in the Firebase console: rows are under
 lights, mummy wrap) are stored as negative numbers.
 
 Which games have a board, and their titles, is the `BOARDS` list in `js/game.js`.
+
+## Playing together
+
+Everyone playing at the same time is in the same office. You see each other walk
+around, with your names over your heads, wearing whatever look (and Halloween costume)
+you picked. They're red dots on the map, and **Who's here** in the Start menu lists
+everyone and the room they're in. Other players don't block your way, so nobody can
+stand in a doorway and trap you.
+
+- **Say something**: from the Start menu, or walk up to another player and press A.
+  Pick a line (Hi!, Follow me!, Good game! and so on) and it pops up over your head
+  for everyone near you. The lines are a fixed list (`MP_LINES` in `js/game.js`), so
+  there's no typing.
+- **Challenge**: walk up to another player, press A and pick a game:
+  - **Air duel**: Richard's air handling duel, against each other. You each pick a
+    move in secret and the round plays out once you've both picked.
+  - **Candy jar**: Kiki's guess-the-sweets, against each other, with the same jars
+    on both screens. Closest guess takes the round, best of 3.
+
+  They get 30 seconds to accept. Someone who's in a menu or a game has "..." over
+  their head and can't be challenged until they're done. Walking away from a match
+  (or closing the page) ends it for both of you. Matches against players don't go
+  on the leaderboards or count towards Linda's or Kiki's lists.
+
+Mini-games, conversations and the Halloween party are still just yours: other people
+see you standing at the coffee machine, not your game.
+
+**Updates.** Players on different versions can still see each other, but they can only
+play a match on the same version, and the game says which of you needs to reload. When
+someone with a newer version turns up, an older copy says so and the Start menu gets
+**Update game**. If an update changes what players send each other, bump `MP_PROTO`
+in `js/game.js`. Copies on different numbers can't see each other at all, rather than
+seeing each other wrong, until the old ones reload.
+
+**Where it lives.** Each player is a small record under `mp/live/players` in the same
+Firebase database as the leaderboards, updated as they move (and every few seconds
+anyway). A player who hasn't been heard from for 12 seconds disappears, so a phone that
+goes to sleep vanishes and comes back when it wakes. Records left behind by closed tabs
+get tidied up after ten minutes. A copy opened from the folder or a local server uses
+`mp/test` instead, so testing never puts anyone in the real office. You can test with
+two browser tabs. As with the scores, it's an honour system: the game runs in the
+browser, so someone determined could pretend to be someone else.
 
 ## Coworker games
 
@@ -361,6 +431,10 @@ whoever is there leave through the portal in 120 ticks (2 seconds).
 `game=board&key=snake` opens that game's leaderboard without sending anything, and
 `game=fame` opens the Hall of Fame (in `tools/test.html` it's filled with made-up rows,
 with `&name=Sam` among them on some boards).
+
+`tools/test.html` has no other players unless you add `&mp=` and a database address
+(for example `&mp=https://haakonlife-d4ef2-default-rtdb.firebaseio.com`). Then it joins
+the `test` world like any local copy.
 
 `tools/shot.sh out.png "play&game=snake&ticks=60"` screenshots a game headlessly
 (it uses `tools/test.html`, which stubs the audio and can pin `Math.random` with
