@@ -5608,7 +5608,11 @@
   // (2 rows -> 1, 3 -> 2, 4 -> 4), and his clears do the same to you. Whoever's bricks
   // reach the top first loses. The bricks fall faster every 15 seconds.
   // LegoGame(true) is the shelf's game: no Joe, one baseplate, and you clear as many rows as you can.
-  function LegoGame(solo) {
+  // LegoGame(false, vs) is against another player (see "other players"): the same bricks in
+  // the same order from the match's shared random numbers. Each of you plays your own
+  // baseplate and sends the other a picture of it a few times a second, plus a message for
+  // every batch of grey rows you send and one when you top out.
+  function LegoGame(solo, vs) {
     const COLS = 10, ROWS = 20, C = 9, BY = 38;
     const BX = solo ? [115] : [22, 208];
     // each piece's cells in its first rotation, on an n x n grid
@@ -5633,13 +5637,14 @@
       L: ['#f08a20', '#f8c070', '#a85a10'], G: ['#9aa0a8', '#c8ccd8', '#60646c'],
     };
     const SEND = [0, 0, 1, 2, 4];
-    const joe = spritesFor('Joe');
+    const foe = vs ? vs.name : 'Joe';
+    const joe = vs ? vs.sprites : spritesFor('Joe');
     // one shared bag of pieces, so neither of you gets luckier bricks
-    const seq = [];
+    const seq = [], rnd = vs ? vs.rng : Math.random;
     function piece(i) {
       while (seq.length <= i) {
         const bag = KEYS_.slice();
-        for (let j = bag.length - 1; j > 0; j--) { const k = Math.floor(Math.random() * (j + 1)); [bag[j], bag[k]] = [bag[k], bag[j]]; }
+        for (let j = bag.length - 1; j > 0; j--) { const k = Math.floor(rnd() * (j + 1)); [bag[j], bag[k]] = [bag[k], bag[j]]; }
         seq.push(...bag);
       }
       return seq[i];
@@ -5654,7 +5659,10 @@
       clearing: null, pending: 0, lines: 0, sent: 0, dead: false, plan: null, wait: 0, dropping: false,
     }));
     const [you, them] = players;
+    // against a player, only your own baseplate is played here; theirs is what they last sent
+    const mine = vs ? [you] : players;
     let state = 'ready', t = 0, frames = 0, record = false, won = false;
+    let sentPic = '', picT = 0;
     const gravity = () => Math.max(6, 42 - Math.floor(frames / 900) * 4);
     const level = () => 1 + Math.min(9, Math.floor(frames / 900));
     const secs = () => Math.floor(frames / 60);
@@ -5713,8 +5721,8 @@
         let send = SEND[rows.length];
         const cancel = Math.min(send, p.pending);
         p.pending -= cancel; send -= cancel;
-        const other = p === you ? them : you;
-        other.pending += send; p.sent += send;
+        if (vs) { if (send) vs.send({ e: 'g', c: send }); } else (p === you ? them : you).pending += send;
+        p.sent += send;
       }
       sfx(rows.length >= 2 ? 'cup' : 'blip', true);
     }
@@ -5798,16 +5806,52 @@
       state = 'done'; t = 0;
       if (solo) { record = saveBest('legosolo', you.lines); sfx('buzz'); return; }
       won = them.dead && !you.dead;
+      if (vs) { if (you.dead) vs.send({ e: 'x' }); sfx(won ? 'cup' : 'buzz'); return; }
       questNote('lego', won ? 1 : 0);
       record = saveBest('legolines', you.lines);
       sfx(won ? 'cup' : 'buzz');
     }
 
-    players.forEach(spawn);
+    // your baseplate as the other player sees it: a row of letters per row ('.' for a gap),
+    // the brick that's falling, your lines and the grey rows on their way to you
+    function picture() {
+      const pic = { e: 'b', l: you.lines, p: you.pending, nx: you.next };
+      you.board.forEach((row, y) => { pic['r' + y] = row.map((k) => k || '.').join(''); });
+      if (you.cur) Object.assign(pic, { z: you.cur.k, q: you.cur.r, x: you.cur.x, y: you.cur.y });
+      return pic;
+    }
+    function hear(m) {
+      if (m.e === 'g') you.pending += Math.max(0, Math.min(4, Math.round(+m.c) || 0));
+      else if (m.e === 'x') them.dead = true;
+      else if (m.e === 'b') {
+        const board = [];
+        for (let y = 0; y < ROWS; y++) {
+          const row = String(m['r' + y] || '');
+          board.push(Array.from({ length: COLS }, (_, x) => (row[x] && row[x] !== '.' ? (COLOURS[row[x]] ? row[x] : 'G') : null)));
+        }
+        them.board = board;
+        them.cur = ROTS[m.z] ? { k: m.z, r: (+m.q || 0) & 3, x: +m.x || 0, y: +m.y || 0 } : null;
+        them.lines = +m.l || 0; them.pending = +m.p || 0; them.next = Math.max(0, Math.min(you.next + 50, +m.nx || 0));
+      }
+    }
+
+    mine.forEach(spawn);
     const self = {
       music: 'lego',
       update() {
         t++;
+        if (vs) {
+          for (let m; (m = vs.take());) hear(m);
+          if (vs.gone && state !== 'done' && state !== 'gone') { state = 'gone'; t = 0; }
+          if (state === 'gone' || state === 'done') {
+            if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+              remove(self); vs.end();
+              say(state === 'gone' ? foe + ' has gone. Nobody wins this one.'
+                : won ? 'You beat ' + foe + ' at the brick battle!' : foe + ' beat you at the brick battle.');
+            }
+            return;
+          }
+        }
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
@@ -5820,19 +5864,25 @@
         }
         if (pressed.has('b')) {
           remove(self);
+          if (vs) { vs.end(); say('You knock your bricks over and walk away.'); return; }
           say(solo ? 'You tip the bricks back into the tub before Joe notices.' : 'Joe: "Ha! Knew you would crack." He starts sorting his bricks by colour.');
           return;
         }
         frames++;
         if (solo && ++rise >= riseEvery()) { rise = 0; you.pending++; }
-        players.forEach(step);
+        mine.forEach(step);
+        // send your baseplate when it's changed, at most ten times a second
+        if (vs && ++picT >= 6) {
+          const pic = picture(), key = JSON.stringify(pic);
+          if (key !== sentPic) { vs.send(pic); sentPic = key; picT = 0; }
+        }
         if (players.some((p) => p.dead)) finish();
       },
       draw() {
         box(0, 0, SW, SH);
         text(solo ? 'Lego Building' : 'Lego Brick Battle', 16, 10);
         const b = 'Best ' + getBest(solo ? 'legosolo' : 'legolines') + ' lines';
-        text(b, SW - 16 - b.length * 6, 10);
+        if (!vs) text(b, SW - 16 - b.length * 6, 10);
         const brick = (x, y, k, s, alpha) => {
           const [face, hi, lo] = COLOURS[k];
           ctx.globalAlpha = alpha || 1;
@@ -5847,7 +5897,7 @@
         };
         players.forEach((p, i) => {
           const X = BX[i];
-          const name = i ? 'JOE' : (playerName || 'YOU').toUpperCase();
+          const name = (i ? foe : playerName || 'YOU').toUpperCase();
           text(name, X, 26);
           const ln = p.lines + (p.lines === 1 ? ' line' : ' lines');
           text(ln, X + COLS * C - ln.length * 6, 26);
@@ -5864,7 +5914,7 @@
           }));
           if (p.cur) {
             const c = p.cur;
-            if (!p.ai) { // where your brick will land
+            if (p === you) { // where your brick will land
               let gy = c.y;
               while (fits(p.board, c.k, c.r, c.x, gy + 1)) gy++;
               for (const [cx, cy] of ROTS[c.k][c.r]) if (gy + cy >= 0) brick(X + (c.x + cx) * C, BY + (gy + cy) * C, c.k, C, 0.3);
@@ -5911,6 +5961,9 @@
           ctext('Esc: give up', 200);
         }
         if (state === 'ready') readyBox(t, 'Clear 2+ rows to send bricks');
+        else if (state === 'gone') doneBox([foe + ' has gone.', 'Nobody wins this one.'], t);
+        else if (state === 'done' && vs) doneBox([won ? 'You buried ' + foe + ' in bricks!' : foe + ' out-built you!',
+          'Lines: ' + you.lines + ' - ' + them.lines], t);
         else if (state === 'done') doneBox([won ? 'You buried Joe in bricks!' : 'Joe out-built you!',
           'Lines: ' + you.lines + ' - ' + them.lines,
           record ? 'New record!' : 'Best ' + getBest('legolines') + ' lines'], t);
@@ -6187,32 +6240,61 @@
   // Arrows rise up their lanes and you press each one as it reaches the targets at the
   // top. Timing follows the rave song itself (or a steady 140bpm with the music off),
   // counted in eighth-note steps like the song is. Out-score Patrick to win.
-  function DanceGame() {
+  // With `vs` (a match with another player) you both get the same arrows, from the match's
+  // shared random numbers, and each of you sees the other's score as they dance. The
+  // higher score when you've both finished the song wins.
+  function DanceGame(vs) {
     const LANES = ['left', 'down', 'up', 'right'], LANE_COLS = ['#ff2a6d', '#05d9e8', '#39ff14', '#f9f871'];
     const LX = 104, LW = 28, TY = 34, PX = 9; // first lane, lane width, target row, pixels per step
     // Timing windows and lengths, in steps. On a touch screen the D-pad is slower to hit than
-    // a key, so the windows are wider and the chart is gentler (see below).
-    const PERFECT = isTouch ? 0.7 : 0.5, GOOD = isTouch ? 1.4 : 1, LEN = 128, LEAD = 16;
-    const patrick = spritesFor('Patrick');
+    // a key, so the windows are wider and the chart is gentler (see below). Against a
+    // player, that's whenever either of you is on touch, so you both get the same.
+    const soft = vs ? vs.soft : isTouch, rnd = vs ? vs.rng : Math.random;
+    const PERFECT = soft ? 0.7 : 0.5, GOOD = soft ? 1.4 : 1, LEN = 128, LEAD = 16;
+    const foe = vs ? vs.name : 'Patrick';
+    const patrick = vs ? vs.sprites : spritesFor('Patrick');
     // The chart: half notes to warm up, then every beat, then some off-beats to finish.
     // On touch it stays on the beat at the end, and never asks for the same arrow twice
     // in a row (that means lifting your thumb off the pad and pressing again).
     const notes = [];
-    for (let s = 0; s < LEN; s += s < 32 ? 4 : s < 96 || isTouch ? 2 : Math.random() < 0.45 ? 1 : 2) {
+    for (let s = 0; s < LEN; s += s < 32 ? 4 : s < 96 || soft ? 2 : rnd() < 0.45 ? 1 : 2) {
       let lane;
-      do lane = Math.floor(Math.random() * 4);
-      while (notes.length && notes[notes.length - 1].lane === lane && (isTouch || (notes.length > 1 && notes[notes.length - 2].lane === lane)));
+      do lane = Math.floor(rnd() * 4);
+      while (notes.length && notes[notes.length - 1].lane === lane && (soft || (notes.length > 1 && notes[notes.length - 2].lane === lane)));
       notes.push({ s, lane, hit: null });
     }
-    const PATRICK = 62 + Math.floor(Math.random() * 14); // Patrick is good, not perfect
+    // Patrick is good, not perfect; a player's score is whatever they last sent
+    let PATRICK = vs ? 0 : 62 + Math.floor(Math.random() * 14);
     let state = 'play', t = 0, pos = -LEAD, lastMp = null, synced = false;
     let pts = 0, combo = 0, maxCombo = 0, judge = null, flash = [0, 0, 0, 0], move = 'down', record = false;
+    let theirsDone = false, sentPct = 0, sendT = 0;
     const pct = () => Math.round(100 * pts / (notes.length * 2));
     function rate(word, color, lane) { judge = { word, color, t: 0 }; if (lane >= 0) flash[lane] = 10; }
     const self = {
       music: 'rave',
       update() {
         t++;
+        if (vs) {
+          for (let m; (m = vs.take());) {
+            PATRICK = Math.max(0, Math.min(100, Math.round(+m.p) || 0));
+            if (m.e === 'f') theirsDone = true;
+          }
+          // your score as you go, at most every 10 ticks
+          if (++sendT >= 10 && pct() !== sentPct && state === 'play') { vs.send({ e: 's', p: pct() }); sentPct = pct(); sendT = 0; }
+          if (vs.gone && !theirsDone && state !== 'gone') { state = 'gone'; t = 0; }
+          if (state === 'wait' && theirsDone) { state = 'done'; t = 0; sfx(pct() > PATRICK ? 'cup' : 'bump'); }
+          if (state === 'done' || state === 'gone') {
+            if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+              remove(self); vs.end();
+              say(state === 'gone' ? foe + ' left the dance floor. Nobody wins this one.'
+                : pct() > PATRICK ? 'You out-danced ' + foe + ', ' + pct() + '% to ' + PATRICK + '%!'
+                  : pct() < PATRICK ? foe + ' out-danced you, ' + PATRICK + '% to ' + pct() + '%.'
+                    : 'A dead heat: ' + pct() + '% each.');
+            }
+            return;
+          }
+          if (state === 'wait') { if (pressed.has('b')) { remove(self); vs.end(); say('You leave the dance floor.'); } return; }
+        }
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
@@ -6223,7 +6305,7 @@
           }
           return;
         }
-        if (pressed.has('b')) { remove(self); say('Patrick: Leaving the floor already? More room for me.'); return; }
+        if (pressed.has('b')) { remove(self); if (vs) { vs.end(); say('You leave the dance floor.'); } else say('Patrick: Leaving the floor already? More room for me.'); return; }
         // follow the song when it's playing; otherwise count 140bpm ticks ourselves
         const mp = musicPos('rave');
         if (mp === null) pos += 1 / 12.86;
@@ -6251,6 +6333,8 @@
         // anything that's slipped past the targets is a miss
         for (const n of notes) if (!n.hit && pos - n.s > GOOD) { n.hit = 'miss'; combo = 0; rate('MISS', '#ff2a6d', -1); }
         if (pos > LEN + 4) {
+          // against a player: send your final score, then wait for theirs
+          if (vs) { vs.send({ e: 'f', p: pct() }); state = 'wait'; t = 0; return; }
           state = 'done'; t = 0;
           record = saveBest('dance', pct());
           if (pct() > PATRICK) { questNote('danceoff', 1); sfx('cup'); } else sfx('bump');
@@ -6274,9 +6358,10 @@
         const pDir = ['down', 'left', 'down', 'right', 'up', 'right', 'down', 'left'][beat & 7];
         ctx.drawImage(patrick[pDir][1 + (beat & 1)], 242, 100 - bop, 56, 56);
         text('You', 41, 162, 1, '#f8f8f8');
-        text('Patrick', 249, 162, 1, '#f8f8f8');
+        text(foe, 270 - foe.length * 3, 162, 1, '#f8f8f8');
         text(pct() + '%', 50 - String(pct()).length * 3 - 3, 176, 1, '#f9f871');
-        text(PATRICK + '%', 270 - String(PATRICK).length * 3 - 3, 176, 1, state === 'done' ? '#f9f871' : '#606080');
+        // Patrick's score is a surprise until the end; a player's goes up as they dance
+        text(PATRICK + '%', 270 - String(PATRICK).length * 3 - 3, 176, 1, state === 'done' || vs ? '#f9f871' : '#606080');
         // targets, then the arrows on their way up
         LANES.forEach((k, lane) => {
           arrow(k, LX + lane * LW + 4, TY, flash[lane] ? '#ffffff' : '#505070', true);
@@ -6291,13 +6376,17 @@
         if (combo > 4) text(combo + ' combo', 160 - (String(combo).length + 6) * 3, 92, 1, '#f8f8f8');
         text('DANCE-OFF', 4, 4, 1, '#f8f8f8');
         const b = 'Best ' + getBest('dance') + '%';
-        text(b, SW - 4 - b.length * 6, 4, 1, '#a0a0c8');
+        if (!vs) text(b, SW - 4 - b.length * 6, 4, 1, '#a0a0c8');
         if (pos < 0) {
           box(60, 120, 200, 48);
-          ctext(pos < -8 ? 'Patrick wants a dance-off!' : 'Get ready... ' + Math.ceil(-pos / 2), 132);
+          ctext(pos < -8 ? (vs ? 'Dance-off with ' + foe + '!' : 'Patrick wants a dance-off!') : 'Get ready... ' + Math.ceil(-pos / 2), 132);
           ctext('Arrows on the beat', 148);
         }
-        if (state === 'done') doneBox([pct() > PATRICK ? 'You out-danced Patrick!' : 'Patrick wins!',
+        if (state === 'wait') { box(60, 100, 200, 40); ctext('Waiting for ' + foe + '...', 108); ctext('to finish the song', 122); }
+        else if (state === 'gone') doneBox([foe + ' left the floor.', 'Nobody wins this one.'], t);
+        else if (state === 'done' && vs) doneBox([pct() > PATRICK ? 'You out-danced ' + foe + '!' : pct() < PATRICK ? foe + ' wins!' : 'A dead heat!',
+          'You ' + pct() + '%  ' + foe + ' ' + PATRICK + '%', 'Your best combo ' + maxCombo], t);
+        else if (state === 'done') doneBox([pct() > PATRICK ? 'You out-danced Patrick!' : 'Patrick wins!',
           'You ' + pct() + '%  Patrick ' + PATRICK + '%  Combo ' + maxCombo, record ? 'New record!' : 'Best ' + getBest('dance') + '%'], t);
       },
     };
@@ -8687,9 +8776,18 @@
   const MP_VER = window.GAME_VERSION ? +window.GAME_VERSION : 0;
   const MP_LIVE = 12000; // ms without word from a player before they count as gone
   const MP_ASK = 30000; // ms a challenge waits for an answer
-  const MP_LINES = ['Hi!', 'Hello!', 'Follow me!', 'Wait up!', 'Over here!', 'Nice!', 'Ha ha!', 'Good game!', 'Bye!'];
+  // What you can say, a page of the menu each. A line is sent as its place in the whole
+  // list, so only ever add lines to the end of the last page (or add a new page after it):
+  // an older copy ignores a number it doesn't have, but moving a line would make older
+  // copies show the wrong one.
+  const MP_SAY = [
+    ['SMALL TALK', ['Hi!', 'Hello!', 'Follow me!', 'Wait up!', 'Over here!', 'Nice!', 'Ha ha!', 'Good game!', 'Bye!']],
+    ['SHOP TALK', ['Check the CFM!', 'Coil\'s frozen!', 'Change the filters!', 'Balance that damper!',
+      'Is that REV C?', 'Ship it today!', 'Run it through SDG.', 'Belt\'s slipping!', 'Mind the static!']],
+  ];
+  const MP_LINES = MP_SAY.flatMap(([, lines]) => lines);
   const mp = {
-    id: Math.random().toString(36).slice(2, 12), on: false, others: {}, mail: [],
+    id: Math.random().toString(36).slice(2, 12), on: false, heard: false, others: {}, mail: [],
     sending: false, sentKey: '', lastSend: 0, say: -1, sayN: 0, bubble: null, newer: false, nudged: false,
     pending: null, invite: null, match: null,
   };
@@ -8697,6 +8795,8 @@
   const VERSUS = {
     duel: { label: 'AIR DUEL', title: 'an air handling duel', Game: (m) => BattleGame(m) },
     jar: { label: 'CANDY JAR', title: 'a candy jar guess-off', Game: (m) => CandyJarGame(m) },
+    lego: { label: 'BRICK BATTLE', title: 'a Lego brick battle', Game: (m) => LegoGame(false, m) },
+    dance: { label: 'DANCE-OFF', title: 'a dance-off', Game: (m) => DanceGame(m) },
   };
   // A small seeded random number generator (mulberry32), so both players in a match get
   // the same jars.
@@ -8744,11 +8844,15 @@
     const on = (merge) => (e) => {
       let d; try { d = JSON.parse(e.data); } catch (err) { return; }
       if (!d || typeof d.path !== 'string') return;
+      mp.heard = true;
       tree = treeApply(tree, d.path, d.data, merge);
       onTree(tree);
     };
     es.addEventListener('put', on(false));
     es.addEventListener('patch', on(true));
+    // a refusal (say the database rules don't allow it) closes the stream for good; a
+    // dropped connection just reconnects on its own
+    es.addEventListener('error', () => { if (es.readyState === EventSource.CLOSED) mp.heard = false; });
     return es;
   }
   function mpFetch(path, method, body, keepalive) {
@@ -8773,7 +8877,7 @@
       const rec = {
         n: String(r.n || '?').slice(0, NAME_MAX), g, l: looks[r.l] ? r.l : 0, c: Art.COSTUMES[r.c] ? r.c : '',
         f: MAPS.floors[r.f] ? r.f : 0, x: +r.x || 0, y: +r.y || 0, d: DIRS[r.d] ? r.d : 'down', b: !!r.b,
-        s: MP_LINES[r.s] ? r.s : -1, sn: +r.sn || 0, v: +r.v || 0, t: +r.t || 0,
+        s: MP_LINES[r.s] ? r.s : -1, sn: +r.sn || 0, v: +r.v || 0, t: +r.t || 0, tc: !!r.tc,
       };
       let o = mp.others[id];
       if (!o) {
@@ -8819,7 +8923,7 @@
     return {
       n: playerName || 'New Hire', g: pick.gender, l: pick.index, c: hw.worn ? hw.costume : '', f: P.floor,
       x: P.x + (P.moving ? P.mdx : 0), y: P.y + (P.moving ? P.mdy : 0), d: P.dir, b: ui.length || fade ? 1 : 0,
-      s: mp.say, sn: mp.sayN, v: MP_VER, p: MP_PROTO,
+      s: mp.say, sn: mp.sayN, v: MP_VER, p: MP_PROTO, tc: isTouch ? 1 : 0,
     };
   }
   function mpPut() {
@@ -8834,13 +8938,14 @@
   }
 
   // A match between two players. The games read the other player's moves with take(),
-  // send theirs with send(), and call end() when they close.
-  function mpMatch(id, opp, name, seed) {
+  // send theirs with send(), and call end() when they close. `soft` is set when either of
+  // you is on a touch screen, so a game that goes easier on touch does for both of you.
+  function mpMatch(id, opp, name, seed, soft) {
     const o = mp.others[opp];
     const m = {
-      id, opp, name, gone: false, rng: seeded(seed), moves: [],
+      id, opp, name, gone: false, rng: seeded(seed), soft: !!soft, moves: [],
       sprites: o ? mpSprites(o) : charSprites.male[0],
-      send(data) { mpSend(opp, Object.assign({ k: 'mv', m: id }, data)); },
+      send(data) { mpSend(opp, Object.assign({}, data, { k: 'mv', m: id })); },
       take() { return m.moves.shift(); },
       end() {
         if (!m.gone) mpSend(opp, { k: 'quit', m: id });
@@ -8850,9 +8955,9 @@
     };
     return m;
   }
-  function mpStart(id, opp, name, seed, game) {
+  function mpStart(id, opp, name, seed, game, soft) {
     sfx('menu');
-    mp.match = mpMatch(id, opp, name, seed);
+    mp.match = mpMatch(id, opp, name, seed, soft);
     ui.push(VERSUS[game].Game(mp.match));
   }
   // Waiting for the other player to answer your challenge.
@@ -8884,7 +8989,7 @@
       then() {
         const ch = Choice(['ACCEPT', 'NO THANKS'], -1, SH - 48 - 40, (i) => {
           answer(i === 0 ? 'yes' : 'no');
-          if (i === 0) mpStart(msg.m, msg.from, msg.n, msg.seed, msg.g);
+          if (i === 0) mpStart(msg.m, msg.from, msg.n, msg.seed, msg.g, msg.soft);
         });
         inv.els.push(ch); ui.push(ch);
       },
@@ -8901,7 +9006,7 @@
       else mpInvite(msg);
     } else if (c && msg.m === c.id) {
       remove(c.el); mp.pending = null;
-      if (msg.k === 'yes') mpStart(c.id, c.opp, c.name, c.seed, c.game);
+      if (msg.k === 'yes') mpStart(c.id, c.opp, c.name, c.seed, c.game, c.soft);
       else if (msg.k === 'no') { sfx('bump'); say(c.name + ' said no thanks.'); }
       else if (msg.k === 'busy') { sfx('bump'); say(c.name + ' is busy right now. Try again in a moment.'); }
     } else if (inv && msg.m === inv.msg.m && msg.k === 'cancel') {
@@ -8972,9 +9077,13 @@
   }
 
   function mpSayMenu() {
-    ui.push(Choice(MP_LINES, -1, 0, (i) => {
-      if (i < 0) return;
-      mp.say = i; mp.sayN++; mp.bubble = { s: i, t: 0 };
+    ui.push(Choice(MP_SAY.map(([page]) => page), -1, 0, (p) => {
+      if (p < 0) return;
+      const first = MP_SAY.slice(0, p).reduce((n, [, lines]) => n + lines.length, 0);
+      ui.push(Choice(MP_SAY[p][1], -1, 0, (i) => {
+        if (i < 0) { mpSayMenu(); return; } // back to the pages
+        mp.say = first + i; mp.sayN++; mp.bubble = { s: mp.say, t: 0 };
+      }));
     }));
   }
   function mpChallenge(o) {
@@ -8988,10 +9097,10 @@
           : o.n + ' has an older version of the game. They need to reload before you can play.');
         return;
       }
-      const c = { id: Math.random().toString(36).slice(2, 12), opp: o.id, name: o.n, game: keys[i], seed: Math.floor(Math.random() * 1e9) };
+      const c = { id: Math.random().toString(36).slice(2, 12), opp: o.id, name: o.n, game: keys[i], seed: Math.floor(Math.random() * 1e9), soft: isTouch || o.tc ? 1 : 0 };
       c.el = MpWait(c);
       mp.pending = c;
-      mpSend(o.id, { k: 'ask', m: c.id, g: c.game, seed: c.seed });
+      mpSend(o.id, { k: 'ask', m: c.id, g: c.game, seed: c.seed, soft: c.soft });
       ui.push(c.el);
     }));
   }
@@ -9005,6 +9114,7 @@
   }
   function mpWho() {
     const here = mpHere();
+    if (!mp.heard) { say('You can\'t reach the other players right now, so it\'s just you for the moment.'); return; }
     say(here.length ? 'Also here: ' + here.map((o) => o.n + ' (' + mpWhere(o) + ')').join(', ') + '.' : 'Nobody else is playing right now.');
   }
 

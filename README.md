@@ -225,14 +225,24 @@ everyone and the room they're in. Other players don't block your way, so nobody 
 stand in a doorway and trap you.
 
 - **Say something**: from the Start menu, or walk up to another player and press A.
-  Pick a line (Hi!, Follow me!, Good game! and so on) and it pops up over your head
-  for everyone near you. The lines are a fixed list (`MP_LINES` in `js/game.js`), so
-  there's no typing.
+  Pick **Small talk** (Hi!, Follow me!, Good game! and so on) or **Shop talk** (Check
+  the CFM!, Coil's frozen!, Is that REV C? and so on), then a line, and it pops up over
+  your head for everyone near you. The lines are a fixed list (`MP_SAY` in
+  `js/game.js`), so there's no typing. Add new lines only at the end of the last page
+  (or as a new page), because players on older versions would otherwise see the wrong line.
 - **Challenge**: walk up to another player, press A and pick a game:
   - **Air duel**: Richard's air handling duel, against each other. You each pick a
     move in secret and the round plays out once you've both picked.
   - **Candy jar**: Kiki's guess-the-sweets, against each other, with the same jars
     on both screens. Closest guess takes the round, best of 3.
+  - **Brick battle**: Joe's Lego brick battle, against each other. You both get the
+    same bricks in the same order, you can see the other player's baseplate as they
+    build, and clearing 2 or more rows sends grey bricks up under them. First to reach
+    the top loses.
+  - **Dance-off**: Patrick's dance-off, against each other. You both get the same
+    arrows and see each other's score go up as you dance; the higher score once you've
+    both finished the song wins. If either of you is on a phone, you both get the
+    gentler phone version, so it's fair.
 
   They get 30 seconds to accept. Someone who's in a menu or a game has "..." over
   their head and can't be challenged until they're done. Walking away from a match
