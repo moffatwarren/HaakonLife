@@ -268,7 +268,8 @@ stand in a doorway and trap you.
 
   They get 30 seconds to accept. Someone who's in a menu or a game has "..." over
   their head and can't be challenged until they're done. Walking away from a match
-  (or closing the page) ends it for both of you. Matches against players don't go
+  (or closing the page) ends it for both of you, and so does putting your phone away
+  or switching apps for more than about 12 seconds. Matches against players don't go
   on the leaderboards or count towards Linda's or Kiki's lists.
 
 Mini-games, conversations and the Halloween party are still just yours: other people

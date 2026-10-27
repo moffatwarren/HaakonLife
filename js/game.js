@@ -643,7 +643,10 @@
   // "B: give up", "Arrows: steer" -> "D-pad: steer"). Only hint-shaped text is touched,
   // so an SDG "Space" component or a printout stays as it is.
   const TOUCH_HINTS = [
-    [/\bSpace(?=:| twice| to )|(?<=(?:Hold|Mash|Press|\+|then) )Space\b/g, 'A'],
+    // (no lookbehind for "Hold Space": Safari before iOS 16.4 can't parse one, and the
+    // whole game would fail to load)
+    [/\bSpace(?=:| twice| to )/g, 'A'],
+    [/(Hold|Mash|Press|\+|then) Space\b/g, '$1 A'],
     [/\bEsc(?=:)/g, 'B'],
     [/\bEnter(?=:)/g, 'START'],
     [/\bArrows(?=:| \+)/g, 'D-pad'],
@@ -9094,7 +9097,7 @@
   const MP_LINES = MP_SAY.flatMap(([, lines]) => lines);
   const mp = {
     id: Math.random().toString(36).slice(2, 12), on: false, heard: false, others: {}, mail: [],
-    sending: false, sentKey: '', lastSend: 0, say: -1, sayN: 0, bubble: null, newer: false, nudged: false,
+    sending: false, sentKey: '', lastSend: 0, tickAt: Date.now(), say: -1, sayN: 0, bubble: null, newer: false, nudged: false,
     pending: null, invite: null, match: null,
   };
   // the head-to-head games: a challenge names one by key
@@ -9218,8 +9221,17 @@
   }
   function mpConnect() {
     mp.on = true;
-    mpStream('/players', mpPlayers);
-    mpStream('/inbox/' + mp.id, mpInbox);
+    let streams = [];
+    const open = () => {
+      streams.forEach((es) => es.close());
+      streams = [mpStream('/players', mpPlayers), mpStream('/inbox/' + mp.id, mpInbox)];
+    };
+    open();
+    // A phone that's been asleep or in the background can come back with its streams still
+    // looking open but no longer delivering anything, so start them afresh. Nothing is
+    // lost: a new stream begins with everything that's there now, inbox included, and
+    // mail you've already read is skipped.
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') open(); });
     // closing the tab (or reloading it) takes you out of the office straight away
     addEventListener('pagehide', () => {
       if (mp.match && !mp.match.gone) mpFetch('/inbox/' + mp.match.opp, 'POST', { k: 'quit', m: mp.match.id, from: mp.id, t: { '.sv': 'timestamp' } }, true).catch(() => {});
@@ -9342,7 +9354,15 @@
       mp.invite.els.forEach(remove); mp.invite = null;
       say('The challenge ran out of time.');
     }
-    if (mp.match && !mp.match.gone && !mpLive(mp.others[mp.match.opp])) mp.match.gone = true;
+    // They've gone quiet (a closed tab, or a phone that's been put away): tell them it's
+    // over too, so if they come back they aren't left waiting on you. And if this copy is
+    // the one that was frozen that long, they'll have given up on you already.
+    const now = Date.now();
+    if (mp.match && !mp.match.gone && (!mpLive(mp.others[mp.match.opp]) || now - mp.tickAt > MP_LIVE)) {
+      mpSend(mp.match.opp, { k: 'quit', m: mp.match.id });
+      mp.match.gone = true;
+    }
+    mp.tickAt = now;
     if (mp.newer && !mp.nudged && !ui.length && !fade) {
       mp.nudged = true;
       say('Somebody here has a newer version of the game. Reload the page (or START > UPDATE GAME) to get it.');
