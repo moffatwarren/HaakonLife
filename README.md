@@ -243,6 +243,22 @@ stand in a doorway and trap you.
     arrows and see each other's score go up as you dance; the higher score once you've
     both finished the song wins. If either of you is on a phone, you both get the
     gentler phone version, so it's fair.
+  - **Coffee machine**: you both get the same pour, and their cup chases the drops as a
+    faint outline (with a notch beside your fill meter for how full theirs is). Most
+    drops caught wins.
+  - **Treadmill**: you both get the same gym clutter, and they run along with you as a
+    see-through ghost, where they were at that point in their run. If you wipe out
+    first, the belt keeps going and you watch their ghost run on until they wipe out
+    too. Furthest wins.
+  - **Snake**: your TV shrinks to make room for a small one showing theirs. The food
+    turns up in the same places for both of you (unless it would land on your snake).
+    Whoever crashes first watches the other's TV until they crash too. Most food wins.
+  - **Control panel**: the same light sequence for both of you. You only see how many
+    rounds they've cleared (not their presses, so they can't give it away). Once one of
+    you is out, they watch the other's lights on their panel until they're out too.
+    Most rounds wins.
+
+  The treadmill, Snake and the control panel carry on until you're both out.
 
   They get 30 seconds to accept. Someone who's in a menu or a game has "..." over
   their head and can't be challenged until they're done. Walking away from a match
@@ -441,6 +457,12 @@ whoever is there leave through the portal in 120 ticks (2 seconds).
 `game=board&key=snake` opens that game's leaderboard without sending anything, and
 `game=fame` opens the Hall of Fame (in `tools/test.html` it's filled with made-up rows,
 with `&name=Sam` among them on some boards).
+
+To try a head-to-head game on your own, add `&vs=1` with `game=duel`, `jar`, `lego`,
+`dance`, `coffee`, `run`, `snake` or `simon`. It plays against "Echo", a stand-in who
+sends back everything you send a second later. That's for seeing the screens, not
+for a fair game: the score races always end in a dead heat (`&seed=5` deals a
+different game).
 
 `tools/test.html` has no other players unless you add `&mp=` and a database address
 (for example `&mp=https://haakonlife-d4ef2-default-rtdb.firebaseio.com`). Then it joins

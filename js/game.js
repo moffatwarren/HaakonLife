@@ -1769,20 +1769,29 @@
   }
 
   // ---------- coffee mini-game: move the cup to catch falling coffee ----------
+  // Against a player (vs) you both get the same pour, and their cup is a faint outline
+  // chasing the same drops.
   let coffeesToday = 0;
-  function CoffeeGame() {
+  function CoffeeGame(vs) {
     const AX = 12, AW = 248, HEAD = 18, CUP_Y = 184, CUP_W = 44, CUP_H = 34, FLOOR = 220;
     const COFFEE = '#6b3a1e', CREMA = '#b07040';
     const METER = { x: 280, y: 40, w: 24, h: 168 };
     // the machine pours this many drops and stops; your score is how many land in the cup
     const DROPS = 150;
     let cup = AX + AW / 2 - CUP_W / 2, fill = 0, caught = 0, missed = 0, t = 0, state = 'ready';
-    let poured = 0, wait = 0, record = false;
+    let poured = 0, wait = 0, record = false, frame = 0;
     let nozzle = AX + AW / 2, target = nozzle, drops = [], splashes = [];
+    const rnd = vs ? vs.rng : Math.random, ghost = ghostTrack();
+    const race = vs && scoreRace(vs, { what: 'the coffee machine', fmt: String, hear: (m) => ghost.add(m) });
     const self = {
       music: 'coffee',
       update() {
         t++;
+        if (race) {
+          if (race.update() && state !== 'over') { state = 'over'; t = 0; sfx(race.outcome === 'win' ? 'cup' : 'bump'); }
+          if (state === 'over') { if (t > 30 && (pressed.has('a') || pressed.has('b'))) { remove(self); vs.end(); race.say(); } return; }
+          if (state === 'wait') { if (pressed.has('b')) { remove(self); vs.end(); say('You leave the coffee machine.'); } return; }
+        }
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
@@ -1794,16 +1803,18 @@
           }
           return;
         }
-        if (pressed.has('b')) { remove(self); say('You leave the coffee for later.'); return; }
+        if (pressed.has('b')) { remove(self); if (vs) vs.end(); say('You leave the coffee for later.'); return; }
+        frame++;
         if (held.left) cup = Math.max(AX, cup - 3);
         if (held.right) cup = Math.min(AX + AW - CUP_W, cup + 3);
+        if (race) race.send({ f: frame, x: Math.round(cup), s: caught }, Math.round(cup) + ':' + caught);
         // the nozzle wanders back and forth. As the pour goes on it gets faster (in the end
         // faster than the cup), drips more often and starts changing its mind halfway.
         const p = poured / DROPS;
-        if (Math.abs(target - nozzle) < 2 || Math.random() < 0.025 * p) target = AX + 12 + Math.random() * (AW - 24);
+        if (Math.abs(target - nozzle) < 2 || rnd() < 0.025 * p) target = AX + 12 + rnd() * (AW - 24);
         nozzle += Math.sign(target - nozzle) * Math.min(Math.abs(target - nozzle), 1.2 + 4.4 * p);
         if (poured < DROPS && --wait <= 0) {
-          drops.push({ x: nozzle - 1 + (Math.random() * 4 - 2), y: HEAD + 22, vy: 1 });
+          drops.push({ x: nozzle - 1 + (rnd() * 4 - 2), y: HEAD + 22, vy: 1 });
           poured++; wait = Math.round(8 - 3 * p);
         }
         for (const d of drops) { d.vy = Math.min(d.vy + 0.08, 4); d.y += d.vy; }
@@ -1819,12 +1830,15 @@
         });
         splashes.forEach((sp) => sp.t++);
         splashes = splashes.filter((sp) => sp.t < 12);
-        if (poured >= DROPS && !drops.length) { state = 'done'; t = 0; record = saveBest('coffee', caught); sfx('ding'); }
+        if (poured >= DROPS && !drops.length) {
+          if (race) { race.finish(caught); state = 'wait'; t = 0; return; }
+          state = 'done'; t = 0; record = saveBest('coffee', caught); sfx('ding');
+        }
       },
       draw() {
         box(0, 0, SW, SH);
         text('Catch the coffee!', AX + 4, 6);
-        const b = 'Best ' + getBest('coffee');
+        const b = race ? vs.name + ' ' + race.now : 'Best ' + getBest('coffee');
         text(b, AX + AW - b.length * 6, 6);
         // machine head + nozzle
         ctx.fillStyle = col.dark; ctx.fillRect(AX, HEAD, AW, 14);
@@ -1840,6 +1854,16 @@
         // counter
         ctx.fillStyle = col.dark; ctx.fillRect(AX, FLOOR, AW, 1);
         ctx.fillStyle = '#c8ccd8'; ctx.fillRect(AX, FLOOR + 1, AW, 5);
+        // their cup: an outline where it was at this point in the pour, until they're done
+        if (race && ghost.started && !(race.theirsDone && frame > ghost.end)) {
+          const gx = Math.round(ghost.at(frame, 'x'));
+          ctx.globalAlpha = 0.45; ctx.fillStyle = col.dark;
+          ring(gx, CUP_Y, CUP_W, CUP_H); ring(gx + 1, CUP_Y + 1, CUP_W - 2, CUP_H - 2);
+          ctx.fillRect(gx + CUP_W, CUP_Y + 8, 6, 2); ctx.fillRect(gx + CUP_W + 5, CUP_Y + 8, 2, 16); ctx.fillRect(gx + CUP_W, CUP_Y + 22, 6, 2);
+          const n = vs.name.slice(0, 7);
+          text(n, gx + ((CUP_W - n.length * 6) >> 1), CUP_Y + 15, 1, col.dark);
+          ctx.globalAlpha = 1;
+        }
         // cup, filling up as you catch coffee
         const cx0 = Math.round(cup), inner = CUP_H - 4, lvl = Math.round(inner * fill / 100);
         ctx.fillStyle = col.dark; ctx.fillRect(cx0, CUP_Y, CUP_W, CUP_H);
@@ -1868,12 +1892,19 @@
         ctx.fillStyle = CREMA;
         for (let yy = m.y + m.h - 2 - mh; yy < m.y + m.h - 2; yy += 8) ctx.fillRect(m.x + 2, yy, m.w - 4, 1);
         text(Math.floor(fill) + '%', m.x, m.y + m.h + 4);
+        // how full their cup is, as a notch beside the meter
+        if (race) {
+          const ty = m.y + m.h - 2 - Math.round((m.h - 4) * Math.min(1, race.now / DROPS));
+          ctx.fillStyle = col.dark; ctx.fillRect(m.x - 5, ty - 1, 5, 3);
+        }
         // messages
         if (state === 'ready') {
           box(70, 92, 180, 48);
           text(t < 50 ? 'Get ready...' : 'GO!', 70 + (t < 50 ? 54 : 81), 104);
           text('Left/Right: move cup', 70 + 30, 120);
-        } else if (state === 'done') {
+        } else if (state === 'over') race.box(t);
+        else if (state === 'wait') race.waitBox();
+        else if (state === 'done') {
           doneBox(['Coffee\'s ready!', 'Caught ' + caught + ' of ' + DROPS + '   Spilled ' + missed, record ? 'New record!' : 'Best ' + getBest('coffee')], t);
         } else {
           text('Esc: give up', AX + 4, SH - 16);
@@ -2186,6 +2217,87 @@
     if (t > 30 && (tick >> 4) & 1) ctext('Press Space', 136);
   }
 
+  // ---------- score races against another player ----------
+  // The coffee machine, treadmill, Snake and the control panel can be played against
+  // another player (see VERSUS). You both get the same game from the match's seed and send
+  // each other how you're doing as you go ({ e: 'p', s: score, ... }, passed on to hear),
+  // then your final score ({ e: 'f', s }). It carries on until you're both out, and the
+  // higher final score wins.
+  function scoreRace(vs, { what, fmt, hear }) {
+    const foe = vs.name;
+    let sentKey = '', sendT = 0;
+    const r = {
+      now: 0, theirs: 0, theirsDone: false, mine: 0, mineDone: false, outcome: null,
+      // read their messages and see whether it's settled: 'win', 'lose', 'tie' or 'gone'
+      update() {
+        for (let m; (m = vs.take());) {
+          r.now = Math.max(0, +m.s || 0);
+          if (m.e === 'f') { r.theirs = r.now; r.theirsDone = true; } else if (hear) hear(m);
+        }
+        if (r.outcome) return r.outcome;
+        if (r.theirsDone && r.mineDone) r.outcome = r.mine > r.theirs ? 'win' : r.mine < r.theirs ? 'lose' : 'tie';
+        else if (vs.gone && !r.theirsDone) r.outcome = 'gone';
+        return r.outcome;
+      },
+      finish(score) {
+        if (r.mineDone) return;
+        r.mineDone = true; r.mine = score;
+        vs.send({ e: 'f', s: score });
+      },
+      // how you're doing, at most every 6 ticks and only when `key` has changed
+      send(data, key) {
+        if (++sendT < 6 || key === sentKey) return;
+        sendT = 0; sentKey = key;
+        vs.send(Object.assign({ e: 'p' }, data));
+      },
+      waitBox() {
+        box(50, 100, 220, 40);
+        ctext('Waiting for ' + foe + '...', 108);
+        ctext(foe + ' is on ' + fmt(r.now), 122);
+      },
+      box(t) {
+        const score = 'You ' + fmt(r.mine) + '   ' + foe + ' ' + fmt(r.theirs);
+        doneBox(r.outcome === 'gone' ? [foe + ' left.', 'Nobody wins this one.']
+          : [r.outcome === 'win' ? 'You beat ' + foe + '!' : r.outcome === 'lose' ? foe + ' wins!' : 'A dead heat!', score], t);
+      },
+      say() {
+        const a = fmt(r.mine), b = fmt(r.theirs);
+        say(r.outcome === 'gone' ? foe + ' has gone. Nobody wins this one.'
+          : r.outcome === 'win' ? 'You beat ' + foe + ' at ' + what + ', ' + a + ' to ' + b + '!'
+            : r.outcome === 'lose' ? foe + ' beat you at ' + what + ', ' + b + ' to ' + a + '.'
+              : 'A dead heat at ' + what + ': ' + a + ' each.');
+      },
+    };
+    return r;
+  }
+  // Where the other player was at each moment of a race, from the progress they send (each
+  // with `f`, their ticks since the start), so a ghost can be drawn where they were when
+  // they'd got as far into the game as you have. If they're behind you, it's where they
+  // last said.
+  function ghostTrack() {
+    const pts = [];
+    return {
+      add(p) {
+        const f = +p.f, last = pts[pts.length - 1];
+        if (!(f >= 0) || (last && f <= last.f)) return;
+        // nothing sent for a while means nothing changed: they held still until just before
+        if (last && f - last.f > 8) pts.push(Object.assign({}, last, { f: f - 6 }));
+        pts.push(Object.assign({}, p, { f }));
+        if (pts.length > 400) pts.splice(0, 200);
+      },
+      at(f, k) {
+        if (!pts.length) return null;
+        let i = pts.length - 1;
+        while (i > 0 && pts[i].f > f) i--;
+        const a = pts[i], b = pts[i + 1];
+        if (!b || f <= a.f) return +a[k] || 0;
+        return (+a[k] || 0) + ((+b[k] || 0) - (+a[k] || 0)) * (f - a.f) / (b.f - a.f);
+      },
+      get started() { return pts.length > 0; },
+      get end() { return pts.length ? pts[pts.length - 1].f : 0; },
+    };
+  }
+
   // ---------- office dogs: play catch, then see how they stack up ----------
   function dogTalk(n) {
     const d = n.dog;
@@ -2481,7 +2593,10 @@
   }
 
   // ---------- treadmill runner: jump over the gym clutter ----------
-  function RunGame() {
+  // Against a player (vs) you both get the same clutter, and they run beside you as a
+  // ghost; whoever gets further wins. If you wipe out first, the belt keeps going so you
+  // can watch them run on until they wipe out too.
+  function RunGame(vs) {
     const FLOOR = 196, PX = 56, STAND = 28, DUCK = 14, CEIL = 36;
     // Things on the belt to jump over (h = how tall)...
     const LOW = [
@@ -2514,11 +2629,38 @@
       } },
     ];
     let state = 'ready', t = 0, h = 0, vy = 0, speed = 3, dist = 0, nextAt = 220, obs = [], record = false, ducking = false;
+    let frame = 0;
     const metres = () => Math.floor(dist / 16);
+    const rnd = vs ? vs.rng : Math.random, ghost = ghostTrack();
+    const race = vs && scoreRace(vs, { what: 'the treadmill', fmt: (n) => n + 'm', hear: (m) => ghost.add(m) });
+    // the belt and the clutter on it move on a tick
+    function belt() {
+      speed = Math.min(7.5, speed + 0.003);
+      dist += speed;
+      if (dist >= nextAt) {
+        const pool = dist > 400 && rnd() < 0.35 ? HIGH : LOW;
+        obs.push({ x: SW, k: pool[Math.floor(rnd() * pool.length)] });
+        nextAt = dist + 40 + speed * 34 + rnd() * 90;
+      }
+      for (const o of obs) o.x -= speed;
+      obs = obs.filter((o) => o.x + o.k.w > 0);
+    }
     const self = {
       music: 'run',
       update() {
         t++;
+        if (race) {
+          if (race.update() && state !== 'over') { state = 'over'; t = 0; sfx(race.outcome === 'win' ? 'cup' : 'bump'); }
+          if (state === 'over') { if (t > 30 && (pressed.has('a') || pressed.has('b'))) { remove(self); vs.end(); race.say(); } return; }
+          if (state === 'wait') {
+            if (pressed.has('b')) { remove(self); vs.end(); say('You step off the treadmill.'); return; }
+            // you're out and they're still running: keep the belt in step with their moves as
+            // they come in, a little behind so it doesn't stutter (and quicker to catch up)
+            const behind = ghost.end - frame, steps = behind > 30 ? 2 : behind > 6 ? 1 : 0;
+            for (let i = 0; i < steps; i++) { frame++; belt(); }
+            return;
+          }
+        }
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
@@ -2527,31 +2669,26 @@
           }
           return;
         }
-        if (pressed.has('b')) { remove(self); say('You step off the treadmill. Enough cardio for today.'); return; }
+        if (pressed.has('b')) { remove(self); if (vs) vs.end(); say('You step off the treadmill. Enough cardio for today.'); return; }
+        frame++;
         // jump: tap for a hop, hold for a big jump; down ducks (or drops you faster mid-air)
         ducking = held.down && h === 0;
         if (pressed.has('a') && h === 0) { vy = 5.8; ducking = false; sfx('jump'); }
         if (!held.a && vy > 1.5) vy = 1.5;
         if (h > 0 || vy > 0) { h += vy; vy -= held.down ? 0.9 : 0.3; if (h <= 0) { h = 0; vy = 0; } }
-        speed = Math.min(7.5, speed + 0.003);
-        dist += speed;
-        if (dist >= nextAt) {
-          const pool = dist > 400 && Math.random() < 0.35 ? HIGH : LOW;
-          obs.push({ x: SW, k: pool[Math.floor(Math.random() * pool.length)] });
-          nextAt = dist + 40 + speed * 34 + Math.random() * 90;
-        }
-        for (const o of obs) o.x -= speed;
-        obs = obs.filter((o) => o.x + o.k.w > 0);
+        belt();
+        if (race) race.send({ f: frame, h: Math.round(h), d: ducking ? 1 : 0, s: metres() }, Math.round(h) + ':' + ducking + ':' + metres());
         // hit box is the body, a bit narrower than the 32px sprite
         const top = h + (ducking ? DUCK : STAND);
         if (obs.some((o) => o.x < PX + 24 && o.x + o.k.w > PX + 9 && (o.k.gap ? top > o.k.gap + 1 : h < o.k.h - 1))) {
+          if (race) { race.finish(metres()); state = 'wait'; t = 0; sfx('bump'); return; }
           state = 'done'; t = 0; record = saveBest('run', metres()); sfx('bump');
         }
       },
       draw() {
         box(0, 0, SW, SH);
         text('Treadmill run!', 16, 10);
-        const m = metres() + 'm', b = 'Best ' + getBest('run') + 'm';
+        const m = (race && race.mineDone ? race.mine : metres()) + 'm', b = race ? vs.name + ' ' + race.now + 'm' : 'Best ' + getBest('run') + 'm';
         text(m, SW - 16 - m.length * 6, 10);
         text(b, SW - 16 - b.length * 6, 22);
         // gym wall: windows scroll past slowly
@@ -2568,10 +2705,25 @@
         ctx.fillStyle = '#585868';
         for (let x = 8 - Math.floor(dist) % 24; x < SW - 8; x += 24) if (x >= 8) ctx.fillRect(x, FLOOR + 4, 12, 3);
         for (const o of obs) o.k.draw(Math.round(o.x), FLOOR - (o.k.gap || o.k.h));
-        const frame = h > 0 || state !== 'play' ? 0 : (t >> 3) & 1 ? 1 : 2;
-        if (ducking) ctx.drawImage(sprites.right[frame], PX, FLOOR - 17, 32, 17);
-        else ctx.drawImage(sprites.right[frame], PX, FLOOR - 32 - Math.round(h), 32, 32);
+        // the other player, see-through, where they were this far into the run (until they wipe out)
+        if (race && ghost.started && !(race.theirsDone && frame > ghost.end)) {
+          const gh = Math.round(ghost.at(frame, 'h')), gd = ghost.at(frame, 'd') > 0.5;
+          const gs = vs.sprites.right[gh > 0 ? 0 : (t >> 3) & 1 ? 2 : 1];
+          // clearer once you're out and it's just them
+          ctx.globalAlpha = state === 'wait' ? 0.8 : 0.4;
+          if (gd) ctx.drawImage(gs, PX, FLOOR - 17, 32, 17);
+          else ctx.drawImage(gs, PX, FLOOR - 32 - gh, 32, 32);
+          ctx.globalAlpha = 1;
+        }
+        const step = h > 0 || state !== 'play' ? 0 : (t >> 3) & 1 ? 1 : 2;
+        // (once you're out you've stepped off, and it's just their ghost)
+        if (state !== 'wait') {
+          if (ducking) ctx.drawImage(sprites.right[step], PX, FLOOR - 17, 32, 17);
+          else ctx.drawImage(sprites.right[step], PX, FLOOR - 32 - Math.round(h), 32, 32);
+        }
         if (state === 'ready') readyBox(t, 'Space: jump  Down: duck');
+        else if (state === 'over') race.box(t);
+        else if (state === 'wait') race.waitBox();
         else if (state === 'done') doneBox(['Wipeout!', 'You ran ' + metres() + 'm', record ? 'New record!' : 'Best ' + getBest('run') + 'm'], t);
         else text('Esc: give up', 16, SH - 14);
       },
@@ -2854,7 +3006,10 @@
   }
 
   // ---------- electrical panel: repeat the light sequence ----------
-  function SimonGame() {
+  // Against a player (vs) you both get the same sequence; you only see how far they've
+  // got, not their presses, so they can't give the answer away. Whoever's out first
+  // watches the other's lights until they're out too; most rounds wins.
+  function SimonGame(vs) {
     const S = 40;
     const LIGHTS = [
       { k: 'up', x: 140, y: 52, on: '#f85848', off: '#702820' },
@@ -2865,12 +3020,32 @@
     let state = 'ready', t = 0, seq = [], pos = 0, lit = -1, litT = 0, record = false;
     const rounds = () => Math.max(0, seq.length - 1);
     const step = () => Math.max(14, 30 - seq.length * 1.5);
-    function nextRound() { seq.push(Math.floor(Math.random() * 4)); state = 'show'; t = 0; }
+    const rnd = vs ? vs.rng : Math.random;
+    function nextRound() { seq.push(Math.floor(rnd() * 4)); state = 'show'; t = 0; }
+    // rounds you've got right so far, counting the one you've just finished
+    const cleared = () => (state === 'pause' ? seq.length : rounds());
+    // once you're out, the other player's lights show on your panel as they play
+    let theirRound = 0;
+    function hear(m) {
+      if (state !== 'wait') return;
+      if (+m.r > 0) theirRound = +m.r;
+      if (+m.l >= 0 && +m.l < 4) { lit = +m.l; litT = Math.max(4, Math.min(30, +m.d || 12)); sfx('note', lit); }
+    }
+    const race = vs && scoreRace(vs, { what: 'the control panel', fmt: String, hear });
+    // a light going on, sent to the other player only once they're out (so they can watch
+    // you, but never while it could give them the answer)
+    const flash = (i, d) => { if (race && race.theirsDone) vs.send({ e: 'p', s: cleared(), l: i, d, r: seq.length }); };
     const self = {
       music: 'simon',
       update() {
         t++;
         if (litT) litT--;
+        if (race) {
+          if (race.update() && state !== 'over') { state = 'over'; t = 0; sfx(race.outcome === 'win' ? 'cup' : 'bump'); }
+          if (state === 'over') { if (t > 30 && (pressed.has('a') || pressed.has('b'))) { remove(self); vs.end(); race.say(); } return; }
+          if (state === 'wait') { if (pressed.has('b')) { remove(self); vs.end(); say('You back away from the panel slowly.'); } return; }
+          if (state !== 'ready') race.send({ s: cleared() }, cleared());
+        }
         if (state === 'ready') { if (t > 75) nextRound(); return; }
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
@@ -2880,16 +3055,20 @@
           }
           return;
         }
-        if (pressed.has('b')) { remove(self); say('You back away from the panel slowly.'); return; }
+        if (pressed.has('b')) { remove(self); if (vs) vs.end(); say('You back away from the panel slowly.'); return; }
         if (state === 'show') {
           const st = Math.round(step()), u = t - 1, i = Math.floor(u / st);
-          if (i < seq.length && u % st === 0) { lit = seq[i]; litT = Math.round(st * 0.7); sfx('note', lit); }
+          if (i < seq.length && u % st === 0) { lit = seq[i]; litT = Math.round(st * 0.7); sfx('note', lit); flash(lit, litT); }
           if (u >= seq.length * st + 8) { state = 'input'; pos = 0; t = 0; }
         } else if (state === 'input') {
           const i = LIGHTS.findIndex((l) => pressed.has(l.k));
           if (i < 0) return;
-          lit = i; litT = 12;
-          if (i !== seq[pos]) { sfx('buzz'); state = 'done'; t = 0; record = saveBest('simon', rounds()); return; }
+          lit = i; litT = 12; flash(i, 12);
+          if (i !== seq[pos]) {
+            sfx('buzz'); t = 0;
+            if (race) { race.finish(rounds()); state = 'wait'; return; }
+            state = 'done'; record = saveBest('simon', rounds()); return;
+          }
           sfx('note', i);
           if (++pos === seq.length) { state = 'pause'; t = 0; }
         } else if (state === 'pause' && t > 40) nextRound();
@@ -2897,9 +3076,16 @@
       draw() {
         box(0, 0, SW, SH);
         text('Repeat the lights!', 16, 10);
-        const s = 'Round ' + seq.length, b = 'Best ' + getBest('simon');
+        const s = state === 'wait' ? vs.name + ': round ' + (theirRound || race.now + 1) : 'Round ' + seq.length, b = 'Best ' + getBest('simon');
         text(s, SW - 16 - s.length * 6, 10);
-        text(b, SW - 16 - b.length * 6, 22);
+        if (!race) text(b, SW - 16 - b.length * 6, 22);
+        else {
+          // the other player beside the panel, with how many rounds they've got right
+          const n = vs.name.slice(0, 10), st = race.theirsDone ? 'Out: ' + race.theirs : 'Cleared ' + race.now;
+          ctx.drawImage(vs.sprites.down[0], 15, 84, 40, 40);
+          text(n, 35 - n.length * 3, 130);
+          text(st, 35 - st.length * 3, 144, 1, race.theirsDone ? '#b83028' : undefined);
+        }
         // panel housing with screws
         ctx.fillStyle = col.dark; ctx.fillRect(70, 40, 180, 172);
         ctx.fillStyle = '#8890a0'; ctx.fillRect(72, 42, 176, 168);
@@ -2914,11 +3100,13 @@
         ctx.fillStyle = col.dark; ctx.fillRect(146, 110, 28, 28);
         ctx.fillStyle = state === 'done' ? '#f85848' : '#484858'; ctx.fillRect(148, 112, 24, 24);
         if (state === 'show') ctext('Watch...', 220);
+        else if (state === 'wait') ctext('You\'re out! Watching ' + vs.name, 220);
         else if (state === 'input') ctext('Your turn!', 220);
         else if (state === 'pause') ctext('Correct!', 220);
         if (state === 'ready') readyBox(t, 'Arrows: repeat the lights');
+        else if (state === 'over') race.box(t);
         else if (state === 'done') doneBox(['Wrong light! Zap!', 'Rounds: ' + rounds(), record ? 'New record!' : 'Best ' + getBest('simon')], t);
-        else text('Esc: give up', 16, SH - 14);
+        else if (state !== 'wait') text('Esc: give up', 16, SH - 14);
       },
     };
     return self;
@@ -4188,22 +4376,55 @@
   }
 
   // ---------- Snake on the other TV (the left-hand set, so it isn't Pong) ----------
-  function SnakeGame() {
-    const CW = 10, COLS = 25, ROWS = 15, FX = 34, FY = 46;
+  // Against a player (vs) your screen shrinks to make room for a small copy of theirs, and
+  // the food turns up in the same places for both of you (unless it would land on your snake).
+  // Whoever crashes first watches the other's TV until they crash too; most food wins.
+  function SnakeGame(vs) {
+    const COLS = 25, ROWS = 15, CW = vs ? 8 : 10, FX = vs ? 6 : 34, FY = vs ? 44 : 46, TC = 4, TX = 214;
     let state = 'ready', t = 0, snake = [], dir = [1, 0], nextDir = [1, 0];
     let food = null, grow = 0, step = 0, speed = 9, score = 0, record = false;
+    // against a player, each piece of food has its own seed, so you both get the same pieces
+    const foodSeed = vs ? Math.floor(vs.rng() * 1e9) : 0;
+    let foodN = 0, theirs = null;
     function placeFood() {
+      const rnd = vs ? seeded(foodSeed + foodN++) : Math.random;
       let p;
-      do { p = [Math.floor(Math.random() * COLS), Math.floor(Math.random() * ROWS)]; }
+      do { p = [Math.floor(rnd() * COLS), Math.floor(rnd() * ROWS)]; }
       while (snake.some((s) => s[0] === p[0] && s[1] === p[1]));
       food = p;
     }
     snake = [[6, 7], [5, 7], [4, 7]];
     placeFood();
+    // your snake as the other player sees it: two letters a cell (column and row in base
+    // 36), eight cells to a field, since a message only carries short strings
+    function picture() {
+      const cells = snake.map(([x, y]) => x.toString(36) + y.toString(36)).join('');
+      const pic = { s: score, fx: food[0], fy: food[1] };
+      for (let i = 0; i * 16 < cells.length && i < 40; i++) pic['c' + i] = cells.slice(i * 16, i * 16 + 16);
+      return pic;
+    }
+    function hear(m) {
+      let cells = '';
+      for (let i = 0; i < 40 && typeof m['c' + i] === 'string'; i++) cells += m['c' + i];
+      const body = [];
+      for (let i = 0; i + 1 < cells.length; i += 2) {
+        const x = parseInt(cells[i], 36), y = parseInt(cells[i + 1], 36);
+        if (x >= 0 && x < COLS && y >= 0 && y < ROWS) body.push([x, y]);
+      }
+      const fx = +m.fx, fy = +m.fy;
+      theirs = { body, food: fx >= 0 && fx < COLS && fy >= 0 && fy < ROWS ? [fx, fy] : null };
+    }
+    const race = vs && scoreRace(vs, { what: 'Snake', fmt: String, hear });
     const self = {
       music: 'pong',
       update() {
         t++;
+        if (race) {
+          if (race.update() && state !== 'over') { state = 'over'; t = 0; sfx(race.outcome === 'win' ? 'cup' : 'bump'); }
+          if (state === 'over') { if (t > 30 && (pressed.has('a') || pressed.has('b'))) { remove(self); vs.end(); race.say(); } return; }
+          if (state === 'wait') { if (pressed.has('b')) { remove(self); vs.end(); say('You switch the TV back to the news.'); } return; }
+          if (state === 'play') { const pic = picture(); race.send(pic, JSON.stringify(pic)); }
+        }
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
@@ -4213,7 +4434,7 @@
           }
           return;
         }
-        if (pressed.has('b')) { remove(self); say('You switch the TV back to the news.'); return; }
+        if (pressed.has('b')) { remove(self); if (vs) vs.end(); say('You switch the TV back to the news.'); return; }
         // no doubling back on yourself
         if (pressed.has('left') && dir[0] !== 1) nextDir = [-1, 0];
         if (pressed.has('right') && dir[0] !== -1) nextDir = [1, 0];
@@ -4224,6 +4445,7 @@
         const head = [snake[0][0] + dir[0], snake[0][1] + dir[1]];
         if (head[0] < 0 || head[1] < 0 || head[0] >= COLS || head[1] >= ROWS
           || snake.some((s) => s[0] === head[0] && s[1] === head[1])) {
+          if (race) { race.finish(score); state = 'wait'; t = 0; sfx('buzz'); return; }
           state = 'done'; t = 0; record = saveBest('snake', score); sfx('buzz'); return;
         }
         snake.unshift(head);
@@ -4236,20 +4458,40 @@
       draw() {
         box(0, 0, SW, SH);
         text('Snake', 16, 10);
-        const s = 'Score ' + score, b = 'Best ' + getBest('snake');
-        text(s, 150, 10); text(b, SW - 16 - b.length * 6, 10);
-        // TV bezel around the playfield
-        ctx.fillStyle = '#181820'; ctx.fillRect(FX - 10, FY - 10, COLS * CW + 20, ROWS * CW + 20);
-        ctx.fillStyle = '#3a3a48'; ctx.fillRect(FX - 7, FY - 7, COLS * CW + 14, ROWS * CW + 14);
-        ctx.fillStyle = '#0d2818'; ctx.fillRect(FX, FY, COLS * CW, ROWS * CW);
-        ctx.fillStyle = food && (tick >> 3) & 1 ? '#f8e070' : '#f0b030';
-        if (food) ctx.fillRect(FX + food[0] * CW + 2, FY + food[1] * CW + 2, CW - 4, CW - 4);
-        snake.forEach((sg, i) => {
-          ctx.fillStyle = i === 0 ? '#a8e070' : '#58a848';
-          ctx.fillRect(FX + sg[0] * CW + 1, FY + sg[1] * CW + 1, CW - 2, CW - 2);
-        });
-        ctx.fillStyle = '#181820'; ctx.fillRect(FX + 60, FY + ROWS * CW + 13, COLS * CW - 120, 6);
+        // a playfield c pixels to a cell at (x, y), with the snake and its food on it
+        const field = (x, y, c, body, fd) => {
+          ctx.fillStyle = '#0d2818'; ctx.fillRect(x, y, COLS * c, ROWS * c);
+          ctx.fillStyle = fd && (tick >> 3) & 1 ? '#f8e070' : '#f0b030';
+          if (fd) ctx.fillRect(x + fd[0] * c + (c >> 2), y + fd[1] * c + (c >> 2), c - (c >> 2) * 2, c - (c >> 2) * 2);
+          body.forEach((sg, i) => {
+            ctx.fillStyle = i === 0 ? '#a8e070' : '#58a848';
+            ctx.fillRect(x + sg[0] * c + 1, y + sg[1] * c + 1, c - (c > 4 ? 2 : 1), c - (c > 4 ? 2 : 1));
+          });
+        };
+        if (race) {
+          // two TVs: yours, and a little one showing theirs
+          text('You ' + score, FX, 30);
+          text(vs.name + ' ' + race.now, TX, 30);
+          for (const [x, w, h] of [[FX, COLS * CW, ROWS * CW], [TX, COLS * TC, ROWS * TC]]) {
+            ctx.fillStyle = '#181820'; ctx.fillRect(x - 3, FY - 3, w + 6, h + 6);
+            ctx.fillStyle = '#3a3a48'; ctx.fillRect(x - 2, FY - 2, w + 4, h + 4);
+          }
+          field(FX, FY, CW, snake, food);
+          if (theirs) field(TX, FY, TC, theirs.body, theirs.food);
+          else { ctx.fillStyle = '#0d2818'; ctx.fillRect(TX, FY, COLS * TC, ROWS * TC); }
+          if (race.theirsDone) { box(TX + 22, FY + 6, 56, 20); text('OUT', TX + 41, FY + 12); }
+        } else {
+          const s = 'Score ' + score, b = 'Best ' + getBest('snake');
+          text(s, 150, 10); text(b, SW - 16 - b.length * 6, 10);
+          // TV bezel around the playfield
+          ctx.fillStyle = '#181820'; ctx.fillRect(FX - 10, FY - 10, COLS * CW + 20, ROWS * CW + 20);
+          ctx.fillStyle = '#3a3a48'; ctx.fillRect(FX - 7, FY - 7, COLS * CW + 14, ROWS * CW + 14);
+          field(FX, FY, CW, snake, food);
+          ctx.fillStyle = '#181820'; ctx.fillRect(FX + 60, FY + ROWS * CW + 13, COLS * CW - 120, 6);
+        }
         if (state === 'ready') readyBox(t, 'Arrows: steer');
+        else if (state === 'over') race.box(t);
+        else if (state === 'wait') race.waitBox();
         else if (state === 'done') doneBox(['Crashed!', 'Score: ' + score,
           record ? 'New record!' : 'Best ' + getBest('snake')], t);
         else text('Esc: give up', 16, SH - 14);
@@ -8797,6 +9039,10 @@
     jar: { label: 'CANDY JAR', title: 'a candy jar guess-off', Game: (m) => CandyJarGame(m) },
     lego: { label: 'BRICK BATTLE', title: 'a Lego brick battle', Game: (m) => LegoGame(false, m) },
     dance: { label: 'DANCE-OFF', title: 'a dance-off', Game: (m) => DanceGame(m) },
+    coffee: { label: 'COFFEE MACHINE', title: 'a coffee catch-off', Game: (m) => CoffeeGame(m) },
+    run: { label: 'TREADMILL', title: 'a treadmill race', Game: (m) => RunGame(m) },
+    snake: { label: 'SNAKE', title: 'a game of Snake', Game: (m) => SnakeGame(m) },
+    simon: { label: 'CONTROL PANEL', title: 'a control panel showdown', Game: (m) => SimonGame(m) },
   };
   // A small seeded random number generator (mulberry32), so both players in a match get
   // the same jars.
@@ -9814,7 +10060,20 @@
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
       fame: HallOfFame, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];
-    if (GAME) ui.push(GAME());
+    // &vs=1 plays a head-to-head game (a VERSUS key: duel, jar, lego, dance, coffee, run,
+    // snake, simon) against "Echo", a stand-in who sends you back everything you send, a
+    // second later
+    const versus = q.has('vs') && VERSUS[q.get('game')];
+    if (versus) {
+      const later = [];
+      const echo = {
+        id: 'echo', name: 'Echo', gone: false, rng: seeded(+q.get('seed') || 1), soft: isTouch, sprites: charSprites.male[1],
+        send(data) { later.push({ at: tick + 60, data: JSON.parse(JSON.stringify(data)) }); },
+        take() { return later.length && later[0].at <= tick ? later.shift().data : undefined; },
+        end() { echo.gone = true; },
+      };
+      ui.push(versus.Game(echo));
+    } else if (GAME) ui.push(GAME());
   }
 
   // The shortcuts above are only read when the page loads, and a browser doesn't reload
