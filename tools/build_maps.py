@@ -16,6 +16,7 @@ Map glyphs
              V TV on a right-hand wall  Q TV on a left-hand wall
              F fan unit  L cooling coil  a damper  K electrical control panel
              R reception desk with PC  Z table with candy
+             * the Hall of Fame board in reception (every game's leaderboard)
              W washer  O dryer  A squat rack  G punching bag  N locker
              $ Employee of the Month easel (plain floor until Linda's list is done)
              I lat pulldown machine  e dumbbell rack  g shelf of snacks  l railing
@@ -358,6 +359,7 @@ f1.rooms.append({'name': '101 Reception', 'x1': 19, 'y1': 28, 'x2': 31, 'y2': 37
                  'person': 'Kiki', 'area': [20, 28, 25, 31]})  # Kiki paces behind the desk
 f1.fill(21, 32, 26, 32, 'r'); f1.fill(26, 28, 26, 31, 'r'); f1.put(26, 28, 'R')  # desk runs up to the wall, PC on top
 f1.fill(31, 33, 31, 35, 'Z')  # candy table on the right wall
+f1.fill(19, 33, 19, 35, '*')  # Hall of Fame board on the left wall, facing the candy
 f1.put(23, 31, 'c')
 f1.put(25, 37, 'p'); f1.put(30, 37, 'p'); f1.put(19, 37, 'p')
 f1.exit((26, 38), (27, 38), (28, 38), (29, 38))

@@ -1509,6 +1509,28 @@ window.Art = (function () {
     rect(b, t === 'V' ? 15 : 0, 7, 1, 2, 'K');
   }
 
+  // The Hall of Fame board on reception's left wall: a gold-framed screen running down
+  // the wall, with a crown and the top three up top and the rest of the standings below.
+  function paintFame(b, get, x, y) {
+    const up = get(x, y - 1) === '*', dn = get(x, y + 1) === '*';
+    const y0 = up ? 0 : 1, y1 = dn ? 15 : 14;
+    rect(b, 0, y0, 12, y1 - y0 + 1, 'n');
+    rect(b, 1, y0, 10, y1 - y0 + 1, 'o');
+    rect(b, 2, up ? 0 : y0 + 1, 8, (dn ? 16 : y1) - (up ? 0 : y0 + 1), 'k');
+    if (!up) {
+      // the crown, then gold, silver and bronze
+      set(b, 3, 3, 'o'); set(b, 6, 3, 'o'); set(b, 8, 3, 'o');
+      rect(b, 3, 4, 2, 1, 'o'); rect(b, 6, 4, 1, 1, 'o'); rect(b, 8, 4, 1, 1, 'o');
+      rect(b, 3, 5, 6, 2, 'o'); set(b, 5, 5, 'r');
+      rect(b, 3, 9, 6, 1, 'o'); rect(b, 3, 11, 5, 1, 'G'); rect(b, 3, 13, 4, 1, 'N');
+    } else {
+      for (let j = 1; j < (dn ? 16 : 13); j += 2) {
+        set(b, 3, j, 'U');
+        rect(b, 5, j, 2 + ((x * 3 + y * 7 + j) % 4), 1, 'W');
+      }
+    }
+  }
+
   // Putting green: striped turf with a dark edge, a flag in the top-right
   // tile and a ball waiting in the bottom-left one.
   function paintGreen(b, get, x, y) {
@@ -1721,6 +1743,7 @@ window.Art = (function () {
       case 'L': stamp(b, ART.coil); break;
       case 'K': stamp(b, ART.panel); break;
       case 'V': case 'Q': paintTV(b, get, x, y, t); break;
+      case '*': paintFame(b, get, x, y); break;
       case 'U': stamp(b, ART.cupboard); break;
       case 'Y': stamp(b, ART.printer); break;
       case 'B': stamp(b, ART.box); break;

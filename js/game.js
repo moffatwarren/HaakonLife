@@ -73,6 +73,13 @@
   });
   const PANEL_LIGHTS = ['#58e048', '#f05040', '#f0b030'];
 
+  // The Hall of Fame board in reception ('*' tiles): the crown on its top tile glints now and then.
+  const fameCrowns = MAPS.floors.map((f) => {
+    const list = [];
+    f.tiles.forEach((rowStr, y) => [...rowStr].forEach((c, x) => { if (c === '*' && (f.tiles[y - 1] || '')[x] !== '*') list.push({ x, y }); }));
+    return list;
+  });
+
   // The Kingston plant: a map of its own (see tools/build_maps.py) that you only get to
   // by answering Eugene's phone, and leave from the start menu.
   const PLANT = MAPS.floors.findIndex((f) => f.plant);
@@ -1928,14 +1935,23 @@
     return fetch(BOARD_URL.replace(/\/+$/, '') + '/scores/' + path, Object.assign({ signal: ac.signal }, opts))
       .finally(() => clearTimeout(timer));
   }
-  const boardSort = (rows) => rows.sort((a, b) => b.score - a.score || a.t - b.t).slice(0, 10);
+  const byScore = (a, b) => b.score - a.score || a.t - b.t;
+  const boardSort = (rows) => rows.sort(byScore).slice(0, 10);
+  // every row of a board as the database sent it, best first
+  const boardRows = (all) => Object.entries(all || {}).filter(([, r]) => r && typeof r.score === 'number')
+    .map(([rid, r]) => ({ id: rid, name: String(r.name).slice(0, NAME_MAX), score: r.score, t: +r.t || 0 })).sort(byScore);
+  // a stored score (or the gap between two) as the game shows it: "12 pallets", "8.4s"
+  function boardFmt(key, v) {
+    const b = BOARDS[key], n = b.low ? -v : v;
+    return typeof b.unit === 'function' ? b.unit(n) : n + (b.unit || '');
+  }
+  const DEMO_NAMES = ['Ada', 'Grace', 'Linus', 'Margaret', 'Dennis', 'Barbara', 'Ken', 'Radia', 'Tim', 'Guido', 'Edsger'];
   // Send the score (the database refuses anything that isn't an improvement on that name's
   // row), then fetch the top ten and the name's own row.
   function boardLoad(key, name, score) {
     const val = BOARDS[key].low ? -score : score, id = boardKey(name), send = name && score > 0 && (BOARD_POSTS || boardDemo);
     if (boardDemo) {
-      const rows = ['Ada', 'Grace', 'Linus', 'Margaret', 'Dennis', 'Barbara', 'Ken', 'Radia', 'Tim', 'Guido', 'Edsger']
-        .map((n, i) => ({ id: boardKey(n), name: n, score: BOARDS[key].low ? -(20 + i * 3) : 100 - i * 7, t: i }));
+      const rows = DEMO_NAMES.map((n, i) => ({ id: boardKey(n), name: n, score: BOARDS[key].low ? -(20 + i * 3) : 100 - i * 7, t: i }));
       const mine = send ? { name, score: val } : null;
       if (mine) rows.push({ id, name, score: val, t: 99 });
       return Promise.resolve({ rows: boardSort(rows), mine });
@@ -1950,15 +1966,14 @@
       if (!all.ok) throw new Error('board ' + all.status);
       return Promise.all([all.json(), mine && mine.ok ? mine.json() : null]);
     }).then(([all, mine]) => ({
-      rows: boardSort(Object.entries(all || {}).filter(([, r]) => r && typeof r.score === 'number')
-        .map(([rid, r]) => ({ id: rid, name: String(r.name).slice(0, NAME_MAX), score: r.score, t: +r.t || 0 }))),
+      rows: boardRows(all).slice(0, 10),
       mine: mine && typeof mine.score === 'number' ? mine : null,
     }));
   }
   // The top ten at one game, with your own row picked out (and added underneath if you didn't make the list).
   function Leaderboard(p) {
     const b = BOARDS[p.key], name = playerName || store.get('name') || '', id = boardKey(name);
-    const fmt = (v) => { const n = b.low ? -v : v; return typeof b.unit === 'function' ? b.unit(n) : n + (b.unit || ''); };
+    const fmt = (v) => boardFmt(p.key, v);
     let rows = null, mine = null, failed = false, t = 0;
     boardLoad(p.key, name, p.score).then((r) => { rows = r.rows; mine = r.mine; }, () => { failed = true; });
     const row = (rank, who, score, y, me) => {
@@ -1983,12 +1998,180 @@
         else {
           rows.forEach((r, i) => row((i + 1) + '.', r.name, r.score, 42 + i * 16, name && r.id === id));
           if (mine && !rows.some((r) => r.id === id)) row('-', name, mine.score, 204, true);
+          else if (name && rows[0].id === id) { drawCrown(97, 205); text('You hold the crown!', 109, 204, 1, GOLD); }
         }
         if (t > 20 && (tick >> 4) & 1) ctext('Press Space', SH - 16);
       },
     };
     return self;
   }
+
+  // ---------- the Hall of Fame: every board at once, on the wall in reception ----------
+  // Each board's top ten earn points towards Office Champion (10 for 1st down to 1 for
+  // 10th), and holding 1st is a crown. The games are grouped by where you find them;
+  // a board left out of FAME_GROUPS still turns up, under OTHER.
+  const FAME_GROUPS = [
+    ['OFFICE', ['coffee', 'toss', 'lunch', 'candy', 'stack', 'simon', 'desk', 'jam', 'filter']],
+    ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pulldown', 'ball', 'laundry']],
+    ['TVS AND COMPUTERS', ['snake', 'poker', 'blackjack']],
+    ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cpr', 'engrave', 'golf', 'legosolo']],
+    ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catch']],
+    ['KINGSTON PLANT', ['forklift', 'paint']],
+    ['HALLOWEEN', ['bob', 'mummy', 'carve', 'treat', 'ghosts', 'costume']],
+  ];
+  const GOLD = '#c08818', MEDALS = [GOLD, '#8890a0', '#b06830'];
+  const pts = (n) => n + (n === 1 ? ' pt' : ' pts');
+  const nth = (n) => n + ((n % 100 >= 11 && n % 100 <= 13) ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+  function ago(t) {
+    const m = Math.max(0, Date.now() - t) / 60000;
+    return m < 1 ? 'just now' : m < 60 ? Math.floor(m) + 'm ago' : m < 1440 ? Math.floor(m / 60) + 'h ago' : Math.floor(m / 1440) + 'd ago';
+  }
+  function drawCrown(x, y) {
+    ctx.fillStyle = '#f0b030';
+    ctx.fillRect(x, y, 1, 2); ctx.fillRect(x + 3, y, 1, 2); ctx.fillRect(x + 6, y, 1, 2);
+    ctx.fillRect(x, y + 2, 7, 3);
+    ctx.fillStyle = '#b83028'; ctx.fillRect(x + 3, y + 3, 1, 1);
+  }
+  // Every row of one board, best first.
+  function boardAll(key, name) {
+    if (boardDemo) {
+      // a different made-up crowd at each game (you among them now and then), and a few boards nobody has played
+      if (hash(key) % 6 === 0) return Promise.resolve([]);
+      const crowd = DEMO_NAMES.concat(name ? [name] : []).filter((n) => hash(key + n) % 3);
+      return Promise.resolve(crowd.map((n) => {
+        const v = hash(n + key) % 400 + 1;
+        return { id: boardKey(n), name: n, score: BOARDS[key].low ? -v : v, t: Date.now() - hash(key + n) % 6e8 };
+      }).sort(byScore));
+    }
+    return boardFetch(key + '.json').then((r) => {
+      if (!r.ok) throw new Error('board ' + r.status);
+      return r.json();
+    }).then(boardRows);
+  }
+  function HallOfFame() {
+    const name = playerName || store.get('name') || '', me = name ? boardKey(name) : null;
+    const keys = Object.keys(BOARDS), grouped = new Set(FAME_GROUPS.flatMap(([, k]) => k));
+    const groups = FAME_GROUPS.concat([['OTHER', keys.filter((k) => !grouped.has(k))]]);
+    let boards = null, failed = !(BOARD_URL || boardDemo), standings = [], latest = [], tab = 0, sel = 0, t = 0;
+    // Halloween's games only get a page in October, or once somebody has a score on them
+    const pages = () => ['CHAMPIONS', 'LATEST SCORES'].concat(groups.filter(([g, k]) => k.length &&
+      (g !== 'HALLOWEEN' || HALLOWEEN || (boards && k.some((key) => boards[key].length)))));
+    const rankOf = (key) => (boards && me ? boards[key].findIndex((r) => r.id === me) : -1);
+    if (!failed) {
+      Promise.all(keys.map((k) => boardAll(k, name).catch(() => null))).then((all) => {
+        if (all.every((r) => r === null)) { failed = true; return; }
+        boards = {};
+        keys.forEach((k, i) => { boards[k] = all[i] || []; });
+        const pts = {};
+        for (const k of keys) boards[k].slice(0, 10).forEach((r, i) => {
+          const s = pts[r.id] || (pts[r.id] = { id: r.id, name: r.name, points: 0, crowns: 0 });
+          s.points += 10 - i;
+          if (!i) s.crowns++;
+        });
+        standings = Object.values(pts).sort((a, b) => b.points - a.points || b.crowns - a.crowns || a.name.localeCompare(b.name));
+        latest = keys.flatMap((k) => boards[k].map((r, i) => Object.assign({ key: k, rank: i }, r)))
+          .sort((a, b) => b.t - a.t).slice(0, 7);
+      });
+    }
+    // what it takes to climb one board, for the game picked on a page
+    function climb(key) {
+      const rows = boards[key], r = rankOf(key), fmt = (v) => boardFmt(key, v);
+      if (!rows.length) return ['Nobody has played this yet.', 'Any score takes the crown!'];
+      if (r < 0) return ['You haven\'t played this one yet.', rows.length < 10 ? 'Any score gets you into the top ten.'
+        : 'Beat ' + fmt(rows[9].score) + ' to make the top ten.'];
+      if (r === 0) return ['You hold the crown!', rows.length > 1
+        ? rows[1].name + ' is ' + boardFmt(key, BOARDS[key].low ? rows[1].score - rows[0].score : rows[0].score - rows[1].score) + ' behind you.'
+        : 'Nobody else has even tried.'];
+      return ['You\'re ' + nth(r + 1) + ' with ' + fmt(rows[r].score) + '.', 'Beat ' + rows[r - 1].name + '\'s ' + fmt(rows[r - 1].score) + ' for ' + nth(r) + '.'];
+    }
+    const right = (str, y, c) => text(str, SW - 18 - str.length * 6, y, 1, c);
+    function drawChampions() {
+      ctext('10 points for 1st, down to 1 for 10th', 46, '#686878');
+      const mine = standings.findIndex((s) => s.id === me);
+      const row = (i, y) => {
+        const s = standings[i], hi = s.id === me, c = hi ? col.light : col.dark;
+        if (hi) { ctx.fillStyle = col.dark; ctx.fillRect(14, y - 3, SW - 28, 13); }
+        text(nth(i + 1), 20, y, 1, MEDALS[i] || c);
+        text(s.name, 50, y, 1, c);
+        if (s.crowns) { drawCrown(160, y + 1); text('x' + s.crowns, 170, y, 1, c); }
+        right(pts(s.points), y, c);
+      };
+      if (!standings.length) ctext('No scores yet. Go and set some!', 110);
+      standings.slice(0, 8).forEach((s, i) => row(i, 62 + i * 13));
+      if (mine >= 8) row(mine, 170);
+      ctx.fillStyle = col.mid; ctx.fillRect(14, 184, SW - 28, 1);
+      if (!me) return;
+      const played = keys.filter((k) => rankOf(k) >= 0), tens = played.filter((k) => rankOf(k) < 10);
+      const s = standings[mine];
+      ctext(mine < 0 ? 'Make any top ten to start scoring.'
+        : mine === 0 ? (standings[1] ? 'Office Champion! ' + standings[1].name + ' is ' + pts(s.points - standings[1].points) + ' behind.' : 'You are the Office Champion!')
+          : 'You\'re ' + nth(mine + 1) + '. ' + pts(standings[mine - 1].points - s.points + 1) + ' more to pass ' + standings[mine - 1].name + '.', 190);
+      ctext('Crowns ' + (s ? s.crowns : 0) + '   Top tens ' + tens.length + '   Played ' + played.length + ' of ' + keys.length, 204, '#686878');
+    }
+    function drawLatest() {
+      if (!latest.length) ctext('No scores yet. Go and set some!', 110);
+      latest.forEach((r, i) => {
+        const y = 50 + i * 22, hi = r.id === me, c = hi ? col.light : col.dark;
+        if (hi) { ctx.fillStyle = col.dark; ctx.fillRect(14, y - 3, SW - 28, 21); }
+        text(r.name, 20, y, 1, c);
+        if (!r.rank) drawCrown(26 + r.name.length * 6, y + 1);
+        right(boardFmt(r.key, r.score), y, c);
+        text(BOARDS[r.key].title + '  ' + (r.rank ? nth(r.rank + 1) : 'TOP SPOT') + '  ' + ago(r.t), 20, y + 9, 1, hi ? '#c8ccd8' : '#686878');
+      });
+    }
+    function drawGroup(list) {
+      list.forEach((key, i) => {
+        const y = 50 + i * 15, rows = boards[key], hi = i === sel, c = hi ? col.light : col.dark;
+        if (hi) { ctx.fillStyle = col.dark; ctx.fillRect(14, y - 4, SW - 28, 15); }
+        text(BOARDS[key].title, 20, y, 1, c);
+        if (!rows.length) { right('up for grabs', y, hi ? '#f0b030' : '#d07020'); return; }
+        if (rows[0].id === me) drawCrown(150, y + 1);
+        text(rows[0].name, 160, y, 1, c);
+        right(boardFmt(key, rows[0].score), y, c);
+      });
+      ctx.fillStyle = col.mid; ctx.fillRect(14, 186, SW - 28, 1);
+      if (me) climb(list[sel]).forEach((l, i) => ctext(l, 192 + i * 12, i ? '#686878' : col.dark));
+    }
+    const self = {
+      update() {
+        t++;
+        const p = pages(), list = typeof p[tab] === 'string' ? null : p[tab][1];
+        if (pressed.has('b')) { sfx('menu'); remove(self); return; }
+        if (pressed.has('left') || pressed.has('right')) {
+          tab = (tab + (pressed.has('left') ? p.length - 1 : 1)) % p.length; sel = 0; sfx('select');
+        }
+        if (list) {
+          if (!boards) return;
+          if (pressed.has('up')) { sel = (sel + list.length - 1) % list.length; sfx('select'); }
+          if (pressed.has('down')) { sel = (sel + 1) % list.length; sfx('select'); }
+          if (pressed.has('a') && t > 10) { sfx('menu'); ui.push(Leaderboard({ key: list[sel], score: 0 })); }
+        } else if (pressed.has('a') && t > 10) { sfx('menu'); remove(self); }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        drawCrown(76, 12); drawCrown(237, 12);
+        text('HALL OF FAME', 88, 8, 2, col.dark);
+        const p = pages(), page = p[Math.min(tab, p.length - 1)];
+        const label = typeof page === 'string' ? page : page[0], half = label.length * 3;
+        ctext(label, 28, GOLD);
+        ctx.fillStyle = GOLD;
+        for (let i = 0; i < 4; i++) {
+          ctx.fillRect(SW / 2 - half - 12 + i, 31 - i, 1, i * 2 + 1);
+          ctx.fillRect(SW / 2 + half + 10 - i, 31 - i, 1, i * 2 + 1);
+        }
+        right((tab + 1) + '/' + p.length, 28, '#686878');
+        ctx.fillStyle = col.dark; ctx.fillRect(14, 39, SW - 28, 1);
+        if (failed) ctext(BOARD_URL || boardDemo ? 'The board is blank. Try again later.' : 'No online leaderboards set up.', 110);
+        else if (!boards) ctext('Loading...', 110);
+        else if (tab === 0) drawChampions();
+        else if (tab === 1) drawLatest();
+        else drawGroup(page[1]);
+        ctext(typeof page === 'string' ? 'Arrows: pages   Esc: close' : 'Arrows: browse   Space: full board', SH - 16, '#686878');
+      },
+    };
+    return self;
+  }
+
   function readyBox(t, hint) {
     box(60, 92, 200, 48);
     ctext(t < 50 ? 'Get ready...' : 'GO!', 104);
@@ -8594,6 +8777,7 @@
     }
     if (t === '%') { sfx('select'); say('One of Joe\'s Lego builds. A sticky note on it says DO NOT TOUCH.'); return; }
     if (t === '$' && eotm) { sfx('menu'); ui.push(EmployeeOfMonth()); return; }
+    if (t === '*') { sfx('menu'); ui.push(HallOfFame()); return; }
     if (t === 'E') {
       const ends = findLink(P.floor, tx, ty);
       const names = MAPS.floors.filter((f) => !f.plant).map((f, i) => (i === 0 ? 'GROUND' : i + 1 + 'F'));
@@ -8867,6 +9051,13 @@
         ctx.fillStyle = c; ctx.fillRect(x + 4 + i * 3, y + 3, 2, 2);
       });
     }
+    for (const k of fameCrowns[P.floor]) {
+      const g = (tick >> 2) % 40;
+      if (g > 3) continue;
+      const x = k.x * 16 - cx + 6, y = k.y * 16 - cy + 3, r = g < 2 ? g + 1 : 4 - g;
+      ctx.fillStyle = '#f8f8f8';
+      ctx.fillRect(x - r, y, r * 2 + 1, 1); ctx.fillRect(x, y - r, 1, r * 2 + 1);
+    }
     const spooky = HALLOWEEN && P.floor === hw.floor;
     if (spooky) drawHalloween(cx, cy, 0);
     // people, drawn back to front so nearer ones overlap farther ones
@@ -9094,7 +9285,7 @@
       dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
-      board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];
+      fame: HallOfFame, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];
     if (GAME) ui.push(GAME());
   }
 

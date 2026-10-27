@@ -120,6 +120,27 @@ row per game, holding its best score, so the same name on a phone and a computer
 one person. Pong, Richard's duel, Wade's match and Kiki's jar are win-or-lose, so
 they have no board.
 
+### The Hall of Fame
+
+The tall gold-framed board on the left wall of **Reception** (opposite the candy table)
+shows every leaderboard at once. Left and right flip between its pages:
+
+- **Champions**: the race for Office Champion. Every board's top ten earn points
+  (10 for 1st, down to 1 for 10th), and holding 1st at a game is a crown. Underneath
+  you see your place, how many points it takes to pass the person above you, and how
+  many crowns, top tens and games you have.
+- **Latest scores**: the newest scores on any board, who set them and where they rank now.
+- **One page per area** (Office, Fitness Room, TVs and Computers, Boardroom and 2nd Floor,
+  Coworkers and Dogs, Kingston Plant, and Halloween in October or once it has scores):
+  each game's champion and their score, or "up for grabs" if nobody has played it.
+  Up and down pick a game, which shows what it takes to climb: the score to beat for the
+  next place up, or how far ahead you are if you hold the crown. A opens that game's
+  full top ten.
+
+The pages are `FAME_GROUPS` in `js/game.js`; a board you add to `BOARDS` without putting
+it in a group shows up on an "Other" page. When you finish a game and you're 1st on its
+leaderboard, it tells you you hold the crown.
+
 Only the name and the score are sent. If the leaderboard can't be reached the game
 says so and carries on, and best scores are still kept in the browser as before.
 
@@ -300,7 +321,7 @@ Add these to the end of the address (after `index.html`) and press Enter.
 | Coworkers | `dark` (Damir), `battle` (Richard), `dance` (Patrick), `nathan`, `wade`, `jar` (Kiki), `forms` (Jhonna), `wok` (Nik), `carrot` (Dmitriy), `lego` (Joe) |
 | Dogs | `catch`, `dogs` (the dogs' leaderboard) |
 | Kingston plant | `forklift`, `paint` (Even Coat) |
-| Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`) |
+| Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`), `fame` (the Hall of Fame) |
 | Halloween | `contest`, `bob`, `mummy`, `carve`, `treat`, `ghosts`, `hsplash` (the closing screen) |
 
 Plain `index.html#play` skips the title screen and drops you at the entrance.
@@ -337,7 +358,9 @@ you in the Kingston plant.
 `&visitor=Alex` puts that visitor in the visitor office, and `&visit=120` has
 whoever is there leave through the portal in 120 ticks (2 seconds).
 
-`game=board&key=snake` opens that game's leaderboard without sending anything.
+`game=board&key=snake` opens that game's leaderboard without sending anything, and
+`game=fame` opens the Hall of Fame (in `tools/test.html` it's filled with made-up rows,
+with `&name=Sam` among them on some boards).
 
 `tools/shot.sh out.png "play&game=snake&ticks=60"` screenshots a game headlessly
 (it uses `tools/test.html`, which stubs the audio and can pin `Math.random` with
