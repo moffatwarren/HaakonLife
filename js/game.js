@@ -7956,8 +7956,19 @@
     ctx.fillStyle = p.c; ctx.fillRect(x + 3, y + 3, 10, 10);
     text(p.letter, x + 6, y + 5, 1, col.dark);
   }
-  function ForkliftGame() {
+  // With `vs` (a match with another player) you each drive your own forklift in your own
+  // copy of the warehouse, starting from the same racks, with the truck's calls and the
+  // restocking drawn from the same shuffle. The other player's forklift (and whatever's on
+  // its forks) drives about as a ghost: you can see it, but you go straight through it.
+  // Most pallets loaded when the time's up wins.
+  function ForkliftGame(vs) {
     const TIME = 5400, TOP = 20, R = 6.5; // 90 seconds; the arena starts under the status bar
+    const foe = vs ? vs.name : '';
+    // two streams of shared random numbers, so a restock never shifts the truck's next call
+    const rndOrder = vs ? vs.rng : Math.random, rndStock = vs ? seeded(Math.floor(vs.rng() * 4294967296)) : Math.random;
+    // the other player: where they last said their forklift was, drawn easing towards it
+    const ghost = { x: 118, y: 130, a: 0, load: -1, tx: 118, ty: 130, seen: false };
+    let theirs = 0, theirsDone = false, sentPic = '', picT = 0;
     if (!forkliftSprite) {
       forkliftSprite = document.createElement('canvas');
       forkliftSprite.width = forkliftSprite.height = 16;
@@ -7993,14 +8004,14 @@
     function newOrder() {
       // something that's actually out there (or already on the forks)
       const kinds = pallets.map((p) => p.k).concat(lift.load >= 0 ? [lift.load] : []);
-      order = kinds[Math.floor(Math.random() * kinds.length)];
+      order = kinds[Math.floor(rndOrder() * kinds.length)];
     }
     function restock() {
       const free = BAYS.filter((b) => !pallets.some((p) => Math.hypot(p.x - b.x, p.y - b.y) < 16)
         && Math.hypot(lift.x - b.x, lift.y - b.y) > 24);
       if (!free.length) return;
-      const b = free[Math.floor(Math.random() * free.length)];
-      pallets.push({ x: b.x, y: b.y, k: Math.floor(Math.random() * PALLETS.length) });
+      const b = free[Math.floor(rndStock() * free.length)];
+      pallets.push({ x: b.x, y: b.y, k: Math.floor(rndStock() * PALLETS.length) });
     }
     BAYS.forEach((b, i) => { if (i % 4 !== 3) pallets.push({ x: b.x, y: b.y, k: (i * 3 + (i >> 2)) % PALLETS.length }); });
     newOrder();
@@ -8018,6 +8029,8 @@
     }
     function finish() {
       state = 'done'; t = 0;
+      // against a player: send your final count, then wait for theirs
+      if (vs) { vs.send({ e: 'f', c: loaded }); state = 'wait'; return; }
       record = saveBest('forklift', loaded);
       sfx(loaded ? 'cup' : 'buzz');
     }
@@ -8026,6 +8039,36 @@
       update() {
         t++;
         if (msg && ++msg.t > 70) msg = null;
+        if (vs) {
+          for (let m; (m = vs.take());) {
+            if (m.e === 'p') {
+              Object.assign(ghost, { tx: +m.x || 0, ty: +m.y || 0, a: (+m.q || 0) * Math.PI / 16, load: PALLETS[m.l] ? +m.l : -1 });
+              if (!ghost.seen) { ghost.x = ghost.tx; ghost.y = ghost.ty; ghost.seen = true; }
+            }
+            if (m.e === 'p' || m.e === 'f') theirs = Math.max(0, Math.round(+m.c) || 0);
+            if (m.e === 'f') theirsDone = true;
+          }
+          ghost.x += (ghost.tx - ghost.x) * 0.3; ghost.y += (ghost.ty - ghost.y) * 0.3;
+          // your forklift as the other player sees it, at most ten times a second
+          if (state === 'play' && ++picT >= 6) {
+            const pic = { e: 'p', x: Math.round(lift.x), y: Math.round(lift.y), q: Math.round(lift.a / (Math.PI / 16)), l: lift.load, c: loaded };
+            const key = JSON.stringify(pic);
+            if (key !== sentPic) { vs.send(pic); sentPic = key; picT = 0; }
+          }
+          if (vs.gone && !theirsDone && state !== 'gone') { state = 'gone'; t = 0; }
+          if (state === 'wait' && theirsDone) { state = 'done'; t = 0; sfx(loaded > theirs ? 'cup' : 'buzz'); }
+          if (state === 'done' || state === 'gone') {
+            if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+              remove(self); vs.end();
+              say(state === 'gone' ? foe + ' has parked up and gone. Nobody wins this one.'
+                : loaded > theirs ? 'You out-loaded ' + foe + ', ' + loaded + ' pallets to ' + theirs + '!'
+                  : loaded < theirs ? foe + ' out-loaded you, ' + theirs + ' pallets to ' + loaded + '.'
+                    : 'Dead even: ' + loaded + ' pallets each.');
+            }
+            return;
+          }
+          if (state === 'wait') { if (pressed.has('b')) { remove(self); vs.end(); say('You park the forklift.'); } return; }
+        }
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
@@ -8035,7 +8078,7 @@
           }
           return;
         }
-        if (pressed.has('b')) { remove(self); say('You park the forklift. Steve looks relieved.'); return; }
+        if (pressed.has('b')) { remove(self); if (vs) vs.end(); say('You park the forklift. Steve looks relieved.'); return; }
         if (--left <= 0) { left = 0; finish(); return; }
         // driving: it only turns while it's rolling, and backwards it steers the other way
         const max = lift.load >= 0 ? 1.7 : 2.1;
@@ -8152,6 +8195,18 @@
         // Steve, in his hi-vis
         const img = steve.sprites[steve.dir][steve.wait > 0 ? 0 : 1 + steve.step];
         ctx.drawImage(img, STEVE_X - 8, Math.round(steve.y) - 10);
+        // the other player's forklift, see-through, with their name over it
+        if (vs && ghost.seen && state !== 'gone') {
+          ctx.save();
+          ctx.globalAlpha = 0.4;
+          ctx.translate(Math.round(ghost.x), Math.round(ghost.y));
+          ctx.rotate(ghost.a + Math.PI / 2);
+          if (ghost.load >= 0) drawPallet(-8, -19, ghost.load);
+          ctx.drawImage(forkliftSprite, -8, -8);
+          ctx.restore();
+          // over it, or under it when it's up against the top racks
+          text(foe, Math.round(ghost.x) - foe.length * 3, Math.round(ghost.y) + (ghost.y < TOP + 30 ? 14 : -22), 1, '#585868');
+        }
         // the forklift, turned to face where it's going (pixels kept square)
         const a = Math.round(lift.a / (Math.PI / 16)) * (Math.PI / 16);
         ctx.save();
@@ -8189,7 +8244,16 @@
           box((SW - w) >> 1, y, w, 24);
           text(msg.str, ((SW - w) >> 1) + 8, y + 8, 1, msg.good ? '#2c6a34' : '#c03030');
         }
+        // against a player: their count, in the yard above the truck
+        if (vs) {
+          text(foe.slice(0, 8), 272, 30, 1, col.light);
+          text(theirs + ' loaded', 272, 44, 1, '#f0d040');
+        }
         if (state === 'ready') readyBox(t, 'Space: straighten the wheels');
+        else if (state === 'wait') { box(60, 100, 200, 40); ctext('Waiting for ' + foe + '...', 108); ctext('to finish their run', 122); }
+        else if (state === 'gone') doneBox([foe + ' has gone.', 'Nobody wins this one.'], t);
+        else if (state === 'done' && vs) doneBox([loaded > theirs ? 'You out-loaded ' + foe + '!' : loaded < theirs ? foe + ' wins!' : 'Dead even!',
+          'You ' + loaded + '  ' + foe + ' ' + theirs], t);
         else if (state === 'done') doneBox(['Time\'s up! The truck has to go.', 'Pallets loaded: ' + loaded,
           record ? 'New record!' : 'Best ' + getBest('forklift')], t);
       },
@@ -9039,6 +9103,7 @@
     jar: { label: 'CANDY JAR', title: 'a candy jar guess-off', Game: (m) => CandyJarGame(m) },
     lego: { label: 'BRICK BATTLE', title: 'a Lego brick battle', Game: (m) => LegoGame(false, m) },
     dance: { label: 'DANCE-OFF', title: 'a dance-off', Game: (m) => DanceGame(m) },
+    forklift: { label: 'FORKLIFT RUSH', title: 'a Forklift Rush race', Game: (m) => ForkliftGame(m) },
     coffee: { label: 'COFFEE MACHINE', title: 'a coffee catch-off', Game: (m) => CoffeeGame(m) },
     run: { label: 'TREADMILL', title: 'a treadmill race', Game: (m) => RunGame(m) },
     snake: { label: 'SNAKE', title: 'a game of Snake', Game: (m) => SnakeGame(m) },

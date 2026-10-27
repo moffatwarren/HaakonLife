@@ -243,6 +243,12 @@ stand in a doorway and trap you.
     arrows and see each other's score go up as you dance; the higher score once you've
     both finished the song wins. If either of you is on a phone, you both get the
     gentler phone version, so it's fair.
+  - **Forklift Rush**: the plant's forklift game, against each other. You each drive
+    your own forklift in your own copy of the warehouse, starting from the same racks,
+    with the truck's calls and the restocking drawn from the same shuffle. The other
+    player's forklift (and whatever pallet is on its forks) drives about as a see-through
+    ghost with their name on it; you go straight through it. Their count shows above the
+    truck, and whoever has loaded more when the 90 seconds are up wins.
   - **Coffee machine**: you both get the same pour, and their cup chases the drops as a
     faint outline (with a notch beside your fill meter for how full theirs is). Most
     drops caught wins.
