@@ -25,7 +25,8 @@ Map glyphs
              i putting green  s engraving machine
              & Joe's Lego shelf (on a left-hand wall)  % desk with Lego on it
              @ the visitor office portal (visitors come and go through it)
-             ! Eugene's desk phone (always ringing; answering it takes you to the plant)
+             ! a desk phone, always ringing: Eugene's takes you to the plant, the one on
+               the plant's reception desk takes you back to the office
              + a steel work table on the plant floor   ^ forklift (plant)
              1-5 a finished air handling unit in shipping (the digit picks the design)
              0 the unit in grey primer in the paint booth (Even Coat)
@@ -34,7 +35,8 @@ Map glyphs
   walkable:  j computer parts scattered on the floor
 
 The Kingston plant is a third map, not linked to the office floors: Eugene's phone
-sends you there and 'Leave plant' in the start menu brings you back.
+sends you there, and 'Leave plant' in the start menu (or the phone on reception's
+desk) brings you back.
 
 Cody's casino is a fourth map, the same size as the second floor and lined up with it
 tile for tile. Stepping into Cody's cubicle swaps you onto it in the same spot, and
@@ -813,6 +815,7 @@ fp.rooms[-1]['people'] = ['Courtney den Otter', 'Amelia Bailey']
 fp.room('Reception', 47, 22, 62, 35)
 fp.fill(55, 21, 62, 21, ',')
 fp.l_desk(row(26, 50, 57) + [(57, 27), (57, 28)], (54, 26), (54, 25))
+fp.put(52, 26, '!')                             # ...and the phone, ringing for you to come back
 fp.put(47, 22, 'p'); fp.put(62, 35, 'p')
 for y in (31, 32, 33):
     fp.put(47, y, 'c')                          # somewhere to wait to be signed in

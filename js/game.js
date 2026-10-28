@@ -91,14 +91,17 @@
   const CASINO_AT = CASINO >= 0 ? MAPS.floors[CASINO].casino : null;
   // the floor someone on floor f shows up on, on the map
   const mapFloor = (f) => (f === CASINO ? CASINO_AT.floor : f);
-  // Eugene's desk phone ('!' tile). It rings the whole time, except while you're on it.
-  const phone = (function () {
-    for (let fi = 0; fi < MAPS.floors.length; fi++) {
-      const y = MAPS.floors[fi].tiles.findIndex((r) => r.includes('!'));
-      if (y >= 0) return { floor: fi, x: MAPS.floors[fi].tiles[y].indexOf('!'), y, ringing: true };
-    }
-    return null;
-  })();
+  // The desk phones ('!' tiles). They ring the whole time, except while you're on one.
+  // Eugene's sends you to the plant; the one on the plant's reception desk calls you back.
+  const phones = [];
+  MAPS.floors.forEach((f, fi) => f.tiles.forEach((r, y) => {
+    const x = r.indexOf('!');
+    if (x >= 0) phones.push({ floor: fi, x, y, ringing: true });
+  }));
+  const phone = phones.find((p) => p.floor !== PLANT) || null;
+  const plantPhone = phones.find((p) => p.floor === PLANT) || null;
+  // the phone on the floor you're on, if there is one
+  const phoneHere = () => phones.find((p) => p.floor === P.floor) || null;
 
   // Halloween: all through October there's a costume to pick after your name and a party
   // waiting in the downstairs boardroom (see "Halloween" further down). Adding
@@ -565,7 +568,7 @@
     if (mode === 'play' && hw.state === 'party') return 'halloween';
     if (mode === 'play' && curRoom && ((curRoom.name === 'Haunted Office' && !lindaFree) || curRoom.dark)) return 'spooky';
     if (mode === 'play' && curRoom && curRoom.rave) return 'rave';
-    if (mode === 'play' && inPhoneRoom()) return null; // nothing but the phone ringing in Eugene's office
+    if (mode === 'play' && P.floor !== PLANT && inPhoneRoom()) return null; // nothing but the phone ringing in Eugene's office
     if (mode === 'play' && P.floor === PLANT) return 'plant';
     if (mode === 'play' && P.floor === CASINO) return 'poker';
     return 'office';
@@ -7946,23 +7949,28 @@
   // ---------- Eugene's phone and the Kingston plant ----------
   // The phone on Eugene's desk never stops ringing. Answer it and the plant piles one
   // problem after another on you until you black out, and wake up on the plant floor.
-  // 'Leave plant' in the start menu brings you back beside the phone, with the office
-  // just as you left it (and the phone ringing again).
+  // 'Leave plant' in the start menu (or the phone ringing on the plant's reception desk)
+  // brings you back beside the phone, with the office just as you left it (and the phone
+  // ringing again).
   const RING_EVERY = 240; // ticks from one ring-ring to the next
   // true during either half of a ring-ring
-  const ringing = () => {
+  const ringing = (p) => {
     const ph = tick % RING_EVERY;
-    return !!phone && phone.ringing && (ph < 24 || (ph >= 30 && ph < 54));
+    return !!p && p.ringing && (ph < 24 || (ph >= 30 && ph < 54));
   };
-  const inPhoneRoom = () => !!phone && P.floor === phone.floor && !!curRoom && curRoom === roomAt(phone.floor, phone.x, phone.y);
+  const inPhoneRoom = () => {
+    const p = phoneHere();
+    return !!p && !!curRoom && curRoom === roomAt(p.floor, p.x, p.y);
+  };
   function ringPhone() {
     // only while you're walking around (or reading a line): not in a mini-game or menu screen
-    if (!phone || !phone.ringing || P.floor !== phone.floor || !ui.every((el) => el.overlay)) return;
+    const p = phoneHere();
+    if (!p || !p.ringing || !ui.every((el) => el.overlay)) return;
     const ph = tick % RING_EVERY;
     if (ph !== 0 && ph !== 30) return;
-    // loud in Eugene's office, fainter from the hallway outside
+    // loud in the phone's room, fainter from the hallway outside
     const vol = inPhoneRoom() ? 1
-      : Math.hypot(P.x - phone.x, P.y - phone.y) < 10 ? 0.35 : 0;
+      : Math.hypot(P.x - p.x, P.y - p.y) < 10 ? 0.35 : 0;
     if (vol) sfx('ring', vol);
   }
   const PHONE_BASE = [
@@ -7988,9 +7996,9 @@
   }
   // The phone on its desk tile: while it rings the handset rattles on the cradle,
   // the light flashes and the ring comes off it either side.
-  function drawPhoneAt(x, y) {
+  function drawPhoneAt(p, x, y) {
     if (x < -16 || x > SW || y < -16 || y > SH) return;
-    const on = ringing(), flash = on && (tick >> 2) & 1;
+    const on = ringing(p), flash = on && (tick >> 2) & 1;
     drawPix(PHONE_BASE, x + 1, y + 6, { k: '#181820', K: '#484858', G: '#c8ccd8', r: flash ? '#f05040' : '#782020' });
     const jig = on ? ((tick >> 1) & 1 ? 1 : -1) : 0;
     drawPix(PHONE_HANDSET, x + 1 + jig, y + 3 - (on && (tick >> 2) & 1 ? 2 : 0), { k: '#181820', K: '#484858' });
@@ -8111,9 +8119,17 @@
   function enterPlant() {
     const S = MAPS.plant;
     phone.ringing = true; // it'll be ringing again when you get back
+    if (plantPhone) plantPhone.ringing = true;
     placePlayer(S.floor, S.x, S.y, S.dir);
     showBanner(MAPS.floors[S.floor].name);
     say('You wake up in the Kingston plant. Time to start helping with production!');
+  }
+  // The phone on the plant's reception desk: the office wants you back.
+  function answerPlantPhone() {
+    plantPhone.ringing = false;
+    sfx('pickup');
+    sfx('caller');
+    say('"Where are you? You are needed back in the office!"', leavePlant);
   }
   function leavePlant() {
     sfx('select');
@@ -9876,6 +9892,7 @@
       return;
     }
     if (t === '@') { sfx('select'); say('A shimmering portal. It hums with out-of-town energy.'); return; }
+    if (t === '!' && P.floor === PLANT && plantPhone) { answerPlantPhone(); return; }
     if (t === '!' && phone) { answerPhone(); return; }
     if (t === '&') {
       sfx('select');
@@ -10154,7 +10171,8 @@
       if (x < -16 || x > SW || y < -16 || y > SH) continue;
       drawPortalAt(x, y, !!visit && visit.gate === k && visit.phase !== 'stay');
     }
-    if (phone && phone.floor === P.floor) drawPhoneAt(phone.x * 16 - cx, phone.y * 16 - cy);
+    const ph = phoneHere();
+    if (ph) drawPhoneAt(ph, ph.x * 16 - cx, ph.y * 16 - cy);
     for (const k of panels[P.floor]) {
       const x = k.x * 16 - cx, y = k.y * 16 - cy;
       if (x < -16 || x > SW || y < -16 || y > SH) continue;
