@@ -2,7 +2,7 @@
   // View: 20 x 15 tiles of 16px.
   const SW = 320, SH = 240;
   const MAPS = window.OFFICE_MAPS;
-  const WALKABLE = '.,:_;DSj';
+  const WALKABLE = '.,:_;DSj-';
   const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
   const canvas = document.getElementById('screen');
@@ -83,6 +83,14 @@
   // The Kingston plant: a map of its own (see tools/build_maps.py) that you only get to
   // by answering Eugene's phone, and leave from the start menu.
   const PLANT = MAPS.floors.findIndex((f) => f.plant);
+  // Cody's casino: his cubicle is bigger on the inside. It's a map of its own, lined up
+  // tile for tile with the floor it opens off (CASINO_AT), so walking into his cubicle
+  // puts you in the same spot in the casino, and walking back out of its doorway puts
+  // you back in the office (see onArrive).
+  const CASINO = MAPS.floors.findIndex((f) => f.casino);
+  const CASINO_AT = CASINO >= 0 ? MAPS.floors[CASINO].casino : null;
+  // the floor someone on floor f shows up on, on the map
+  const mapFloor = (f) => (f === CASINO ? CASINO_AT.floor : f);
   // Eugene's desk phone ('!' tile). It rings the whole time, except while you're on it.
   const phone = (function () {
     for (let fi = 0; fi < MAPS.floors.length; fi++) {
@@ -128,7 +136,7 @@
     "Have you seen the new parts upstairs?",
   ];
   const NOT_PEOPLE = ['Meeting Room', 'First Aid Station', 'Ansys Station', 'Reception', 'Engraver'];
-  const NPC_FLOOR = '.,:_;j';
+  const NPC_FLOOR = '.,:_;j-';
   const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
   function hash(str) {
     let h = 2166136261;
@@ -194,8 +202,10 @@
           npcs.push({
             name: p.name || name, floor: fi, room: area, x, y, dir: 'down', moving: false, prog: 0, mdx: 0, mdy: 0, step: 0,
             wait: 30 + ((hash(name) + npcs.length * 37) % 120), sprites: Art.renderSprites(body, look),
-            ghost: body === 'ghost', plant: fi === PLANT,
-            lines: p.lines && p.lines.length ? p.lines : [NPC_LINES[hash(name) % NPC_LINES.length].replace('{n}', name)],
+            // extra: the plant crew, and the dealers in Cody's casino (who are in the office too),
+            // so they're left out wherever the game picks one of your coworkers
+            ghost: body === 'ghost', extra: fi === PLANT || fi === CASINO,
+            lines: room.lines || (p.lines && p.lines.length ? p.lines : [NPC_LINES[hash(name) % NPC_LINES.length].replace('{n}', name)]),
           });
         }
       }
@@ -557,6 +567,7 @@
     if (mode === 'play' && curRoom && curRoom.rave) return 'rave';
     if (mode === 'play' && inPhoneRoom()) return null; // nothing but the phone ringing in Eugene's office
     if (mode === 'play' && P.floor === PLANT) return 'plant';
+    if (mode === 'play' && P.floor === CASINO) return 'poker';
     return 'office';
   }
 
@@ -762,9 +773,10 @@
   }
 
   function MapView() {
-    let fi = P.floor;
+    const here = mapFloor(P.floor);
+    let fi = here;
     // the office floors flip between each other; the plant is a map on its own
-    const floors = MAPS.floors.map((f, i) => i).filter((i) => (i === PLANT) === (P.floor === PLANT));
+    const floors = MAPS.floors.map((f, i) => i).filter((i) => i !== CASINO && (i === PLANT) === (here === PLANT));
     const self = {
       update() {
         if (floors.length > 1 && (pressed.has('left') || pressed.has('right') || pressed.has('up') || pressed.has('down'))) {
@@ -781,14 +793,14 @@
         ctx.drawImage(m, mx, my, m.width * k, m.height * k);
         // everyone else playing, in red
         ctx.fillStyle = '#d83040';
-        for (const o of mpHere()) if (o.f === fi) ctx.fillRect(mx + o.x * k - 1, my + o.y * k - 1, k + 2, k + 2);
-        if (fi === P.floor && (tick >> 3) & 1) {
+        for (const o of mpHere()) if (mapFloor(o.f) === fi) ctx.fillRect(mx + o.x * k - 1, my + o.y * k - 1, k + 2, k + 2);
+        if (fi === here && (tick >> 3) & 1) {
           ctx.fillStyle = col.dark;
           ctx.fillRect(mx + P.x * k - 1, my + P.y * k - 1, k + 2, k + 2);
         }
-        const r = fi === P.floor ? roomAt(P.floor, P.x, P.y) : null;
+        const r = fi === here ? roomAt(P.floor, P.x, P.y) : null;
         const ty = my + m.height * k + 12;
-        text(r ? r.name : fi !== P.floor ? '' : fi === PLANT ? 'Plant floor' : 'Hallway', 10, ty);
+        text(r ? r.name : fi !== here ? '' : fi === PLANT ? 'Plant floor' : 'Hallway', 10, ty);
         if (floors.length > 1) text('Arrows: other floor', 10, ty + 20);
         text('Esc: close', 10, ty + (floors.length > 1 ? 34 : 20));
       },
@@ -1191,14 +1203,67 @@
     ctx.fillRect(x + 9, y + 4, 6, 10); ctx.fillRect(x + 8, y + 5, 8, 8);
     ctx.fillRect(x + 6, y + 16, 12, 7); ctx.fillRect(x + 4, y + 18, 16, 5);
   }
+  // The top of a card game. On a computer it's a window with the table drawn in it; at a
+  // real table in Cody's casino the felt runs right out to a padded rail round the screen,
+  // with the game's name printed on it, and the leather edge you sit at runs along the
+  // bottom. note goes top right, or under the name.
+  const BRASS = '#e8c060', CREAM = '#f8f0d8';
+  function drawCardTable(title, note, table) {
+    if (table) {
+      ctx.fillStyle = '#140a08'; ctx.fillRect(0, 0, SW, SH);
+      ctx.fillStyle = '#3a1a0c'; ctx.fillRect(0, 150, SW, SH - 150);
+      ctx.fillStyle = INK; ctx.fillRect(4, 0, SW - 8, 170); ctx.fillRect(0, 4, SW, 162);
+      ctx.fillStyle = '#6a3418'; ctx.fillRect(5, 1, SW - 10, 168); ctx.fillRect(1, 5, SW - 2, 160);
+      ctx.fillStyle = '#c89058'; ctx.fillRect(6, 2, SW - 12, 1);
+      ctx.fillStyle = INK; ctx.fillRect(9, 7, SW - 18, 156); ctx.fillRect(7, 9, SW - 14, 152);
+      ctx.fillStyle = '#2c7a40'; ctx.fillRect(10, 8, SW - 20, 154); ctx.fillRect(8, 10, SW - 16, 150);
+      text(title, 160 - title.length * 3, 12, 1, BRASS);
+      text(note, 160 - note.length * 3, 22, 1, '#88c898');
+      ctx.fillStyle = '#5a2c14';
+      for (let x = 3; x < SW; x += 6) ctx.fillRect(x, 236, 3, 1);
+      return;
+    }
+    ctx.fillStyle = WIN; ctx.fillRect(0, 0, SW, SH);
+    ctx.fillStyle = TITLE; ctx.fillRect(0, 0, SW, 14);
+    drawRoll(3, 4);
+    text(title, 18, 3, 1, '#f8f8f8');
+    text(note, SW - 20 - note.length * 6, 3, 1, '#f8f8f8');
+    ctx.fillStyle = INK; ctx.fillRect(SW - 13, 2, 10, 10);
+    ctx.fillStyle = WIN; ctx.fillRect(SW - 12, 3, 8, 8);
+    text('x', SW - 11, 1, 1, INK);
+    ctx.fillStyle = '#4a2810'; ctx.fillRect(6, 18, 308, 150); ctx.fillRect(4, 22, 312, 142);
+    ctx.fillStyle = '#2c7a40'; ctx.fillRect(10, 22, 300, 142); ctx.fillRect(8, 26, 304, 134);
+  }
+  // what just happened, in a box under the table
+  function drawCardLog(lines, table) {
+    ctx.fillStyle = table ? BRASS : INK; ctx.fillRect(4, 172, SW - 8, 26);
+    ctx.fillStyle = table ? '#1c0e08' : '#f8f8f8'; ctx.fillRect(5, 173, SW - 10, 24);
+    lines.slice(0, 2).forEach((l, i) => text(l, 10, 176 + i * 11, 1, table ? CREAM : INK));
+  }
+  // one of the buttons along the bottom: bevelled on a computer, a red plaque edged in
+  // brass at a table. on: it's the one picked; ok: you can press it.
+  function drawCardButton(x, w, label, on, ok, table) {
+    if (table) {
+      ctx.fillStyle = on ? BRASS : '#1c0e08'; ctx.fillRect(x, 202, w, 16);
+      ctx.fillStyle = on ? '#b82828' : '#6a1818'; ctx.fillRect(x + 1, 203, w - 2, 14);
+      text(label, x + (w >> 1) - label.length * 3, 206, 1, ok ? CREAM : '#b07868');
+      return;
+    }
+    ctx.fillStyle = INK; ctx.fillRect(x, 202, w, 16);
+    ctx.fillStyle = on ? WIN_DARK : '#f8f8f8'; ctx.fillRect(x, 202, w - 1, 15);
+    ctx.fillStyle = on ? '#f8f8f8' : WIN_DARK; ctx.fillRect(x + 1, 203, w - 2, 14);
+    ctx.fillStyle = on ? '#f0d890' : WIN; ctx.fillRect(x + 1, 203, w - 3, 13);
+    text(label, x + (w >> 1) - label.length * 3, 206, 1, ok ? INK : WIN_DARK);
+  }
   function drawPokerIcon(x, y) {
     drawCard({ r: 14, s: 1 }, x + 10, y + 4);
     drawCard({ r: 13, s: 0 }, x + 28, y + 10);
     for (let i = 0; i < 3; i++) drawRoll(x + 12 + i * 13, y + 50);
   }
 
-  // pc: the ComputerScreen it runs on, which shuts down when the game is over
-  function PokerApp(pc) {
+  // pc: the ComputerScreen it runs on, which shuts down when the game is over.
+  // table: played at the poker table in Cody's casino instead.
+  function PokerApp(pc, table) {
     const START = 200, BLIND_EVERY = 4, SMALL_BLINDS = [2, 3, 5, 8, 12, 20, 30, 50, 80];
     // how the bots play: loose calls more, aggr raises more, bluff bets with nothing
     const BOTS = {
@@ -1358,7 +1423,7 @@
       if (state !== 'over') record = saveBest('poker', seats[0].stack);
       remove(self);
       if (state === 'over') { if (pc) remove(pc); say('This gambling thing is too easy. You should do it full time.'); return; }
-      say('You log off with ' + seats[0].stack + ' spring rolls.' + (record ? ' A new record!' : ''));
+      say((table ? 'You leave the table with ' : 'You log off with ') + seats[0].stack + ' spring rolls.' + (record ? ' A new record!' : ''));
     }
 
     // Cody and Dmitriy: estimate their chances against the hands still in, then weigh
@@ -1433,20 +1498,8 @@
         }
       },
       draw() {
-        // window + title bar
-        ctx.fillStyle = WIN; ctx.fillRect(0, 0, SW, SH);
-        ctx.fillStyle = TITLE; ctx.fillRect(0, 0, SW, 14);
-        drawRoll(3, 4);
-        text("Spring Roll Hold'em", 18, 3, 1, '#f8f8f8');
-        const bl = 'Blinds ' + sb() + '/' + bb();
-        text(bl, SW - 20 - bl.length * 6, 3, 1, '#f8f8f8');
-        ctx.fillStyle = INK; ctx.fillRect(SW - 13, 2, 10, 10);
-        ctx.fillStyle = WIN; ctx.fillRect(SW - 12, 3, 8, 8);
-        text('x', SW - 11, 1, 1, INK);
-        // the table
-        ctx.fillStyle = '#4a2810'; ctx.fillRect(6, 18, 308, 150); ctx.fillRect(4, 22, 312, 142);
-        ctx.fillStyle = '#2c7a40'; ctx.fillRect(10, 22, 300, 142); ctx.fillRect(8, 26, 304, 134);
-        const blink = (tick >> 4) & 1;
+        drawCardTable("Spring Roll Hold'em", 'Blinds ' + sb() + '/' + bb(), table);
+        const ink = table ? CREAM : INK, blink = (tick >> 4) & 1;
         // the pot and the board
         const ps = 'Pot ' + pot();
         drawRoll(160 - ps.length * 3 - 14, 41);
@@ -1496,33 +1549,23 @@
           }
         });
         rolls.draw(); // spring rolls on their way into the pot
-        // what just happened
-        ctx.fillStyle = INK; ctx.fillRect(4, 172, SW - 8, 26);
-        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(5, 173, SW - 10, 24);
-        lines.slice(0, 2).forEach((l, i) => text(l, 10, 176 + i * 11, 1, INK));
+        drawCardLog(lines, table);
         // your controls
         const me = seats[0], myTurn = toAct === 0 && !timer && state === 'play';
         const call = Math.min(curBet - me.bet, me.stack);
         if (raising) {
           const minTo = Math.min(me.bet + me.stack, curBet + minRaise), maxTo = me.bet + me.stack;
           const lbl = (curBet ? 'Raise to ' : 'Bet ') + raiseTo + (raiseTo === maxTo ? ' (all in)' : '');
-          text(lbl, 10, 204, 1, INK);
+          text(lbl, 10, 204, 1, ink);
           ctx.fillStyle = INK; ctx.fillRect(160, 203, 150, 9);
           ctx.fillStyle = '#e8e8e8'; ctx.fillRect(161, 204, 148, 7);
           ctx.fillStyle = '#f0b030'; ctx.fillRect(161, 204, Math.round(148 * (maxTo > minTo ? (raiseTo - minTo) / (maxTo - minTo) : 1)), 7);
-          text('Arrows: amount  Space: OK  Esc: back', 10, 224, 1, INK);
+          text('Arrows: amount  Space: OK  Esc: back', 10, 224, 1, ink);
         } else if (state === 'play') {
           const labels = ['Fold', call ? 'Call ' + call : 'Check', curBet ? 'Raise' : 'Bet', 'All in'];
-          labels.forEach((l, i) => {
-            const x = 6 + i * 78, on = myTurn && i === btn;
-            ctx.fillStyle = INK; ctx.fillRect(x, 202, 74, 16);
-            ctx.fillStyle = on ? WIN_DARK : '#f8f8f8'; ctx.fillRect(x, 202, 73, 15);
-            ctx.fillStyle = on ? '#f8f8f8' : WIN_DARK; ctx.fillRect(x + 1, 203, 72, 14);
-            ctx.fillStyle = on ? '#f0d890' : WIN; ctx.fillRect(x + 1, 203, 71, 13);
-            text(l, x + 37 - l.length * 3, 206, 1, myTurn ? INK : WIN_DARK);
-          });
-          text(myTurn ? 'Arrows: choose  Space: OK  Esc: leave' : 'Esc: leave the table', 10, 226, 1, INK);
-        } else if (state !== 'over') text('Space: next hand   Esc: leave the table', 10, 214, 1, INK);
+          labels.forEach((l, i) => drawCardButton(6 + i * 78, 74, l, myTurn && i === btn, myTurn, table));
+          text(myTurn ? 'Arrows: choose  Space: OK  Esc: leave' : 'Esc: leave the table', 10, 226, 1, ink);
+        } else if (state !== 'over') text('Space: next hand   Esc: leave the table', 10, 214, 1, ink);
         if (state === 'over') doneBox(['You cleaned them out!',
           'Spring rolls: ' + seats[0].stack, record ? 'New record!' : 'Best ' + getBest('poker')], t);
       },
@@ -1548,8 +1591,9 @@
   }
   const isBlackjack = (hand) => hand.length === 2 && bjTotal(hand).n === 21;
 
-  // pc: the ComputerScreen it runs on, which shuts down when the game is over
-  function BlackjackApp(pc) {
+  // pc: the ComputerScreen it runs on, which shuts down when the game is over.
+  // table: played at Cody's blackjack table in his casino instead.
+  function BlackjackApp(pc, table) {
     const START = 200, GOAL = 1000, MIN_BET = 10, DECKS = 4;
     let stack = START, bet = MIN_BET, wager = 0, shoe = [], me = [], dealer = [], holeHidden = true;
     let state = 'bet', lines = [], btn = 0, timer = 0, next = null, t = 0, record = false;
@@ -1657,8 +1701,8 @@
       // walking away mid-hand forfeits the bet on the table
       if (state !== 'over') record = saveBest('blackjack', stack);
       remove(self);
-      if (state === 'over') { if (pc) remove(pc); say('You broke the bank on Cody\'s computer. He looks nervous.'); return; }
-      say('You log off with ' + stack + ' spring rolls.' + (record ? ' A new record!' : ''));
+      if (state === 'over') { if (pc) remove(pc); say('You broke the bank ' + (table ? 'at Cody\'s table' : 'on Cody\'s computer') + '. He looks nervous.'); return; }
+      say((table ? 'You leave the table with ' : 'You log off with ') + stack + ' spring rolls.' + (record ? ' A new record!' : ''));
     }
     const askLeave = () => ask('Leave the table with ' + stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
 
@@ -1699,20 +1743,8 @@
         }
       },
       draw() {
-        // window + title bar
-        ctx.fillStyle = WIN; ctx.fillRect(0, 0, SW, SH);
-        ctx.fillStyle = TITLE; ctx.fillRect(0, 0, SW, 14);
-        drawRoll(3, 4);
-        text('Spring Roll Blackjack', 18, 3, 1, '#f8f8f8');
-        const gl = 'Goal ' + GOAL;
-        text(gl, SW - 20 - gl.length * 6, 3, 1, '#f8f8f8');
-        ctx.fillStyle = INK; ctx.fillRect(SW - 13, 2, 10, 10);
-        ctx.fillStyle = WIN; ctx.fillRect(SW - 12, 3, 8, 8);
-        text('x', SW - 11, 1, 1, INK);
-        // the table
-        ctx.fillStyle = '#4a2810'; ctx.fillRect(6, 18, 308, 150); ctx.fillRect(4, 22, 312, 142);
-        ctx.fillStyle = '#2c7a40'; ctx.fillRect(10, 22, 300, 142); ctx.fillRect(8, 26, 304, 134);
-        const felt = '#88c898';
+        drawCardTable('Spring Roll Blackjack', 'Goal ' + GOAL, table);
+        const felt = '#88c898', ink = table ? CREAM : INK;
         text('BLACKJACK PAYS 3 TO 2', 160 - 21 * 3, 80, 1, felt);
         text('Dealer stands on all 17s', 160 - 24 * 3, 91, 1, felt);
         // a hand of cards, centred, squeezed together when it gets long
@@ -1741,31 +1773,244 @@
           text(bs, 160 - bs.length * 3, 146, 1, '#f8e070');
         }
         rolls.draw();
-        // what just happened
-        ctx.fillStyle = INK; ctx.fillRect(4, 172, SW - 8, 26);
-        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(5, 173, SW - 10, 24);
-        lines.slice(0, 2).forEach((l, i) => text(l, 10, 176 + i * 11, 1, INK));
+        drawCardLog(lines, table);
         // your controls
         if (state === 'bet') {
-          text('Bet ' + bet + (bet === stack ? ' (all in)' : ''), 10, 204, 1, INK);
+          text('Bet ' + bet + (bet === stack ? ' (all in)' : ''), 10, 204, 1, ink);
           ctx.fillStyle = INK; ctx.fillRect(160, 203, 150, 9);
           ctx.fillStyle = '#e8e8e8'; ctx.fillRect(161, 204, 148, 7);
           ctx.fillStyle = '#f0b030'; ctx.fillRect(161, 204, Math.round(148 * Math.min(1, bet / Math.max(1, stack))), 7);
-          text('Arrows: bet  Space: deal  Esc: leave', 10, 224, 1, INK);
+          text('Arrows: bet  Space: deal  Esc: leave', 10, 224, 1, ink);
         } else if (state === 'play' || state === 'deal' || state === 'wait') {
           const myTurn = state === 'play' && !timer;
-          ['Hit', 'Stand', 'Double'].forEach((l, i) => {
-            const x = 6 + i * 104, on = myTurn && i === btn, ok = myTurn && (i < 2 || canDouble());
-            ctx.fillStyle = INK; ctx.fillRect(x, 202, 100, 16);
-            ctx.fillStyle = on ? WIN_DARK : '#f8f8f8'; ctx.fillRect(x, 202, 99, 15);
-            ctx.fillStyle = on ? '#f8f8f8' : WIN_DARK; ctx.fillRect(x + 1, 203, 98, 14);
-            ctx.fillStyle = on ? '#f0d890' : WIN; ctx.fillRect(x + 1, 203, 97, 13);
-            text(l, x + 50 - l.length * 3, 206, 1, ok ? INK : WIN_DARK);
-          });
-          text(myTurn ? 'Arrows: choose  Space: OK  Esc: leave' : 'Esc: leave the table', 10, 226, 1, INK);
-        } else if (state === 'result') text('Space: next hand   Esc: leave the table', 10, 214, 1, INK);
+          ['Hit', 'Stand', 'Double'].forEach((l, i) => drawCardButton(6 + i * 104, 100, l, myTurn && i === btn, myTurn && (i < 2 || canDouble()), table));
+          text(myTurn ? 'Arrows: choose  Space: OK  Esc: leave' : 'Esc: leave the table', 10, 226, 1, ink);
+        } else if (state === 'result') text('Space: next hand   Esc: leave the table', 10, 214, 1, ink);
         if (state === 'over') doneBox(['You broke the bank!',
           'Spring rolls: ' + stack, record ? 'New record!' : 'Best ' + getBest('blackjack')], t);
+      },
+    };
+    return self;
+  }
+
+  // ---------- Spring Roll Slots: the slot machines in Cody's casino ----------
+  // Three reels and one payline, played for the same spring rolls as the card games: you
+  // start with START and clean out the machine at GOAL. Every reel has the same 20 stops
+  // (SLOT_STRIP), so with SLOT_PAYS the machine pays back about 94% of what goes in.
+  const SLOT_STRIP = ['7', 'lemon', 'cherry', 'roll', 'lemon', 'bell', 'cherry', 'lemon', 'bar', 'roll',
+    'lemon', 'cherry', 'bell', 'roll', 'lemon', 'bar', 'cherry', 'roll', 'lemon', 'bell'];
+  // three of a kind on the line pays this many times your bet; any two cherries pay 4
+  // times, and a cherry on the left reel gives you your bet back
+  const SLOT_PAYS = { 7: 100, bar: 40, bell: 20, roll: 12, cherry: 10, lemon: 5 };
+  const SLOT_NAMES = { 7: 'sevens', bar: 'bars', bell: 'bells', roll: 'spring rolls', cherry: 'cherries', lemon: 'lemons' };
+  const SLOT_PIX = {
+    7: ['kkkkkkkkkkkk', 'kRRRRRRRRRRk', 'krrrrrrrrrrk', 'kkkkkkkkrrrk', '......krrrk.', '.....krrrk..',
+      '....krrrk...', '....krrk....', '...krrrk....', '...krrk.....', '...krrk.....', '...kkkk.....'],
+    bell: ['.....kk.....', '....kyok....', '...kyoook...', '...kyoook...', '..kyoooonk..', '..kyoooonk..',
+      '.kyoooooonk.', 'kyooooooonnk', 'kkkkkkkkkkkk', '.knnnnnnnnk.', '..kkkkkkkk..', '.....kk.....'],
+    cherry: ['........ggG.', '.......g.gGG', '......g..g..', '.....g...g..', '....g....g..', '...g.....g..',
+      '.kkkk..kkkk.', 'kRrrrkkRrrrk', 'krrrrkkrrrrk', 'krrrrkkrrrrk', '.kkkk..kkkk.', '............'],
+    lemon: ['............', '....kkkk....', '..kkllllkk..', '.kllwwlllLk.', 'kllwlllllLLk', 'klllllllllLk',
+      'klllllllllLk', 'kllllllllLLk', '.kLllllllLk.', '..kkLLLLkk..', '....kkkk....', '............'],
+    roll: ['............', '............', '..hhhhhhhh..', '.hbbbbbbbbh.', 'hYYYYYYYYYYh', 'hbcbbcbbcbbh',
+      'hbcbbcbbcbbh', 'hbbbbbbbbbbh', '.hbbbbbbbbh.', '..hhhhhhhh..', '............', '............'],
+  };
+  const SLOT_COL = { k: '#181820', r: '#c82828', R: '#f07858', y: '#f8e070', o: '#f0b030', n: '#a86818', g: '#2c8a30',
+    G: '#78c850', l: '#f8e048', L: '#c8a020', w: '#f8f8f8', h: '#6a3c10', b: '#e8b048', c: '#c07828', Y: '#f8e098' };
+  // a reel symbol, 12 pixels square at scale k
+  function drawSlotSymbol(sym, x, y, k) {
+    if (sym === 'bar') {
+      ctx.fillStyle = '#181820'; ctx.fillRect(x, y + 3 * k, 12 * k, 6 * k);
+      ctx.fillStyle = '#f8f8f8';
+      if (k > 1) { ring(x + 1, y + 3 * k + 1, 12 * k - 2, 6 * k - 2); text('BAR', x + 4, y + 9, 1, '#f8f8f8'); }
+      else ctx.fillRect(x + 2, y + 5, 8, 2);
+      return;
+    }
+    SLOT_PIX[sym].forEach((row, j) => {
+      for (let i = 0; i < 12; i++) {
+        if (row[i] === '.') continue;
+        ctx.fillStyle = SLOT_COL[row[i]]; ctx.fillRect(x + i * k, y + j * k, k, k);
+      }
+    });
+  }
+
+  function SlotsGame() {
+    const START = 200, GOAL = 1000, BETS = [5, 10, 25, 50, 100], N = SLOT_STRIP.length;
+    const SPEED = 0.45; // stops a frame while a reel spins
+    // the reel window: three reels side by side, three symbols tall, the payline through the middle
+    const RX = 72, RY = 48, RW = 52, GAP = 6, CELL = 32;
+    const CREDITS = [98, 162], SLOT = [160, 96];
+    let stack = START, betI = 1, wager = 0, won = 0, state = 'idle', t = 0, record = false, pull = 0, flash = 0;
+    let lines = ['Welcome to Spring Roll Slots!', 'Three in a row on the line pays.'];
+    // pos: the stop showing on the payline (fractional while it spins); stopAt: where it lands
+    const reels = [0, 1, 2].map(() => ({ pos: Math.floor(Math.random() * N), stopAt: null, at: 0, bounce: 0 }));
+    const rolls = RollFlyer(), count = (amt) => Math.min(6, 1 + Math.floor(amt / 20));
+    const bet = () => Math.min(BETS[betI], stack);
+    const showing = (r) => SLOT_STRIP[((Math.round(r.pos) % N) + N) % N];
+
+    function spin() {
+      wager = bet(); stack -= wager; won = 0;
+      rolls.send(CREDITS[0], CREDITS[1], SLOT[0], SLOT[1], count(wager));
+      state = 'spin'; t = 0; pull = 20; sfx('menu');
+      lines = ['You bet ' + wager + '. Round and round they go...'];
+      // they stop by themselves, one after another, unless you stop them first
+      reels.forEach((r, i) => Object.assign(r, { stopAt: null, at: 40 + i * 20 }));
+    }
+    // Pick where a reel lands, and put it a couple of stops short of there to roll in
+    // (it's spinning far too fast to see the jump).
+    function stopReel(r) {
+      r.stopAt = N + Math.floor(Math.random() * N);
+      r.pos = r.stopAt - 2.5;
+    }
+    function settle() {
+      const [a, b, c] = reels.map(showing), cherries = [a, b, c].filter((s) => s === 'cherry').length;
+      const jackpot = a === '7' && b === '7' && c === '7';
+      let k = 0, msg;
+      if (a === b && b === c) { k = SLOT_PAYS[a]; msg = (jackpot ? 'JACKPOT! ' : '') + 'Three ' + SLOT_NAMES[a] + '!'; }
+      else if (cherries === 2) { k = 4; msg = 'Two cherries!'; }
+      else if (a === 'cherry') { k = 1; msg = 'A cherry on the left.'; }
+      won = wager * k; stack += won;
+      reels.forEach((r) => { r.pos %= N; r.stopAt = null; });
+      if (k > 1) {
+        msg += ' You win ' + won + '.';
+        rolls.send(SLOT[0], SLOT[1] + 20, CREDITS[0], CREDITS[1], count(won));
+        flash = jackpot ? 150 : 60;
+        sfx(jackpot ? 'ding' : 'cup');
+      } else if (k === 1) { msg += ' Your ' + wager + ' back.'; rolls.send(SLOT[0], SLOT[1] + 20, CREDITS[0], CREDITS[1], count(won)); sfx('blip'); }
+      else { msg = 'No luck. You lose ' + wager + '.'; sfx('bump'); }
+      lines = [msg, stack ? 'You have ' + stack + ' spring rolls.' : 'That was your last spring roll.'];
+      wager = 0;
+      if (stack >= GOAL) { state = 'over'; t = 0; record = saveBest('slots', stack); return; }
+      state = stack > 0 ? 'idle' : 'broke';
+    }
+    function leave() {
+      // walking away mid-spin forfeits the bet
+      if (state !== 'over') record = saveBest('slots', stack);
+      remove(self);
+      if (state === 'over') { say('You cleaned out the slot machine. Cody unplugs it, just in case.'); return; }
+      say('You cash out with ' + stack + ' spring rolls.' + (record ? ' A new record!' : ''));
+    }
+    const askLeave = () => ask('Cash out with ' + stack + ' spring rolls?', ['CASH OUT', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
+
+    const self = {
+      music: 'poker',
+      update() {
+        t++;
+        rolls.update();
+        if (pull > 0) pull--;
+        if (flash > 0) flash--;
+        if (state === 'over') { if (t > 30 && (pressed.has('a') || pressed.has('b'))) leave(); return; }
+        if (state === 'broke') {
+          if (pressed.has('a') || pressed.has('b')) { remove(self); say("Cody: The machine always wins. Trust me, I've checked."); }
+          return;
+        }
+        if (pressed.has('b')) { askLeave(); return; }
+        if (state === 'spin') {
+          // A stops the next reel along
+          const next = reels.find((r) => r.stopAt === null);
+          if (next && pressed.has('a')) stopReel(next);
+          for (const r of reels) {
+            if (r.bounce > 0) r.bounce--;
+            if (r.stopAt === null) { r.pos = (r.pos + SPEED) % N; if (t >= r.at) stopReel(r); }
+            else if (r.pos < r.stopAt) {
+              r.pos = Math.min(r.stopAt, r.pos + SPEED);
+              if (r.pos === r.stopAt) { r.bounce = 8; sfx('putt'); }
+            }
+          }
+          if (reels.every((r) => r.stopAt !== null && r.pos === r.stopAt && !r.bounce)) settle();
+          return;
+        }
+        const nudge = (d) => {
+          const i = Math.max(0, Math.min(BETS.length - 1, betI + d));
+          if (i !== betI && (d < 0 || BETS[betI] < stack)) { betI = i; sfx('select'); }
+        };
+        if (pressed.has('right') || pressed.has('up')) nudge(1);
+        if (pressed.has('left') || pressed.has('down')) nudge(-1);
+        if (pressed.has('a')) spin();
+      },
+      draw() {
+        const blink = (tick >> (flash ? 2 : 4)) & 1;
+        ctx.fillStyle = '#140a10'; ctx.fillRect(0, 0, SW, SH);
+        // the machines either side of this one, in the dark
+        for (const x of [-26, 298]) {
+          ctx.fillStyle = '#3a0c10'; ctx.fillRect(x, 14, 48, 188);
+          ctx.fillStyle = '#1c0e08'; ctx.fillRect(x + 6, 60, 36, 50);
+        }
+        // the cabinet
+        ctx.fillStyle = INK; ctx.fillRect(44, 2, 224, 200);
+        ctx.fillStyle = '#a82020'; ctx.fillRect(45, 3, 222, 198);
+        ctx.fillStyle = '#7a1414'; ctx.fillRect(45, 3, 5, 198); ctx.fillRect(262, 3, 5, 198);
+        // the marquee, with bulbs chasing round it (all of them flashing when you win)
+        ctx.fillStyle = INK; ctx.fillRect(56, 7, 200, 33);
+        ctx.fillStyle = '#1c0e08'; ctx.fillRect(57, 8, 198, 31);
+        let n = 0;
+        const bulb = (x, y) => {
+          const lit = flash ? blink : ((n++ + (tick >> 3)) % 3 === 0);
+          ctx.fillStyle = lit ? '#f8f0b0' : '#a86818'; ctx.fillRect(x, y, 2, 2);
+        };
+        for (let x = 59; x < 253; x += 6) bulb(x, 9);
+        for (let y = 15; y < 36; y += 6) bulb(252, y);
+        for (let x = 253; x > 58; x -= 6) bulb(x, 36);
+        for (let y = 30; y > 12; y -= 6) bulb(58, y);
+        text('SPRING ROLL', 160 - 33, 13, 1, BRASS);
+        text('SLOTS', 160 - 30, 22, 2, flash && blink ? '#f8f8f8' : '#f05040');
+        // the reels behind their window, with the payline across the middle
+        ctx.fillStyle = INK; ctx.fillRect(RX - 6, RY - 4, 3 * RW + 2 * GAP + 12, 3 * CELL + 8);
+        ctx.fillStyle = BRASS; ring(RX - 5, RY - 3, 3 * RW + 2 * GAP + 10, 3 * CELL + 6);
+        reels.forEach((r, i) => {
+          const x = RX + i * (RW + GAP);
+          ctx.save();
+          ctx.beginPath(); ctx.rect(x, RY, RW, 3 * CELL); ctx.clip();
+          ctx.fillStyle = '#f4f0e4'; ctx.fillRect(x, RY, RW, 3 * CELL);
+          const off = Math.round(Math.sin((r.bounce / 8) * Math.PI) * 4), base = Math.floor(r.pos);
+          for (let d = -2; d <= 2; d++) {
+            const j = base + d, y = RY + CELL + Math.round((r.pos - j) * CELL) + off;
+            drawSlotSymbol(SLOT_STRIP[((j % N) + N) % N], x + (RW >> 1) - 12, y + 4, 2);
+          }
+          // the reel curving away at the top and bottom
+          ctx.fillStyle = 'rgba(24,24,32,0.25)'; ctx.fillRect(x, RY, RW, 8); ctx.fillRect(x, RY + 3 * CELL - 8, RW, 8);
+          ctx.fillStyle = 'rgba(24,24,32,0.15)'; ctx.fillRect(x, RY + 8, RW, 6); ctx.fillRect(x, RY + 3 * CELL - 14, RW, 6);
+          ctx.restore();
+        });
+        const ly = RY + CELL + (CELL >> 1);
+        ctx.fillStyle = 'rgba(200,40,40,0.55)'; ctx.fillRect(RX - 2, ly, 3 * RW + 2 * GAP + 4, 1);
+        ctx.fillStyle = '#f05040';
+        for (let k = 0; k < 4; k++) { ctx.fillRect(RX - 10 + k, ly - 3 + k, 1, 7 - 2 * k); ctx.fillRect(RX + 3 * RW + 2 * GAP + 9 - k, ly - 3 + k, 1, 7 - 2 * k); }
+        // credits, bet and winnings, in red lights
+        [['CREDITS', stack, 66, 64], ['BET', state === 'spin' ? wager : bet(), 138, 44], ['WIN', won, 190, 56]].forEach(([l, v, x, w]) => {
+          text(l, x, 150, 1, '#f8e070');
+          ctx.fillStyle = INK; ctx.fillRect(x, 158, w, 13);
+          const s = String(v);
+          if (l !== 'WIN' || !flash || blink) text(s, x + w - 3 - s.length * 6, 161, 1, '#ff4830');
+        });
+        // what pays
+        const pays = [[['7', '7', '7'], 100], [['bar', 'bar', 'bar'], 40], [['bell', 'bell', 'bell'], 20], [['roll', 'roll', 'roll'], 12],
+          [['cherry', 'cherry', 'cherry'], 10], [['lemon', 'lemon', 'lemon'], 5], [['cherry', 'cherry'], 4], [['cherry'], 1]];
+        ctx.fillStyle = '#7a1414'; ctx.fillRect(54, 174, 204, 26);
+        pays.forEach(([syms, k], i) => {
+          const x = 58 + (i % 4) * 50, y = 175 + (i >> 2) * 12;
+          syms.forEach((sy, j) => drawSlotSymbol(sy, x + j * 8, y, 1));
+          text(String(k), x + 28, y + 3, 1, '#f8e070');
+        });
+        // the lever: pull it and the knob swings down and back up
+        const ky = 62 + Math.round(Math.sin(((20 - pull) / 20) * Math.PI) * (pull ? 52 : 0));
+        ctx.fillStyle = INK; ctx.fillRect(267, 104, 10, 22); ctx.fillRect(280, Math.min(ky, 114), 5, Math.abs(114 - ky) + 1);
+        ctx.fillStyle = '#585868'; ctx.fillRect(268, 105, 8, 20);
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(281, Math.min(ky, 114), 3, Math.abs(114 - ky));
+        ctx.fillStyle = INK; ctx.fillRect(276, 113, 9, 4);
+        ctx.fillStyle = INK; ctx.fillRect(277, ky - 6, 11, 11); ctx.fillRect(276, ky - 5, 13, 9);
+        ctx.fillStyle = '#d83030'; ctx.fillRect(278, ky - 5, 9, 9); ctx.fillRect(277, ky - 4, 11, 7);
+        ctx.fillStyle = '#f8a8a0'; ctx.fillRect(279, ky - 4, 3, 2);
+        rolls.draw();
+        // what just happened, and what to press
+        ctx.fillStyle = BRASS; ctx.fillRect(4, 205, SW - 8, 24);
+        ctx.fillStyle = '#1c0e08'; ctx.fillRect(5, 206, SW - 10, 22);
+        lines.slice(0, 2).forEach((l, i) => text(l, 10, 208 + i * 10, 1, CREAM));
+        const hint = state === 'spin' ? 'Space: stop a reel  Esc: cash out'
+          : state === 'broke' ? 'Space: leave' : 'Arrows: bet  Space: spin  Esc: cash out';
+        if (state !== 'over') text(hint, 10, 232, 1, '#c8a878');
+        if (state === 'over') doneBox(['You cleaned out the machine!',
+          'Spring rolls: ' + stack, record ? 'New record!' : 'Best ' + getBest('slots')], t);
       },
     };
     return self;
@@ -1949,7 +2194,8 @@
     forms: { title: 'JHONNA\'S FORMS' }, trophy: { title: 'NATHAN\'S TROPHIES' }, legolines: { title: 'JOE\'S BRICK BATTLE' },
     legosolo: { title: 'LEGO BUILDING', unit: ' lines' },
     wokdishes: { title: 'NIK\'S WOK' }, carrotpct: { title: 'DMITRIY\'S CARROTS', unit: '%' }, dance: { title: 'PATRICK\'S DANCE-OFF', unit: '%' },
-    poker: { title: 'SPRING ROLL HOLD\'EM' }, blackjack: { title: 'SPRING ROLL BLACKJACK' }, catch: { title: 'FRISBEE CATCH' },
+    poker: { title: 'SPRING ROLL HOLD\'EM' }, blackjack: { title: 'SPRING ROLL BLACKJACK' }, slots: { title: 'SPRING ROLL SLOTS' },
+    catch: { title: 'FRISBEE CATCH' },
     bob: { title: 'BOBBING FOR APPLES' }, carve: { title: 'PUMPKIN CARVING' }, treat: { title: 'TRICK-OR-TREAT' },
     ghosts: { title: 'GHOST IN THE CUPBOARD' }, costume: { title: 'COSTUME CONTEST' },
     golf: { title: 'WADE\'S PUTTING GREEN', low: true }, dark: { title: 'DAMIR\'S LIGHTS', unit: 's', low: true },
@@ -2050,7 +2296,7 @@
   const FAME_GROUPS = [
     ['OFFICE', ['coffee', 'toss', 'lunch', 'candy', 'stack', 'simon', 'desk', 'jam', 'filter']],
     ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pulldown', 'ball', 'laundry']],
-    ['TVS AND COMPUTERS', ['snake', 'poker', 'blackjack']],
+    ['TVS AND CODY\'S CASINO', ['snake', 'poker', 'blackjack', 'slots']],
     ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cpr', 'engrave', 'golf', 'legosolo']],
     ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catch']],
     ['KINGSTON PLANT', ['forklift', 'paint']],
@@ -3220,7 +3466,7 @@
   // ---------- candy table: sneak candy while nobody is looking ----------
   function CandyGame() {
     const FLOOR = 184, BOWL_X = 150, HAND_X0 = 50;
-    const pool = npcs.filter((n) => !n.ghost && !n.plant);
+    const pool = npcs.filter((n) => !n.ghost && !n.extra);
     const who = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
     const name = who ? who.name : 'Someone', look = who ? who.sprites : sprites;
     const CANDY = ['#f85848', '#f8d848', '#78e060', '#68a0f8', '#d870d0', '#f0b030'];
@@ -5032,14 +5278,14 @@
     const floorName = (fi) => (fi === 0 ? 'Ground' : fi + 1 + 'F');
     // Everyone sitting in a numbered office or cubicle. The option shows the room
     // NUMBER only, never the name on the door, or it would answer itself.
-    const DIRECTORY = npcs.filter((n) => !n.ghost && !n.plant).map((n) => {
+    const DIRECTORY = npcs.filter((n) => !n.ghost && !n.extra).map((n) => {
       const r = roomAt(n.floor, n.x, n.y), m = r && /^(\d+) /.exec(r.name);
       return m ? { name: n.name, where: 'Office ' + m[1] + ', ' + floorName(n.floor) } : null;
     }).filter(Boolean);
     if (!DIRECTORY.length) DIRECTORY.push({ name: 'Kiki', where: 'Office 101, Ground' });
     let state = 'ready', t = 0, who = null, opts = [], sel = 0, left = TIME;
     let n = 0, right = 0, last = null, record = false;
-    const FACES = npcs.filter((n) => !n.ghost && !n.plant);
+    const FACES = npcs.filter((n) => !n.ghost && !n.extra);
     let face = null;
     function nextVisitor() {
       who = DIRECTORY[Math.floor(Math.random() * DIRECTORY.length)];
@@ -6662,7 +6908,7 @@
     for (let y = room.y1; y <= room.y2; y++)
       for (let x = room.x1; x <= room.x2; x++)
         if (NPC_FLOOR.includes(tileAt(P.floor, x, y)) && !(x === P.x && y === P.y)) spots.push([x, y]);
-    const guests = npcs.filter((n) => !n.ghost && !n.plant);
+    const guests = npcs.filter((n) => !n.ghost && !n.extra);
     // the people already in the room stay where they are; everyone else squeezes in around them
     const taken = new Set();
     const dancers = [];
@@ -6861,7 +7107,7 @@
   // Who comes: Lam (the MC), eight others at random, each in a different costume, and Linda.
   function pickGuests() {
     const lines = window.COSTUME_LINES || {};
-    const others = shuffled(npcs.filter((n) => !n.ghost && !n.plant && !n.guest && n.name !== 'Lam' && !(visit && n === visit.npc))).slice(0, 8);
+    const others = shuffled(npcs.filter((n) => !n.ghost && !n.extra && !n.guest && n.name !== 'Lam' && !(visit && n === visit.npc))).slice(0, 8);
     const outfits = shuffled(COSTUME_KEYS.concat(['ghost']));
     const guests = ['Lam'].concat(others.map((n) => n.name)).map((name, i) => {
       const costume = outfits[i % outfits.length], { body, look } = lookFor(name);
@@ -9481,6 +9727,13 @@
   }
 
   function onArrive() {
+    // into Cody's cubicle and it opens out into the casino; out of the casino's doorway
+    // and you're back in the office
+    if (CASINO_AT) {
+      const r = roomAt(P.floor, P.x, P.y);
+      if (P.floor === CASINO_AT.floor && r && r.name === CASINO_AT.room) { P.floor = CASINO; sfx('ding'); }
+      else if (P.floor === CASINO && !r) P.floor = CASINO_AT.floor;
+    }
     if (tileAt(P.floor, P.x, P.y) === 'S') {
       const ends = findLink(P.floor, P.x, P.y);
       const other = ends && ends.find((e) => e.floor !== P.floor);
@@ -9636,7 +9889,7 @@
     if (t === '*') { sfx('menu'); ui.push(HallOfFame()); return; }
     if (t === 'E') {
       const ends = findLink(P.floor, tx, ty);
-      const names = MAPS.floors.filter((f) => !f.plant).map((f, i) => (i === 0 ? 'GROUND' : i + 1 + 'F'));
+      const names = MAPS.floors.filter((f) => !f.plant && !f.casino).map((f, i) => (i === 0 ? 'GROUND' : i + 1 + 'F'));
       sfx('select');
       ask('The elevator. Which floor?', names.concat(['CANCEL']), (i) => {
         if (i < 0 || i >= names.length) return;
@@ -9644,7 +9897,7 @@
         sfx('ding');
         const from = P.floor, go = () => warpTo(ends.find((e) => e.floor === i));
         // every ride, somebody gets in with you
-        const pool = npcs.filter((n) => !n.ghost && !n.plant);
+        const pool = npcs.filter((n) => !n.ghost && !n.extra);
         if (pool.length) {
           ui.push(ElevatorGame(pool[Math.floor(Math.random() * pool.length)], from, i, go));
         } else go();
@@ -9693,6 +9946,9 @@
       Y: ['The printer blinks: PAPER JAM IN TRAY 2', 'CLEAR THE JAM', JamGame],
       W: ['A washer, mid-cycle. A pile of coveralls waits.', 'SORT THE WASH', LaundryGame],
       O: ['A dryer, still warm. A pile of coveralls waits.', 'SORT THE WASH', LaundryGame],
+      '[': ['Cody\'s blackjack table. Blackjack pays 3 to 2.', 'DEAL ME IN', () => BlackjackApp(null, true)],
+      ']': ['The poker table. Zin is dealing Texas Hold\'em, and Cody and Dmitriy are already in.', 'TAKE A SEAT', () => PokerApp(null, true)],
+      7: ['A slot machine, all lit up. It plays for spring rolls.', 'PULL THE LEVER', SlotsGame],
     };
     // the boardroom's everyday games are off while the Halloween party is on
     if (GAMES[t] && hw.state === 'party' && P.floor === hw.floor && roomAt(P.floor, tx, ty) === hw.room) {
@@ -10079,7 +10335,7 @@
   addEventListener('resize', layout);
   addEventListener('orientationchange', layout);
 
-  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|lego|wok|carrot|jar|poker|blackjack, or locker|list|eotm with &quest=)
+  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|lego|wok|carrot|jar|poker|blackjack|slots|pokertable|bjtable, or locker|list|eotm with &quest=)
   if (location.hash.startsWith('#play')) {
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
@@ -10141,7 +10397,8 @@
       snake: SnakeGame, parts: PartsGame, cable: CableGame, cpr: CprGame,
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
-      dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp,
+      dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp, slots: SlotsGame,
+      pokertable: () => PokerApp(null, true), bjtable: () => BlackjackApp(null, true),
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
       fame: HallOfFame, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];

@@ -34,7 +34,7 @@ Walk up to these and press A:
 
 - **Office computers**: SDG, lay out an air handling unit
 - **Zin's computer** (office 126): Spring Roll Hold'em, no-limit Texas Hold'em against Cody and Dmitriy, played for spring rolls
-- **Cody's computer** (cubicle 142): Spring Roll Blackjack against the house, for the same spring rolls (break the bank at 1000)
+- **Cody's casino** (cubicle 142): see below
 - **Coffee machine** (lunch room): catch the coffee in your cup. It pours 150 drops, and the nozzle gets quicker and twitchier as it goes; you're scored on how many you catch
 - **Recycling bin** (lunch room): toss crumpled paper into the bin; watch the wind
 - **Fridge**: keep your eye on your lunch while the containers shuffle
@@ -79,6 +79,32 @@ Walk up to these and press A:
   each part with paint on it and 2 for each bit of dust (10 at most), and shows you the
   sheet. Paint that's on too thick goes darker (cream, for white) before it runs.
   Afterwards the unit in the booth stays in the colour you painted it
+
+## Cody's casino
+
+From the hallway Cody's cubicle (142, upstairs) looks like any other, but it's bigger on
+the inside: step through the gap in its partition and it opens out into a casino about
+three cubicles across, with nothing but black around it. Walk back out through the
+doorway and you're in the office again, right where you went in. Cody deals at the
+blackjack table and Zin at the poker table, and the lounge tune from the poker game
+plays the whole time you're in there. Everything is played for spring rolls, and you
+start each game with 200:
+
+- **Blackjack table**: Spring Roll Blackjack against the house. Blackjack pays 3 to 2,
+  the dealer stands on all 17s, and you break the bank at 1000
+- **Poker table**: Spring Roll Hold'em, no-limit Texas Hold'em against Cody and Dmitriy
+  (the same game as on Zin's computer)
+- **Slot machines**: Spring Roll Slots. Left and right pick your bet (5, 10, 25, 50 or
+  100) and A pulls the lever; the reels stop by themselves one after another, or press
+  A to stop the next one. Three of a kind on the line pays 100 times your bet for
+  sevens, 40 for bars, 20 for bells, 12 for spring rolls, 10 for cherries and 5 for
+  lemons; any two cherries pay 4 times, and a cherry on the left reel gives you your
+  bet back. Clean out the machine at 1000
+
+The two card games are the same games as on the computers, only laid out on a table
+instead of a computer screen, and they share the computers' leaderboards. The casino
+is its own map (the end of `tools/build_maps.py`), the same size as the second floor
+and lined up with it, so walking in keeps you in the same spot.
 
 ## Eugene's phone and the Kingston plant
 
@@ -130,7 +156,7 @@ shows every leaderboard at once. Left and right flip between its pages:
   you see your place, how many points it takes to pass the person above you, and how
   many crowns, top tens and games you have.
 - **Latest scores**: the newest scores on any board, who set them and where they rank now.
-- **One page per area** (Office, Fitness Room, TVs and Computers, Boardroom and 2nd Floor,
+- **One page per area** (Office, Fitness Room, TVs and Cody's Casino, Boardroom and 2nd Floor,
   Coworkers and Dogs, Kingston Plant, and Halloween in October or once it has scores):
   each game's champion and their score, or "up for grabs" if nobody has played it.
   Up and down pick a game, which shows what it takes to climb: the score to beat for the

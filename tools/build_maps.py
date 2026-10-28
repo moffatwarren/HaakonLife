@@ -6,6 +6,7 @@ Run:  python3 tools/build_maps.py
 
 Map glyphs
   walkable:  . carpet   , hallway   : tile   _ wood   ; concrete   D doorway   S stairs
+             - casino carpet (walls standing on it are drawn as casino walls)
   solid:     # wall  (space) outside  X exit door  E elevator door
              d desk  m computer desk  c chair  p plant  b bookshelf
              k counter  M appliance  n sink  w toilet  f fridge  v recycling bin
@@ -29,10 +30,15 @@ Map glyphs
              1-5 a finished air handling unit in shipping (the digit picks the design)
              0 the unit in grey primer in the paint booth (Even Coat)
              P coffee machine (two tiles tall)  C curtain (opened from the game; closes when you leave the room)
+             [ blackjack table   ] poker table   7 slot machine (two tiles tall)
   walkable:  j computer parts scattered on the floor
 
 The Kingston plant is a third map, not linked to the office floors: Eugene's phone
 sends you there and 'Leave plant' in the start menu brings you back.
+
+Cody's casino is a fourth map, the same size as the second floor and lined up with it
+tile for tile. Stepping into Cody's cubicle swaps you onto it in the same spot, and
+stepping out of its doorway swaps you back (its 'casino' says which floor and room).
 
 Room options: 'dark': True draws the room with the lights off,
 'rave': True fills the room with strobing party lights and dance music,
@@ -41,6 +47,7 @@ Room options: 'dark': True draws the room with the lights off,
 'gender': 'male'/'female' keeps the other gender out (bathrooms), and
 'curtain': True marks the room behind a curtain, and
 'people': [names] adds extra NPCs (repeats allowed),
+'lines': [...] gives the people in a room something else to say there,
 'person': name (+ optional 'area': [x1, y1, x2, y2]) puts someone in a room
 that isn't named after them, and
 'parent' marks a cubicle inside an open office (no banner when stepping
@@ -59,13 +66,14 @@ class Floor:
         self.fl = [[' '] * w for _ in range(h)]  # floor layer under objects
         self.rooms = []
         self.plant = False
+        self.casino = None
 
     # --- primitives (all coordinates inclusive) ---
     def fill(self, x1, y1, x2, y2, ch):
         for y in range(y1, y2 + 1):
             for x in range(x1, x2 + 1):
                 self.g[y][x] = ch
-                if ch in '.,:_;':
+                if ch in '.,:_;-':
                     self.fl[y][x] = ch
 
     def hline(self, x1, x2, y, ch='#'):
@@ -143,6 +151,8 @@ class Floor:
         }
         if self.plant:
             d['plant'] = True
+        if self.casino:
+            d['casino'] = self.casino
         return d
 
 
@@ -558,7 +568,6 @@ for (x1, x2), top, bottom in (((81, 85), '142 Cody', '167 Leo'),
     f2.put(x1, 24, 'm'); f2.put(x1 + 1, 24, 'd'); f2.put(x1, 23, 'c')
     f2.rooms.append({'name': top, 'x1': x1, 'y1': 16, 'x2': x2, 'y2': 19, 'parent': 'Open Office'})
     f2.rooms.append({'name': bottom, 'x1': x1, 'y1': 21, 'x2': x2, 'y2': 24, 'parent': 'Open Office'})
-next(r for r in f2.rooms if r['name'] == '142 Cody')['computer'] = 'blackjack'
 
 # east washrooms + stairs
 f2.vline(101, 13, 29)
@@ -881,6 +890,28 @@ fp.door((43, 6), (44, 6))
 fp.fill(43, 2, 45, 3, '0')
 fp.put(42, 1, 'k'); fp.put(46, 5, 'k')
 
+# =====================================================================
+# CODY'S CASINO: his cubicle is bigger on the inside. Cross the gap in its
+# partition and you're on this map instead, in the same spot: a casino about
+# three cubicles across, with nothing but black around it. Step back out of its
+# doorway and you're in the office again (see 'casino' in js/game.js).
+# =====================================================================
+fc = Floor("Cody's Casino")
+fc.casino = {'floor': 1, 'room': '142 Cody'}
+fc.fill(77, 15, 92, 25, '-')                    # carpet under the walls too, so they're casino walls
+fc.hline(77, 92, 15); fc.hline(77, 92, 25); fc.vline(77, 15, 25); fc.vline(92, 15, 25)
+fc.put(83, 15, '-')                             # the doorway: the gap in Cody's partition
+fc.rooms.append({'name': "Cody's Casino", 'x1': 78, 'y1': 16, 'x2': 91, 'y2': 24, 'parent': 'Open Office'})
+fc.fill(87, 16, 89, 17, '7')                    # a row of slot machines
+fc.fill(79, 19, 81, 20, '[')                    # blackjack, with Cody dealing
+fc.fill(85, 21, 89, 22, ']')                    # poker, with Zin dealing
+for x, y in ((78, 16), (91, 16), (78, 24), (91, 24)):
+    fc.put(x, y, 'p')
+fc.rooms.append({'name': 'Blackjack Table', 'x1': 80, 'y1': 18, 'x2': 80, 'y2': 18, 'parent': "Cody's Casino",
+                 'people': ['Cody'], 'lines': ["Welcome to the real office. Blackjack pays 3 to 2, and don't tell HR."]})
+fc.rooms.append({'name': 'Poker Table', 'x1': 87, 'y1': 20, 'x2': 87, 'y2': 20, 'parent': "Cody's Casino",
+                 'people': ['Zin'], 'lines': ["Pull up a chair. Zin deals, and Zin always wins."]})
+
 # Make sure floor layer exists under every object / door tile.
 for f in (f1, f2, fp):
     for y in range(f.h):
@@ -888,7 +919,7 @@ for f in (f1, f2, fp):
             if f.fl[y][x] == ' ' and f.g[y][x] not in '# X':
                 f.fl[y][x] = ','
 
-data = {'floors': [f1.out(), f2.out(), fp.out()], 'links': links, 'start': {'floor': 0, 'x': 27, 'y': 36, 'dir': 'up'},
+data = {'floors': [f1.out(), f2.out(), fp.out(), fc.out()], 'links': links, 'start': {'floor': 0, 'x': 27, 'y': 36, 'dir': 'up'},
         'plant': {'floor': 2, 'x': 24, 'y': 9, 'dir': 'down'}}
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -899,7 +930,7 @@ with open(out, 'w') as fh:
     fh.write('window.OFFICE_MAPS = ' + json.dumps(data, indent=1) + ';\n')
 
 if __name__ == '__main__':
-    for f in (f1, f2, fp):
+    for f in (f1, f2, fp, fc):
         print(f.name)
         for i, r in enumerate(f.g):
             print(f'{i:2d} ' + ''.join(r))

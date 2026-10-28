@@ -11,6 +11,9 @@ window.Art = (function () {
     c: '#f4ecd8', C: '#dccfb0', d: '#8a7458', D: '#5c4c3a',
     P: '#d8dce8', p: '#a4acc4',
     a: '#f4ecd4', Z: '#ebe0c4', A: '#cbbb96',
+    // Cody's casino: carpet, gold trim, felt and the tables' wooden rails
+    m: '#4a0c18', M: '#7a1828', q: '#d8a838',
+    Q: '#2c7a40', F: '#58a868', t: '#3a1a0c', T: '#6a3418',
   };
 
   // Player characters. In the sprites: h = hair, s = skin, w = top,
@@ -645,6 +648,42 @@ window.Art = (function () {
       '.kk..........kk.',
       '................',
     ],
+    slotTop: [
+      '................',
+      '.kkkkkkkkkkkkkk.',
+      '.kqoqoqoqoqoqok.',
+      '.kokkkkkkkkkkok.',
+      '.kokrRrRrRrRkok.',
+      '.kokkkkkkkkkkok.',
+      '.kqoqoqoqoqoqok.',
+      '.kkkkkkkkkkkkkk.',
+      '.krrrrrrrrrrrrk.',
+      '.krkkkkkkkkkkrk.',
+      '.krkwwkwwkwwkrk.',
+      '.krkrwkowkwrkrk.',
+      '.krkwwkwwkwwkrk.',
+      '.krkkkkkkkkkkrk.',
+      '.krrrrrrrrrrrrk.',
+      '.kRRRRRRRRRRRRk.',
+    ],
+    slotBottom: [
+      '.krrrrrrrrrrrrk.',
+      '.kkkkkkkkkkkkkk.',
+      '.kWWWWWWWWWWWWk.',
+      '.kWoWWrWWuWWWWk.',
+      '.kkkkkkkkkkkkkk.',
+      '.krrrrrrrrrrrrk.',
+      '.krrrrrrrrrrrrk.',
+      '.krrkkkkkkkkrrk.',
+      '.krrkKKKKKKkrrk.',
+      '.krrkkkkkkkkrrk.',
+      '.krrrrrrrrrrrrk.',
+      '.kqqqqqqqqqqqqk.',
+      '.kkkkkkkkkkkkkk.',
+      '................',
+      '................',
+      '................',
+    ],
     coffeeTop: [
       '................',
       '..kkkkkkkkkkkk..',
@@ -1221,6 +1260,12 @@ window.Art = (function () {
             c = gx % 64 === 0 || gy % 64 === 0 ? 'p' : (gx * 13 + gy * 7) % 29 === 0 ? 'p' : 'G';
             break;
           }
+          case '-': {
+            // casino carpet: a dark red diamond lattice with a gold stud in each diamond
+            const gx = tx * 16 + x, gy = ty * 16 + y, p = (gx + gy) & 15, q = (gx - gy) & 15;
+            c = p === 0 || q === 0 ? 'm' : Math.abs(p - 8) + Math.abs(q - 8) <= 2 ? 'q' : 'M';
+            break;
+          }
           case '_': {
             // long planks: 4px tall, a joint every 48px, staggered per row
             const gx = tx * 16 + x, row = Math.floor((ty * 16 + y) / 4);
@@ -1235,17 +1280,19 @@ window.Art = (function () {
       }
   }
 
-  function paintWall(b, get, x, y) {
+  // A wall standing on casino carpet is a casino wall: burgundy with gold pinstripes.
+  function paintWall(b, get, x, y, casino) {
+    const [cap, wall, stripe, base, foot] = casino ? ['t', 'M', 'q', 'T', 't'] : ['d', 'c', 'C', 'n', 'D'];
     const up = get(x, y - 1), dn = get(x, y + 1), lf = get(x - 1, y), rt = get(x + 1, y);
     const face = !isWall(dn) && dn !== ' ';
     const capH = face ? 5 : 16;
     for (let yy = 0; yy < 16; yy++)
       for (let xx = 0; xx < 16; xx++) {
         let c;
-        if (yy < capH) c = 'd';
+        if (yy < capH) c = cap;
         else if (yy === capH) c = 'k';
-        else if (yy >= 13) c = yy === 15 ? 'D' : 'n';
-        else c = (xx % 8 === 3 && yy >= capH + 2 && yy <= 11) ? 'C' : 'c';
+        else if (yy >= 13) c = yy === 15 ? foot : base;
+        else c = (xx % 8 === 3 && yy >= capH + 2 && yy <= 11) ? stripe : wall;
         if ((xx === 0 && !isWall(lf)) || (xx === 15 && !isWall(rt))) c = 'k';
         if (yy === 0 && !isWall(up)) c = 'k';
         if (yy === 15 && !face && !isWall(dn)) c = 'k';
@@ -1296,10 +1343,10 @@ window.Art = (function () {
     }
   }
 
-  // Finished air handling units in shipping, waiting for the truck. Each one is drawn
-  // whole and then cut into tiles, so its doors, portholes and louvres can sit
-  // anywhere on it. The digit on the map picks the design ('0' is the one in the paint booth).
-  function paintShipUnit(b, get, x, y, t) {
+  // Something drawn whole across the block of touching t tiles and then cut into tiles,
+  // so its details can sit anywhere on it. draw(W, H, s, r) paints it (s = set a pixel,
+  // r = fill a rectangle).
+  function paintWhole(b, get, x, y, t, draw) {
     let x0 = x, y0 = y, x1 = x, y1 = y;
     while (get(x0 - 1, y) === t) x0--;
     while (get(x, y0 - 1) === t) y0--;
@@ -1308,10 +1355,56 @@ window.Art = (function () {
     const W = (x1 - x0 + 1) * 16, H = (y1 - y0 + 1) * 16, u = new Array(W * H).fill(null);
     const s = (px, py, c) => { if (px >= 0 && px < W && py >= 0 && py < H) u[py * W + px] = c; };
     const r = (px, py, w, h, c) => { for (let j = py; j < py + h; j++) for (let i = px; i < px + w; i++) s(i, j, c); };
-    SHIP_UNITS[t](W, H, s, r);
+    draw(W, H, s, r);
     const ox = (x - x0) * 16, oy = (y - y0) * 16;
     for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) set(b, i, j, u[(oy + j) * W + ox + i]);
   }
+
+  // Finished air handling units in shipping, waiting for the truck. The digit on the
+  // map picks the design ('0' is the one in the paint booth).
+  const paintShipUnit = (b, get, x, y, t) => paintWhole(b, get, x, y, t, SHIP_UNITS[t]);
+
+  // The tables in Cody's casino: green felt inside a padded wooden rail.
+  const CASINO_TABLES = {
+    // blackjack: a half-moon, with the dealer along the straight side at the top, the
+    // chip rack and the cards in front of them, and the betting spots round the curve
+    '['(W, H, s, r) {
+      const cx = W / 2, rx = W / 2 - 0.5, ry = H - 3.5;
+      const inside = (i, j, k) => ((i + 0.5 - cx) / (rx - k)) ** 2 + ((j + 0.5 - 2) / (ry - k)) ** 2 <= 1;
+      for (let j = 2; j < H; j++)
+        for (let i = 0; i < W; i++) {
+          if (!inside(i, j, 0)) continue;
+          let c = 'k';
+          if (inside(i, j, 1) && j > 2) c = inside(i, j, 2) && j > 3 ? 'T' : 'N';
+          if (inside(i, j, 4) && j > 5) c = inside(i, j, 9) && !inside(i, j, 10) ? 'F' : 'Q';
+          s(i, j, c);
+        }
+      r(cx - 9, 6, 18, 4, 'k');
+      ['r', 'w', 'u', 'o', 'r', 'w', 'u', 'o'].forEach((c, k) => r(cx - 8 + k * 2, 7, 2, 2, c));
+      for (const dx of [-5, 1]) { r(cx + dx, 12, 5, 7, 'k'); r(cx + dx + 1, 13, 3, 5, 'w'); s(cx + dx + 2, 15, 'r'); }
+      for (const a of [0.5, 1.57, 2.64]) {
+        const px = Math.round(cx + Math.cos(a) * (rx - 7)) - 2, py = Math.round(2 + Math.sin(a) * (ry - 7)) - 2;
+        r(px, py, 4, 4, 'F'); r(px + 1, py + 1, 2, 2, 'Q');
+      }
+    },
+    // poker: a long oval, the five community cards in the middle and everyone's chips
+    // round the edge
+    ']'(W, H, s, r) {
+      const R = 14.5, cy = 16.5, half = W / 2 - R - 0.5;
+      const dist = (i, j) => Math.hypot(Math.max(0, Math.abs(i + 0.5 - W / 2) - half), j + 0.5 - cy);
+      for (let j = 0; j < H; j++)
+        for (let i = 0; i < W; i++) {
+          const d = dist(i, j);
+          if (d > R) continue;
+          s(i, j, d > R - 1 ? 'k' : d > R - 2 ? 'N' : d > R - 4 ? 'T' : d > R - 7 && d <= R - 6 ? 'F' : 'Q');
+        }
+      for (let k = 0; k < 5; k++) { const x = W / 2 - 15 + k * 6; r(x, 13, 5, 7, 'k'); r(x + 1, 14, 3, 5, 'w'); s(x + 2, 16, k & 1 ? 'r' : 'k'); }
+      [[12, 15, 'r'], [64, 15, 'u'], [28, 7, 'o'], [48, 7, 'r'], [28, 23, 'u'], [48, 23, 'o']].forEach(([x, y, c]) => {
+        r(x, y, 4, 3, 'k'); r(x + 1, y + 1, 2, 1, c);
+      });
+      r(57, 9, 3, 3, 'k'); s(58, 10, 'w'); // the dealer button
+    },
+  };
 
   // Pieces the shipping units are built from (s = set a pixel, r = fill a rectangle).
   const ahu = {
@@ -1675,7 +1768,7 @@ window.Art = (function () {
     const b = buf();
     const t = get(x, y);
     if (t === ' ') { rect(b, 0, 0, 16, 16, 'k'); return b; }
-    if (t === '#') { paintWall(b, get, x, y); return b; }
+    if (t === '#') { paintWall(b, get, x, y, floorCh === '-'); return b; }
     if (t === 'X') { paintExit(b); return b; }
     if (t === 'E') { paintElevator(b, get, x, y); return b; }
     paintFloor(b, floorCh, x, y);
@@ -1694,6 +1787,8 @@ window.Art = (function () {
       case '!': block(b, con('dm%!'), 'N', 'n', 'y'); break; // the phone itself is drawn by the game, so it can ring
       case '+': paintWorkTable(b, con('+')); break;
       case '0': case '1': case '2': case '3': case '4': case '5': paintShipUnit(b, get, x, y, t); break;
+      case '[': case ']': paintWhole(b, get, x, y, t, CASINO_TABLES[t]); break;
+      case '7': stamp(b, get(x, y + 1) === '7' ? ART.slotTop : ART.slotBottom); break;
       case '^': stamp(b, ART.forklift); break;
       case '&': paintLegoShelf(b, get, x, y); break;
       case 'T': block(b, con('T'), 'y', 'N', 'w'); break;
@@ -1914,7 +2009,7 @@ window.Art = (function () {
     for (let y = 0; y < H; y++)
       for (let x = 0; x < W; x++) {
         const t = floor.tiles[y][x];
-        const c = t === ' ' ? 'w' : t === '#' ? 'k' : t === 'S' || t === 'E' ? 'r' : t === 'X' ? 'u' : '.,:_;D$'.includes(t) ? 'G' : 'g';
+        const c = t === ' ' ? 'w' : t === '#' ? 'k' : t === 'S' || t === 'E' ? 'r' : t === 'X' ? 'u' : '.,:_;-D$'.includes(t) ? 'G' : 'g';
         const rgb = pal[c], i = (y * W + x) * 4;
         img.data[i] = rgb[0]; img.data[i + 1] = rgb[1]; img.data[i + 2] = rgb[2]; img.data[i + 3] = 255;
       }
