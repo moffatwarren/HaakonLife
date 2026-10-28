@@ -22,10 +22,10 @@
   // The online leaderboards' database: the web address of a Firebase Realtime Database
   // (see "Leaderboards" in the README). Left empty, scores stay in this browser only.
   const BOARD_URL = 'https://haakonlife-d4ef2-default-rtdb.firebaseio.com';
-  // Scores are only sent from the hosted copy on GitHub Pages, so playing a local copy
-  // (opening index.html straight from the folder) can't post test scores. Locally the
-  // boards still load; your score just isn't added.
-  const BOARD_POSTS = location.hostname.endsWith('.github.io');
+  // Scores are only sent from the hosted copies (haakonlife.com and GitHub Pages), so
+  // playing a local copy (opening index.html straight from the folder) can't post test
+  // scores. Locally the boards still load; your score just isn't added.
+  const BOARD_POSTS = /(\.github\.io|(^|\.)haakonlife\.com)$/.test(location.hostname);
 
   // ---------- art ----------
   const GENDERS = ['male', 'female'];

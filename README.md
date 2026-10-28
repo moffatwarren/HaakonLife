@@ -170,7 +170,8 @@ leaderboard, it tells you you hold the crown.
 Only the name and the score are sent. If the leaderboard can't be reached the game
 says so and carries on, and best scores are still kept in the browser as before.
 
-Scores are only sent from the hosted copy (an address ending in `github.io`). Opening
+Scores are only sent from the hosted copies (haakonlife.com, or an address ending in
+`github.io`). Opening
 `index.html` straight from the folder still shows the boards, but your score isn't
 added, so testing locally never posts anything.
 
