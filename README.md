@@ -302,6 +302,9 @@ stand in a doorway and trap you.
     rounds they've cleared (not their presses, so they can't give it away). Once one of
     you is out, they watch the other's lights on their panel until they're out too.
     Most rounds wins.
+  - **Pong**: the break room TV's Pong, against each other on one table, first to 5.
+    The game server runs this one (see **Game server**), so it's only in the list when
+    there is one. You're always the left paddle on your own screen.
 
   The treadmill, Snake and the control panel carry on until you're both out.
 
@@ -366,8 +369,9 @@ can connect. The host tells it which port to use. Restarting it (which deploying
 version does) drops everyone for a moment; they reconnect on their own, but a game the
 server was running is lost.
 
-**A game the server runs.** Write it as a module in `server/games/` and list it in
-`server/games/index.js` under a key. `server/rooms.js` describes what it exports: the
+**A game the server runs.** Pong (`server/games/pong.js`, drawn by `PongGame` in
+`js/game.js`) is one, and a good one to copy. Write it as a module in `server/games/` and
+list it in `server/games/index.js` under a key. `server/rooms.js` describes what it exports: the
 starting state, what to do with a player's input, one tick of the game, and what each
 player gets sent. Then add an entry with the same key and `server: true` to `VERSUS` in
 `js/game.js`. Its `Game(m)` draws `m.view` (the latest state from the server), sends
@@ -551,7 +555,7 @@ with `&name=Sam` among them on some boards).
 
 To try a head-to-head game on your own, add `&vs=1` with `game=duel`, `jar`, `lego`,
 `dance`, `coffee`, `run`, `snake` or `simon`. It plays against "Echo", a stand-in who
-sends back everything you send a second later. That's for seeing the screens, not
+sends back everything you send a second later (not Pong, which needs the game server). That's for seeing the screens, not
 for a fair game: the score races always end in a dead heat (`&seed=5` deals a
 different game).
 

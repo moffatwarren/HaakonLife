@@ -3030,10 +3030,20 @@
   }
 
   // ---------- Pong on the big TV ----------
-  function PongGame() {
+  // Against the TV, or another player (VERSUS.pong). Against a player the game server runs
+  // the game (server/games/pong.js, with the same sizes and speeds as here): it moves the
+  // ball and keeps the score, and sends a view of the table 30 times a second (vs.view,
+  // see view() there) with you always on the left. Your paddle moves the moment you
+  // press and the server is told where it is; between views the ball carries on along its
+  // path, and their paddle glides to where the server last had it.
+  function PongGame(vs) {
     const L = 12, R = SW - 12, TOP = 34, BOT = SH - 22, PW = 4, PH = 28, BS = 4, WIN = 5;
     const me = { x: L + 4, y: (TOP + BOT - PH) / 2 }, cpu = { x: R - 8, y: (TOP + BOT - PH) / 2 };
     let state = 'ready', t = 0, mine = 0, theirs = 0, ball = null, wait = 0;
+    const foe = vs ? vs.name : 'TV';
+    // against a player: the server's latest view, where you last told it your paddle is,
+    // and how it ended ('win', 'lose', 'gone' or 'stopped')
+    let view = null, sentY = null, sendT = 0, outcome = null;
     function serve(toCpu) {
       ball = { x: SW / 2, y: (TOP + BOT) / 2, vx: toCpu ? 2.2 : -2.2, vy: (Math.random() * 2 - 1) * 1.5 };
       wait = 40;
@@ -3045,10 +3055,68 @@
       ball.x = dirOut > 0 ? pad.x + PW : pad.x - BS;
       sfx('blip', true);
     }
-    serve(Math.random() < 0.5);
+    if (!vs) serve(Math.random() < 0.5);
+    const num = (n, d) => (typeof n === 'number' && Number.isFinite(n) ? n : d);
+    function hear(v) {
+      if (!v || typeof v !== 'object' || !Array.isArray(v.sc)) return;
+      const sc = [num(v.sc[0], mine), num(v.sc[1], theirs)];
+      // the sounds, from what's happened since the last view
+      if (view) {
+        if (sc[0] > mine) sfx('ding');
+        else if (sc[1] > theirs) sfx('bump');
+        else if (v.bn !== view.bn) sfx('blip', true);
+        else if (v.wn !== view.wn) sfx('blip');
+      } else me.y = num(v.me, me.y);
+      [mine, theirs] = sc;
+      view = v;
+      ball = { x: num(v.bx, SW / 2), y: num(v.by, (TOP + BOT) / 2), vx: num(v.vx, 0), vy: num(v.vy, 0) };
+      wait = num(v.w, 0);
+      state = v.ph ? 'play' : 'ready';
+      t = num(v.t, 0);
+    }
+    function versusOver() {
+      const r = vs.result;
+      if (r && typeof r.w === 'number' && Array.isArray(r.sc)) {
+        const seat = view ? view.s : 0;
+        mine = num(r.sc[seat], mine); theirs = num(r.sc[1 - seat], theirs);
+        outcome = r.w === seat ? 'win' : 'lose';
+      } else outcome = (r && (r.error || r.timeout)) ? 'stopped' : 'gone';
+      state = 'done'; t = 0;
+      sfx(outcome === 'win' ? 'cup' : 'bump');
+    }
+    function versusUpdate() {
+      t++;
+      if (state === 'done') {
+        if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+          remove(self); vs.end();
+          const a = mine + ' to ' + theirs, b = theirs + ' to ' + mine;
+          say(outcome === 'win' ? 'You beat ' + foe + ' at Pong, ' + a + '!'
+            : outcome === 'lose' ? foe + ' beat you at Pong, ' + b + '.'
+              : outcome === 'gone' ? foe + ' has gone. Nobody wins this one.'
+                : 'The TV lost the signal. Nobody wins this one.');
+        }
+        return;
+      }
+      if (pressed.has('b')) { remove(self); vs.end(); say('You switch the TV back to the news.'); return; }
+      if (vs.view !== view) hear(vs.view);
+      if (vs.result !== undefined || vs.gone) { versusOver(); return; }
+      if (!view) return; // the server hasn't started it yet
+      if (held.up) me.y -= 3.5;
+      if (held.down) me.y += 3.5;
+      me.y = Math.max(TOP, Math.min(BOT - PH, me.y));
+      // where your paddle is, at most 30 times a second, and once more when it stops
+      if (me.y !== sentY && ++sendT >= 2) { sendT = 0; sentY = me.y; vs.input({ y: me.y }); }
+      cpu.y += (num(view.them, cpu.y) - cpu.y) / 2;
+      if (state !== 'play') return;
+      if (wait > 0) { wait--; return; }
+      ball.x += ball.vx; ball.y += ball.vy;
+      if (ball.y < TOP) { ball.y = TOP; ball.vy = -ball.vy; }
+      if (ball.y > BOT - BS) { ball.y = BOT - BS; ball.vy = -ball.vy; }
+    }
     const self = {
       music: 'pong',
       update() {
+        if (vs) { versusUpdate(); return; }
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
         if (state === 'done') {
@@ -3094,12 +3162,19 @@
         ctx.fillStyle = '#f8f8f8';
         ctx.fillRect(me.x, Math.round(me.y), PW, PH);
         ctx.fillRect(cpu.x, Math.round(cpu.y), PW, PH);
-        if (state === 'play' && (wait === 0 || (wait >> 2) & 1)) ctx.fillRect(Math.round(ball.x), Math.round(ball.y), BS, BS);
+        // (against a player the ball can run a step past the edge before the server says
+        // who scored)
+        if (state === 'play' && ball.x > L - 8 && ball.x < R + 8 && (wait === 0 || (wait >> 2) & 1)) ctx.fillRect(Math.round(ball.x), Math.round(ball.y), BS, BS);
         text('YOU', L, 10, 1, '#f8f8f8');
-        text('TV', R - 12, 10, 1, '#f8f8f8');
+        text(foe.toUpperCase(), R - foe.length * 6, 10, 1, '#f8f8f8');
         text('First to ' + WIN, SW / 2 - 27, 10, 1, '#f8f8f8');
-        if (state === 'ready') readyBox(t, 'Up/Down: move paddle');
-        else if (state === 'done') doneBox([mine > theirs ? 'You win!' : 'The TV wins.', mine + ' - ' + theirs, ''], t);
+        if (vs && !view && state !== 'done') { box(60, 92, 200, 48); ctext('Waiting for ' + foe + '...', 104); ctext('Esc: give up', 120); }
+        else if (state === 'ready') readyBox(t, 'Up/Down: move paddle');
+        else if (state === 'done' && vs) {
+          doneBox(outcome === 'gone' ? [foe + ' left.', 'Nobody wins this one.', '']
+            : outcome === 'stopped' ? ['The TV lost the signal.', 'Nobody wins this one.', '']
+              : [outcome === 'win' ? 'You beat ' + foe + '!' : foe + ' wins!', mine + ' - ' + theirs, ''], t);
+        } else if (state === 'done') doneBox([mine > theirs ? 'You win!' : 'The TV wins.', mine + ' - ' + theirs, ''], t);
         else text('Esc: give up', L, SH - 12, 1, '#f8f8f8');
       },
     };
@@ -9432,6 +9507,7 @@
     coffee: { label: 'COFFEE MACHINE', title: 'a coffee catch-off', Game: (m) => CoffeeGame(m) },
     run: { label: 'TREADMILL', title: 'a treadmill race', Game: (m) => RunGame(m) },
     snake: { label: 'SNAKE', title: 'a game of Snake', Game: (m) => SnakeGame(m) },
+    pong: { label: 'PONG', title: 'a game of Pong', server: true, Game: (m) => PongGame(m) },
     simon: { label: 'CONTROL PANEL', title: 'a control panel showdown', Game: (m) => SimonGame(m) },
   };
   // A small seeded random number generator (mulberry32), so both players in a match get
@@ -10558,7 +10634,7 @@
     // &vs=1 plays a head-to-head game (a VERSUS key: duel, jar, lego, dance, coffee, run,
     // snake, simon) against "Echo", a stand-in who sends you back everything you send, a
     // second later
-    const versus = q.has('vs') && VERSUS[q.get('game')];
+    const versus = q.has('vs') && VERSUS[q.get('game')] && !VERSUS[q.get('game')].server && VERSUS[q.get('game')];
     if (versus) {
       const later = [];
       const echo = {

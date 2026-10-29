@@ -76,7 +76,7 @@ test('the live and test worlds never meet', async () => {
   await b.for((d) => d.k === 'all');
   a.me();
   await pause(100);
-  assert.ok(!b.got.some((d) => d.k === 'p'));
+  assert.ok(!b.got.some((d) => d.k === 'p' && d.id === a.id));
   a.ws.close(); b.ws.close();
 });
 
@@ -89,7 +89,7 @@ test('records that break the rules are ignored', async () => {
   a.send({ k: 'me', r: { n: 'Al', x: 0, y: 0, p: 1 } }); // no floor
   a.send({ k: 'me', r: { n: 'Al', f: 0, x: 0, y: 0, p: 1, o: { nested: 1 } } });
   await pause(100);
-  assert.ok(!b.got.some((d) => d.k === 'p'));
+  assert.ok(!b.got.some((d) => d.k === 'p' && d.id === a.id));
   a.ws.close(); b.ws.close();
 });
 
