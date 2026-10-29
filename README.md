@@ -266,9 +266,14 @@ stand in a doorway and trap you.
 - **Say something**: from the Start menu, or walk up to another player and press A.
   Pick **Small talk** (Hi!, Follow me!, Good game! and so on) or **Shop talk** (Check
   the CFM!, Coil's frozen!, Is that REV C? and so on), then a line, and it pops up over
-  your head for everyone near you. The lines are a fixed list (`MP_SAY` in
-  `js/game.js`), so there's no typing. Add new lines only at the end of the last page
-  (or as a new page), because players on older versions would otherwise see the wrong line.
+  your head for everyone near you. Or pick **Custom** and type your own, up to 32
+  characters (letters, numbers and `. , ! ? ' " - : / & ( ) +`): straight from a
+  keyboard, or on a phone by picking characters with the D-pad and A, then START to say
+  it. Nothing filters what people type, so it's down to everyone to keep it office-friendly.
+  The ready-made lines are a list (`MP_SAY` in `js/game.js`) and are sent as their place
+  in it, so add new ones only at the end of the last page (or as a new page), because
+  players on older versions would otherwise see the wrong line. A typed line goes in your
+  record as two 16-character pieces (`w0` and `w1`); older versions just don't show it.
 - **Challenge**: walk up to another player, press A and pick a game:
   - **Air duel**: Richard's air handling duel, against each other. You each pick a
     move in secret and the round plays out once you've both picked.
@@ -291,10 +296,11 @@ stand in a doorway and trap you.
   - **Coffee machine**: you both get the same pour, and their cup chases the drops as a
     faint outline (with a notch beside your fill meter for how full theirs is). Most
     drops caught wins.
-  - **Treadmill**: you both get the same gym clutter, and they run along with you as a
-    see-through ghost, where they were at that point in their run. If you wipe out
-    first, the belt keeps going and you watch their ghost run on until they wipe out
-    too. Furthest wins.
+  - **Treadmill**: you both get the same gym clutter, and they run on a second treadmill
+    further back, with their name over their head, where they were at that point in
+    their run. If you wipe out first, you step off and watch them run on until they
+    wipe out too; if they wipe out first, their belt stops and they watch you. Furthest
+    wins.
   - **Snake**: your TV shrinks to make room for a small one showing theirs. The food
     turns up in the same places for both of you (unless it would land on your snake).
     Whoever crashes first watches the other's TV until they crash too. Most food wins.

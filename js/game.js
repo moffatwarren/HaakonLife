@@ -603,6 +603,9 @@
   addEventListener('keydown', (e) => {
     // naming yourself: keys type letters, and only the arrows keep their game meaning
     if (mode === 'name' && !fade && (nameKey(e) || !e.code.startsWith('Arrow'))) { e.preventDefault(); return; }
+    // the same for a box you type into (it has key())
+    const typing = top();
+    if (typing && typing.key && !fade && (typing.key(e) || !e.code.startsWith('Arrow'))) { e.preventDefault(); return; }
     if (e.code === 'Escape' && !e.repeat) escAs = mode === 'play' && !ui.length && !fade ? 'start' : 'b';
     const k = e.code === 'Escape' ? escAs : KEYS[e.code];
     if (!k) return;
@@ -2891,43 +2894,52 @@
   }
 
   // ---------- treadmill runner: jump over the gym clutter ----------
-  // Against a player (vs) you both get the same clutter, and they run beside you as a
-  // ghost; whoever gets further wins. If you wipe out first, the belt keeps going so you
-  // can watch them run on until they wipe out too.
+  // Against a player (vs) you both get the same clutter, and they run on a treadmill of
+  // their own further back, where they were at this point in their run; whoever gets
+  // further wins. If you wipe out first, you step off and watch them run on until they
+  // wipe out too.
   function RunGame(vs) {
     const FLOOR = 196, PX = 56, STAND = 28, DUCK = 14, CEIL = 36;
+    // Their treadmill is drawn full size on a canvas of its own (back), then shrunk to half
+    // at (BX, BY), so their sprite stays crisp. `pen` is what the clutter and lane() draw
+    // on: the screen, or for a moment that canvas.
+    const BX = 80, BY = CEIL / 2;
+    const back = vs ? document.createElement('canvas') : null;
+    if (back) { back.width = SW; back.height = SH; }
+    let pen = ctx;
     // Things on the belt to jump over (h = how tall)...
     const LOW = [
-      { w: 18, h: 8, draw: (x, y) => { ctx.fillStyle = col.dark; ctx.fillRect(x, y, 18, 8); ctx.fillStyle = '#58b8a8'; ctx.fillRect(x + 1, y + 1, 16, 6); ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 1, y + 3, 16, 1); } },
-      { w: 16, h: 12, draw: (x, y) => { ctx.fillStyle = col.dark; ctx.fillRect(x, y, 5, 12); ctx.fillRect(x + 11, y, 5, 12); ctx.fillRect(x + 4, y + 5, 8, 2); } },
+      { w: 18, h: 8, draw: (x, y) => { pen.fillStyle = col.dark; pen.fillRect(x, y, 18, 8); pen.fillStyle = '#58b8a8'; pen.fillRect(x + 1, y + 1, 16, 6); pen.fillStyle = '#f8f8f8'; pen.fillRect(x + 1, y + 3, 16, 1); } },
+      { w: 16, h: 12, draw: (x, y) => { pen.fillStyle = col.dark; pen.fillRect(x, y, 5, 12); pen.fillRect(x + 11, y, 5, 12); pen.fillRect(x + 4, y + 5, 8, 2); } },
       { w: 10, h: 22, draw: (x, y) => {
-        ctx.fillStyle = col.dark; ctx.fillRect(x, y + 3, 10, 19); ctx.fillRect(x + 3, y, 4, 4);
-        ctx.fillStyle = '#58a8e0'; ctx.fillRect(x + 1, y + 6, 8, 15);
-        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 2, y + 7, 2, 6);
+        pen.fillStyle = col.dark; pen.fillRect(x, y + 3, 10, 19); pen.fillRect(x + 3, y, 4, 4);
+        pen.fillStyle = '#58a8e0'; pen.fillRect(x + 1, y + 6, 8, 15);
+        pen.fillStyle = '#f8f8f8'; pen.fillRect(x + 2, y + 7, 2, 6);
       } },
       { w: 18, h: 32, draw: (x, y) => { // a stack of weight plates
         for (let i = 0; i < 4; i++) {
-          ctx.fillStyle = col.dark; ctx.fillRect(x + (i & 1), y + i * 8, 17, 8);
-          ctx.fillStyle = i & 1 ? '#585868' : '#c03838'; ctx.fillRect(x + 1 + (i & 1), y + i * 8 + 1, 15, 6);
+          pen.fillStyle = col.dark; pen.fillRect(x + (i & 1), y + i * 8, 17, 8);
+          pen.fillStyle = i & 1 ? '#585868' : '#c03838'; pen.fillRect(x + 1 + (i & 1), y + i * 8 + 1, 15, 6);
         }
       } },
     ];
     // ...and things hanging from above to duck under (gap = clearance above the belt)
     const HIGH = [
       { w: 16, gap: 20, draw: (x, y) => { // punching bag on a chain
-        ctx.fillStyle = col.dark; ctx.fillRect(x + 7, CEIL, 2, y - 30 - CEIL); ctx.fillRect(x, y - 30, 16, 30);
-        ctx.fillStyle = '#b03030'; ctx.fillRect(x + 1, y - 29, 14, 28);
-        ctx.fillStyle = col.dark; ctx.fillRect(x + 1, y - 24, 14, 2); ctx.fillRect(x + 1, y - 7, 14, 2);
+        pen.fillStyle = col.dark; pen.fillRect(x + 7, CEIL, 2, y - 30 - CEIL); pen.fillRect(x, y - 30, 16, 30);
+        pen.fillStyle = '#b03030'; pen.fillRect(x + 1, y - 29, 14, 28);
+        pen.fillStyle = col.dark; pen.fillRect(x + 1, y - 24, 14, 2); pen.fillRect(x + 1, y - 7, 14, 2);
       } },
       { w: 26, gap: 20, draw: (x, y) => { // towel over a pull-up bar
-        ctx.fillStyle = col.dark; ctx.fillRect(x + 2, CEIL, 2, y - 18 - CEIL); ctx.fillRect(x + 22, CEIL, 2, y - 18 - CEIL);
-        ctx.fillRect(x, y - 20, 26, 3); ctx.fillRect(x + 6, y - 17, 14, 17);
-        ctx.fillStyle = '#e8c048'; ctx.fillRect(x + 7, y - 17, 12, 16);
-        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 7, y - 5, 12, 2);
+        pen.fillStyle = col.dark; pen.fillRect(x + 2, CEIL, 2, y - 18 - CEIL); pen.fillRect(x + 22, CEIL, 2, y - 18 - CEIL);
+        pen.fillRect(x, y - 20, 26, 3); pen.fillRect(x + 6, y - 17, 14, 17);
+        pen.fillStyle = '#e8c048'; pen.fillRect(x + 7, y - 17, 12, 16);
+        pen.fillStyle = '#f8f8f8'; pen.fillRect(x + 7, y - 5, 12, 2);
       } },
     ];
     let state = 'ready', t = 0, h = 0, vy = 0, speed = 3, dist = 0, nextAt = 220, obs = [], record = false, ducking = false;
     let frame = 0;
+    let myStop = null, theirStop = null; // how far the belts had gone when each of you stepped off
     const metres = () => Math.floor(dist / 16);
     const rnd = vs ? vs.rng : Math.random, ghost = ghostTrack();
     const race = vs && scoreRace(vs, { what: 'the treadmill', fmt: (n) => n + 'm', hear: (m) => ghost.add(m) });
@@ -2942,6 +2954,17 @@
       }
       for (const o of obs) o.x -= speed;
       obs = obs.filter((o) => o.x + o.k.w > 0);
+    }
+    // A treadmill and whoever is on it ({ img, h, duck }). `stop`: how far its belt had gone
+    // when it stopped (then there's no clutter on it), or null while it's running.
+    function lane(who, stop) {
+      const d = stop === null ? dist : stop;
+      pen.fillStyle = col.dark; pen.fillRect(8, FLOOR, SW - 16, 14);
+      pen.fillStyle = '#585868';
+      for (let x = 8 - Math.floor(d) % 24; x < SW - 8; x += 24) if (x >= 8) pen.fillRect(x, FLOOR + 4, 12, 3);
+      if (stop === null) for (const o of obs) o.k.draw(Math.round(o.x), FLOOR - (o.k.gap || o.k.h));
+      if (who.duck) pen.drawImage(who.img, PX, FLOOR - 17, 32, 17);
+      else pen.drawImage(who.img, PX, FLOOR - 32 - who.h, 32, 32);
     }
     const self = {
       music: 'run',
@@ -2998,30 +3021,34 @@
           ctx.fillStyle = col.dark; ctx.fillRect(cx, 60, cw, 50);
           ctx.fillStyle = '#a8d8f0'; ctx.fillRect(Math.max(9, wx + 2), 62, Math.max(0, Math.min(SW - 9, wx + 48) - Math.max(9, wx + 2)), 46);
         }
-        // treadmill belt with moving stripes
-        ctx.fillStyle = col.dark; ctx.fillRect(8, FLOOR, SW - 16, 14);
-        ctx.fillStyle = '#585868';
-        for (let x = 8 - Math.floor(dist) % 24; x < SW - 8; x += 24) if (x >= 8) ctx.fillRect(x, FLOOR + 4, 12, 3);
-        for (const o of obs) o.k.draw(Math.round(o.x), FLOOR - (o.k.gap || o.k.h));
-        // the other player, see-through, where they were this far into the run (until they wipe out)
-        if (race && ghost.started && !(race.theirsDone && frame > ghost.end)) {
-          const gh = Math.round(ghost.at(frame, 'h')), gd = ghost.at(frame, 'd') > 0.5;
-          const gs = vs.sprites.right[gh > 0 ? 0 : (t >> 3) & 1 ? 2 : 1];
-          // clearer once you're out and it's just them
-          ctx.globalAlpha = state === 'wait' ? 0.8 : 0.4;
-          if (gd) ctx.drawImage(gs, PX, FLOOR - 17, 32, 17);
-          else ctx.drawImage(gs, PX, FLOOR - 32 - gh, 32, 32);
-          ctx.globalAlpha = 1;
+        // the other player's treadmill, further back: the same clutter as yours (it's the
+        // same run), with them where they were this far into it. Once they've wiped out
+        // their belt stops, and they stand there watching you.
+        if (back) {
+          const out = race.theirsDone && frame > ghost.end, running = ghost.started && !out;
+          if (out && theirStop === null) theirStop = dist;
+          const gh = running ? Math.round(ghost.at(frame, 'h')) : 0, gd = running && ghost.at(frame, 'd') > 0.5;
+          const img = out ? vs.sprites.down[0] : vs.sprites.right[gh > 0 || !running ? 0 : (t >> 3) & 1 ? 2 : 1];
+          const bctx = back.getContext('2d');
+          bctx.clearRect(0, 0, SW, SH);
+          pen = bctx;
+          lane({ img, h: gh, duck: gd }, out ? theirStop : null);
+          pen = ctx;
+          ctx.drawImage(back, BX, BY, SW / 2, SH / 2);
+          // their name over their head
+          const nx = BX + (PX + 16) / 2, ny = BY + Math.round((FLOOR - (gd ? 17 : 32) - gh) / 2) - 11, w = vs.name.length * 6 + 3;
+          ctx.globalAlpha = 0.7; ctx.fillStyle = col.dark; ctx.fillRect(nx - (w >> 1), ny, w, 10); ctx.globalAlpha = 1;
+          text(vs.name, nx - (w >> 1) + 2, ny + 1, 1, '#f8f8f8');
         }
+        // your treadmill. Once you're out (against a player) you've stepped off, and you
+        // stand on your stopped belt watching them.
+        const off = vs && (state === 'wait' || state === 'over');
+        if (off && myStop === null) myStop = dist;
         const step = h > 0 || state !== 'play' ? 0 : (t >> 3) & 1 ? 1 : 2;
-        // (once you're out you've stepped off, and it's just their ghost)
-        if (state !== 'wait') {
-          if (ducking) ctx.drawImage(sprites.right[step], PX, FLOOR - 17, 32, 17);
-          else ctx.drawImage(sprites.right[step], PX, FLOOR - 32 - Math.round(h), 32, 32);
-        }
+        lane(off ? { img: sprites.down[0], h: 0 } : { img: sprites.right[step], h: Math.round(h), duck: ducking }, off ? myStop : null);
         if (state === 'ready') readyBox(t, 'Space: jump  Down: duck');
         else if (state === 'over') race.box(t);
-        else if (state === 'wait') race.waitBox();
+        else if (state === 'wait') text(vs.name + ' is still running.  Esc: leave', 16, SH - 14);
         else if (state === 'done') doneBox(['Wipeout!', 'You ran ' + metres() + 'm', record ? 'New record!' : 'Best ' + getBest('run') + 'm'], t);
         else text('Esc: give up', 16, SH - 14);
       },
@@ -9487,9 +9514,15 @@
       'Is that REV C?', 'Ship it today!', 'Run it through SDG.', 'Belt\'s slipping!', 'Mind the static!']],
   ];
   const MP_LINES = MP_SAY.flatMap(([, lines]) => lines);
+  // Or type your own (CUSTOM on that menu): up to MP_TYPE_MAX of the characters the font
+  // has. It goes in your record as w0 and w1, 16 characters each, since a record only
+  // carries short strings.
+  const MP_TYPE_MAX = 32;
+  const MP_TYPE_OK = /[A-Za-z0-9 .,!?'"\-:\/&#()+%]/;
+  const mpClean = (str) => [...String(str)].filter((ch) => MP_TYPE_OK.test(ch)).join('').replace(/\s+/g, ' ').trim().slice(0, MP_TYPE_MAX);
   const mp = {
     id: Math.random().toString(36).slice(2, 12), on: false, heard: false, others: {}, mail: [],
-    sending: false, sentKey: '', lastSend: 0, tickAt: Date.now(), say: -1, sayN: 0, bubble: null, newer: false, nudged: false,
+    sending: false, sentKey: '', lastSend: 0, tickAt: Date.now(), say: -1, sayText: '', sayN: 0, bubble: null, newer: false, nudged: false,
     pending: null, invite: null, match: null,
   };
   // the head-to-head games: a challenge names one by key. These all run in each player's
@@ -9639,7 +9672,8 @@
       const rec = {
         n: String(r.n || '?').slice(0, NAME_MAX), g, l: looks[r.l] ? r.l : 0, c: Art.COSTUMES[r.c] ? r.c : '',
         f: MAPS.floors[r.f] ? r.f : 0, x: +r.x || 0, y: +r.y || 0, d: DIRS[r.d] ? r.d : 'down', b: !!r.b,
-        s: MP_LINES[r.s] ? r.s : -1, sn: +r.sn || 0, v: +r.v || 0, t: +r.t || 0, tc: !!r.tc,
+        s: MP_LINES[r.s] ? r.s : -1, w: mpClean((typeof r.w0 === 'string' ? r.w0 : '') + (typeof r.w1 === 'string' ? r.w1 : '')),
+        sn: +r.sn || 0, v: +r.v || 0, t: +r.t || 0, tc: !!r.tc,
       };
       let o = mp.others[id];
       if (!o) {
@@ -9651,7 +9685,7 @@
         continue;
       }
       if (rec.t !== o.t) o.seen = now;
-      if (rec.sn !== o.sn && rec.s >= 0) o.said = now;
+      if (rec.sn !== o.sn && (rec.s >= 0 || rec.w)) o.said = now;
       Object.assign(o, rec);
     }
     if (MP_VER && mpHere().some((o) => o.v > MP_VER)) mp.newer = true;
@@ -9703,11 +9737,13 @@
   // Your own record goes up whenever something about it changes (at most ten times a
   // second), and every few seconds anyway so everyone knows you're still here.
   function mpRecord() {
-    return {
+    const rec = {
       n: playerName || 'New Hire', g: pick.gender, l: pick.index, c: hw.worn ? hw.costume : '', f: P.floor,
       x: P.x + (P.moving ? P.mdx : 0), y: P.y + (P.moving ? P.mdy : 0), d: P.dir, b: ui.length || fade ? 1 : 0,
       s: mp.say, sn: mp.sayN, v: MP_VER, p: MP_PROTO, tc: isTouch ? 1 : 0,
     };
+    if (mp.sayText) { rec.w0 = mp.sayText.slice(0, 16); if (mp.sayText.length > 16) rec.w1 = mp.sayText.slice(16); }
+    return rec;
   }
   function mpPut() {
     const rec = mpRecord(), key = JSON.stringify(rec), now = Date.now();
@@ -9837,7 +9873,7 @@
       mp.nudged = true;
       say('Somebody here has a newer version of the game. Reload the page (or START > UPDATE GAME) to get it.');
     }
-    if (mp.bubble && ++mp.bubble.t > 180) mp.bubble = null;
+    if (mp.bubble && ++mp.bubble.t > mpSayFor(mp.bubble.str)) mp.bubble = null;
     for (const o of Object.values(mp.others)) {
       const tx = o.x * 16, ty = o.y * 16, dx = tx - o.px, dy = ty - o.py;
       // a floor change, or falling more than a few tiles behind, jumps straight there
@@ -9871,21 +9907,93 @@
       const w = o.n.length * 6 + 3;
       ctx.globalAlpha = 0.7; ctx.fillStyle = col.dark; ctx.fillRect(sx - (w >> 1), sy - 11, w, 10); ctx.globalAlpha = 1;
       text(o.n, sx - (w >> 1) + 2, sy - 10, 1, '#f8f8f8');
-      if (o.said && o.sn !== o.sn0 && now - o.said < 3000) mpBubble(MP_LINES[o.s], sx, sy - 28);
+      const said = o.s >= 0 ? MP_LINES[o.s] : o.w;
+      if (o.said && o.sn !== o.sn0 && said && now - o.said < mpSayFor(said) * 1000 / 60) mpBubble(said, sx, sy - 28);
       else if (o.b) mpBubble('.'.repeat(1 + ((tick >> 4) % 3)).padEnd(3), sx, sy - 28);
     }
-    if (mp.bubble) mpBubble(MP_LINES[mp.bubble.s], px - cx + 8, py - cy - 22);
+    if (mp.bubble) mpBubble(mp.bubble.str, px - cx + 8, py - cy - 22);
   }
 
+  // ticks a speech bubble stays up: 3 seconds, longer for a long one you typed
+  const mpSayFor = (str) => Math.max(180, str.length * 9);
+  function mpSay(i, str) {
+    mp.say = i; mp.sayText = i < 0 ? str : ''; mp.sayN++;
+    mp.bubble = { str: i < 0 ? str : MP_LINES[i], t: 0 };
+  }
   function mpSayMenu() {
-    ui.push(Choice(MP_SAY.map(([page]) => page), -1, 0, (p) => {
+    ui.push(Choice(MP_SAY.map(([page]) => page).concat(['CUSTOM']), -1, 0, (p) => {
       if (p < 0) return;
+      if (p === MP_SAY.length) { ui.push(MpType()); return; }
       const first = MP_SAY.slice(0, p).reduce((n, [, lines]) => n + lines.length, 0);
       ui.push(Choice(MP_SAY[p][1], -1, 0, (i) => {
         if (i < 0) { mpSayMenu(); return; } // back to the pages
-        mp.say = first + i; mp.sayN++; mp.bubble = { s: mp.say, t: 0 };
+        mpSay(first + i);
       }));
     }));
+  }
+  // Typing your own line: straight from a keyboard, or picking characters with the arrows
+  // (or D-pad) + A, like naming yourself. B rubs out a character, or backs out once it's
+  // empty.
+  const MP_TYPE_ROWS = ['ABCDEFGHIJKLM', 'NOPQRSTUVWXYZ', 'abcdefghijklm', 'nopqrstuvwxyz', '0123456789', '.,!?\'"-:/&()+']
+    .map((r) => r.split('')).concat([['SPACE', 'DEL', 'SAY IT']]);
+  function MpType() {
+    let str = '';
+    const cur = { r: 0, c: 0 }, Y = SH - 152;
+    const row = () => MP_TYPE_ROWS[cur.r];
+    function type(tok) {
+      if (tok === 'SAY IT') { done(); return; }
+      if (tok === 'DEL') { if (str) { str = str.slice(0, -1); sfx('select'); } else { remove(self); sfx('select'); mpSayMenu(); } return; }
+      if (str.length >= MP_TYPE_MAX) { sfx('bump'); return; }
+      str += tok === 'SPACE' ? ' ' : tok; sfx('blip');
+    }
+    function done() {
+      remove(self);
+      const line = mpClean(str);
+      if (line) { sfx('select'); mpSay(-1, line); }
+    }
+    const self = {
+      overlay: true,
+      // a keyboard types straight in (see the keydown listener); only the arrows still
+      // move around the characters
+      key(e) {
+        if (e.code === 'Enter') { if (!e.repeat) done(); return true; }
+        if (e.code === 'Escape') { if (!e.repeat) { remove(self); sfx('select'); } return true; }
+        if (e.code === 'Backspace') { if (str) type('DEL'); return true; }
+        // (not a held key repeating: Space or E opened this box, and might still be down)
+        if (e.key && e.key.length === 1 && MP_TYPE_OK.test(e.key)) { if (!e.repeat) type(e.key === ' ' ? 'SPACE' : e.key); return true; }
+        return false;
+      },
+      update() {
+        if (pressed.has('up')) { cur.r = (cur.r + MP_TYPE_ROWS.length - 1) % MP_TYPE_ROWS.length; cur.c = Math.min(cur.c, row().length - 1); sfx('select'); }
+        if (pressed.has('down')) { cur.r = (cur.r + 1) % MP_TYPE_ROWS.length; cur.c = Math.min(cur.c, row().length - 1); sfx('select'); }
+        if (pressed.has('left')) { cur.c = (cur.c + row().length - 1) % row().length; sfx('select'); }
+        if (pressed.has('right')) { cur.c = (cur.c + 1) % row().length; sfx('select'); }
+        if (pressed.has('a')) type(row()[cur.c]);
+        if (pressed.has('b')) type('DEL');
+        if (pressed.has('start')) done();
+      },
+      draw() {
+        box(0, Y, SW, SH - Y);
+        text('Say something:', 10, Y + 8);
+        const n = MP_TYPE_MAX - str.length + '';
+        text(n, SW - 10 - n.length * 6, Y + 8, 1, '#686878');
+        ctx.fillStyle = col.dark; ctx.fillRect(8, Y + 19, SW - 16, 15);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(9, Y + 20, SW - 18, 13);
+        text(str, 12, Y + 23);
+        if ((tick >> 4) & 1) { ctx.fillStyle = col.dark; ctx.fillRect(12 + str.length * 6, Y + 22, 1, 9); }
+        MP_TYPE_ROWS.forEach((r, ri) => {
+          const last = ri === MP_TYPE_ROWS.length - 1;
+          r.forEach((tok, c) => {
+            const x = last ? 30 + c * 64 : 30 + c * 20, y = Y + 42 + ri * 13;
+            const sel = cur.r === ri && cur.c === c;
+            if (sel) { ctx.fillStyle = col.dark; ctx.fillRect(x - 3, y - 3, tok.length * 6 + 5, 13); }
+            text(tok, x, y, 1, sel ? col.light : col.dark);
+          });
+        });
+        text(isTouch ? 'A: pick  B: rub out  START: say it' : 'Type, then Enter   Esc: cancel', 10, SH - 14, 1, '#686878');
+      },
+    };
+    return self;
   }
   function mpChallenge(o) {
     const keys = Object.keys(VERSUS).filter((k) => MP_WS || !VERSUS[k].server);
