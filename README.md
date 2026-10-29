@@ -143,8 +143,9 @@ When you finish a game that has a score, you see the top ten of everyone who has
 played it on the website, under the name they typed at the start, with your own row
 picked out (and added underneath if you didn't make the top ten). Each name has one
 row per game, holding its best score, so the same name on a phone and a computer is
-one person. Pong, Richard's duel, Wade's match and Kiki's jar are win-or-lose, so
-they have no board.
+one person. Richard's duel, Wade's match and Kiki's jar are win-or-lose, so
+they have no board. Pong's board counts how many times each name has beaten the TV:
+each win adds one and shows the board, and a loss leaves it alone.
 
 ### The Hall of Fame
 
@@ -247,8 +248,8 @@ board), delete it on the Data tab in the Firebase console: rows are under
 lights, mummy wrap) are stored as negative numbers.
 
 Which games have a board, and their titles, is the `BOARDS` list in `js/game.js`. The two
-quests are stored the same way, under `scores/linda` and `scores/eotm`, with the number
-of times as the score, so the rules above already cover them.
+quests and Pong are stored the same way, under `scores/linda`, `scores/eotm` and
+`scores/pong`, with the number of times as the score, so the rules above already cover them.
 
 ## Playing together
 

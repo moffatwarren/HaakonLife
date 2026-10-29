@@ -2192,7 +2192,7 @@
     stack: { title: 'PHOTOCOPIER' }, simon: { title: 'CONTROL PANEL' }, lunch: { title: 'FIND MY LUNCH' },
     candy: { title: 'CANDY TABLE' }, squat: { title: 'SQUAT RACK', unit: ' lb' }, fan: { title: 'FAN BALANCING' },
     coil: { title: 'COOLING COIL', unit: 's' }, damper: { title: 'DAMPERS' }, filter: { title: 'FILTER CHANGE' },
-    snake: { title: 'SNAKE' }, parts: { title: 'PARTS SORTING' }, cable: { title: 'CABLE TIDY' }, cpr: { title: 'CPR' },
+    snake: { title: 'SNAKE' }, pong: { title: 'BEAT THE TV AT PONG', unit: times, count: true }, parts: { title: 'PARTS SORTING' }, cable: { title: 'CABLE TIDY' }, cpr: { title: 'CPR' },
     engrave: { title: 'ENGRAVER', unit: '%' }, pulldown: { title: 'LAT PULLDOWN' }, ball: { title: 'EXERCISE BALL', unit: 's' },
     desk: { title: 'FRONT DESK' }, jam: { title: 'PAPER JAM' }, laundry: { title: 'LAUNDRY' },
     forms: { title: 'JHONNA\'S FORMS' }, trophy: { title: 'NATHAN\'S TROPHIES' }, legolines: { title: 'JOE\'S BRICK BATTLE' },
@@ -2205,8 +2205,8 @@
     golf: { title: 'WADE\'S PUTTING GREEN', low: true }, dark: { title: 'DAMIR\'S LIGHTS', unit: 's', low: true },
     mummy: { title: 'MUMMY WRAP', unit: tenths, low: true },
     forklift: { title: 'FORKLIFT RUSH', unit: ' pallets' }, paint: { title: 'EVEN COAT' },
-    // the side quests: the "score" is how many times that name has done it (see questBoard)
-    linda: { title: 'LINDA SET FREE', unit: times, quest: true }, eotm: { title: 'EMPLOYEE OF THE MONTH', unit: times, quest: true },
+    // the side quests: the "score" is how many times that name has done it (see questBoard), as it is for Pong (count)
+    linda: { title: 'LINDA SET FREE', unit: times, quest: true, count: true }, eotm: { title: 'EMPLOYEE OF THE MONTH', unit: times, quest: true, count: true },
   };
   // tools/test.html sets BOARD_DEMO: the boards show made-up rows and nothing is sent
   const boardDemo = !!window.BOARD_DEMO;
@@ -2217,9 +2217,9 @@
     if (!BOARDS[key] || !(BOARD_URL || boardDemo)) return;
     pendingBoard = { key, score, owner: top() };
   }
-  // Linda freed or Employee of the Month won: one more time on that quest's board. The
-  // count goes up from what the database already holds for the name, so playing on a phone
-  // and a computer adds up. The board goes up once everything that was being said is done.
+  // Linda freed, Employee of the Month won or the TV beaten at Pong: one more time on that
+  // board. The count goes up from what the database already holds for the name, so playing
+  // on a phone and a computer adds up. The board goes up once everything that was being said is done.
   function questBoard(key) {
     if (!(BOARD_URL || boardDemo)) return;
     const name = playerName || store.get('name') || '';
@@ -2251,7 +2251,7 @@
   function boardLoad(key, name, score) {
     const val = BOARDS[key].low ? -score : score, id = boardKey(name), send = name && score > 0 && (BOARD_POSTS || boardDemo);
     if (boardDemo) {
-      const rows = DEMO_NAMES.map((n, i) => ({ id: boardKey(n), name: n, score: BOARDS[key].low ? -(20 + i * 3) : BOARDS[key].quest ? Math.max(1, 7 - i) : 100 - i * 7, t: i }));
+      const rows = DEMO_NAMES.map((n, i) => ({ id: boardKey(n), name: n, score: BOARDS[key].low ? -(20 + i * 3) : BOARDS[key].count ? Math.max(1, 7 - i) : 100 - i * 7, t: i }));
       const mine = send ? { name, score: val } : null;
       if (mine) rows.push({ id, name, score: val, t: 99 });
       return Promise.resolve({ rows: boardSort(rows), mine });
@@ -2314,7 +2314,7 @@
   const FAME_GROUPS = [
     ['OFFICE', ['coffee', 'toss', 'lunch', 'candy', 'stack', 'simon', 'desk', 'jam', 'filter']],
     ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pulldown', 'ball', 'laundry']],
-    ['TVS AND CODY\'S CASINO', ['snake', 'poker', 'blackjack', 'slots']],
+    ['TVS AND CODY\'S CASINO', ['pong', 'snake', 'poker', 'blackjack', 'slots']],
     ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cpr', 'engrave', 'golf', 'legosolo']],
     ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catch']],
     ['KINGSTON PLANT', ['forklift', 'paint']],
@@ -2340,7 +2340,7 @@
       if (hash(key) % 6 === 0) return Promise.resolve([]);
       const crowd = DEMO_NAMES.concat(name ? [name] : []).filter((n) => hash(key + n) % 3);
       return Promise.resolve(crowd.map((n) => {
-        const v = BOARDS[key].quest ? hash(n + key) % 4 + 1 : hash(n + key) % 400 + 1;
+        const v = BOARDS[key].count ? hash(n + key) % 4 + 1 : hash(n + key) % 400 + 1;
         return { id: boardKey(n), name: n, score: BOARDS[key].low ? -v : v, t: Date.now() - hash(key + n) % 6e8 };
       }).sort(byScore));
     }
@@ -3055,6 +3055,7 @@
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
             questNote('pong', mine > theirs ? 1 : 0);
+            if (mine > theirs) questBoard('pong');
             say(mine > theirs ? 'You beat the TV at Pong! The news can wait.' : 'The TV beat you. Maybe just watch the news.');
           }
           return;
