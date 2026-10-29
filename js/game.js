@@ -22,10 +22,10 @@
   // The online leaderboards' database: the web address of a Firebase Realtime Database
   // (see "Leaderboards" in the README). Left empty, scores stay in this browser only.
   const BOARD_URL = 'https://haakonlife-d4ef2-default-rtdb.firebaseio.com';
-  // Scores are only sent from the hosted copies (haakonlife.com and GitHub Pages), so
+  // Scores are only sent from the hosted copy (haakonlife.com), so
   // playing a local copy (opening index.html straight from the folder) can't post test
   // scores. Locally the boards still load; your score just isn't added.
-  const BOARD_POSTS = /(\.github\.io|(^|\.)haakonlife\.com)$/.test(location.hostname);
+  const BOARD_POSTS = /(^|\.)haakonlife\.com$/.test(location.hostname);
 
   // ---------- art ----------
   const GENDERS = ['male', 'female'];
@@ -8846,7 +8846,7 @@
     // Linda's and Kiki's lists show up in the menu once you've got them
     const items = () => (P.floor === PLANT ? [['LEAVE PLANT', (self) => { remove(self); leavePlant(); }]] : [])
       .concat([['MAP', () => ui.push(MapView())]])
-      .concat(MP_URL ? [['WHO\'S HERE', (self) => { remove(self); mpWho(); }], ['SAY SOMETHING', (self) => { remove(self); mpSayMenu(); }]] : [])
+      .concat(MP_ON ? [['WHO\'S HERE', (self) => { remove(self); mpWho(); }], ['SAY SOMETHING', (self) => { remove(self); mpSayMenu(); }]] : [])
       .concat(mp.newer ? [['UPDATE GAME', () => location.reload()]] : [])
       .concat(quest ? [['LINDA\'S LIST', () => ui.push(LindaList())]] : [])
       .concat(kikiList ? [['KIKI\'S LIST', () => ui.push(KikiList())]] : [])
@@ -9377,15 +9377,23 @@
   };
 
   // ---------- other players: everyone playing at once shares the office ----------
-  // Each copy of the game keeps a small record of where its player is at
-  // mp/<world>/players/<id> in the leaderboards' database, and streams everyone else's
-  // (Firebase sends the changes down an EventSource, so there's no SDK to load). Anything
-  // meant for one player (a challenge, a move in a match) goes into their
-  // mp/<world>/inbox/<id>. The hosted copy plays in the 'live' world; a copy opened from
-  // the folder or a local server joins 'test', so trying things out never puts anyone in
-  // the real office. tools/test.html stays offline unless its address has &mp=<database>.
-  const MP_URL = (window.MP_URL !== undefined ? window.MP_URL : BOARD_URL).replace(/\/+$/, '');
-  const MP_ROOT = MP_URL + '/mp/' + (BOARD_POSTS ? 'live' : 'test');
+  // Each copy of the game keeps a small record of where its player is, and gets everyone
+  // else's. Anything meant for one player (a challenge, a move in a match) is a message
+  // to them. All that goes through the game server (GAME_SERVER, the server/ folder) if
+  // there is one: a WebSocket carries it both ways, and the server can also run a game
+  // itself (see `server` in VERSUS). Without one it goes through the leaderboards'
+  // database: your record at mp/<world>/players/<id>, everyone's streamed back down an
+  // EventSource (so there's no SDK to load), and messages in mp/<world>/inbox/<id>.
+  // The hosted copy plays in the 'live' world; a copy opened from the folder or a local
+  // server joins 'test', so trying things out never puts anyone in the real office.
+  // tools/test.html stays offline unless its address has &server=<game server> or
+  // &mp=<database>.
+  const GAME_SERVER = '';
+  const MP_WS = (window.MP_SERVER !== undefined ? window.MP_SERVER : GAME_SERVER).replace(/\/+$/, '');
+  const MP_URL = MP_WS ? '' : (window.MP_URL !== undefined ? window.MP_URL : BOARD_URL).replace(/\/+$/, '');
+  const MP_WORLD = BOARD_POSTS ? 'live' : 'test';
+  const MP_ROOT = MP_URL + '/mp/' + MP_WORLD;
+  const MP_ON = !!(MP_WS || MP_URL);
   // Bump this whenever a player's record or a message changes shape: copies on different
   // numbers don't see each other at all, rather than seeing each other wrong.
   const MP_PROTO = 1;
@@ -9409,7 +9417,12 @@
     sending: false, sentKey: '', lastSend: 0, tickAt: Date.now(), say: -1, sayN: 0, bubble: null, newer: false, nudged: false,
     pending: null, invite: null, match: null,
   };
-  // the head-to-head games: a challenge names one by key
+  // the head-to-head games: a challenge names one by key. These all run in each player's
+  // own browser, passing moves back and forth. A game with `server: true` is run by the
+  // game server instead (the module with the same key in server/games/): its Game is
+  // handed a match whose `view` is what the server last said the game looks like,
+  // `input(d)` sends the server what you did, and `result` is set once it's over. Those
+  // can only be picked when there's a game server.
   const VERSUS = {
     duel: { label: 'AIR DUEL', title: 'an air handling duel', Game: (m) => BattleGame(m) },
     jar: { label: 'CANDY JAR', title: 'a candy jar guess-off', Game: (m) => CandyJarGame(m) },
@@ -9482,8 +9495,58 @@
     return fetch(MP_ROOT + path + '.json', { method, keepalive, body: body === undefined ? undefined : JSON.stringify(body) })
       .then((r) => { if (!r.ok) throw new Error(r.status); });
   }
-  const mpSend = (to, msg) => mpFetch('/inbox/' + to, 'POST',
-    Object.assign({ from: mp.id, n: playerName, t: { '.sv': 'timestamp' } }, msg)).catch(() => {});
+  const mpSend = (to, msg) => {
+    if (MP_WS) wsSend({ k: 'to', to, m: Object.assign({ n: playerName }, msg) });
+    else mpFetch('/inbox/' + to, 'POST', Object.assign({ from: mp.id, n: playerName, t: { '.sv': 'timestamp' } }, msg)).catch(() => {});
+  };
+
+  // The game server: one WebSocket, which picks up again on its own if it drops. Your id
+  // stays the same across a reconnect, and mpKey proves to the server that it's still you.
+  // What comes down: 'all' (everyone here, when you connect), 'p' (one record changed,
+  // or null when they've gone), 'm' (a message for you), and 'st' and 'end' (a server-run
+  // game's state and result). See server/world.js.
+  const mpKey = Math.random().toString(36).slice(2, 12);
+  const ws = { sock: null, tree: {}, skew: 0, retry: 0 };
+  const wsSend = (d) => { if (ws.sock && ws.sock.readyState === 1) ws.sock.send(JSON.stringify(d)); };
+  // records are stamped with the server's clock: shift them onto this device's
+  const wsRec = (r) => Object.assign({}, r, { t: (+r.t || 0) + ws.skew });
+  function wsOpen() {
+    if (ws.sock) { ws.sock.onclose = null; ws.sock.close(); }
+    const sock = ws.sock = new WebSocket(MP_WS + '/?' + new URLSearchParams({ w: MP_WORLD, id: mp.id, key: mpKey }));
+    sock.onopen = () => { ws.retry = 0; mp.sentKey = ''; mp.lastSend = 0; };
+    sock.onmessage = (e) => {
+      let d; try { d = JSON.parse(e.data); } catch (err) { return; }
+      if (d && typeof d === 'object') wsHear(d);
+    };
+    sock.onclose = (e) => {
+      if (ws.sock !== sock) return;
+      ws.sock = null; mp.heard = false;
+      // somebody else has this id (vanishingly unlikely): pick another
+      if (e.code === 4001) mp.id = Math.random().toString(36).slice(2, 12);
+      setTimeout(wsOpen, e.code === 1012 || e.code === 4001 ? 500 : Math.min(30000, 1000 * 2 ** ws.retry++));
+    };
+  }
+  function wsHear(d) {
+    const m = mp.match;
+    if (d.k === 'all') {
+      mp.heard = true;
+      ws.skew = Date.now() - (+d.now || Date.now());
+      ws.tree = {};
+      for (const id in d.players || {}) ws.tree[id] = wsRec(d.players[id]);
+      mpPlayers(ws.tree);
+      // a server-run game the server no longer has (it restarted, or you were gone too
+      // long) is over
+      if (m && m.server && !m.gone && !(d.rooms || []).includes(m.id)) m.gone = true;
+    } else if (d.k === 'p' && typeof d.id === 'string') {
+      if (d.r && typeof d.r === 'object') ws.tree[d.id] = wsRec(d.r); else delete ws.tree[d.id];
+      mpPlayers(ws.tree);
+    } else if (d.k === 'm' && d.m && typeof d.m === 'object') {
+      mp.mail.push(d.m);
+    } else if (m && m.server && d.m === m.id) {
+      if (d.k === 'st') m.view = d.s;
+      else if (d.k === 'end') m.result = d.r === undefined ? null : d.r;
+    }
+  }
 
   // Everyone's records, as they come down the stream.
   function mpPlayers(raw) {
@@ -9494,7 +9557,7 @@
       if (id === mp.id || !r || typeof r !== 'object') continue;
       // a record nobody has touched in ten minutes is a closed tab that didn't get to say
       // goodbye: tidy it (and anything still waiting in its inbox) away
-      if (now - (+r.t || 0) > 600000) { mpFetch('/players/' + id, 'DELETE').catch(() => {}); mpFetch('/inbox/' + id, 'DELETE').catch(() => {}); continue; }
+      if (!MP_WS && now - (+r.t || 0) > 600000) { mpFetch('/players/' + id, 'DELETE').catch(() => {}); mpFetch('/inbox/' + id, 'DELETE').catch(() => {}); continue; }
       if (r.p !== MP_PROTO) { if (r.p > MP_PROTO && now - r.t < 30000) mp.newer = true; delete mp.others[id]; continue; }
       const g = GENDERS.includes(r.g) ? r.g : 'male', looks = Art.LOOKS[g];
       const rec = {
@@ -9530,6 +9593,18 @@
   }
   function mpConnect() {
     mp.on = true;
+    if (MP_WS) {
+      wsOpen();
+      // a phone that's been asleep can come back with its connection looking open but
+      // dead, so start a fresh one (the server swaps it in without anyone noticing)
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wsOpen(); });
+      // closing the tab (or reloading it) takes you out of the office straight away
+      addEventListener('pagehide', () => {
+        if (mp.match && !mp.match.gone) mpSend(mp.match.opp, { k: 'quit', m: mp.match.id });
+        if (ws.sock) { ws.sock.onclose = null; ws.sock.close(1000); ws.sock = null; }
+      });
+      return;
+    }
     let streams = [];
     const open = () => {
       streams.forEach((es) => es.close());
@@ -9561,6 +9636,12 @@
   function mpPut() {
     const rec = mpRecord(), key = JSON.stringify(rec), now = Date.now();
     if (mp.sending || now < mp.lastSend + (key === mp.sentKey ? 4000 : 100)) return;
+    if (MP_WS) {
+      if (!ws.sock || ws.sock.readyState !== 1) return;
+      mp.lastSend = now; mp.sentKey = key;
+      wsSend({ k: 'me', r: rec });
+      return;
+    }
     mp.sending = true; mp.lastSend = now; mp.sentKey = key;
     rec.t = { '.sv': 'timestamp' };
     mpFetch('/players/' + mp.id, 'PUT', rec)
@@ -9572,13 +9653,17 @@
   // A match between two players. The games read the other player's moves with take(),
   // send theirs with send(), and call end() when they close. `soft` is set when either of
   // you is on a touch screen, so a game that goes easier on touch does for both of you.
-  function mpMatch(id, opp, name, seed, soft) {
+  // In a game the server runs (`server`), view, input() and result take the place of
+  // take() and send() (see VERSUS).
+  function mpMatch(id, opp, name, seed, soft, server) {
     const o = mp.others[opp];
     const m = {
       id, opp, name, gone: false, rng: seeded(seed), soft: !!soft, moves: [],
       sprites: o ? mpSprites(o) : charSprites.male[0],
+      server: !!server, view: null, result: undefined,
       send(data) { mpSend(opp, Object.assign({}, data, { k: 'mv', m: id })); },
       take() { return m.moves.shift(); },
+      input(d) { wsSend({ k: 'in', m: id, d }); },
       end() {
         if (!m.gone) mpSend(opp, { k: 'quit', m: id });
         m.gone = true;
@@ -9589,7 +9674,7 @@
   }
   function mpStart(id, opp, name, seed, game, soft) {
     sfx('menu');
-    mp.match = mpMatch(id, opp, name, seed, soft);
+    mp.match = mpMatch(id, opp, name, seed, soft, VERSUS[game].server);
     ui.push(VERSUS[game].Game(mp.match));
   }
   // Waiting for the other player to answer your challenge.
@@ -9655,7 +9740,7 @@
   // Every tick: send your record, read your mail and walk everyone else towards where
   // they last said they were.
   function mpUpdate() {
-    if (!MP_URL || mode !== 'play') return;
+    if (!MP_ON || mode !== 'play') return;
     if (!mp.on) mpConnect();
     mpPut();
     while (mp.mail.length) mpMail(mp.mail.shift());
@@ -9727,7 +9812,7 @@
     }));
   }
   function mpChallenge(o) {
-    const keys = Object.keys(VERSUS);
+    const keys = Object.keys(VERSUS).filter((k) => MP_WS || !VERSUS[k].server);
     ui.push(Choice(keys.map((k) => VERSUS[k].label).concat(['CANCEL']), -1, SH - 48 - (keys.length + 1) * 16 - 8, (i) => {
       if (i < 0 || i >= keys.length) return;
       if (!mpLive(o)) { say(o.n + ' has gone.'); return; }

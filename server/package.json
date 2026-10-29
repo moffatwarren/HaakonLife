@@ -1,0 +1,17 @@
+{
+  "name": "haakonlife-server",
+  "private": true,
+  "description": "The Haakon Life game server: who's in the office, messages between players, and games the server runs itself",
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

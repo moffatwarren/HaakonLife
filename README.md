@@ -8,10 +8,16 @@ Open `index.html` in any browser. It works straight from the folder (no server
 needed), or you can copy the whole folder to any web host. Keep `index.html`
 and the `js/` folder together.
 
-When it's served from a website (like GitHub Pages), the page asks the server for
+When it's served from a website (like haakonlife.com), the page asks the server for
 the newest copy of each file in `js/` every time it loads, so phones pick up an
 update straight away. The title screen shows when the version you're running was
 published ("Updated ...").
+
+haakonlife.com updates itself: every push to `main` that changes `index.html`, `js/`
+or `assets/` uploads those files to the Namecheap hosting by FTP
+(`.github/workflows/deploy-site.yml`, using the `FTP_SERVER`, `FTP_USERNAME` and
+`FTP_PASSWORD` repository secrets). The Actions tab has a **Run workflow** button to
+upload again without a push.
 
 | Action | Keyboard | Touch |
 | --- | --- | --- |
@@ -176,9 +182,7 @@ leaderboard, it tells you you hold the crown.
 Only the name and the score are sent. If the leaderboard can't be reached the game
 says so and carries on, and best scores are still kept in the browser as before.
 
-Scores are only sent from the hosted copies (haakonlife.com, or an address ending in
-`github.io`). Opening
-`index.html` straight from the folder still shows the boards, but your score isn't
+Scores are only sent from the hosted copy (haakonlife.com). Opening `index.html` straight from the folder still shows the boards, but your score isn't
 added, so testing locally never posts anything.
 
 The scores live in a free Firebase Realtime Database. To set one up:
@@ -325,6 +329,51 @@ get tidied up after ten minutes. A copy opened from the folder or a local server
 `mp/test` instead, so testing never puts anyone in the real office. You can test with
 two browser tabs. As with the scores, it's an honour system: the game runs in the
 browser, so someone determined could pretend to be someone else.
+
+## Game server
+
+The `server/` folder is a small Node.js server that players can meet through instead of
+the Firebase database. Everyone keeps one WebSocket open to it, so moves and messages
+arrive in a few hundredths of a second instead of a few tenths, and somebody closing the
+tab is gone at once. It can also run a game itself: both players' browsers send it what
+they did, and it decides what happens and sends back what the game looks like. That's
+the way to make a game where two people really share one game, rather than each playing
+their own copy side by side. The leaderboards stay in Firebase either way.
+
+`GAME_SERVER` near the top of the "other players" part of `js/game.js` says where the
+server is (for example `'wss://play.haakonlife.com'`). While it's empty, players meet
+through the database as described above. Players on the server and players on the
+database can't see each other, so change it when nobody's mid-game.
+
+**Running it on your computer.** It needs Node.js 20 or newer.
+
+```
+cd server
+npm install
+npm start          # listens on port 8080 (PORT=9000 npm start for another)
+npm test           # checks it works
+```
+
+Then open `tools/test.html#play&server=ws://localhost:8080` in two tabs (served by any
+local web server, or straight from the folder) and you'll see each other.
+`http://localhost:8080` in a browser says how many people are on.
+
+**Hosting it.** It runs on any host that runs Node.js and keeps it running (Railway,
+Render, Fly.io, a VPS); not on the haakonlife.com shared hosting, which doesn't allow
+that. Point the host at the `server/` folder (start command `npm start`), and set the
+`ORIGINS` setting to `https://haakonlife.com,https://www.haakonlife.com` so only the game
+can connect. The host tells it which port to use. Restarting it (which deploying a new
+version does) drops everyone for a moment; they reconnect on their own, but a game the
+server was running is lost.
+
+**A game the server runs.** Write it as a module in `server/games/` and list it in
+`server/games/index.js` under a key. `server/rooms.js` describes what it exports: the
+starting state, what to do with a player's input, one tick of the game, and what each
+player gets sent. Then add an entry with the same key and `server: true` to `VERSUS` in
+`js/game.js`. Its `Game(m)` draws `m.view` (the latest state from the server), sends
+what the player does with `m.input(...)`, and finishes when `m.result` is set (or
+`m.gone`, if the other player left). Challenging somebody works just like the other
+head-to-head games, and these games only show up in the list when there's a game server.
 
 ## Coworker games
 
@@ -506,9 +555,10 @@ sends back everything you send a second later. That's for seeing the screens, no
 for a fair game: the score races always end in a dead heat (`&seed=5` deals a
 different game).
 
-`tools/test.html` has no other players unless you add `&mp=` and a database address
-(for example `&mp=https://haakonlife-d4ef2-default-rtdb.firebaseio.com`). Then it joins
-the `test` world like any local copy.
+`tools/test.html` has no other players unless you add `&server=` and a game server's
+address (for example `&server=ws://localhost:8080`, see **Game server** below) or `&mp=` and
+a database address (for example `&mp=https://haakonlife-d4ef2-default-rtdb.firebaseio.com`).
+Then it joins the `test` world like any local copy.
 
 `tools/shot.sh out.png "play&game=snake&ticks=60"` screenshots a game headlessly
 (it uses `tools/test.html`, which stubs the audio and can pin `Math.random` with

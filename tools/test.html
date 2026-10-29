@@ -116,7 +116,9 @@
   // the leaderboards show made-up rows here and send nothing (see BOARD_DEMO in game.js),
   // unless the address has &board=live
   window.BOARD_DEMO = !/board=live/.test(location.hash);
-  // and there are no other players unless &mp=<database address> says where to find them
+  // and there are no other players unless &server=<game server> or &mp=<database address>
+  // says where to find them
+  window.MP_SERVER = new URLSearchParams(location.hash.slice(1)).get('server') || '';
   window.MP_URL = new URLSearchParams(location.hash.slice(1)).get('mp') || '';
 </script>
 <script src="../js/font.js"></script>
