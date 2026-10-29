@@ -9388,7 +9388,7 @@
   // server joins 'test', so trying things out never puts anyone in the real office.
   // tools/test.html stays offline unless its address has &server=<game server> or
   // &mp=<database>.
-  const GAME_SERVER = '';
+  const GAME_SERVER = 'wss://play.haakonlife.com';
   const MP_WS = (window.MP_SERVER !== undefined ? window.MP_SERVER : GAME_SERVER).replace(/\/+$/, '');
   const MP_URL = MP_WS ? '' : (window.MP_URL !== undefined ? window.MP_URL : BOARD_URL).replace(/\/+$/, '');
   const MP_WORLD = BOARD_POSTS ? 'live' : 'test';
