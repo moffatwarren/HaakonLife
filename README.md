@@ -156,6 +156,11 @@ shows every leaderboard at once. Left and right flip between its pages:
   you see your place, how many points it takes to pass the person above you, and how
   many crowns, top tens and games you have.
 - **Latest scores**: the newest scores on any board, who set them and where they rank now.
+- **Quests**: everyone who has set Linda free and everyone who has been Employee of the
+  Month, side by side, with how many times each name has done it (up and down scroll
+  when the lists get long). Each time you finish one, that quest's leaderboard comes up
+  once you're back walking around, with your count one higher. The quests don't earn
+  Office Champion points.
 - **One page per area** (Office, Fitness Room, TVs and Cody's Casino, Boardroom and 2nd Floor,
   Coworkers and Dogs, Kingston Plant, and Halloween in October or once it has scores):
   each game's champion and their score, or "up for grabs" if nobody has played it.
@@ -241,7 +246,9 @@ board), delete it on the Data tab in the Firebase console: rows are under
 `scores`, then the game, then the name. The games where lowest wins (golf, Damir's
 lights, mummy wrap) are stored as negative numbers.
 
-Which games have a board, and their titles, is the `BOARDS` list in `js/game.js`.
+Which games have a board, and their titles, is the `BOARDS` list in `js/game.js`. The two
+quests are stored the same way, under `scores/linda` and `scores/eotm`, with the number
+of times as the score, so the rules above already cover them.
 
 ## Playing together
 

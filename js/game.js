@@ -2186,6 +2186,7 @@
   // here have a board. A higher stored score is always better, so the fewest-strokes and
   // fastest-time games (low) are stored negated.
   const tenths = (n) => (n / 10).toFixed(1) + 's';
+  const times = (n) => n + (n === 1 ? ' time' : ' times');
   const BOARDS = {
     coffee: { title: 'COFFEE MACHINE' }, punch5: { title: 'PUNCHING BAG' }, run: { title: 'TREADMILL', unit: 'm' }, toss: { title: 'PAPER TOSS' },
     stack: { title: 'PHOTOCOPIER' }, simon: { title: 'CONTROL PANEL' }, lunch: { title: 'FIND MY LUNCH' },
@@ -2204,6 +2205,8 @@
     golf: { title: 'WADE\'S PUTTING GREEN', low: true }, dark: { title: 'DAMIR\'S LIGHTS', unit: 's', low: true },
     mummy: { title: 'MUMMY WRAP', unit: tenths, low: true },
     forklift: { title: 'FORKLIFT RUSH', unit: ' pallets' }, paint: { title: 'EVEN COAT' },
+    // the side quests: the "score" is how many times that name has done it (see questBoard)
+    linda: { title: 'LINDA SET FREE', unit: times, quest: true }, eotm: { title: 'EMPLOYEE OF THE MONTH', unit: times, quest: true },
   };
   // tools/test.html sets BOARD_DEMO: the boards show made-up rows and nothing is sent
   const boardDemo = !!window.BOARD_DEMO;
@@ -2213,6 +2216,17 @@
     if (key.startsWith('dog.')) key = 'catch';
     if (!BOARDS[key] || !(BOARD_URL || boardDemo)) return;
     pendingBoard = { key, score, owner: top() };
+  }
+  // Linda freed or Employee of the Month won: one more time on that quest's board. The
+  // count goes up from what the database already holds for the name, so playing on a phone
+  // and a computer adds up. The board goes up once everything that was being said is done.
+  function questBoard(key) {
+    if (!(BOARD_URL || boardDemo)) return;
+    const name = playerName || store.get('name') || '';
+    const mine = !name || boardDemo || !BOARD_POSTS ? Promise.resolve(null)
+      : boardFetch(key + '/' + boardKey(name) + '.json').then((r) => (r.ok ? r.json() : Promise.reject()));
+    mine.then((r) => (r && typeof r.score === 'number' ? r.score : 0) + 1, () => 0) // couldn't check: show it, add nothing
+      .then((score) => { pendingBoard = { key, score, owner: null, quiet: true }; });
   }
   // a name's row in the database: "Sam" and "sam" are the same person
   const boardKey = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -2237,7 +2251,7 @@
   function boardLoad(key, name, score) {
     const val = BOARDS[key].low ? -score : score, id = boardKey(name), send = name && score > 0 && (BOARD_POSTS || boardDemo);
     if (boardDemo) {
-      const rows = DEMO_NAMES.map((n, i) => ({ id: boardKey(n), name: n, score: BOARDS[key].low ? -(20 + i * 3) : 100 - i * 7, t: i }));
+      const rows = DEMO_NAMES.map((n, i) => ({ id: boardKey(n), name: n, score: BOARDS[key].low ? -(20 + i * 3) : BOARDS[key].quest ? Math.max(1, 7 - i) : 100 - i * 7, t: i }));
       const mine = send ? { name, score: val } : null;
       if (mine) rows.push({ id, name, score: val, t: 99 });
       return Promise.resolve({ rows: boardSort(rows), mine });
@@ -2295,7 +2309,8 @@
   // ---------- the Hall of Fame: every board at once, on the wall in reception ----------
   // Each board's top ten earn points towards Office Champion (10 for 1st down to 1 for
   // 10th), and holding 1st is a crown. The games are grouped by where you find them;
-  // a board left out of FAME_GROUPS still turns up, under OTHER.
+  // a board left out of FAME_GROUPS still turns up, under OTHER. The quests (Linda and
+  // Employee of the Month) earn no points: they get a QUESTS page listing everyone who has done them.
   const FAME_GROUPS = [
     ['OFFICE', ['coffee', 'toss', 'lunch', 'candy', 'stack', 'simon', 'desk', 'jam', 'filter']],
     ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pulldown', 'ball', 'laundry']],
@@ -2325,7 +2340,7 @@
       if (hash(key) % 6 === 0) return Promise.resolve([]);
       const crowd = DEMO_NAMES.concat(name ? [name] : []).filter((n) => hash(key + n) % 3);
       return Promise.resolve(crowd.map((n) => {
-        const v = hash(n + key) % 400 + 1;
+        const v = BOARDS[key].quest ? hash(n + key) % 4 + 1 : hash(n + key) % 400 + 1;
         return { id: boardKey(n), name: n, score: BOARDS[key].low ? -v : v, t: Date.now() - hash(key + n) % 6e8 };
       }).sort(byScore));
     }
@@ -2336,11 +2351,11 @@
   }
   function HallOfFame() {
     const name = playerName || store.get('name') || '', me = name ? boardKey(name) : null;
-    const keys = Object.keys(BOARDS), grouped = new Set(FAME_GROUPS.flatMap(([, k]) => k));
-    const groups = FAME_GROUPS.concat([['OTHER', keys.filter((k) => !grouped.has(k))]]);
-    let boards = null, failed = !(BOARD_URL || boardDemo), standings = [], latest = [], tab = 0, sel = 0, t = 0;
+    const keys = Object.keys(BOARDS), games = keys.filter((k) => !BOARDS[k].quest), grouped = new Set(FAME_GROUPS.flatMap(([, k]) => k));
+    const groups = FAME_GROUPS.concat([['OTHER', games.filter((k) => !grouped.has(k))]]);
+    let boards = null, failed = !(BOARD_URL || boardDemo), standings = [], latest = [], tab = 0, sel = 0, scroll = 0, t = 0;
     // Halloween's games only get a page in October, or once somebody has a score on them
-    const pages = () => ['CHAMPIONS', 'LATEST SCORES'].concat(groups.filter(([g, k]) => k.length &&
+    const pages = () => ['CHAMPIONS', 'LATEST SCORES', 'QUESTS'].concat(groups.filter(([g, k]) => k.length &&
       (g !== 'HALLOWEEN' || HALLOWEEN || (boards && k.some((key) => boards[key].length)))));
     const rankOf = (key) => (boards && me ? boards[key].findIndex((r) => r.id === me) : -1);
     if (!failed) {
@@ -2349,7 +2364,7 @@
         boards = {};
         keys.forEach((k, i) => { boards[k] = all[i] || []; });
         const pts = {};
-        for (const k of keys) boards[k].slice(0, 10).forEach((r, i) => {
+        for (const k of games) boards[k].slice(0, 10).forEach((r, i) => {
           const s = pts[r.id] || (pts[r.id] = { id: r.id, name: r.name, points: 0, crowns: 0 });
           s.points += 10 - i;
           if (!i) s.crowns++;
@@ -2387,12 +2402,38 @@
       if (mine >= 8) row(mine, 170);
       ctx.fillStyle = col.mid; ctx.fillRect(14, 184, SW - 28, 1);
       if (!me) return;
-      const played = keys.filter((k) => rankOf(k) >= 0), tens = played.filter((k) => rankOf(k) < 10);
+      const played = games.filter((k) => rankOf(k) >= 0), tens = played.filter((k) => rankOf(k) < 10);
       const s = standings[mine];
       ctext(mine < 0 ? 'Make any top ten to start scoring.'
         : mine === 0 ? (standings[1] ? 'Office Champion! ' + standings[1].name + ' is ' + pts(s.points - standings[1].points) + ' behind.' : 'You are the Office Champion!')
           : 'You\'re ' + nth(mine + 1) + '. ' + pts(standings[mine - 1].points - s.points + 1) + ' more to pass ' + standings[mine - 1].name + '.', 190);
-      ctext('Crowns ' + (s ? s.crowns : 0) + '   Top tens ' + tens.length + '   Played ' + played.length + ' of ' + keys.length, 204, '#686878');
+      ctext('Crowns ' + (s ? s.crowns : 0) + '   Top tens ' + tens.length + '   Played ' + played.length + ' of ' + games.length, 204, '#686878');
+    }
+    // Everyone who has freed Linda or been Employee of the Month, most times first, side by side.
+    const QUESTS = [['linda', 20], ['eotm', 166]], QROWS = 9;
+    const questRoom = () => Math.max(0, ...QUESTS.map(([k]) => boards[k].length - QROWS));
+    function drawQuests() {
+      ctext('Everyone who has done it, and how many times', 46, '#686878');
+      ctx.fillStyle = col.mid; ctx.fillRect(SW / 2 - 1, 58, 1, 118);
+      QUESTS.forEach(([key, x]) => {
+        const rows = boards[key];
+        text(BOARDS[key].title, x, 60, 1, GOLD);
+        if (!rows.length) { text('Nobody yet!', x, 76, 1, '#686878'); return; }
+        rows.slice(scroll, scroll + QROWS).forEach((r, i) => {
+          const y = 76 + i * 11, hi = r.id === me, c = hi ? col.light : col.dark, n = 'x' + r.score;
+          if (hi) { ctx.fillStyle = col.dark; ctx.fillRect(x - 3, y - 2, 140, 11); }
+          text(r.name, x, y, 1, c);
+          text(n, x + 134 - n.length * 6, y, 1, c);
+        });
+      });
+      // more names above or below
+      if (scroll) text('^', SW - 12, 76, 1, '#686878');
+      if (scroll < questRoom()) text('v', SW - 12, 164, 1, '#686878');
+      ctx.fillStyle = col.mid; ctx.fillRect(14, 184, SW - 28, 1);
+      const count = (key) => { const r = me ? boards[key].find((x) => x.id === me) : null; return r ? r.score : 0; };
+      const l = count('linda'), e = count('eotm');
+      if (me) ctext(l || e ? 'You: freed Linda ' + l + 'x, Employee of the Month ' + e + 'x' : 'You haven\'t done either yet.', 190);
+      ctext(boards.linda.length + ' freed Linda   ' + boards.eotm.length + ' made Employee of the Month', 204, '#686878');
     }
     function drawLatest() {
       if (!latest.length) ctext('No scores yet. Go and set some!', 110);
@@ -2424,7 +2465,11 @@
         const p = pages(), list = typeof p[tab] === 'string' ? null : p[tab][1];
         if (pressed.has('b')) { sfx('menu'); remove(self); return; }
         if (pressed.has('left') || pressed.has('right')) {
-          tab = (tab + (pressed.has('left') ? p.length - 1 : 1)) % p.length; sel = 0; sfx('select');
+          tab = (tab + (pressed.has('left') ? p.length - 1 : 1)) % p.length; sel = 0; scroll = 0; sfx('select');
+        }
+        if (p[tab] === 'QUESTS' && boards && (pressed.has('up') || pressed.has('down'))) {
+          const s = Math.max(0, Math.min(questRoom(), scroll + (pressed.has('up') ? -1 : 1)));
+          if (s !== scroll) { scroll = s; sfx('select'); }
         }
         if (list) {
           if (!boards) return;
@@ -2449,10 +2494,11 @@
         ctx.fillStyle = col.dark; ctx.fillRect(14, 39, SW - 28, 1);
         if (failed) ctext(BOARD_URL || boardDemo ? 'The board is blank. Try again later.' : 'No online leaderboards set up.', 110);
         else if (!boards) ctext('Loading...', 110);
-        else if (tab === 0) drawChampions();
-        else if (tab === 1) drawLatest();
+        else if (page === 'CHAMPIONS') drawChampions();
+        else if (page === 'LATEST SCORES') drawLatest();
+        else if (page === 'QUESTS') drawQuests();
         else drawGroup(page[1]);
-        ctext(typeof page === 'string' ? 'Arrows: pages   Esc: close' : 'Arrows: browse   Space: full board', SH - 16, '#686878');
+        ctext(page === 'QUESTS' && questRoom() ? 'Arrows: pages, scroll   Esc: close' : typeof page === 'string' ? 'Arrows: pages   Esc: close' : 'Arrows: browse   Space: full board', SH - 16, '#686878');
       },
     };
     return self;
@@ -8940,7 +8986,7 @@
         remove(self);
         npcs.splice(npcs.indexOf(npc), 1);
         freeing = null; lindaFree = true;
-        sfx('ding');
+        sfx('ding'); questBoard('linda');
         questQueue.push('Linda floats up through the ceiling tiles, stapler in hand, and is gone.');
         questQueue.push('Somewhere far above, there is a happy "Boooo!" and the click of a stapler.');
         questQueue.push('The Haunted Office feels warm for the first time in years.');
@@ -9815,7 +9861,7 @@
         sfx('ding');
         say(says('Everyone has been talking about you. You helped every single person in this office!'), () =>
           say(says('So this month\'s Employee of the Month is... YOU! I\'ll put your picture up by the entrance.'), () => {
-            eotm = true; sfx('cup'); ui.push(EmployeeOfMonth());
+            eotm = true; sfx('cup'); ui.push(EmployeeOfMonth()); questBoard('eotm');
           }));
         return;
       }
@@ -10043,7 +10089,10 @@
     if (mode === 'play' && !fade) ringPhone();
     mpUpdate();
     // a finished game's leaderboard goes up as soon as the game has closed, ahead of its parting line
-    if (pendingBoard && !ui.includes(pendingBoard.owner)) { ui.push(Leaderboard(pendingBoard)); pendingBoard = null; }
+    // (a quest's board waits until you're back walking around)
+    if (pendingBoard && !ui.includes(pendingBoard.owner) && !(pendingBoard.quiet && (ui.length || questQueue.length || mode !== 'play'))) {
+      ui.push(Leaderboard(pendingBoard)); pendingBoard = null;
+    }
     if (banner && ++banner.t > 150) banner = null;
     playMusic(pickMusic());
     pressed.clear();
