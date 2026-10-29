@@ -525,9 +525,9 @@ rotation.
 
 ## Dogs
 
-Seven office dogs wander in and around their owners' offices: Cashew (Walker),
-Bella (Desirae), Birdie (Diane), Bandit (Jenn), Louie (Rob), Mocha (Sidney) and
-Nala (Jhonna). Kim's cat Felix just sleeps in the middle of her office, and
+Eight office dogs wander in and around their owners' offices: Cashew (Walker),
+Bella (Desirae), Birdie (Diane), Bandit (Jenn), Louie (Rob), Mocha (Sidney),
+Nala (Jhonna) and Frankie (Avery). Kim's cat Felix just sleeps in the middle of her office, and
 you can try to play catch with him too. Walk
 up to one and press A: it barks, and you can play catch. The dog runs out while
 the power meter swings; throw so the frisbee comes down near the dog, then steer

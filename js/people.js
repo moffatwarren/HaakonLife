@@ -174,6 +174,7 @@ window.DOGS = {
   "Louie": { breed: 'Doodle', owner: 'Rob', coat: '#d8b078', ears: '#b08850', chest: '#ecd0a0', collar: '#f0b030', sound: 'Ruff! Ruff!', speed: 1.1 },
   "Mocha": { breed: 'Havanese/Shih Tzu/Poodle', owner: 'Sidney', coat: '#8a5a3a', ears: '#5a3420', chest: '#c09068', collar: '#9868c8', sound: 'Yap yap!', small: true, speed: 0.85 },
   "Nala": { breed: 'Rhodesian Ridgeback Terrier Mix', owner: 'Jhonna', coat: '#c8783a', ears: '#8a4a20', chest: '#d89858', collar: '#40a0a0', sound: 'Woof!', speed: 1.2 },
+  "Frankie": { breed: 'Coton de Tulear', owner: 'Avery', coat: '#fafaf6', ears: '#e2ded4', chest: '#ffffff', collar: '#283a88', sound: 'Arf! Who needs a Roomba? I\'m a dog mop - I dust the floors for free!', small: true, speed: 0.9 },
   "Felix": { breed: 'Siberian', owner: 'Kim', cat: true, coat: '#e88a30', ears: '#b85a18', chest: '#f8d8a8', collar: '#e88a30', sound: 'Meow... *yawn*... zzzz', speed: 0 },
 };
 
