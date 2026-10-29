@@ -2061,7 +2061,7 @@
         frame++;
         if (held.left) cup = Math.max(AX, cup - 3);
         if (held.right) cup = Math.min(AX + AW - CUP_W, cup + 3);
-        if (race) race.send({ f: frame, x: Math.round(cup), s: caught }, Math.round(cup) + ':' + caught);
+        if (race) { race.send({ f: frame, x: Math.round(cup), s: caught }, Math.round(cup) + ':' + caught); ghost.follow(frame); }
         // the nozzle wanders back and forth. As the pour goes on it gets faster (in the end
         // faster than the cup), drips more often and starts changing its mind halfway.
         const p = poured / DROPS;
@@ -2109,8 +2109,8 @@
         ctx.fillStyle = col.dark; ctx.fillRect(AX, FLOOR, AW, 1);
         ctx.fillStyle = '#c8ccd8'; ctx.fillRect(AX, FLOOR + 1, AW, 5);
         // their cup: an outline where it was at this point in the pour, until they're done
-        if (race && ghost.started && !(race.theirsDone && frame > ghost.end)) {
-          const gx = Math.round(ghost.at(frame, 'x'));
+        if (race && ghost.started && !(race.theirsDone && frame - ghost.lag > ghost.end)) {
+          const gx = Math.round(ghost.at(frame - ghost.lag, 'x'));
           ctx.globalAlpha = 0.45; ctx.fillStyle = col.dark;
           ring(gx, CUP_Y, CUP_W, CUP_H); ring(gx + 1, CUP_Y + 1, CUP_W - 2, CUP_H - 2);
           ctx.fillRect(gx + CUP_W, CUP_Y + 8, 6, 2); ctx.fillRect(gx + CUP_W + 5, CUP_Y + 8, 2, 16); ctx.fillRect(gx + CUP_W, CUP_Y + 22, 6, 2);
@@ -2545,9 +2545,10 @@
         r.mineDone = true; r.mine = score;
         vs.send({ e: 'f', s: score });
       },
-      // how you're doing, at most every 6 ticks and only when `key` has changed
+      // how you're doing, only when `key` has changed, and at most every 2 ticks through
+      // the game server (every 6 through the database, which is slower to write to)
       send(data, key) {
-        if (++sendT < 6 || key === sentKey) return;
+        if (++sendT < (MP_WS ? 2 : 6) || key === sentKey) return;
         sendT = 0; sentKey = key;
         vs.send(Object.assign({ e: 'p' }, data));
       },
@@ -2575,9 +2576,18 @@
   // with `f`, their ticks since the start), so a ghost can be drawn where they were when
   // they'd got as far into the game as you have. If they're behind you, it's where they
   // last said.
+  // Their news arrives a little late and in steps, so they're shown `lag` frames behind
+  // your own frame (call follow() once a tick): a few frames more than their news is
+  // behind yours, eased so it never jerks. Then there's always a newer point to glide
+  // towards instead of stopping and jumping.
   function ghostTrack() {
     const pts = [];
-    return {
+    const g = {
+      lag: 6,
+      follow(f) {
+        const want = pts.length ? Math.max(0, Math.min(30, f - pts[pts.length - 1].f + 4)) : 6;
+        g.lag += (want - g.lag) * 0.05;
+      },
       add(p) {
         const f = +p.f, last = pts[pts.length - 1];
         if (!(f >= 0) || (last && f <= last.f)) return;
@@ -2597,6 +2607,7 @@
       get started() { return pts.length > 0; },
       get end() { return pts.length ? pts[pts.length - 1].f : 0; },
     };
+    return g;
   }
 
   // ---------- office dogs: play catch, then see how they stack up ----------
@@ -2953,16 +2964,19 @@
         nextAt = dist + 40 + speed * 34 + rnd() * 90;
       }
       for (const o of obs) o.x -= speed;
-      obs = obs.filter((o) => o.x + o.k.w > 0);
+      // (against a player, clutter you've passed stays a while: their treadmill is drawn
+      // up to 30 frames behind yours)
+      obs = obs.filter((o) => o.x + o.k.w > (vs ? -240 : 0));
     }
     // A treadmill and whoever is on it ({ img, h, duck }). `stop`: how far its belt had gone
-    // when it stopped (then there's no clutter on it), or null while it's running.
-    function lane(who, stop) {
-      const d = stop === null ? dist : stop;
+    // when it stopped (then there's no clutter on it), or null while it's running. `behind`:
+    // how far behind yours it is (their lagged view), so the clutter is where it was then.
+    function lane(who, stop, behind = 0) {
+      const d = (stop === null ? dist : stop) - behind;
       pen.fillStyle = col.dark; pen.fillRect(8, FLOOR, SW - 16, 14);
       pen.fillStyle = '#585868';
-      for (let x = 8 - Math.floor(d) % 24; x < SW - 8; x += 24) if (x >= 8) pen.fillRect(x, FLOOR + 4, 12, 3);
-      if (stop === null) for (const o of obs) o.k.draw(Math.round(o.x), FLOOR - (o.k.gap || o.k.h));
+      for (let x = 8 - ((Math.floor(d) % 24) + 24) % 24; x < SW - 8; x += 24) if (x >= 8) pen.fillRect(x, FLOOR + 4, 12, 3);
+      if (stop === null) for (const o of obs) o.k.draw(Math.round(o.x + behind), FLOOR - (o.k.gap || o.k.h));
       if (who.duck) pen.drawImage(who.img, PX, FLOOR - 17, 32, 17);
       else pen.drawImage(who.img, PX, FLOOR - 32 - who.h, 32, 32);
     }
@@ -2979,6 +2993,7 @@
             // they come in, a little behind so it doesn't stutter (and quicker to catch up)
             const behind = ghost.end - frame, steps = behind > 30 ? 2 : behind > 6 ? 1 : 0;
             for (let i = 0; i < steps; i++) { frame++; belt(); }
+            ghost.follow(frame);
             return;
           }
         }
@@ -2998,7 +3013,7 @@
         if (!held.a && vy > 1.5) vy = 1.5;
         if (h > 0 || vy > 0) { h += vy; vy -= held.down ? 0.9 : 0.3; if (h <= 0) { h = 0; vy = 0; } }
         belt();
-        if (race) race.send({ f: frame, h: Math.round(h), d: ducking ? 1 : 0, s: metres() }, Math.round(h) + ':' + ducking + ':' + metres());
+        if (race) { race.send({ f: frame, h: Math.round(h), d: ducking ? 1 : 0, s: metres() }, Math.round(h) + ':' + ducking + ':' + metres()); ghost.follow(frame); }
         // hit box is the body, a bit narrower than the 32px sprite
         const top = h + (ducking ? DUCK : STAND);
         if (obs.some((o) => o.x < PX + 24 && o.x + o.k.w > PX + 9 && (o.k.gap ? top > o.k.gap + 1 : h < o.k.h - 1))) {
@@ -3025,14 +3040,14 @@
         // same run), with them where they were this far into it. Once they've wiped out
         // their belt stops, and they stand there watching you.
         if (back) {
-          const out = race.theirsDone && frame > ghost.end, running = ghost.started && !out;
+          const gf = frame - ghost.lag, out = race.theirsDone && gf > ghost.end, running = ghost.started && !out;
           if (out && theirStop === null) theirStop = dist;
-          const gh = running ? Math.round(ghost.at(frame, 'h')) : 0, gd = running && ghost.at(frame, 'd') > 0.5;
+          const gh = running ? Math.round(ghost.at(gf, 'h')) : 0, gd = running && ghost.at(gf, 'd') > 0.5;
           const img = out ? vs.sprites.down[0] : vs.sprites.right[gh > 0 || !running ? 0 : (t >> 3) & 1 ? 2 : 1];
           const bctx = back.getContext('2d');
           bctx.clearRect(0, 0, SW, SH);
           pen = bctx;
-          lane({ img, h: gh, duck: gd }, out ? theirStop : null);
+          lane({ img, h: gh, duck: gd }, out ? theirStop : null, running ? ghost.lag * speed : 0);
           pen = ctx;
           ctx.drawImage(back, BX, BY, SW / 2, SH / 2);
           // their name over their head
