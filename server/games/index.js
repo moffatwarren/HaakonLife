@@ -2,5 +2,6 @@
 // as their entry in VERSUS in js/game.js, which also needs `server: true` there. See
 // rooms.js for what a game module exports.
 import * as pong from './pong.js';
+import * as forklift from './forklift.js';
 
-export default { pong };
+export default { pong, forklift };

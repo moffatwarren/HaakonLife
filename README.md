@@ -287,12 +287,18 @@ stand in a doorway and trap you.
     arrows and see each other's score go up as you dance; the higher score once you've
     both finished the song wins. If either of you is on a phone, you both get the
     gentler phone version, so it's fair.
-  - **Forklift Rush**: the plant's forklift game, against each other. You each drive
-    your own forklift in your own copy of the warehouse, starting from the same racks,
-    with the truck's calls and the restocking drawn from the same shuffle. The other
-    player's forklift (and whatever pallet is on its forks) drives about as a see-through
-    ghost with their name on it; you go straight through it. Their count shows above the
-    truck, and whoever has loaded more when the 90 seconds are up wins.
+  - **Forklift Rush**: the plant's forklift game, both of you in the same warehouse
+    (yours is the orange forklift, theirs is blue with their name on it). There's one
+    truck and one call at a time, so you race for the same pallets: whoever gets the
+    called pallet on the truck first scores it, then there's a new call. The call is
+    for a kind there are at least two of whenever there can be, so you can fight over
+    the nearest one or go for another. Drive your empty forks into the pallet on their
+    forks to swipe it (it can't be swiped straight back for a second). The forklifts
+    bump into each other. Hitting Steve stalls your forklift for 3 seconds and the wrong
+    pallet for 2 (a stalled forklift flashes, and is easy to rob). Their count shows
+    above the truck, and whoever has loaded more when the 90 seconds are up wins. The
+    game server runs this one (`server/games/forklift.js`), so it's only in the list
+    when there is one.
   - **Coffee machine**: you both get the same pour, and their cup chases the drops as a
     faint outline (with a notch beside your fill meter for how full theirs is). Most
     drops caught wins.

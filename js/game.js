@@ -8369,7 +8369,17 @@
     '................',
   ];
   const FORKLIFT_COLS = { k: '#181820', K: '#585868', G: '#c8ccd8', o: '#f0b030' };
-  let forkliftSprite = null;
+  // yours, and (against another player) theirs, painted blue
+  let forkliftSprite = null, forkliftSprite2 = null;
+  function forkliftArt(o) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 16;
+    const g = c.getContext('2d'), cols = Object.assign({}, FORKLIFT_COLS, { o });
+    FORKLIFT_ART.forEach((row, y) => [...row].forEach((ch, x) => {
+      if (ch !== '.') { g.fillStyle = cols[ch]; g.fillRect(x, y, 1, 1); }
+    }));
+    return c;
+  }
   const PALLETS = [
     { name: 'FAN', letter: 'F', c: '#3868c8' },
     { name: 'COIL', letter: 'C', c: '#d08040' },
@@ -8385,27 +8395,22 @@
     ctx.fillStyle = p.c; ctx.fillRect(x + 3, y + 3, 10, 10);
     text(p.letter, x + 6, y + 5, 1, col.dark);
   }
-  // With `vs` (a match with another player) you each drive your own forklift in your own
-  // copy of the warehouse, starting from the same racks, with the truck's calls and the
-  // restocking drawn from the same shuffle. The other player's forklift (and whatever's on
-  // its forks) drives about as a ghost: you can see it, but you go straight through it.
-  // Most pallets loaded when the time's up wins.
+  // Against another player (VERSUS.forklift) you're both in the same warehouse, and the
+  // game server runs it (server/games/forklift.js, with the same layout and driving as
+  // here): one truck and one call at a time, so you race for the same pallets, and empty
+  // forks driven into the pallet on theirs take it. Hitting Steve or bringing the wrong
+  // pallet stalls you instead of costing time, since the clock is shared. Your keys go to
+  // the server, and both forklifts are drawn where it says, eased so they glide.
   function ForkliftGame(vs) {
     const TIME = 5400, TOP = 20, R = 6.5; // 90 seconds; the arena starts under the status bar
     const foe = vs ? vs.name : '';
-    // two streams of shared random numbers, so a restock never shifts the truck's next call
-    const rndOrder = vs ? vs.rng : Math.random, rndStock = vs ? seeded(Math.floor(vs.rng() * 4294967296)) : Math.random;
-    // the other player: where they last said their forklift was, drawn easing towards it
-    const ghost = { x: 118, y: 130, a: 0, load: -1, tx: 118, ty: 130, seen: false };
-    let theirs = 0, theirsDone = false, sentPic = '', picT = 0;
-    if (!forkliftSprite) {
-      forkliftSprite = document.createElement('canvas');
-      forkliftSprite.width = forkliftSprite.height = 16;
-      const g = forkliftSprite.getContext('2d');
-      FORKLIFT_ART.forEach((row, y) => [...row].forEach((c, x) => {
-        if (c !== '.') { g.fillStyle = FORKLIFT_COLS[c]; g.fillRect(x, y, 1, 1); }
-      }));
-    }
+    const rndOrder = Math.random, rndStock = Math.random;
+    if (!forkliftSprite) { forkliftSprite = forkliftArt(FORKLIFT_COLS.o); forkliftSprite2 = forkliftArt('#58a8e0'); }
+    // against a player: the server's latest view, the last of its events you've heard,
+    // the keys you've told it about, their forklift (eased like yours), their count, and
+    // how it ended ('win', 'lose' or 'tie')
+    let view = null, lastEv = 0, sentH = -1, presses = '', theirs = 0, outcome = null;
+    const other = { x: 118, y: 156, a: 0, tx: 118, ty: 156, ta: 0, load: -1, stall: 0 };
     // racks along the top and bottom with a row of bays in front of each, two pillars,
     // the dock wall and the trailer of the truck backed up to it
     const BAY_X = [24, 58, 92, 126, 160, 194];
@@ -8458,46 +8463,96 @@
     }
     function finish() {
       state = 'done'; t = 0;
-      // against a player: send your final count, then wait for theirs
-      if (vs) { vs.send({ e: 'f', c: loaded }); state = 'wait'; return; }
       record = saveBest('forklift', loaded);
       sfx(loaded ? 'cup' : 'buzz');
+    }
+    // A view from the server: where everything is now, and what's just happened.
+    function hear(v) {
+      if (!v || !Array.isArray(v.l) || !Array.isArray(v.p) || !Array.isArray(v.sc)) return;
+      const me = v.l[v.s], them = v.l[1 - v.s];
+      if (!Array.isArray(me) || !Array.isArray(them)) return;
+      const first = !view;
+      view = v;
+      const ok = (k) => (PALLETS[k] ? k : -1);
+      if (!first && me[5] !== lift.wheel) sfx('select');
+      Object.assign(lift, { tx: +me[0] || 0, ty: +me[1] || 0, ta: +me[2] || 0, v: +me[3] || 0, load: ok(me[4]), wheel: Math.max(-WHEEL, Math.min(WHEEL, me[5] | 0)), stall: me[6] ? 1 : 0 });
+      Object.assign(other, { tx: +them[0] || 0, ty: +them[1] || 0, ta: +them[2] || 0, load: ok(them[4]), stall: them[6] ? 1 : 0 });
+      if (first) { lift.x = lift.tx; lift.y = lift.ty; lift.a = lift.ta; other.x = other.tx; other.y = other.ty; other.a = other.ta; }
+      pallets = [];
+      for (let i = 0; i + 1 < v.p.length; i += 2) if (BAYS[v.p[i]] && PALLETS[v.p[i + 1]]) pallets.push({ x: BAYS[v.p[i]].x, y: BAYS[v.p[i]].y, k: v.p[i + 1] });
+      if (Array.isArray(v.st)) {
+        steve.to = +v.st[0] || steve.y; steve.dir = v.st[1] ? 'down' : 'up';
+        steve.wait = v.st[2] ? 0 : 1; steve.step = v.st[2] === 2 ? 1 : 0;
+        if (first) steve.y = steve.to;
+      }
+      if (PALLETS[v.order]) order = v.order;
+      left = Math.max(0, v.left | 0);
+      loaded = v.sc[v.s] | 0; theirs = v.sc[1 - v.s] | 0;
+      state = v.ph ? 'play' : 'ready';
+      if (!v.ph) t = v.t | 0;
+      for (const e of Array.isArray(v.ev) ? v.ev : []) {
+        if (!Array.isArray(e) || !(e[0] > lastEv)) continue;
+        lastEv = e[0];
+        if (!first) heard(e[1] === v.s, e[2], PALLETS[e[3]] ? PALLETS[e[3]].name : '');
+      }
+    }
+    // something that happened in the warehouse: to you (mine), or to them
+    function heard(mine, k, what) {
+      if (k === 'steal') {
+        if (mine) { sfx('lift', 0.6); say2('You swiped ' + foe + '\'s ' + what + '!', true); } else { sfx('buzz'); say2(foe + ' swiped your ' + what + '!', false); }
+      } else if (k === 'cup') {
+        if (mine) { sfx('cup'); say2(['Loaded!', 'Nice!', 'On the truck!', 'Next!'][loaded % 4], true); } else { sfx('bump'); say2(foe + ' loaded the ' + what + '.', false); }
+      } else if (!mine) {
+        // the rest only matter to whoever it happened to
+      } else if (k === 'lift') sfx('lift', 0.6);
+      else if (k === 'putt') sfx('putt');
+      else if (k === 'bump') sfx('bump');
+      else if (k === 'wrong') { sfx('buzz'); say2('Wrong pallet! The truck wants ' + what + '. Stalled 2s', false); }
+      else if (k === 'steve') { sfx('buzz'); say2('Steve: Zero days since an incident! Stalled 3s', false); }
+    }
+    // turn a towards b the short way round, k of the way
+    const turnTo = (a, b, k) => a + ((((b - a + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) - Math.PI) * k;
+    function versusUpdate() {
+      if (state === 'done' || state === 'gone') {
+        if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+          remove(self); vs.end();
+          say(state === 'gone' ? foe + ' has parked up and gone. Nobody wins this one.'
+            : outcome === 'win' ? 'You out-loaded ' + foe + ', ' + loaded + ' pallets to ' + theirs + '!'
+              : outcome === 'lose' ? foe + ' out-loaded you, ' + theirs + ' pallets to ' + loaded + '.'
+                : 'Dead even: ' + loaded + ' pallets each.');
+        }
+        return;
+      }
+      if (pressed.has('b')) { remove(self); vs.end(); say('You park the forklift. Steve looks relieved.'); return; }
+      if (vs.view !== view) hear(vs.view);
+      const r = vs.result;
+      if (r !== undefined || vs.gone) {
+        if (r && typeof r.w === 'number' && Array.isArray(r.sc) && view) {
+          loaded = r.sc[view.s] | 0; theirs = r.sc[1 - view.s] | 0;
+          outcome = r.w === view.s ? 'win' : r.w < 0 ? 'tie' : 'lose';
+          state = 'done'; sfx(outcome === 'win' ? 'cup' : 'buzz');
+        } else state = 'gone';
+        t = 0;
+        return;
+      }
+      if (!view) return;
+      // your keys: what's held, and any presses since last time
+      const h = (held.up ? 1 : 0) | (held.down ? 2 : 0) | (held.left ? 4 : 0) | (held.right ? 8 : 0);
+      if (pressed.has('left')) presses += 'l';
+      if (pressed.has('right')) presses += 'r';
+      if (pressed.has('a')) presses += 'a';
+      if (h !== sentH || presses) { vs.input({ h, e: presses.slice(-8) }); sentH = h; presses = ''; }
+      // both forklifts and Steve glide to where the server has them
+      for (const f of [lift, other]) { f.x += (f.tx - f.x) * 0.5; f.y += (f.ty - f.y) * 0.5; f.a = turnTo(f.a, f.ta, 0.5); }
+      steve.y += (steve.to - steve.y) * 0.5;
+      if (state === 'play' && lift.v < -0.1 && --beepT <= 0) { sfx('beep'); beepT = 22; }
     }
     const self = {
       music: 'run',
       update() {
         t++;
         if (msg && ++msg.t > 70) msg = null;
-        if (vs) {
-          for (let m; (m = vs.take());) {
-            if (m.e === 'p') {
-              Object.assign(ghost, { tx: +m.x || 0, ty: +m.y || 0, a: (+m.q || 0) * Math.PI / 16, load: PALLETS[m.l] ? +m.l : -1 });
-              if (!ghost.seen) { ghost.x = ghost.tx; ghost.y = ghost.ty; ghost.seen = true; }
-            }
-            if (m.e === 'p' || m.e === 'f') theirs = Math.max(0, Math.round(+m.c) || 0);
-            if (m.e === 'f') theirsDone = true;
-          }
-          ghost.x += (ghost.tx - ghost.x) * 0.3; ghost.y += (ghost.ty - ghost.y) * 0.3;
-          // your forklift as the other player sees it, at most ten times a second
-          if (state === 'play' && ++picT >= 6) {
-            const pic = { e: 'p', x: Math.round(lift.x), y: Math.round(lift.y), q: Math.round(lift.a / (Math.PI / 16)), l: lift.load, c: loaded };
-            const key = JSON.stringify(pic);
-            if (key !== sentPic) { vs.send(pic); sentPic = key; picT = 0; }
-          }
-          if (vs.gone && !theirsDone && state !== 'gone') { state = 'gone'; t = 0; }
-          if (state === 'wait' && theirsDone) { state = 'done'; t = 0; sfx(loaded > theirs ? 'cup' : 'buzz'); }
-          if (state === 'done' || state === 'gone') {
-            if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
-              remove(self); vs.end();
-              say(state === 'gone' ? foe + ' has parked up and gone. Nobody wins this one.'
-                : loaded > theirs ? 'You out-loaded ' + foe + ', ' + loaded + ' pallets to ' + theirs + '!'
-                  : loaded < theirs ? foe + ' out-loaded you, ' + theirs + ' pallets to ' + loaded + '.'
-                    : 'Dead even: ' + loaded + ' pallets each.');
-            }
-            return;
-          }
-          if (state === 'wait') { if (pressed.has('b')) { remove(self); vs.end(); say('You park the forklift.'); } return; }
-        }
+        if (vs) { versusUpdate(); return; }
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
@@ -8507,7 +8562,7 @@
           }
           return;
         }
-        if (pressed.has('b')) { remove(self); if (vs) vs.end(); say('You park the forklift. Steve looks relieved.'); return; }
+        if (pressed.has('b')) { remove(self); say('You park the forklift. Steve looks relieved.'); return; }
         if (--left <= 0) { left = 0; finish(); return; }
         // driving: it only turns while it's rolling, and backwards it steers the other way
         const max = lift.load >= 0 ? 1.7 : 2.1;
@@ -8624,21 +8679,23 @@
         // Steve, in his hi-vis
         const img = steve.sprites[steve.dir][steve.wait > 0 ? 0 : 1 + steve.step];
         ctx.drawImage(img, STEVE_X - 8, Math.round(steve.y) - 10);
-        // the other player's forklift, see-through, with their name over it
-        if (vs && ghost.seen && state !== 'gone') {
+        // the other player's forklift (blue), with their name over it; a stalled one flashes
+        if (vs && view && state !== 'gone') {
+          const oa = Math.round(other.a / (Math.PI / 16)) * (Math.PI / 16);
           ctx.save();
-          ctx.globalAlpha = 0.4;
-          ctx.translate(Math.round(ghost.x), Math.round(ghost.y));
-          ctx.rotate(ghost.a + Math.PI / 2);
-          if (ghost.load >= 0) drawPallet(-8, -19, ghost.load);
-          ctx.drawImage(forkliftSprite, -8, -8);
+          if (other.stall && (tick >> 3) & 1) ctx.globalAlpha = 0.5;
+          ctx.translate(Math.round(other.x), Math.round(other.y));
+          ctx.rotate(oa + Math.PI / 2);
+          if (other.load >= 0) drawPallet(-8, -19, other.load);
+          ctx.drawImage(forkliftSprite2, -8, -8);
           ctx.restore();
           // over it, or under it when it's up against the top racks
-          text(foe, Math.round(ghost.x) - foe.length * 3, Math.round(ghost.y) + (ghost.y < TOP + 30 ? 14 : -22), 1, '#585868');
+          text(foe, Math.round(other.x) - foe.length * 3, Math.round(other.y) + (other.y < TOP + 30 ? 14 : -22), 1, '#283878');
         }
         // the forklift, turned to face where it's going (pixels kept square)
         const a = Math.round(lift.a / (Math.PI / 16)) * (Math.PI / 16);
         ctx.save();
+        if (lift.stall && (tick >> 3) & 1) ctx.globalAlpha = 0.5;
         ctx.translate(Math.round(lift.x), Math.round(lift.y));
         ctx.rotate(a + Math.PI / 2);
         if (lift.load >= 0) drawPallet(-8, -19, lift.load);
@@ -8678,10 +8735,10 @@
           text(foe.slice(0, 8), 272, 30, 1, col.light);
           text(theirs + ' loaded', 272, 44, 1, '#f0d040');
         }
-        if (state === 'ready') readyBox(t, 'Space: straighten the wheels');
-        else if (state === 'wait') { box(60, 100, 200, 40); ctext('Waiting for ' + foe + '...', 108); ctext('to finish their run', 122); }
+        if (vs && !view && state !== 'gone') { box(60, 100, 200, 40); ctext('Waiting for ' + foe + '...', 108); ctext('Esc: give up', 122); }
+        else if (state === 'ready') readyBox(t, vs ? 'Same truck. Swipe their pallets!' : 'Space: straighten the wheels');
         else if (state === 'gone') doneBox([foe + ' has gone.', 'Nobody wins this one.'], t);
-        else if (state === 'done' && vs) doneBox([loaded > theirs ? 'You out-loaded ' + foe + '!' : loaded < theirs ? foe + ' wins!' : 'Dead even!',
+        else if (state === 'done' && vs) doneBox([outcome === 'win' ? 'You out-loaded ' + foe + '!' : outcome === 'lose' ? foe + ' wins!' : 'Dead even!',
           'You ' + loaded + '  ' + foe + ' ' + theirs], t);
         else if (state === 'done') doneBox(['Time\'s up! The truck has to go.', 'Pallets loaded: ' + loaded,
           record ? 'New record!' : 'Best ' + getBest('forklift')], t);
@@ -9551,7 +9608,7 @@
     jar: { label: 'CANDY JAR', title: 'a candy jar guess-off', Game: (m) => CandyJarGame(m) },
     lego: { label: 'BRICK BATTLE', title: 'a Lego brick battle', Game: (m) => LegoGame(false, m) },
     dance: { label: 'DANCE-OFF', title: 'a dance-off', Game: (m) => DanceGame(m) },
-    forklift: { label: 'FORKLIFT RUSH', title: 'a Forklift Rush race', Game: (m) => ForkliftGame(m) },
+    forklift: { label: 'FORKLIFT RUSH', title: 'a Forklift Rush race', server: true, Game: (m) => ForkliftGame(m) },
     coffee: { label: 'COFFEE MACHINE', title: 'a coffee catch-off', Game: (m) => CoffeeGame(m) },
     run: { label: 'TREADMILL', title: 'a treadmill race', Game: (m) => RunGame(m) },
     snake: { label: 'SNAKE', title: 'a game of Snake', Game: (m) => SnakeGame(m) },
