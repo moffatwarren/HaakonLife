@@ -1,0 +1,45 @@
+# Upload the game to haakonlife.com (Namecheap) whenever main changes.
+# Only what the browser needs goes up: index.html, js/ and assets/. The action keeps a
+# record of what it sent (.ftp-deploy-sync-state.json on the server), so each run uploads
+# just the changed files and removes ones deleted from the repo. That also keeps the
+# "Updated ..." date on the title screen right, since it comes from the js files' dates.
+#
+# Needs three repository secrets (Settings → Secrets and variables → Actions):
+#   FTP_SERVER    e.g. ftp.haakonlife.com
+#   FTP_USERNAME  an FTP account from cPanel whose directory is the site's web root
+#   FTP_PASSWORD  that account's password
+name: Deploy site
+
+on:
+  push:
+    branches: [main]
+    paths: ['index.html', 'js/**', 'assets/**', '.github/workflows/deploy-site.yml']
+  workflow_dispatch: # a "Run workflow" button on the Actions tab
+
+# one upload at a time; a newer push waits for the one in progress
+concurrency: deploy-site
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          # Namecheap's certificate is for the shared server's own name, not
+          # ftp.haakonlife.com: still encrypted, just without checking that name
+          security: loose
+          server-dir: ./
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .github/**
+            .claude/**
+            tools/**
+            server/**
+            README.md
