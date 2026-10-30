@@ -373,6 +373,33 @@ Then open `tools/test.html#play&server=ws://localhost:8080` in two tabs (served 
 local web server, or straight from the folder) and you'll see each other.
 `http://localhost:8080` in a browser says how many people are on.
 
+Step by step, with two terminals:
+
+```
+# terminal 1: the game server
+cd server
+npm start
+
+# terminal 2: the web server, from the top folder
+python3 -m http.server 8000
+```
+
+Then open `http://localhost:8000/tools/test.html#play&server=ws://localhost:8080` in two
+tabs. Each tab's player walks around in the other, and `http://localhost:8080` says
+`test:2`. Add `&game=pong` to the address to try a game the server runs.
+
+To stop them, press Ctrl+C in each terminal; the prompt coming back means it's stopped.
+To check nothing is still running:
+
+```
+ss -ltnp | grep -E ':8080|:8000'    # prints nothing if both are stopped
+fuser -k 8080/tcp 8000/tcp          # stops whatever is still on those ports
+```
+
+A tab that's already open keeps playing after both are stopped: the game runs in the
+browser, the web server only hands it the files, and without the game server it just
+plays on your own (and keeps trying to reconnect). Reloading is what fails.
+
 **Hosting it.** It runs on any host that runs Node.js and keeps it running (Railway,
 Render, Fly.io, a VPS); not on the haakonlife.com shared hosting, which doesn't allow
 that. Point the host at the `server/` folder (start command `npm start`), and set the
