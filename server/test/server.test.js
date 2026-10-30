@@ -205,3 +205,61 @@ test('a game that crashes ends with an error, and the server carries on', async 
   const res = await fetch(`http://localhost:${PORT}/`);
   assert.match(await res.text(), /^ok live:\d+ test:\d+/);
 });
+
+// sitting down at the poker table, the way browsers do it
+async function seated(...cs) {
+  for (const c of cs) {
+    await c.open(); c.me();
+    await pause(20);
+    c.send({ k: 'sit', t: 'poker' });
+    await c.for((d) => d.k === 'tb' && d.s);
+  }
+}
+
+test('one player waits at the table; a second sits down and they are dealt in', async () => {
+  const a = client(), b = client();
+  await seated(a);
+  assert.equal(srv.worlds.test.tables.get('poker').seated().length, 1);
+  await pause(300);
+  assert.ok(a.got.every((d) => d.k !== 'tb' || d.s.ph === 'wait'));
+  await seated(b);
+  const st = await a.for((d) => d.k === 'tb' && d.s.ph === 'play' && d.s.act >= 0, 4000);
+  assert.equal(st.s.seats[st.s.me].h.length, 2);
+  assert.ok(st.s.seats.filter(Boolean).every((p, i) => i === st.s.me || p.h.every((c) => c === 0)));
+  // whoever's turn it is folds, and the other takes the pot
+  const mover = st.s.seats[st.s.act].id === a.id ? a : b;
+  mover.send({ k: 'tin', t: 'poker', d: { a: 'fold' } });
+  await a.for((d) => d.k === 'tb' && d.s.ph === 'result');
+  // getting up empties the table, and it's put away
+  a.send({ k: 'stand', t: 'poker' });
+  assert.equal((await a.for((d) => d.k === 'tb' && !d.s)).r, 'left');
+  b.send({ k: 'stand', t: 'poker' });
+  await b.for((d) => d.k === 'tb' && !d.s);
+  assert.equal(srv.worlds.test.tables.size, 0);
+  a.ws.close(); b.ws.close();
+});
+
+test('a fifth player is told the table is full', async () => {
+  const cs = [client(), client(), client(), client()], e = client();
+  await seated(...cs);
+  await e.open(); e.me();
+  await pause(20);
+  e.send({ k: 'sit', t: 'poker' });
+  assert.equal((await e.for((d) => d.k === 'tb')).r, 'full');
+  // (just closing would keep their seats for a while, in case they came back)
+  for (const c of cs) { c.send({ k: 'stand', t: 'poker' }); await c.for((d) => d.k === 'tb' && !d.s); c.ws.close(); }
+  e.ws.close();
+});
+
+test('dropping out and coming back keeps your seat', async () => {
+  const a = client(), b = client();
+  await seated(a, b);
+  b.ws.close();
+  await pause(100);
+  const b2 = client('test', b.id, 'k' + b.id);
+  await b2.open();
+  assert.deepEqual((await b2.for((d) => d.k === 'all')).tables, ['poker']);
+  await b2.for((d) => d.k === 'tb' && d.s);
+  assert.equal(srv.worlds.test.tables.get('poker').seated().length, 2);
+  for (const c of [a, b2]) { c.send({ k: 'stand', t: 'poker' }); await c.for((d) => d.k === 'tb' && !d.s); c.ws.close(); }
+});

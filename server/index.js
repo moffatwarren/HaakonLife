@@ -13,9 +13,10 @@ import { pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { World } from './world.js';
 import defaultGames from './games/index.js';
+import defaultTables from './tables/index.js';
 
-export function start({ port = 8080, origins = [], games = defaultGames } = {}) {
-  const worlds = { live: new World('live', games), test: new World('test', games) };
+export function start({ port = 8080, origins = [], games = defaultGames, tables = defaultTables } = {}) {
+  const worlds = { live: new World('live', games, Date.now, tables), test: new World('test', games, Date.now, tables) };
   const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'text/plain' });
     res.end('ok ' + Object.entries(worlds).map(([n, w]) => n + ':' + w.online()).join(' ') + '\n');
@@ -62,6 +63,7 @@ export function start({ port = 8080, origins = [], games = defaultGames } = {}) 
     // straight away to the new one.
     close() {
       clearInterval(ping); clearInterval(tidy);
+      Object.values(worlds).forEach((w) => w.close());
       for (const ws of wss.clients) ws.close(1012, 'restarting');
       return new Promise((done) => server.close(done));
     },

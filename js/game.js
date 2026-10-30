@@ -1596,6 +1596,203 @@
     return self;
   }
 
+  // ---------- Live Hold'em: the casino's poker table, against other players ----------
+  // Up to four people sit at the table at once. The game server deals and keeps the
+  // rules (server/tables/poker.js); this shows what it says (mp.table.view, see view()
+  // there) and sends what you do. You sit bottom left, and the others go round clockwise
+  // from you. Sitting down mid-hand, you're dealt in from the next one.
+  const LIVE_SEAT_BG = ['#3868c8', '#9868c8', '#c86838', '#38a868'];
+  function LivePoker() {
+    const tb = mp.table = { t: 'poker', view: null, out: null, asked: false };
+    // where each seat goes, counting clockwise from yours: a for its face, c its cards,
+    // d the dealer chip, and n its two lines of notes (its bet, then its hand or its
+    // clock), which end at nx on a seat down the right
+    const SPOTS = [
+      { ax: 12, ay: 136, cx: 12, cy: 100, dx: 66, dy: 122, nx: 66, ny: 102 },
+      { ax: 12, ay: 14, cx: 12, cy: 42, dx: 66, dy: 46, nx: 12, ny: 78 },
+      { ax: 284, ay: 14, cx: 258, cy: 42, dx: 243, dy: 46, nx: 308, ny: 78, right: true },
+      { ax: 284, ay: 136, cx: 258, cy: 100, dx: 243, dy: 122, nx: 254, ny: 102, right: true },
+    ];
+    const spot = (v, i) => SPOTS[(i - Math.max(0, v.me) + 4) % 4];
+    // where a seat's little spring roll goes, with its stack written after it
+    const stackAt = (sp, n) => (sp.right ? [sp.ax - 18 - String(n).length * 6, sp.ay + 13] : [sp.ax + 28, sp.ay + 13]);
+    const rolls = RollFlyer();
+    let btn = 1, raising = false, raiseTo = 0, t = 0, ev = -1, prev = null, acted = '';
+
+    // a new view from the server: play its sound, and send spring rolls flying into the
+    // pot for a bet and out of it to whoever won
+    function hear(v, old) {
+      if (v.ev !== ev && ev >= 0) {
+        if (v.snd.startsWith('win:')) sfx(v.snd.slice(4).split(',').map(Number).includes(v.me) ? 'cup' : 'bump');
+        else sfx({ deal: 'select', card: 'putt', fold: 'select', check: 'blip', call: 'putt', raise: 'menu' }[v.snd] || 'select');
+      }
+      ev = v.ev;
+      if (old) v.seats.forEach((q, i) => {
+        const o = old.seats[i];
+        if (!q || !o || o.id !== q.id) return;
+        const [x, y] = stackAt(spot(v, i), q.st), fly = (n) => Math.min(6, 1 + Math.floor(n / (v.bb * 2)));
+        const was = old.hn === v.hn ? o.b : 0;
+        if (q.b > was) rolls.send(x, y, 134, 40, fly(q.b - was));
+        else if (old.hn === v.hn && q.st > o.st) rolls.send(134, 40, x, y, fly(q.st - o.st));
+      });
+      if (v.ph === 'play' && v.act === v.me && (!old || old.act !== v.me)) { sfx('ding'); btn = 1; }
+    }
+    const gone = () => { remove(self); if (mp.table === tb) mp.table = null; };
+    const myStack = () => { const v = tb.view, p = v && v.seats[v.me]; return p ? p.st : 0; };
+    function leave() {
+      wsSend({ k: 'stand', t: tb.t });
+      gone();
+      say('You leave the table with ' + myStack() + ' spring rolls.');
+    }
+    const askLeave = () => ask('Leave the table with ' + myStack() + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
+
+    const self = {
+      music: 'poker',
+      update() {
+        t++;
+        rolls.update();
+        if (tb.out) {
+          gone();
+          say({
+            full: 'All four seats are taken. Try again in a bit, or play solo.',
+            bust: 'You\'re out of spring rolls! Sit back down any time for another 200.',
+            idle: 'You took too long, so Zin gave your seat to someone else.',
+          }[tb.out] || 'You lost your seat at the table. The connection to the game server dropped.');
+          return;
+        }
+        const v = tb.view;
+        if (!v) {
+          // sit down once the server's there and knows who you are
+          if (!tb.asked && ws.sock && ws.sock.readyState === 1 && mp.sentKey) { tb.asked = true; wsSend({ k: 'sit', t: tb.t }); }
+          if (pressed.has('b') || t > 600) {
+            if (tb.asked) wsSend({ k: 'stand', t: tb.t });
+            gone();
+            if (t > 600) say('The live table isn\'t answering right now. Try again in a bit, or play solo.');
+            else sfx('select');
+          }
+          return;
+        }
+        if (v !== prev) { hear(v, prev); prev = v; }
+        // your turn, unless you've already said what you're doing and the server's yet to hear
+        const p = v.seats[v.me], key = v.hn + '/' + v.ev;
+        const myTurn = !!p && v.ph === 'play' && v.act === v.me && acted !== key;
+        const send = (a, to) => { acted = key; raising = false; wsSend({ k: 'tin', t: tb.t, d: { a, to } }); };
+        if (raising && myTurn) {
+          const maxTo = p.b + p.st, minTo = Math.min(maxTo, v.bet + v.min), step = v.bb;
+          const nudge = (d) => { raiseTo = Math.max(minTo, Math.min(maxTo, raiseTo + d)); sfx('select'); };
+          const rep = (k) => pressed.has(k) || (held[k] && t % 5 === 0);
+          if (rep('right')) nudge(step);
+          if (rep('left')) nudge(-step);
+          if (rep('up')) nudge(step * 5);
+          if (rep('down')) nudge(-step * 5);
+          if (pressed.has('a')) send('raise', raiseTo);
+          else if (pressed.has('b')) { raising = false; sfx('select'); }
+          return;
+        }
+        raising = false;
+        if (pressed.has('b')) { askLeave(); return; }
+        if (!myTurn) return;
+        const call = v.bet - p.b, maxTo = p.b + p.st;
+        const canRaise = p.st > call && v.seats.some((q, i) => q && i !== v.me && q.d && !q.f && !q.ai);
+        if (pressed.has('left')) { btn = (btn + 3) % 4; sfx('select'); }
+        if (pressed.has('right')) { btn = (btn + 1) % 4; sfx('select'); }
+        if (pressed.has('a')) {
+          if (btn === 0) send('fold');
+          else if (btn === 1) send('call');
+          else if (btn === 2) { if (canRaise) { raising = true; raiseTo = Math.min(maxTo, v.bet + v.min); sfx('select'); } else sfx('bump'); }
+          else send(canRaise ? 'raise' : 'call', maxTo);
+        }
+      },
+      draw() {
+        const v = tb.view, blink = (tick >> 4) & 1, dots = '.'.repeat(1 + ((tick >> 4) % 3));
+        // (short, so the names on the seats either side of it fit)
+        drawCardTable("Live Hold'em", v ? 'Blinds ' + v.sb + '/' + v.bb : '', true);
+        if (!v) {
+          ctext('Finding you a seat' + dots, 80, CREAM);
+          drawCardLog([], true);
+          text('Esc: never mind', 10, 214, 1, CREAM);
+          return;
+        }
+        // the pot and the board
+        const ps = 'Pot ' + v.pot;
+        drawRoll(160 - ps.length * 3 - 14, 41);
+        text(ps, 160 - ps.length * 3, 41, 1, '#f8f8f8');
+        for (let i = 0; i < 5; i++) {
+          const x = 94 + i * 27, y = 54;
+          if (v.board[i]) drawCard(v.board[i], x, y);
+          else { ctx.fillStyle = '#246a36'; ctx.fillRect(x, y, CARD_W, CARD_H); }
+        }
+        v.seats.forEach((q, i) => drawSeat(v, q, i, blink));
+        const p = v.seats[v.me];
+        if (v.ph === 'wait') ctext('Waiting for another player' + dots, 136, CREAM);
+        else if (p && !p.d) ctext('You\'re in from the next hand.', 136, CREAM);
+        rolls.draw();
+        drawCardLog(v.log, true);
+        // your controls
+        const myTurn = !!p && v.ph === 'play' && v.act === v.me && acted !== v.hn + '/' + v.ev;
+        if (raising && myTurn) {
+          const maxTo = p.b + p.st, minTo = Math.min(maxTo, v.bet + v.min);
+          const lbl = (v.bet ? 'Raise to ' : 'Bet ') + raiseTo + (raiseTo === maxTo ? ' (all in)' : '');
+          text(lbl, 10, 204, 1, CREAM);
+          ctx.fillStyle = INK; ctx.fillRect(160, 203, 150, 9);
+          ctx.fillStyle = '#e8e8e8'; ctx.fillRect(161, 204, 148, 7);
+          ctx.fillStyle = '#f0b030'; ctx.fillRect(161, 204, Math.round(148 * (maxTo > minTo ? (raiseTo - minTo) / (maxTo - minTo) : 1)), 7);
+          text('Arrows: amount  Space: OK  Esc: back', 10, 224, 1, CREAM);
+        } else if (p && p.d && v.ph === 'play') {
+          const call = Math.min(v.bet - p.b, p.st);
+          const labels = ['Fold', call ? 'Call ' + call : 'Check', v.bet ? 'Raise' : 'Bet', 'All in'];
+          labels.forEach((l, i) => drawCardButton(6 + i * 78, 74, l, myTurn && i === btn, myTurn, true));
+          text(myTurn ? 'Arrows: choose  Space: OK  Esc: leave' : 'Esc: leave the table', 10, 226, 1, CREAM);
+        } else text('Esc: leave the table', 10, 214, 1, CREAM);
+        if (myTurn) text(v.clk + 's', 310 - String(v.clk).length * 6 - 6, raising ? 224 : 226, 1, v.clk <= 10 && blink ? '#f87050' : CREAM);
+      },
+    };
+
+    function drawSeat(v, q, i, blink) {
+      const sp = spot(v, i), mine = i === v.me;
+      // text that lines up to the left of x on a seat down the right
+      const write = (str, x, y, c) => text(str, sp.right ? x - str.length * 6 : x, y, 1, c);
+      const nameX = sp.right ? sp.ax - 4 : sp.ax + 28;
+      if (!q) {
+        ctx.fillStyle = '#246a36'; ctx.fillRect(sp.ax, sp.ay, 24, 24);
+        write('Empty seat', nameX, sp.ay + 2, '#88c898');
+        return;
+      }
+      // their face: the character they're playing as
+      const o = mp.others[q.id], sheet = mine ? sprites : o ? mpSprites(o) : null;
+      drawAvatar(sp.ax, sp.ay, LIVE_SEAT_BG[i]);
+      if (sheet) {
+        ctx.fillStyle = LIVE_SEAT_BG[i]; ctx.fillRect(sp.ax + 1, sp.ay + 1, 22, 22);
+        ctx.drawImage(sheet.down[0], sp.ax + 4, sp.ay + 5);
+      }
+      const turn = v.ph === 'play' && v.act === i;
+      if (turn && blink) { ctx.fillStyle = '#f8e070'; ring(sp.ax - 2, sp.ay - 2, 28, 28); ring(sp.cx - 2, sp.cy - 2, CARD_W * 2 + 6, CARD_H + 4); }
+      write(mine ? 'You' : q.n, nameX, sp.ay + 2, '#f8f8f8');
+      const [rx, ry] = stackAt(sp, q.st);
+      drawRoll(rx, ry); text(String(q.st), rx + 14, ry, 1, '#f8f8f8');
+      if (!q.d) { text('Waiting', sp.cx + 4, sp.cy + 12, 1, '#88c898'); return; }
+      if (q.f) ctx.globalAlpha = 0.35;
+      q.h.forEach((c, k) => drawCard(c || null, sp.cx + k * 26, sp.cy, !c));
+      ctx.globalAlpha = 1;
+      if (q.f) text('FOLD', sp.cx + 13, sp.cy + 12, 1, '#f8f8f8');
+      // what they've put in this round, then their hand once you can see it (or how long
+      // they've got left to act)
+      const note = q.ai ? 'All in' : q.b ? 'Bet ' + q.b : '';
+      if (note) write(note, sp.nx, sp.ny, '#f8e070');
+      let hn = '';
+      if (!q.f && q.h[0] && v.board.length >= 3) hn = handName(handValue(q.h.concat(v.board)));
+      if (turn && !mine) hn = v.clk + 's';
+      if (hn) write(hn, sp.nx, sp.ny + 11, '#f8f8f8');
+      if (i === v.btn && v.ph !== 'wait') {
+        const cx = sp.dx, cy = sp.dy;
+        ctx.fillStyle = INK; ctx.fillRect(cx, cy + 1, 11, 9); ctx.fillRect(cx + 1, cy, 9, 11);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(cx + 1, cy + 1, 9, 9);
+        text('D', cx + 3, cy + 2, 1, INK);
+      }
+    }
+    return self;
+  }
+
   // ---------- Spring Roll Blackjack: on Cody's computer ----------
   // You against the house, played for the same spring rolls as Hold'em. You start
   // with START rolls; blackjack pays 3 to 2 and the dealer stands on all 17s.
@@ -9669,7 +9866,7 @@
   const mp = {
     id: Math.random().toString(36).slice(2, 12), on: false, heard: false, others: {}, mail: [],
     sending: false, sentKey: '', lastSend: 0, tickAt: Date.now(), say: -1, sayText: '', sayN: 0, bubble: null, newer: false, nudged: false,
-    pending: null, invite: null, match: null,
+    pending: null, invite: null, match: null, table: null,
   };
   // the head-to-head games: a challenge names one by key. These all run in each player's
   // own browser, passing moves back and forth. A game with `server: true` is run by the
@@ -9758,8 +9955,9 @@
   // The game server: one WebSocket, which picks up again on its own if it drops. Your id
   // stays the same across a reconnect, and mpKey proves to the server that it's still you.
   // What comes down: 'all' (everyone here, when you connect), 'p' (one record changed,
-  // or null when they've gone), 'm' (a message for you), and 'st' and 'end' (a server-run
-  // game's state and result). See server/world.js.
+  // or null when they've gone), 'm' (a message for you), 'st' and 'end' (a server-run
+  // game's state and result), and 'tb' (what you see at the live poker table, or null
+  // once you're not at it). See server/world.js.
   const mpKey = Math.random().toString(36).slice(2, 12);
   const ws = { sock: null, tree: {}, skew: 0, retry: 0 };
   const wsSend = (d) => { if (ws.sock && ws.sock.readyState === 1) ws.sock.send(JSON.stringify(d)); };
@@ -9792,6 +9990,12 @@
       // a server-run game the server no longer has (it restarted, or you were gone too
       // long) is over
       if (m && m.server && !m.gone && !(d.rooms || []).includes(m.id)) m.gone = true;
+      // the same for a table: lost, or if you hadn't got a seat yet, ask again
+      const tb = mp.table;
+      if (tb && !tb.out && !(d.tables || []).includes(tb.t)) { if (tb.view) tb.out = 'gone'; else tb.asked = false; }
+    } else if (d.k === 'tb') {
+      const tb = mp.table;
+      if (tb && d.t === tb.t && !tb.out) { if (d.s && typeof d.s === 'object') tb.view = d.s; else tb.out = d.r || 'gone'; }
     } else if (d.k === 'p' && typeof d.id === 'string') {
       if (d.r && typeof d.r === 'object') ws.tree[d.id] = wsRec(d.r); else delete ws.tree[d.id];
       mpPlayers(ws.tree);
@@ -9857,6 +10061,7 @@
       // closing the tab (or reloading it) takes you out of the office straight away
       addEventListener('pagehide', () => {
         if (mp.match && !mp.match.gone) mpSend(mp.match.opp, { k: 'quit', m: mp.match.id });
+        if (mp.table) wsSend({ k: 'stand', t: mp.table.t });
         if (ws.sock) { ws.sock.onclose = null; ws.sock.close(1000); ws.sock = null; }
       });
       return;
@@ -10757,7 +10962,10 @@
       W: ['A washer, mid-cycle. A pile of coveralls waits.', 'SORT THE WASH', LaundryGame],
       O: ['A dryer, still warm. A pile of coveralls waits.', 'SORT THE WASH', LaundryGame],
       '[': ['Cody\'s blackjack table. Blackjack pays 3 to 2.', 'DEAL ME IN', () => BlackjackApp(null, true)],
-      ']': ['The poker table. Zin is dealing Texas Hold\'em, and Cody and Dmitriy are already in.', 'TAKE A SEAT', () => PokerApp(null, true)],
+      // with a game server, you can play the people here instead of Cody and Dmitriy
+      ']': MP_WS ? ['The poker table. Zin is dealing Texas Hold\'em. Play Cody and Dmitriy, or sit in with other players?',
+        ['PLAY SOLO', 'PLAY LIVE'], [() => PokerApp(null, true), LivePoker]]
+        : ['The poker table. Zin is dealing Texas Hold\'em, and Cody and Dmitriy are already in.', 'TAKE A SEAT', () => PokerApp(null, true)],
       7: ['A slot machine, all lit up. It plays for spring rolls.', 'PULL THE LEVER', SlotsGame],
     };
     // the boardroom's everyday games are off while the Halloween party is on
@@ -10768,10 +10976,11 @@
     }
     const game = (P.floor === PLANT && PLANT_GAMES[t]) || GAMES[t];
     if (game) {
-      const [msg, opt, Game] = game;
+      // a game can offer a few ways to play it: a list of options and a list of Games
+      const [msg, opt, Game] = game, opts = [].concat(opt), Games = [].concat(Game);
       sfx('select');
-      ask(typeof msg === 'function' ? msg() : msg, [opt, 'CANCEL'], (i) => {
-        if (i === 0) { sfx('menu'); ui.push(Game()); }
+      ask(typeof msg === 'function' ? msg() : msg, [...opts, 'CANCEL'], (i) => {
+        if (i >= 0 && i < Games.length) { sfx('menu'); ui.push(Games[i]()); }
       });
       return;
     }
@@ -11179,7 +11388,7 @@
   addEventListener('resize', layout);
   addEventListener('orientationchange', layout);
 
-  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|lego|wok|carrot|jar|poker|blackjack|slots|pokertable|bjtable, or locker|list|eotm with &quest=)
+  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|lego|wok|carrot|jar|poker|blackjack|slots|pokertable|pokerlive|bjtable, or locker|list|eotm with &quest=)
   if (location.hash.startsWith('#play')) {
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
@@ -11244,7 +11453,7 @@
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
       dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp, slots: SlotsGame,
-      pokertable: () => PokerApp(null, true), bjtable: () => BlackjackApp(null, true),
+      pokertable: () => PokerApp(null, true), pokerlive: LivePoker, bjtable: () => BlackjackApp(null, true),
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
       fame: HallOfFame, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];

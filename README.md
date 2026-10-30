@@ -98,8 +98,13 @@ start each game with 200:
 
 - **Blackjack table**: Spring Roll Blackjack against the house. Blackjack pays 3 to 2,
   the dealer stands on all 17s, and you break the bank at 1000
-- **Poker table**: Spring Roll Hold'em, no-limit Texas Hold'em against Cody and Dmitriy
-  (the same game as on Zin's computer)
+- **Poker table**: Spring Roll Hold'em, no-limit Texas Hold'em. PLAY SOLO is against
+  Cody and Dmitriy (the same game as on Zin's computer). PLAY LIVE (only when there's a
+  game server) sits you down with whoever else is playing, up to four at once: you get
+  200 spring rolls, the blinds stay at 2/4, and if a hand is going you're dealt in from
+  the next one. On your own you wait for somebody to join. You have 30 seconds to act
+  (run out twice in a row and you lose your seat), and running out of rolls gets you up
+  from the table; sit back down for another 200
 - **Slot machines**: Spring Roll Slots. Left and right pick your bet (5, 10, 25, 50 or
   100) and A pulls the lever; the reels stop by themselves one after another, or press
   A to stop the next one. Three of a kind on the line pays 100 times your bet for
@@ -418,6 +423,12 @@ what the player does with `m.input(...)`, and finishes when `m.result` is set (o
 `m.gone`, if the other player left). Challenging somebody works just like the other
 head-to-head games, and these games only show up in the list when there's a game server.
 
+**A table anyone can join.** The live poker table (`server/tables/poker.js`, drawn by
+`LivePoker` in `js/game.js`) isn't a match two people agree to: people sit down and get
+up whenever they like. `server/tables.js` describes what a table game exports, and
+`server/tables/index.js` lists them. To try it, open
+`tools/test.html#play&game=pokerlive&server=ws://localhost:8080` in two tabs.
+
 ## Coworker games
 
 Some coworkers have a game for you. Walk up to them and press A:
@@ -626,7 +637,7 @@ Best scores are saved in the browser, and sent to the online leaderboards when
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
-`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `blackjack`, `build`, `forklift`, `paint`) opens a game straight away.
+`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `pokerlive` (with `&server=`), `blackjack`, `build`, `forklift`, `paint`) opens a game straight away.
 `&dog=Bella` puts that dog right in front of you; `game=catch` plays catch with it
 and `game=dogs` shows the frisbee leaderboard.
 For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,
