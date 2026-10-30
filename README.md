@@ -549,7 +549,9 @@ From November 27 to December 31 (by your device's date) the office does Christma
 - **Skating**: step onto the ice and you're on skates. Keep pushing one way to pick
   up speed (up to twice walking pace), turn and you lose some, let go and you glide
   on, slowing down little by little until you come to a stop (about 10 tiles from full
-  speed). The boards stop you dead.
+  speed). The boards stop you dead. In 3D you crouch and push off one skate then the
+  other, toe turned out, swaying over the one you're gliding on with your arms swinging
+  across, and coast with both skates side by side.
 - Ten coworkers, picked at random each time the game loads, have gone out there and
   stand around the lot: at the fire pit, the hot chocolate stand, a car, the snowman
   and the big spruce, and two pacing along the rink's boards. The ice is all yours. Anyone with a part to play indoors (the Employee of
@@ -567,8 +569,15 @@ It runs on Three.js (`js/vendor/three.min.js`, MIT licensed), which is only fetc
 Christmas, in the background once the game has loaded. It's always dusk out there, with
 the sun low in the west, the windows, lamps and strings of lights all on, and snow
 coming down.
+To keep it light on the computer, it's drawn at most about a hundred times a second
+(every second or third refresh on a fast screen), and once it's built, everything that
+never moves is welded into a few big meshes, as is each part of a person that moves as
+one (a head, a shin). Anything added later that has to move or flicker on its own, like
+the fire's flames and embers, needs keeping out of that welding.
 
-Until Three.js is in, or on a device that can't do 3D, the lot is drawn flat by
+Until Three.js is in, or on a device that can't do 3D (including a browser that can
+only draw on the processor, as Chrome on Windows can after a graphics driver update
+until it's restarted), the lot is drawn flat by
 `js/hd.js`, on a canvas four times the size of the game screen that sits under it (the
 game screen goes see-through outside, so menus and dialogs still draw on top as usual).
 In 3D that canvas only carries other players' names and speech bubbles. Everyone in it

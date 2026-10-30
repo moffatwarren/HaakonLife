@@ -10568,7 +10568,8 @@
   // and dialogs still drawn on top in the usual pixels).
   // The lot is drawn in 3D (js/lot3d.js) under that canvas when it can be: Three.js is
   // fetched in the background once the game has loaded at Christmas, and until it's in (or
-  // on a device without WebGL, or with &flat in the link) js/hd.js draws it flat instead.
+  // on a device without WebGL, or where the browser could only draw it in software, or with
+  // &flat in the link) js/hd.js draws it flat instead.
   // In 3D the flat canvas only carries the names over people's heads and speech bubbles.
   let hd = null, three = 'idle';
   // how close the 3D lot's camera is (Start menu > ZOOM), kept between visits
@@ -10658,6 +10659,11 @@
 
     const gl = hdGL();
     if (gl) {
+      // the 3D lot is heavy work for the browser, so on a fast screen it's drawn only every
+      // second or third refresh (still more often than the game's 60 ticks a second)
+      const ms = performance.now();
+      if (ms - (h.drawn || 0) < 9) return;
+      h.drawn = ms;
       gl.draw({ t: tick, alpha: drawAlpha, focus: [px, py], people });
       // names and speech bubbles, flat, over the 3D
       c.setTransform(1, 0, 0, 1, 0, 0);

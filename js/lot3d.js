@@ -6,7 +6,7 @@
 // js/game.js, as they do for the flat lot.
 // Needs Three.js (js/vendor/three.min.js), which js/game.js only fetches at Christmas.
 //
-//   const lot = LOT3D.create(floor, { touch })         // throws if there's no WebGL
+//   const lot = LOT3D.create(floor, { touch })         // throws if there's no WebGL, or only a slow software one
 //   lot.canvas                                          // goes on the page
 //   lot.resize(cssWidth, cssHeight)
 //   lot.setZoom(i, now)                                 // 0 far (the default), 1 mid, 2 close
@@ -47,7 +47,9 @@ window.LOT3D = (function () {
     opts = opts || {};
     const T = window.THREE, V3 = T.Vector3;
     const touch = !!opts.touch;
-    const renderer = new T.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    // a browser with no graphics card to hand (after a driver update, say) draws WebGL on the
+    // processor, far too slowly for all this: then this throws, and the lot is drawn flat
+    const renderer = new T.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: true });
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = T.PCFShadowMap;
     const ANISO = Math.min(8, renderer.capabilities.getMaxAnisotropy());
@@ -124,6 +126,61 @@ window.LOT3D = (function () {
       return m;
     }
     const ring = (rad, tube, mat, y) => { const t = at(mesh(new T.TorusGeometry(rad, tube, 8, 22), mat), 0, y, 0); t.rotation.x = Math.PI / 2; return t; };
+
+    // ---------- fewer draws ----------
+    // Each little mesh is a draw of its own (its outline another, its shadow a third), and
+    // it's how many draws there are, not how big they are, that keeps the browser busy. So
+    // once they're placed, pieces that never move against each other are welded together:
+    // one mesh per material and one outline for each lot of them.
+    const weldable = (m) => m.isMesh && !m.isInstancedMesh && m.visible && m.material !== OL_MAT && !Array.isArray(m.material) &&
+      !m.material.transparent && !!m.geometry.attributes.normal && m.children.every((c) => c.material === OL_MAT) && m.matrixWorld.determinant() > 0;
+    // one geometry from [{ geo, m }], each moved by its matrix
+    function weld(list) {
+      let nv = 0, ni = 0;
+      for (const { geo } of list) { nv += geo.attributes.position.count; ni += geo.index ? geo.index.count : geo.attributes.position.count; }
+      const uv = list.every(({ geo }) => geo.attributes.uv);
+      const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), uvs = uv ? new Float32Array(nv * 2) : null;
+      const idx = new (nv > 65535 ? Uint32Array : Uint16Array)(ni), v = new V3(), nm = new T.Matrix3();
+      let o = 0, oi = 0;
+      for (const { geo, m } of list) {
+        const P = geo.attributes.position, N = geo.attributes.normal, U = geo.attributes.uv, I = geo.index, n = P.count, k = I ? I.count : n;
+        nm.getNormalMatrix(m);
+        for (let i = 0; i < n; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m).toArray(pos, (o + i) * 3);
+          v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize().toArray(nor, (o + i) * 3);
+          if (uv) { uvs[(o + i) * 2] = U.getX(i); uvs[(o + i) * 2 + 1] = U.getY(i); }
+        }
+        for (let i = 0; i < k; i++) idx[oi + i] = o + (I ? I.getX(i) : i);
+        o += n; oi += k;
+      }
+      const g = new T.BufferGeometry();
+      g.setAttribute('position', new T.BufferAttribute(pos, 3));
+      g.setAttribute('normal', new T.BufferAttribute(nor, 3));
+      if (uv) g.setAttribute('uv', new T.BufferAttribute(uvs, 2));
+      g.setIndex(new T.BufferAttribute(idx, 1));
+      return g;
+    }
+    // weld `meshes` (wherever they hang) into `space`, kept apart by key(mesh) as well as by
+    // material and shadows
+    function merge(space, meshes, key) {
+      space.updateMatrixWorld(true);
+      const inv = space.matrixWorld.clone().invert(), lots = new Map();
+      const put = (k, mat, cast, recv, from) => {
+        if (!lots.has(k)) lots.set(k, { mat, cast, recv, list: [] });
+        lots.get(k).list.push({ geo: from.geometry, m: inv.clone().multiply(from.matrixWorld) });
+      };
+      for (const m of meshes) {
+        const k = key ? key(m) : '';
+        put(k + m.material.uuid + m.castShadow + m.receiveShadow, m.material, m.castShadow, m.receiveShadow, m);
+        for (const ol of m.children) put(k + 'outline', OL_MAT, false, false, ol);
+        m.removeFromParent();
+      }
+      for (const { mat, cast, recv, list } of lots.values()) {
+        const w = new T.Mesh(weld(list), mat);
+        w.castShadow = cast; w.receiveShadow = recv;
+        space.add(w);
+      }
+    }
 
     // ---------- textures, all painted here ----------
     const texCache = new Map();
@@ -304,7 +361,8 @@ window.LOT3D = (function () {
     // Built from an HD.person spec: hair, hat, beard, build, outfit and collar, in the
     // colours the flat art uses. Legs bend at the knee and arms at the elbow; everything
     // above the waist sits in `upper` so it can twist against the hips. Boots and skates
-    // are both there; the skates show on ice.
+    // are both there; the skates show on ice, and turn at the ankle.
+    const HIP_Y = 0.62, THIGH = 0.27, SHIN = 0.24, BLADE = 0.16; // hip height, hip to knee, knee to ankle, ankle to the ice
     function buildPerson(p) {
       const W = p.W, belly = p.belly, female = p.female, parka = p.outfit === 'parka';
       const root = new T.Group(), body = new T.Group();
@@ -325,9 +383,9 @@ window.LOT3D = (function () {
       const hips = {}, knees = {}, boots = [], skates = [];
       for (const s of [-1, 1]) {
         const hip = new T.Group(), knee = new T.Group();
-        hip.position.set(s * 0.115 * W * (female ? 0.9 : 1), 0.62, 0); rig.add(hip);
-        hip.add(at(cyl(0.1, 0.092, 0.27, pantsM, null, 10, true), 0, -0.135, 0));
-        knee.position.y = -0.27; hip.add(knee);
+        hip.position.set(s * 0.115 * W * (female ? 0.9 : 1), HIP_Y, 0); rig.add(hip);
+        hip.add(at(cyl(0.1, 0.092, THIGH, pantsM, null, 10, true), 0, -THIGH / 2, 0));
+        knee.position.y = -THIGH; hip.add(knee);
         knee.add(ball(pantsM, 0, 0, 0, 0.093, 0.093, 0.093, { ol: false }));
         knee.add(at(cyl(0.092, 0.086, 0.23, pantsM, null, 10, true), 0, -0.115, 0));
         const bt = new T.Group(), sk = new T.Group();
@@ -335,9 +393,10 @@ window.LOT3D = (function () {
         bt.add(at(cyl(0.1, 0.106, 0.08, toon('#efe6d2'), null, 10), 0, -0.16, 0));
         bt.add(ball(toon(p.boot.f), 0, -0.26, 0.045, 0.12, 0.1, 0.18));
         bt.add(at(box(0.22, 0.03, 0.34, toon(p.sole.f), { ol: false }), 0, -0.345, 0.045));
-        sk.add(at(cyl(0.1, 0.11, 0.16, toon(p.skate.f), null, 10), 0, -0.2, 0));
-        sk.add(ball(toon(p.skate.f), 0, -0.27, 0.05, 0.11, 0.08, 0.17));
-        sk.add(at(box(0.03, 0.06, 0.4, toon(p.blade.f)), 0, -0.37, 0.04));
+        sk.position.y = -SHIN;
+        sk.add(at(cyl(0.1, 0.11, 0.16, toon(p.skate.f), null, 10), 0, SHIN - 0.2, 0));
+        sk.add(ball(toon(p.skate.f), 0, SHIN - 0.27, 0.05, 0.11, 0.08, 0.17));
+        sk.add(at(box(0.03, 0.06, 0.4, toon(p.blade.f)), 0, SHIN - 0.37, 0.04));
         sk.visible = false;
         hips[s] = hip; knees[s] = knee;
       }
@@ -462,6 +521,15 @@ window.LOT3D = (function () {
           head.add(ball(pm, s * 0.275, -0.04, -0.01, 0.06, 0.15, 0.13));
           head.add(ball(fleeceM, s * 0.28, -0.17, -0.01, 0.065, 0.045, 0.12));
         }
+      }
+
+      // each part that moves as one (the head, a shin, a boot) welded into a mesh per material
+      root.updateMatrixWorld(true);
+      const parts = [];
+      root.traverse((o) => { if (!o.isMesh) parts.push(o); });
+      for (const g of parts) {
+        const ms = g.children.filter(weldable);
+        if (ms.length > 1) merge(g, ms);
       }
 
       return {
@@ -1123,6 +1191,13 @@ window.LOT3D = (function () {
     halos.material.opacity = DUSK.halo;
     facadeMat.emissiveIntensity = DUSK.win;
 
+    // everything that never moves welded together, in patches 16 metres square so what's off
+    // screen still isn't drawn (the embers flicker, so they stay apart)
+    scene.updateMatrixWorld(true);
+    const still = [], wp = new V3();
+    scene.traverse((o) => { if (weldable(o) && !embers.includes(o)) still.push(o); });
+    merge(scene, still, (m) => { wp.setFromMatrixPosition(m.matrixWorld); return Math.floor(wp.x / 16) + ',' + Math.floor(wp.z / 16) + '|'; });
+
     // ---------- the camera: high up to the south, following you ----------
     const camera = new T.PerspectiveCamera(30, SW / SH, 0.5, 220);
     const cam = { dist: ZOOMS[0].dist, pitch: ZOOMS[0].pitch };
@@ -1140,12 +1215,39 @@ window.LOT3D = (function () {
       return prev.clone().lerp(cur, alpha);
     }
 
+    // bend a leg so its ankle comes to `foot`, with the knee pointing along `fwd` (both in the
+    // rig's own terms): the thigh and shin are the two sides of a triangle with the hip, and
+    // the hip turns that triangle to face the foot
+    const _d = new V3(), _n = new V3(), _x = new V3(), _y = new V3(), _z = new V3(), _m = new T.Matrix4();
+    function reach(hip, knee, foot, fwd) {
+      _d.subVectors(foot, hip.position);
+      const D = clamp(_d.length(), THIGH - SHIN + 1e-3, THIGH + SHIN - 1e-3);
+      _d.normalize();
+      const atHip = Math.acos(clamp((THIGH * THIGH + D * D - SHIN * SHIN) / (2 * THIGH * D), -1, 1));
+      const atKnee = Math.acos(clamp((THIGH * THIGH + SHIN * SHIN - D * D) / (2 * THIGH * SHIN), -1, 1));
+      _n.crossVectors(_d, fwd).normalize();
+      _y.copy(_d).applyAxisAngle(_n, atHip).negate(); // up the thigh
+      _z.crossVectors(_n, _y).negate(); // the way the knee points
+      _x.crossVectors(_y, _z);
+      hip.quaternion.setFromRotationMatrix(_m.makeBasis(_x, _y, _z));
+      knee.rotation.set(Math.PI - atKnee, 0, 0);
+    }
+    // A skating stroke, as a share of the whole cycle: each leg pushes, then lifts and comes
+    // back under you, then carries you while the other one does the same.
+    const PUSH = 0.32, LIFT = 0.18;
+    const ease = (x) => x * x * (3 - 2 * x);
+    const _h = new V3(), _f = new V3(), _k = new V3(), _inv = new T.Matrix4(), _rq = new T.Quaternion(), _q = new T.Quaternion(), _e = new T.Euler();
+
     // How someone moves: their legs keep pace with how far they've actually gone (a stride
     // is a little longer the faster they go, so feet don't slide), easing in and out as
     // they start and stop. Walking bends the knees and elbows and twists the shoulders
     // against the hips; at running pace they lean in and pump their arms. On skates they
-    // crouch and push off to the side, one foot then the other, and coast with both feet
-    // together.
+    // crouch, leaning in from the hips, and each foot in turn pushes out to the side and
+    // back with the toe turned out and the blade on its inside edge, lifts and swings back
+    // under them, then carries them while the other pushes; the body sways over whichever
+    // skate it's on and the arms swing across with the legs. Coasting, both skates are side
+    // by side, one a little ahead. Their feet are set on the ice and the legs bent to reach,
+    // so the blades stay flat on it.
     function pose(person, it, pos, dt, t) {
       const sk = !!it.skate, coast = sk && it.walk < 0;
       if (person.skates[0].visible !== sk) {
@@ -1163,42 +1265,63 @@ window.LOT3D = (function () {
       person.root.rotation.y = person.ang;
       person.w += ((going && !coast ? 1 : 0) - person.w) * (1 - Math.exp(-dt * 8));
       person.glide += ((going && coast ? 1 : 0) - person.glide) * (1 - Math.exp(-dt * 6));
-      const stride = sk ? 3.4 : clamp(1.5 + person.spd * 0.17, 1.7, 2.9);
+      // on skates a push carries you a long way, so the legs keep to a skater's unhurried
+      // rhythm, only a little quicker the faster you go
+      const stride = sk ? Math.max(2.5, person.spd / clamp(0.8 + person.spd * 0.05, 0.9, 1.5)) : clamp(1.5 + person.spd * 0.17, 1.7, 2.9);
       if (!coast) person.cyc = (person.cyc + (moved / stride) * TAU) % (TAU * 64);
       const w = person.w, gl = person.glide, c = person.cyc, run = clamp((person.spd - 3) / 3.5, 0, 1);
-      const { rig, upper, hips, knees, arms, elbows } = person;
+      const { rig, upper, hips, knees, arms, elbows, head } = person;
+      // breathing while standing still
+      rig.scale.y = 1 + Math.sin(t * 2.2 + person.phase) * 0.012 * (1 - w);
       if (sk) {
+        const act = Math.max(w, gl);
+        // the hips over the skate that's carrying you, lowest as the other one finishes its push
+        const sway = -Math.sin(c) * 0.06 * w;
+        const hipH = 0.685 - 0.04 * act - 0.03 * w * (1 + Math.cos(2 * (c - PUSH * TAU))) / 2;
+        const lean = 0.1 + 0.3 * w + 0.22 * gl;
+        rig.rotation.set(lean, 0, -sway * 1.2);
+        _h.set(0, HIP_Y * rig.scale.y, 0).applyEuler(rig.rotation);
+        rig.position.set(sway, hipH, 0).sub(_h);
+        rig.updateMatrix(); _inv.copy(rig.matrix).invert(); _rq.copy(rig.quaternion).invert();
         for (const s of [-1, 1]) {
-          const push = Math.max(0, Math.sin(c + (s > 0 ? 0 : Math.PI)));
-          hips[s].rotation.z = s * (push * 0.42 * w + 0.04 * gl);
-          hips[s].rotation.x = (push * 0.4 - 0.25) * w - 0.2 * gl;
-          knees[s].rotation.x = 0.35 * Math.max(w, gl) + (1 - push) * 0.25 * w;
-          arms[s].rotation.x = -Math.sin(c) * s * 0.55 * w + 0.15 * gl;
-          arms[s].rotation.z = s * (0.12 + 0.18 * w + 0.25 * gl);
-          elbows[s].rotation.x = -0.35 * Math.max(w, gl);
+          const q = (c / TAU + (s > 0 ? 0 : 0.5)) % 1;
+          let out = 0, back = 0, lift = 0;
+          if (q < PUSH) out = back = ease(q / PUSH);
+          else if (q < PUSH + LIFT) { const k = ease((q - PUSH) / LIFT); out = 1 - k; back = 1 - 1.4 * k; lift = Math.sin(Math.PI * (q - PUSH) / LIFT); }
+          else back = -0.4 * (1 - (q - PUSH - LIFT) / (1 - PUSH - LIFT));
+          // where the ankle goes, in the body's terms: out, back and up as above, or side by
+          // side (one a little ahead) when coasting
+          _f.set(s * (Math.abs(hips[s].position.x) + 0.02 + 0.15 * out * w), BLADE + 0.02 + 0.08 * lift * w, -0.1 * back * w + s * 0.07 * gl);
+          const toe = s * (0.06 + 0.5 * out * w);
+          _k.set(Math.sin(toe), 0, Math.cos(toe)).applyQuaternion(_rq);
+          reach(hips[s], knees[s], _f.applyMatrix4(_inv), _k);
+          // the skate turns at the ankle to stay flat, tipped on to its inside edge as it pushes
+          _q.setFromEuler(_e.set(0, toe, s * 0.3 * out * w, 'YXZ')).premultiply(_rq);
+          person.skates[s > 0 ? 1 : 0].quaternion.copy(hips[s].quaternion).multiply(knees[s].quaternion).invert().multiply(_q);
+          // arms hang down (not along the leaning back) and swing across, each with the
+          // other leg; a little out for balance when coasting
+          const fwd = s * Math.sin(c) * w;
+          arms[s].rotation.set(lean * 0.8 - 0.8 * fwd + 0.1 * gl, 0, s * (0.16 - 0.2 * fwd + 0.2 * gl));
+          elbows[s].rotation.x = -0.25 - 0.35 * act;
         }
-        rig.rotation.x = 0.1 + 0.22 * Math.max(w, gl);
-        rig.rotation.z = Math.sin(c) * 0.09 * w;
-        upper.rotation.y = Math.sin(c) * 0.1 * w;
-        rig.position.y = 0.075 - 0.05 * Math.max(w, gl) + Math.abs(Math.sin(c)) * 0.02 * w;
+        upper.rotation.y = -Math.sin(c) * 0.12 * w;
+        head.rotation.x = -lean * 0.75; // looking where they're going
       } else {
         for (const s of [-1, 1]) {
           const ph = c + (s > 0 ? 0 : Math.PI);
-          hips[s].rotation.x = -Math.sin(ph) * (0.45 + 0.3 * run) * w;
-          hips[s].rotation.z = 0;
+          hips[s].rotation.set(-Math.sin(ph) * (0.45 + 0.3 * run) * w, 0, 0);
           knees[s].rotation.x = (0.08 + Math.max(0, Math.cos(ph)) * (0.65 + 0.7 * run)) * w;
           arms[s].rotation.x = Math.sin(ph) * (0.45 + 0.35 * run) * w;
           arms[s].rotation.z = s * (0.12 + 0.04 * run * w);
           elbows[s].rotation.x = -(0.12 + (0.25 + 0.9 * run) * w + Math.max(0, -Math.sin(ph)) * 0.3 * w);
         }
-        rig.rotation.x = (0.04 + 0.12 * run) * w;
-        rig.rotation.z = Math.sin(c) * 0.035 * w + Math.sin(t * 0.7 + person.phase) * 0.015 * (1 - w);
+        rig.rotation.set((0.04 + 0.12 * run) * w, 0, Math.sin(c) * 0.035 * w + Math.sin(t * 0.7 + person.phase) * 0.015 * (1 - w));
         upper.rotation.y = Math.sin(c) * (0.1 + 0.08 * run) * w;
-        rig.position.y = ((Math.cos(2 * c) + 1) / 2) * (0.03 + 0.04 * run) * w - 0.02 * w;
+        rig.position.set(0, ((Math.cos(2 * c) + 1) / 2) * (0.03 + 0.04 * run) * w - 0.02 * w, 0);
+        head.rotation.x = 0;
       }
-      // breathing, and a look about while standing still (the head steadies against the twist)
-      rig.scale.y = 1 + Math.sin(t * 2.2 + person.phase) * 0.012 * (1 - w);
-      person.head.rotation.y = -upper.rotation.y * 0.8 + Math.sin(t * 0.55 + person.phase) * 0.3 * (1 - w) * (1 - gl);
+      // a look about while standing still (the head steadies against the twist)
+      head.rotation.y = -upper.rotation.y * 0.8 + Math.sin(t * 0.55 + person.phase) * 0.3 * (1 - w) * (1 - gl);
     }
 
     function draw(f) {
