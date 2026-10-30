@@ -205,13 +205,14 @@ window.COSTUME_LINES = {
 // Christmas: what coworkers out in the parking lot talk about (one is picked at random,
 // along with their own christmas: line if they have one), by where they are.
 window.CHRISTMAS_LINES = {
-  rink: ["I haven't skated since I was ten. It's all coming back to me. Mostly.", "Anticlockwise! Everyone goes anticlockwise!",
-    "Somebody flooded this on their lunch break. Respect.", "My toes went numb two laps ago. I'm committed now.",
-    "One more lap, then hot chocolate. Then one more lap."],
   fire: ["Best seat in the lot. Warm on the front, freezing on the back.", "I've been rotating like a rotisserie chicken for an hour.",
     "Smells like woodsmoke and marshmallows. Don't tell anyone I brought marshmallows.", "This fire puts out more BTUs than half our heating coils."],
   cocoa: ["They have the little marshmallows. Not the big ones. The little ones.", "I'm on my third. Don't judge me.",
     "Whipped cream AND marshmallows? It's the holidays."],
   watch: ["I'm just here to watch people fall over. Purely supportive.", "Someone needs to bring a puck. We could get a game going.",
-    "I'd skate, but these are my good shoes."],
+    "I'd skate, but these are my good shoes.", "Somebody flooded this on their lunch break. Respect."],
+  car: ["Found my car. I think. They all look the same under a foot of snow.", "I'm warming it up. Twenty more minutes and it might start.",
+    "I left my scraper inside. I've been using my loyalty card."],
+  snowman: ["Somebody gave him a lanyard. He has better building access than I do.", "I did the head. I'm very proud of the head."],
+  tree: ["Whoever strung all these lights deserves a raise.", "I tried counting the bulbs. I lost count at forty."],
 };

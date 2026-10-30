@@ -537,16 +537,31 @@ From November 27 to December 31 (by your device's date) the office does Christma
   spare all round. Walk back into the doors to go inside again.
 - **Skating**: step onto the ice and you're on skates. Keep pushing one way to pick
   up speed (up to twice walking pace), turn and you lose some, let go and you glide
-  on for up to 8 tiles, slowing down. The boards stop you dead.
-- Ten coworkers, picked at random each time the game loads, have gone out there:
-  three skate laps of the rink, the rest stand around the fire pit, the hot
-  chocolate stand and the boards. Anyone with a part to play indoors (the Employee of
+  on, slowing down little by little until you come to a stop (about 10 tiles from full
+  speed). The boards stop you dead.
+- Ten coworkers, picked at random each time the game loads, have gone out there and
+  stand around the lot: at the fire pit, the hot chocolate stand, a car, the snowman
+  and the big spruce, and two pacing along the rink's boards. The ice is all yours. Anyone with a part to play indoors (the Employee of
   the Month list, Lam, Linda, Jenn, Cody, Zin, Eugene) stays in. The hot chocolate
   stand pours as many as you like.
 
-The parking lot is drawn by `js/hd.js`, on a canvas four times the size of the game
-screen that sits under it (the game screen goes see-through outside, so menus and
-dialogs still draw on top as usual). Everyone in it is drawn from the colours they
+The parking lot is drawn in 3D by `js/lot3d.js`: the same cel-shaded look (three flat
+bands of light and a black outline on everything), seen from high up to the south like
+an old Diablo game, with the camera following you. It's laid out from the Parking Lot's
+rows in `js/maps.js` at a metre to a tile, so moving a car or a lamp post there moves it
+in 3D too, and the controls and everything that happens out there are the same as ever.
+**ZOOM** in the Start menu (only while you're out there in 3D) brings the camera in from
+FAR to MID to CLOSE; it's remembered on that device.
+It runs on Three.js (`js/vendor/three.min.js`, MIT licensed), which is only fetched at
+Christmas, in the background once the game has loaded. It's always dusk out there, with
+the sun low in the west, the windows, lamps and strings of lights all on, and snow
+coming down.
+
+Until Three.js is in, or on a device that can't do 3D, the lot is drawn flat by
+`js/hd.js`, on a canvas four times the size of the game screen that sits under it (the
+game screen goes see-through outside, so menus and dialogs still draw on top as usual).
+In 3D that canvas only carries other players' names and speech bubbles. Everyone in it
+is drawn from the colours they
 already have (`js/people.js`, or a player's look), dressed for a Canadian winter:
 flannel, denim on denim, hockey sweaters, parkas or puffer vests, toques and trapper
 hats, beards from stubble to mountain man, and five builds from lanky to big. All of
@@ -578,6 +593,7 @@ Add these to the end of the address (after `index.html`) and press Enter.
 - `index.html#christmas=1`: the whole game with Christmas switched on.
 - `index.html#play&christmas=1&yard=1`: start outside the parking lot's doors.
 - `#christmas=0` switches it off during the holidays.
+- Add `&flat` to see the flat parking lot instead of the 3D one.
 
 **Straight into a mini-game**
 

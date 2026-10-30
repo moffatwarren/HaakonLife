@@ -361,11 +361,10 @@
     for (const n of npcs.concat(dogs)) {
       if (n.floor !== P.floor) continue;
       if (n.moving) {
-        n.prog += n.lap ? n.lap.speed : 1;
+        n.prog += 1;
         if (n.prog >= 16) { n.x += n.mdx; n.y += n.mdy; n.moving = false; n.prog = 0; }
         continue;
       }
-      if (n.lap) { skateOn(n); continue; } // skating laps of the rink
       if (visit && n === visit.npc && visit.phase !== 'stay') continue; // on their way to or from the portal
       if (--n.wait > 0) continue;
       n.wait = n.dog ? 10 + Math.floor(Math.random() * 70) : 40 + Math.floor(Math.random() * 140);
@@ -9041,6 +9040,13 @@
       .concat([['MAP', () => ui.push(MapView())]])
       .concat(MP_ON ? [['WHO\'S HERE', (self) => { remove(self); mpWho(); }], ['SAY SOMETHING', (self) => { remove(self); mpSayMenu(); }]] : [])
       .concat(mp.newer ? [['UPDATE GAME', () => location.reload()]] : [])
+      .concat(P.floor === YARD && hd && hd.gl ? [[LOT_ZOOMS[lotZoom], (self) => {
+        lotZoom = (lotZoom + 1) % LOT_ZOOMS.length;
+        store.set('zoom', lotZoom);
+        hd.gl.setZoom(lotZoom);
+        self.options = items().map((o) => o[0]);
+        sfx('select');
+      }]] : [])
       .concat(quest ? [['LINDA\'S LIST', () => ui.push(LindaList())]] : [])
       .concat(kikiList ? [['KIKI\'S LIST', () => ui.push(KikiList())]] : [])
       .concat([
@@ -10284,63 +10290,40 @@
     sfx('stairs');
     startFade(() => {
       placePlayer(...to);
-      P.skate = 0;
+      P.skate = 0; P.coast = 0;
       if (curRoom) showBanner(curRoom.name);
     }, '#f8f8f8');
     return true;
   }
 
-  // Some coworkers have gone outside: a few skate laps of the rink (anticlockwise, in two
-  // lanes), the rest stand around the fire, the cocoa stand and the boards. Who goes out
-  // is picked afresh every time the game loads; anyone with a part to play indoors stays in.
+  // Some coworkers have gone outside and are standing around the lot: at the fire, the
+  // cocoa stand, a car, the snowman and the spruce, and a couple pacing along the rink's
+  // boards. The ice is left for you. Who goes out is picked afresh every time the game
+  // loads; anyone with a part to play indoors stays in.
   const STAY_IN = ['Lam', 'Linda', 'Jenn', 'Cody', 'Zin', 'Eugene'];
-  function laneRound(x1, y1, x2, y2) {
-    const path = [];
-    for (let y = y1; y <= y2; y++) path.push([x1, y]);
-    for (let x = x1 + 1; x <= x2; x++) path.push([x, y2]);
-    for (let y = y2 - 1; y >= y1; y--) path.push([x2, y]);
-    for (let x = x2 - 1; x > x1; x--) path.push([x, y1]);
-    return path;
-  }
   (function sendOutside() {
     if (!CHRISTMAS) return;
     const f = MAPS.floors[YARD], rink = f.rooms.find((r) => r.name === 'Ice Rink');
-    const find = (ch) => { for (let y = 0; y < f.tiles.length; y++) { const x = f.tiles[y].indexOf(ch); if (x >= 0) return [x, y]; } return null; };
-    const lanes = [laneRound(rink.x1 + 1, rink.y1 + 1, rink.x2 - 1, rink.y2 - 1), laneRound(rink.x1 + 4, rink.y1 + 3, rink.x2 - 4, rink.y2 - 3)];
-    const skaters = [[0, 0], [0, 0.5], [1, 0.25]]; // lane, how far round it (kept few, so there's room to skate)
-    const [fx, fy] = find('f'), [hx, hy] = find('h');
+    const find = (ch, from) => { for (let y = 0; y < f.tiles.length; y++) { const x = f.tiles[y].indexOf(ch, from || 0); if (x >= 0) return [x, y]; } return null; };
+    const [fx, fy] = find('f'), [hx, hy] = find('h'), [sx, sy] = find('s'), [tx, ty] = find('Y'), [cx, cy] = find('c', 10);
     let hh = 0;
     while (tileAt(YARD, hx, hy + hh) === 'h') hh++;
-    // where the others stand, which way they face, and what they talk about
+    // where they stand, which way they face, what they talk about, and how far either side
+    // they wander
     const spots = [[fx, fy - 1, 'down', 'fire'], [fx - 1, fy + 1, 'up', 'fire'], [fx + 1, fy + 1, 'up', 'fire'],
       [hx, hy + hh, 'up', 'cocoa'], [hx + 2, hy + hh, 'up', 'cocoa'],
-      [rink.x1 + 6, rink.y1 - 2, 'down', 'watch'], [rink.x2 - 5, rink.y2 + 2, 'up', 'watch']];
+      [rink.x1 + 6, rink.y1 - 2, 'down', 'watch', 2], [rink.x2 - 5, rink.y2 + 2, 'up', 'watch', 2],
+      [cx + 1, cy + 4, 'up', 'car', 2], [sx - 2, sy, 'right', 'snowman'], [tx, ty + 3, 'up', 'tree']];
     const lines = window.CHRISTMAS_LINES || {};
     const pool = shuffled(npcs.filter((n) => !n.ghost && !n.extra && !n.guest && !(visit && n === visit.npc)
       && !STAY_IN.includes(n.name) && !COWORKERS.some((c) => c.name === n.name)));
-    pool.slice(0, skaters.length + spots.length).forEach((n, i) => {
-      const own = personOf(n.name).christmas;
-      const talk = (k) => (own ? [own] : []).concat(lines[k] || ['Happy holidays!']);
-      Object.assign(n, { floor: YARD, moving: false, prog: 0, wait: 30 + Math.floor(Math.random() * 90) });
-      if (i < skaters.length) {
-        const [li, at] = skaters[i], path = lanes[li], j = Math.floor(at * path.length);
-        Object.assign(n, { x: path[j][0], y: path[j][1], lap: { path, i: j, speed: 1.4 + Math.random() * 1.2 }, lines: talk('rink') });
-      } else {
-        const [x, y, dir, k] = spots[i - skaters.length];
-        Object.assign(n, { x, y, dir, look: dir, room: { x1: x, y1: y, x2: x, y2: y }, lines: talk(k) });
-      }
+    pool.slice(0, spots.length).forEach((n, i) => {
+      const [x, y, dir, k, pace] = spots[i], own = personOf(n.name).christmas;
+      Object.assign(n, { floor: YARD, moving: false, prog: 0, wait: 30 + Math.floor(Math.random() * 90),
+        x, y, dir, look: dir, room: { x1: x - (pace || 0), y1: y, x2: x + (pace || 0), y2: y },
+        lines: (own ? [own] : []).concat(lines[k] || ['Happy holidays!']) });
     });
   })();
-  // A skater's next stride round their lane (waiting if someone's in the way).
-  function skateOn(n) {
-    const L = n.lap, [x, y] = L.path[(L.i + 1) % L.path.length];
-    const dx = x - n.x, dy = y - n.y;
-    n.dir = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
-    if (npcAt(n.floor, x, y) || playerAt(x, y)) return;
-    L.i = (L.i + 1) % L.path.length;
-    Object.assign(n, { moving: true, prog: 0, mdx: dx, mdy: dy });
-    n.step ^= 1;
-  }
 
   // Things to look at outside.
   const YARD_INFO = {
@@ -10354,6 +10337,7 @@
     s: ['A snowman in a top hat and a red scarf. Somebody has given it a HAAKON lanyard.'],
     '*': ['A big pile of plowed snow.'],
     Y: ['A big spruce strung with lights, with a star on top.'],
+    w: ['A stack of split firewood for the fire pit. Someone has left the axe in the chopping block.'],
     '#': ['The office. It looks warm in there.'],
     ' ': ['Snowy woods. It is very quiet in there.'],
   };
@@ -10377,7 +10361,26 @@
   // The parking lot's own canvas: K times the game screen's size, under it, shown only
   // while you're outside (the game screen goes see-through so it shows, with any menus
   // and dialogs still drawn on top in the usual pixels).
-  let hd = null;
+  // The lot is drawn in 3D (js/lot3d.js) under that canvas when it can be: Three.js is
+  // fetched in the background once the game has loaded at Christmas, and until it's in (or
+  // on a device without WebGL, or with &flat in the link) js/hd.js draws it flat instead.
+  // In 3D the flat canvas only carries the names over people's heads and speech bubbles.
+  let hd = null, three = 'idle';
+  // how close the 3D lot's camera is (Start menu > ZOOM), kept between visits
+  const LOT_ZOOMS = ['ZOOM: FAR', 'ZOOM: MID', 'ZOOM: CLOSE'];
+  let lotZoom = Math.min(LOT_ZOOMS.length - 1, Math.max(0, +store.get('zoom') || 0));
+  // how far the screen is into the next update (0 to 1), so the 3D lot can draw between them
+  let drawAlpha = 0;
+  function loadThree() {
+    if (three !== 'idle' || !window.LOT3D || /[#&]flat/.test(location.hash)) return;
+    three = 'loading';
+    const s = document.createElement('script');
+    s.src = 'js/vendor/three.min.js';
+    s.onload = () => { three = window.THREE ? 'ready' : 'failed'; };
+    s.onerror = () => { three = 'failed'; };
+    document.body.appendChild(s);
+  }
+  if (CHRISTMAS) setTimeout(loadThree, 1500);
   function hdScreen() {
     if (hd) return hd;
     const cv = document.createElement('canvas');
@@ -10386,18 +10389,40 @@
     canvas.parentNode.style.position = 'relative';
     canvas.style.position = 'relative'; canvas.style.zIndex = '1';
     canvas.parentNode.insertBefore(cv, canvas);
-    hd = { cv, c: cv.getContext('2d'), lot: HD.paintLot(MAPS.floors[YARD]), people: {}, shown: false };
+    hd = { cv, c: cv.getContext('2d'), lot: null, gl: null, people: {}, shown: false };
     hdPlace();
     return hd;
   }
+  // the 3D lot, made the first time it's wanted after Three.js is in
+  function hdGL() {
+    if (hd.gl || three !== 'ready') return hd.gl;
+    try {
+      hd.gl = LOT3D.create(MAPS.floors[YARD], { touch: isTouch });
+      hd.gl.setZoom(lotZoom, true);
+    } catch (e) {
+      three = 'failed';
+      return null;
+    }
+    const g = hd.gl.canvas;
+    g.style.position = 'absolute'; g.style.borderRadius = '2px'; g.style.display = hd.shown ? 'block' : 'none';
+    canvas.parentNode.insertBefore(g, hd.cv);
+    hdPlace();
+    return hd.gl;
+  }
   function hdPlace() {
     if (!hd) return;
-    Object.assign(hd.cv.style, { left: canvas.offsetLeft + 'px', top: canvas.offsetTop + 'px', width: canvas.style.width, height: canvas.style.height });
+    const box = { left: canvas.offsetLeft + 'px', top: canvas.offsetTop + 'px', width: canvas.style.width, height: canvas.style.height };
+    Object.assign(hd.cv.style, box);
+    if (hd.gl) {
+      Object.assign(hd.gl.canvas.style, box);
+      hd.gl.resize(canvas.clientWidth, canvas.clientHeight);
+    }
   }
   function hdShow(on) {
     if ((hd ? hd.shown : false) === on) return;
     hdScreen().shown = on;
     hd.cv.style.display = on ? 'block' : 'none';
+    if (hd.gl) hd.gl.canvas.style.display = on ? 'block' : 'none';
     canvas.style.background = on ? 'transparent' : '';
   }
   // someone's look in the smoother style, made once
@@ -10407,8 +10432,42 @@
   const stride = (moving, step, prog) => (moving ? ((step ? 1 : 0) + prog / 16) / 2 : -1);
 
   function drawYard() {
-    const h = hdScreen(), c = h.c, lot = h.lot, K = HD.K;
+    const h = hdScreen(), c = h.c, K = HD.K;
     const px = P.x * 16 + (P.moving ? P.mdx * P.prog : 0), py = P.y * 16 + (P.moving ? P.mdy * P.prog : 0);
+    // everyone out here: you, coworkers and other players
+    const people = [{ key: 'me:' + playerName + ':' + pick.gender + pick.index, spec: hdPerson('me:' + playerName + ':' + pick.gender + pick.index, playerName || 'New Hire', pick.gender, Art.LOOKS[pick.gender][pick.index]),
+      px, py, dir: P.dir, walk: P.glide ? -1 : stride(P.moving, P.step, P.prog), skate: iceAt(px, py) }];
+    for (const n of npcs) {
+      if (n.floor !== YARD) continue;
+      const nx = n.x * 16 + (n.moving ? n.mdx * n.prog : 0), ny = n.y * 16 + (n.moving ? n.mdy * n.prog : 0);
+      const { body, look } = lookFor(n.name);
+      people.push({ key: 'npc:' + n.name, spec: hdPerson('npc:' + n.name, n.name, body, look, personOf(n.name).style),
+        px: nx, py: ny, dir: n.dir, walk: stride(n.moving, n.step, n.prog), skate: iceAt(nx, ny) });
+    }
+    const others = mpHere().filter((o) => o.f === YARD);
+    for (const o of others) {
+      const mv = o.px !== o.x * 16 || o.py !== o.y * 16, key = 'mp:' + o.n + ':' + o.g + o.l;
+      people.push({ key, spec: hdPerson(key, o.n, o.g, Art.LOOKS[o.g][o.l]), px: o.px, py: o.py, dir: o.dir, walk: mv ? (o.dist / 32) % 1 : -1, skate: iceAt(o.px, o.py) });
+    }
+    const now = Date.now();
+
+    const gl = hdGL();
+    if (gl) {
+      gl.draw({ t: tick, alpha: drawAlpha, focus: [px, py], people });
+      // names and speech bubbles, flat, over the 3D
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.clearRect(0, 0, h.cv.width, h.cv.height);
+      c.setTransform(K, 0, 0, K, 0, 0);
+      for (const o of others) {
+        HD.tag(c, o.n, ...gl.toScreen(o.px, o.py, 2.35));
+        const said = mpSaying(o, now);
+        if (said) HD.bubble(c, said, ...gl.toScreen(o.px, o.py, 2.65), 0, SW);
+      }
+      if (mp.bubble) HD.bubble(c, mp.bubble.str, ...gl.toScreen(px, py, 2.5), 0, SW);
+      return;
+    }
+
+    const lot = h.lot || (h.lot = HD.paintLot(MAPS.floors[YARD]));
     // the view follows you, but stops at the edges of the lot
     const cx = Math.max(0, Math.min(lot.w - SW, px + 8 - SW / 2)), cy = Math.max(0, Math.min(lot.h - SH, py + 8 - SH / 2));
     c.setTransform(1, 0, 0, 1, 0, 0);
@@ -10416,21 +10475,9 @@
     c.setTransform(K, 0, 0, K, -cx * K, -cy * K);
     // everyone and everything standing up, back to front by where their feet are
     const items = lot.props.filter((p) => !p.img || (p.x < cx + SW && p.x + p.w > cx && p.y < cy + SH && p.y + p.h > cy));
-    items.push({ base: py + 13, x: px + 8, spec: hdPerson('me:' + playerName + ':' + pick.gender + pick.index, playerName || 'New Hire', pick.gender, Art.LOOKS[pick.gender][pick.index]),
-      dir: P.dir, walk: P.glide ? -1 : stride(P.moving, P.step, P.prog), skate: iceAt(px, py) });
-    for (const n of npcs) {
-      if (n.floor !== YARD) continue;
-      const nx = n.x * 16 + (n.moving ? n.mdx * n.prog : 0), ny = n.y * 16 + (n.moving ? n.mdy * n.prog : 0);
-      if (nx < cx - 32 || nx > cx + SW + 16 || ny < cy - 16 || ny > cy + SH + 48) continue;
-      const { body, look } = lookFor(n.name);
-      items.push({ base: ny + 13, x: nx + 8, spec: hdPerson('npc:' + n.name, n.name, body, look, personOf(n.name).style),
-        dir: n.dir, walk: stride(n.moving, n.step, n.prog), skate: iceAt(nx, ny) });
-    }
-    const others = mpHere().filter((o) => o.f === YARD);
-    for (const o of others) {
-      const mv = o.px !== o.x * 16 || o.py !== o.y * 16;
-      items.push({ base: o.py + 13, x: o.px + 8, spec: hdPerson('mp:' + o.n + ':' + o.g + o.l, o.n, o.g, Art.LOOKS[o.g][o.l]),
-        dir: o.dir, walk: mv ? (o.dist / 32) % 1 : -1, skate: iceAt(o.px, o.py) });
+    for (const it of people) {
+      if (it.px < cx - 32 || it.px > cx + SW + 16 || it.py < cy - 16 || it.py > cy + SH + 48) continue;
+      items.push({ base: it.py + 13, x: it.px + 8, spec: it.spec, dir: it.dir, walk: it.walk, skate: it.skate });
     }
     items.sort((a, b) => a.base - b.base);
     for (const it of items) {
@@ -10440,7 +10487,6 @@
     HD.overlay(c, lot, tick, cx, cy, SW, SH);
     // names over other players' heads, and what anyone's saying
     c.setTransform(K, 0, 0, K, -cx * K, -cy * K);
-    const now = Date.now();
     for (const o of others) {
       HD.tag(c, o.n, o.px + 8, o.py - 29);
       const said = mpSaying(o, now);
@@ -10451,8 +10497,12 @@
 
   // ---------- player / world ----------
   const S0 = MAPS.start;
-  // skate: how much speed you've built up on the ice (0 to 8); glide: coasting on it
-  const P = { floor: S0.floor, x: S0.x, y: S0.y, dir: S0.dir, moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, turnWait: 0, walked: false, bump: 0, skate: 0, glide: false };
+  // skate: how much speed you've built up on the ice (0 to 8); glide: coasting on it, at
+  // coast pixels a tick
+  const P = { floor: S0.floor, x: S0.x, y: S0.y, dir: S0.dir, moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, turnWait: 0, walked: false, bump: 0, skate: 0, glide: false, coast: 0 };
+  // coasting slows you this much every tick (from full speed that's about 10 tiles); below
+  // GLIDE_STOP you come to a halt at the next tile, and you never crawl slower than GLIDE_MIN
+  const GLIDE_DRAG = 0.05, GLIDE_STOP = 0.6, GLIDE_MIN = 0.45;
   let mode = 'title', tick = 0, roomName = null, curRoom = null, banner = null;
   let fade = null; // {t, cb, color}
 
@@ -10740,7 +10790,9 @@
 
   function updatePlayer() {
     if (P.moving) {
-      P.prog = Math.min(16, P.prog + 2 + P.skate / 4); // always at running pace, and faster still on skates
+      // always at running pace, and faster still on skates; coasting, a little slower every tick
+      if (P.glide) P.coast = Math.max(GLIDE_MIN, P.coast - GLIDE_DRAG);
+      P.prog = Math.min(16, P.prog + (P.glide ? P.coast : 2 + P.skate / 4));
       if (P.prog < 16) return;
       P.moving = false; P.prog = 0;
       P.x += P.mdx; P.y += P.mdy;
@@ -10750,20 +10802,20 @@
     }
     const d = heldDir();
     // On the ice you skate: keep pushing one way to pick up speed, turn and you lose some,
-    // let go and you glide on, slowing down gently (up to 8 tiles from full speed). The
-    // boards stop you dead.
-    if (tileAt(P.floor, P.x, P.y) !== '~') P.skate = 0;
-    else if (P.walked && !pressed.has('start') && !pressed.has('map') && !pressed.has('a') && (d || P.skate)) {
-      if (d) P.skate = d === P.dir ? Math.min(8, P.skate + 2) : Math.max(0, P.skate - 3);
-      else P.skate = Math.max(0, P.skate - 1);
+    // let go and you glide on, slowing down little by little until you come to a stop
+    // (about 10 tiles from full speed). The boards stop you dead.
+    if (tileAt(P.floor, P.x, P.y) !== '~') { P.skate = 0; P.coast = 0; }
+    else if (P.walked && !pressed.has('start') && !pressed.has('map') && !pressed.has('a') && (d || P.coast > GLIDE_STOP)) {
+      if (d) {
+        P.skate = d === P.dir ? Math.min(8, P.skate + 2) : Math.max(0, P.skate - 3);
+        P.coast = 2 + P.skate / 4;
+      } else P.skate = Math.max(0, Math.min(8, (P.coast - 2) * 4)); // push again and you carry on from here
       P.glide = !d;
       if (d) P.dir = d;
-      if (d || P.skate) {
-        tryMove(P.dir);
-        if (!P.moving) P.skate = 0;
-        else if (d && P.step) sfx('skate');
-        return;
-      }
+      tryMove(P.dir);
+      if (!P.moving) { P.skate = 0; P.coast = 0; }
+      else if (d && P.step) sfx('skate');
+      return;
     }
     P.glide = false;
     if (pressed.has('start')) { openStartMenu(); return; }
@@ -11237,6 +11289,7 @@
     acc += Math.min(100, now - last);
     last = now;
     while (acc >= STEP) { update(); acc -= STEP; }
+    drawAlpha = acc / STEP;
     draw();
     requestAnimationFrame(frame);
   }

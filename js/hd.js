@@ -886,6 +886,24 @@ window.HD = (function () {
     snowOn(c, [[5, -20.8, 1.5], [11, -21, 1.7]]);
   }
 
+  // firewood stacked three high, log ends out, with a chopping block (axe in it) at the east end
+  function woodpile(c) {
+    const bark = tone('#7a5030'), end = tone('#d9b27a');
+    c.fillStyle = GROUND; ell(c, 15, -1, 16, 2.6); c.fill();
+    for (let row = 0; row < 3; row++)
+      for (let i = 0; i < 4 - row; i++) {
+        const x = 2.6 + i * 4.6 + row * 2.3, y = -3 - row * 3.6;
+        part(c, bark, (cc) => ell(cc, x, y, 2.3, 2), (cc) => cc.rect(x + 0.4, y - 3, 3, 6));
+        part(c, end, (cc) => ell(cc, x - 0.4, y - 0.2, 1.5, 1.3));
+        c.strokeStyle = bark.s; c.lineWidth = 0.35; ell(c, x - 0.4, y - 0.2, 0.7, 0.6); c.stroke(); c.lineWidth = OL;
+      }
+    snowOn(c, [[7, -12.8, 1.8], [10.5, -13, 2]]);
+    part(c, bark, (cc) => rr(cc, 22.4, -6.4, 6.4, 6.4, 1.2), (cc) => cc.rect(26, -8, 4, 9));
+    part(c, end, (cc) => ell(cc, 25.6, -6.4, 3.2, 1.2));
+    part(c, tone('#a8743e'), (cc) => poly(cc, [[25.4, -6.6], [26.4, -6.8], [29.6, -14.4], [28.6, -14.6]]));
+    part(c, tone('#c9d0d8'), (cc) => poly(cc, [[24, -6.4], [27.2, -6.4], [27, -8.8], [24.2, -8.4]]));
+  }
+
   function snowman(c) {
     const snow = SNOWY, coal = '#22222c';
     c.fillStyle = GROUND; ell(c, 0, 0, 8, 2.4); c.fill();
@@ -1302,6 +1320,8 @@ window.HD = (function () {
           props.push(place(sprite(20, 26, 2, 24, bench), x * 16, base - 2, base - 2));
         } else if (t === 's') {
           props.push(place(sprite(28, 42, 14, 40, snowman), cx, base - 2, base - 2));
+        } else if (t === 'w' && at(x - 1, y) !== 'w') {
+          props.push(place(sprite(32, 18, 0, 16, woodpile), x * 16, base - 2, base - 2));
         } else if (t === '*') {
           const seed = Math.floor(rnd() * 1e6);
           props.push(place(sprite(26, 16, 13, 13, (cc) => snowbank(cc, rng(seed))), cx, base - 1, base - 1));

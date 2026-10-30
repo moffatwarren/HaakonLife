@@ -41,6 +41,7 @@ in the smoother style rather than from tiles:
   solid:     # the office   X the fitness room's side doors   B rink boards   n hockey net
              c parked car (2 wide, 3 tall)   L lamp post   b bench   h hot chocolate stand
              f fire pit   s snowman   * snowbank   Y the big spruce   (space) the woods
+             w woodpile (2 wide, the chopping block at its east end)
 Its doors, side by side in the office wall along the top, are the fitness room's two
 'X' doors in order ('yard' in the output).
 
@@ -961,6 +962,7 @@ fy.put(52, 11, 's')
 fy.put(49, 19, 'Y')                             # the big spruce
 fy.put(49, 30, 'f')                             # fire pit, a bench either side
 fy.put(47, 30, 'b'); fy.put(51, 30, 'b')
+fy.fill(45, 32, 46, 32, 'w')                    # firewood for it
 for x, y in ((1, 36), (1, 37), (2, 37), (42, 37), (43, 37), (43, 36), (54, 37), (54, 38), (53, 38), (54, 4), (53, 4)):
     fy.put(x, y, '*')
 
