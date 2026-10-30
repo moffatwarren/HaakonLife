@@ -992,6 +992,27 @@ window.HD = (function () {
     frame([[3, 24], [3, -8]]);
     c.restore(); c.lineWidth = OL;
   }
+  // a hockey net 2 tiles wide, from the middle of its goal line: opening toward you
+  // (`facing`), or with its back to you
+  function netEnd(c, facing) {
+    const frame = (pts) => {
+      c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (const p of pts.slice(1)) c.lineTo(p[0], p[1]);
+      c.strokeStyle = OUT; c.lineWidth = 2.4; c.stroke(); c.strokeStyle = '#e03838'; c.lineWidth = 1.2; c.stroke();
+    };
+    // the mouth is 20 wide and 14 high, the net 10 deep and 9 high at the back
+    const back = facing ? -10 : 10, shape = facing ? [[-10, 0], [-10, -14], [-8, -19], [8, -19], [10, -14], [10, 0]]
+      : [[-10, 0], [-10, -14], [10, -14], [10, 0], [8, 10], [-8, 10]];
+    if (!facing) frame([[-10, 0], [-10, -14], [10, -14], [10, 0]]);
+    c.fillStyle = 'rgba(255, 255, 255, 0.7)'; poly(c, shape); c.fill();
+    c.save(); poly(c, shape); c.clip();
+    c.strokeStyle = 'rgba(120, 130, 150, 0.9)'; c.lineWidth = 0.4;
+    for (let x = -9; x < 10; x += 3) { c.beginPath(); c.moveTo(x, -20); c.lineTo(x, 11); c.stroke(); }
+    for (let y = -18; y < 11; y += 3) { c.beginPath(); c.moveTo(-11, y); c.lineTo(11, y); c.stroke(); }
+    c.restore();
+    frame([[-10, 0], [-8, back], [8, back], [10, 0]]);
+    if (facing) frame([[-10, 0], [-10, -14], [10, -14], [10, 0]]);
+    c.lineWidth = OL;
+  }
 
   function star(c, x, y, r) {
     const pts = [];
@@ -1104,10 +1125,18 @@ window.HD = (function () {
       cc.arcTo(R, TOP, R, BOT, RAD); cc.arcTo(R, BOT, L, BOT, RAD); cc.arcTo(L, BOT, L, TOP, RAD); cc.arcTo(L, TOP, R, TOP, RAD);
       cc.closePath();
     };
-    // the gates: rubber mats where the boards open
-    for (let y = 0; y < H; y++)
-      for (let x = 0; x < W; x++)
-        if (at(x, y) === '~' && (y === iy0 || y === iy1)) part(c, flat('#2a2d36'), (cc) => rr(cc, x * 16 - 0.5, y * 16 + (y === iy0 ? -3 : 8), 17, 11, 2));
+    // the gates, where the boards open on any side ({ side, a0, a1 }: from and to along
+    // that side), with rubber mats
+    const gaps = [];
+    for (let y = iy0; y <= iy1; y++)
+      for (let x = ix0; x <= ix1; x++) {
+        const side = y === iy0 ? 'N' : y === iy1 ? 'S' : x === ix0 ? 'W' : x === ix1 ? 'E' : null;
+        if (!side || at(x, y) !== '~') continue;
+        const a = side === 'N' || side === 'S' ? x * 16 : y * 16, g = gaps.find((p) => p.side === side && p.a1 === a);
+        if (g) g.a1 = a + 16; else gaps.push({ side, a0: a, a1: a + 16 });
+        part(c, flat('#2a2d36'), (cc) => (side === 'N' || side === 'S' ? rr(cc, x * 16 - 0.5, y * 16 + (side === 'N' ? -3 : 8), 17, 11, 2)
+          : rr(cc, x * 16 + (side === 'W' ? -3 : 8), y * 16 - 0.5, 11, 17, 2)));
+      }
     c.save();
     rinkPath(c); c.clip();
     c.fillStyle = '#dcedf9'; c.fillRect(L, TOP, R - L, BOT - TOP);
@@ -1118,26 +1147,34 @@ window.HD = (function () {
       poly(c, [[x, TOP], [x + w, TOP], [x + w - 60, BOT], [x - 60, BOT]]); c.fill();
     }
     c.fillStyle = '#cce3f4'; c.fillRect(L, BOT - 14, R - L, 14);
-    // markings: centre red line, blue lines, goal lines and creases, faceoff circles
+    // markings: centre red line, blue lines, goal lines and creases, faceoff circles, laid
+    // out along the rink's length (u, from the middle) and across it (v), whichever way it runs
+    const tall = BOT - TOP > R - L, half = (tall ? BOT - TOP : R - L) / 2, wide = (tall ? R - L : BOT - TOP) / 2;
+    const uv = (u, v) => (tall ? [midX + v, midY + u] : [midX + u, midY + v]);
+    const across = (u, inset) => { c.beginPath(); c.moveTo(...uv(u, -wide + inset)); c.lineTo(...uv(u, wide - inset)); c.stroke(); };
     c.lineWidth = 1.8;
-    c.strokeStyle = '#d24a4a'; c.beginPath(); c.moveTo(midX, TOP); c.lineTo(midX, BOT); c.stroke();
+    c.strokeStyle = '#d24a4a'; across(0, 0);
     c.strokeStyle = '#4a74d0';
-    for (const x of [midX - 72, midX + 72]) { c.beginPath(); c.moveTo(x, TOP); c.lineTo(x, BOT); c.stroke(); }
+    for (const u of [-0.33, 0.33]) across(u * half, 0);
     c.lineWidth = 1;
     c.beginPath(); c.arc(midX, midY, 26, 0, TAU); c.stroke();
     c.fillStyle = '#4a74d0'; ell(c, midX, midY, 1.6, 1.6); c.fill();
+    // each net: [x, y] of its first tile, and whether it runs across the map (a net in the end
+    // of a rink running north to south)
     const nets = [];
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (at(x, y) === 'n' && at(x, y - 1) !== 'n') nets.push([x, y]);
-    for (const [nx, ny] of nets) {
-      const gx = nx * 16 + 8, gy = ny * 16 + 16, f = gx < midX ? 1 : -1;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (at(x, y) === 'n' && at(x - 1, y) !== 'n' && at(x, y - 1) !== 'n') nets.push([x, y, at(x + 1, y) === 'n']);
+    // where the goal line crosses the middle of a net
+    const goal = ([nx, ny, flat2]) => (flat2 ? [nx * 16 + 16, ny * 16 + 8] : [nx * 16 + 8, ny * 16 + 16]);
+    for (const n of nets) {
+      const [gx, gy] = goal(n), u = tall ? gy - midY : gx - midX, f = u < 0 ? 1 : -1, toward = tall ? (f > 0 ? Math.PI / 2 : -Math.PI / 2) : (f > 0 ? 0 : Math.PI);
       c.strokeStyle = '#d24a4a';
-      c.beginPath(); c.moveTo(gx, TOP + 6); c.lineTo(gx, BOT - 6); c.stroke();
+      across(u, 6);
       c.fillStyle = '#a6cdf0';
-      c.beginPath(); c.moveTo(gx, gy - 14); c.arc(gx, gy, 14, -Math.PI / 2, Math.PI / 2, f < 0); c.closePath(); c.fill(); c.stroke();
-      for (const dy of [-40, 40]) {
-        const fx = gx + f * 50;
-        c.beginPath(); c.arc(fx, gy + dy * 0.62, 18, 0, TAU); c.stroke();
-        c.fillStyle = '#d24a4a'; ell(c, fx, gy + dy * 0.62, 1.6, 1.6); c.fill();
+      c.beginPath(); c.moveTo(gx, gy); c.arc(gx, gy, 14, toward - Math.PI / 2, toward + Math.PI / 2); c.closePath(); c.fill(); c.stroke();
+      for (const s of [-1, 1]) {
+        const [fx, fy] = uv(u + f * 50, s * wide * 0.5);
+        c.beginPath(); c.arc(fx, fy, 18, 0, TAU); c.stroke();
+        c.fillStyle = '#d24a4a'; ell(c, fx, fy, 1.6, 1.6); c.fill();
       }
     }
     // a maple leaf and the company name at centre ice
@@ -1160,20 +1197,25 @@ window.HD = (function () {
     const bx0 = L - 6, by0 = TOP - BH - 6, bw = R - L + 12, bh = BOT - TOP + BH + 10;
     const [bcv, bc] = makeCanvas(bw, bh);
     bc.translate(-bx0, -by0);
-    const gaps = [];
-    for (let x = 0; x < W; x++) {
-      if (at(x, iy0) === '~') gaps.push([x * 16, TOP]);
-      if (at(x, iy1) === '~') gaps.push([x * 16, BOT]);
-    }
-    const nGap = gaps.filter((p) => p[1] === TOP), sGap = gaps.filter((p) => p[1] === BOT);
+    const gapsOn = (side) => gaps.filter((g) => g.side === side);
+    // all the way round dy up, lifting the pen over the gates
     const boardPath = (cc, dy) => {
       cc.beginPath();
-      const n0 = Math.min(...nGap.map((p) => p[0])), n1 = Math.max(...nGap.map((p) => p[0])) + 16;
-      const s0 = Math.min(...sGap.map((p) => p[0])), s1 = Math.max(...sGap.map((p) => p[0])) + 16;
-      cc.moveTo(n1, TOP + dy);
-      cc.arcTo(R, TOP + dy, R, BOT + dy, RAD); cc.arcTo(R, BOT + dy, L, BOT + dy, RAD); cc.lineTo(s1, BOT + dy);
-      cc.moveTo(s0, BOT + dy);
-      cc.arcTo(L, BOT + dy, L, TOP + dy, RAD); cc.arcTo(L, TOP + dy, R, TOP + dy, RAD); cc.lineTo(n0, TOP + dy);
+      // a straight side from a0 to a1, pt(a) being the point that far along it
+      const run = (side, a0, a1, pt) => {
+        const dir = Math.sign(a1 - a0);
+        for (const g of gapsOn(side).sort((p, q) => dir * (p.a0 - q.a0))) { cc.lineTo(...pt(dir > 0 ? g.a0 : g.a1)); cc.moveTo(...pt(dir > 0 ? g.a1 : g.a0)); }
+        cc.lineTo(...pt(a1));
+      };
+      cc.moveTo(L + RAD, TOP + dy);
+      run('N', L + RAD, R - RAD, (a) => [a, TOP + dy]);
+      cc.arcTo(R, TOP + dy, R, TOP + RAD + dy, RAD);
+      run('E', TOP + RAD, BOT - RAD, (a) => [R, a + dy]);
+      cc.arcTo(R, BOT + dy, R - RAD, BOT + dy, RAD);
+      run('S', R - RAD, L + RAD, (a) => [a, BOT + dy]);
+      cc.arcTo(L, BOT + dy, L, BOT - RAD + dy, RAD);
+      run('W', BOT - RAD, TOP + RAD, (a) => [L, a + dy]);
+      cc.arcTo(L, TOP + dy, L + RAD, TOP + dy, RAD);
     };
     // every outline first, then the face (a yellow kick plate, white, and the cap's
     // shadow), then the blue cap on top
@@ -1189,12 +1231,12 @@ window.HD = (function () {
     boardPath(bc, -BH); bc.lineWidth = TH + OL * 2.4; bc.strokeStyle = OUT; bc.stroke();
     bc.lineWidth = TH; bc.strokeStyle = '#2f5cc0'; bc.stroke();
     boardPath(bc, -BH - 0.7); bc.lineWidth = 0.8; bc.strokeStyle = '#7a9cf0'; bc.stroke();
-    // ads along the long sides
+    // ads along the north and south sides (the only ones whose faces you see)
     bc.font = '900 5.4px system-ui, -apple-system, "Segoe UI", sans-serif'; bc.textAlign = 'center'; bc.textBaseline = 'middle';
     for (const y of [TOP, BOT]) {
-      const gs = (y === TOP ? nGap : sGap).map((p) => p[0]);
+      const gs = gapsOn(y === TOP ? 'N' : 'S');
       for (let x = L + 30, i = 0; x < R - 24; x += 46, i++) {
-        if (gs.some((gx) => x > gx - 22 && x < gx + 38)) continue;
+        if (gs.some((g) => x > g.a0 - 22 && x < g.a1 + 22)) continue;
         if (i % 3 === 1) { leaf(bc, x, y - BH / 2 - 0.4, 2.6, '#d0262c'); continue; }
         bc.fillStyle = i & 1 ? '#d0262c' : '#2f5cc0';
         bc.fillText(i % 3 === 2 ? 'HAPPY HOLIDAYS' : 'HAAKON', x, y - BH / 2 - 0.5);
@@ -1202,16 +1244,21 @@ window.HD = (function () {
     }
     // posts at the gates
     bc.lineCap = 'round';
-    for (const [gx, gy] of gaps)
-      for (const x of [gx, gx + 16]) {
-        if (gaps.some((p) => p[1] === gy && (p[0] === x || p[0] + 16 === x) && p[0] !== gx)) continue;
-        bc.lineWidth = OL; part(bc, tone('#2f5cc0'), (cc) => rr(cc, x - 1.8, gy - BH - 1.4, 3.6, BH + 2.4, 1.2), (cc) => cc.rect(x, gy - BH - 2, 2, BH + 4));
+    for (const g of gaps)
+      for (const a of [g.a0, g.a1]) {
+        const ns = g.side === 'N' || g.side === 'S';
+        const x = ns ? a : g.side === 'W' ? L : R, y = ns ? (g.side === 'N' ? TOP : BOT) : a;
+        bc.lineWidth = OL; part(bc, tone('#2f5cc0'), (cc) => rr(cc, x - 1.8, y - BH - 1.4, 3.6, BH + 2.4, 1.2), (cc) => cc.rect(x, y - BH - 2, 2, BH + 4));
       }
     // snow on the top rail
-    for (let i = 0; i < 60; i++) {
-      const x = L + 8 + rnd() * (R - L - 16), y = (rnd() < 0.5 ? TOP : BOT) - BH - 1.2;
-      if (gaps.some(([gx, gy]) => Math.abs(gy - y - BH - 1.2) < 1 && x > gx - 3 && x < gx + 19)) continue;
-      bc.lineWidth = OL; tufts(bc, [[x, y, 1.2], [x + 1.6, y + 0.2, 1]], SNOWY, 1);
+    for (const side of 'NSEW') {
+      const ns = side === 'N' || side === 'S', len = ns ? R - L : BOT - TOP;
+      for (let i = 0; i < len / 12; i++) {
+        const a = (ns ? L : TOP) + 8 + rnd() * (len - 16);
+        if (gapsOn(side).some((g) => a > g.a0 - 3 && a < g.a1 + 3)) continue;
+        const x = ns ? a : side === 'W' ? L : R, y = (ns ? (side === 'N' ? TOP : BOT) : a) - BH - 1.2;
+        bc.lineWidth = OL; tufts(bc, [[x, y, 1.2], ns ? [x + 1.6, y + 0.2, 1] : [x + 0.2, y + 1.6, 1]], SNOWY, 1);
+      }
     }
     const cuts = [-Infinity, TOP + TH / 2];
     for (let y = Math.ceil((TOP + TH) / 16) * 16; y < BOT - BH - TH; y += 16) cuts.push(y);
@@ -1220,9 +1267,12 @@ window.HD = (function () {
       const y0 = Math.max(by0, cuts[i]), y1 = Math.min(by0 + bh, cuts[i + 1]);
       props.push({ img: bcv, sy: y0 - by0, x: bx0, y: y0, w: bw, h: y1 - y0, base: cuts[i + 1] === Infinity ? BOT + TH : y1 });
     }
-    for (const [nx, ny] of nets) {
-      const f = nx * 16 + 8 < midX ? 1 : -1;
-      props.push(place(sprite(16, 34, 8, 10, (cc) => net(cc, f)), nx * 16 + 8, ny * 16 + 4, ny * 16 + 30));
+    for (const n of nets) {
+      const [gx, gy] = goal(n), [nx, ny] = n;
+      // in the end of a rink running north to south: the far net faces you, the near one has
+      // its back to you
+      if (n[2]) props.push(place(sprite(36, 34, 18, 22, (cc) => netEnd(cc, gy < midY)), gx, gy, gy < midY ? gy : gy + 10));
+      else props.push(place(sprite(16, 34, 8, 10, (cc) => net(cc, gx < midX ? 1 : -1)), nx * 16 + 8, ny * 16 + 4, ny * 16 + 30));
     }
 
     // ---- the office wall along the top ----

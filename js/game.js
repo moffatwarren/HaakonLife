@@ -478,6 +478,17 @@
     beep: () => tone(1480, 0.09, 'square', 0.03), // a forklift backing up
     spray: () => noise(0.09, 5200, 0.03), // a spray gun's hiss
     skate: () => noise(0.16, 4200, 0.025), // a skate stroke on the ice
+    // hockey: the ref's whistle, the burst of a check, a shot (a slapshot cracks louder), a
+    // pass or a stick on the puck, the boards, ringing the post, the puck in the netting, and
+    // the goal horn
+    whistle: () => { for (let i = 0; i < 9; i++) tone(i & 1 ? 2780 : 3020, 0.05, 'sine', 0.07, 0, i * 0.04); },
+    dash: () => { noise(0.25, 3600, 0.06); noise(0.12, 1500, 0.04); },
+    slap: (p) => { noise(0.06, 2400, 0.1 + 0.08 * (p || 0)); tone(190, 0.05, 'square', 0.05 + 0.03 * (p || 0), -110); },
+    tap: () => { noise(0.03, 1900, 0.06); tone(520, 0.03, 'triangle', 0.05); },
+    boards: () => { noise(0.12, 260, 0.12); tone(75, 0.12, 'sine', 0.1, -25); },
+    post: () => { tone(1980, 0.5, 'triangle', 0.07); tone(2970, 0.3, 'sine', 0.035); },
+    mesh: () => noise(0.18, 1300, 0.05),
+    horn: () => { for (const f of [233, 294, 349]) { tone(f, 0.9, 'sawtooth', 0.04); tone(f, 1.1, 'sawtooth', 0.04, 0, 0.95); } },
   };
   function sfx(name, arg) { if (soundOn && actx) SFX[name](arg); }
 
@@ -614,7 +625,8 @@
     KeyX: 'b', ShiftLeft: 'b', ShiftRight: 'b', KeyK: 'b', Backspace: 'b',
     Enter: 'start', KeyM: 'map',
   };
-  // Esc backs out of any menu or mini-game (like B); while walking around it opens the start menu.
+  // Esc backs out of any menu or mini-game (like B); while walking around it opens the start
+  // menu, as it does in a mini-game where B does something else (escStart).
   let escAs = 'b';
   addEventListener('keydown', (e) => {
     // naming yourself: keys type letters, and only the arrows keep their game meaning
@@ -622,7 +634,7 @@
     // the same for a box you type into (it has key())
     const typing = top();
     if (typing && typing.key && !fade && (typing.key(e) || !e.code.startsWith('Arrow'))) { e.preventDefault(); return; }
-    if (e.code === 'Escape' && !e.repeat) escAs = mode === 'play' && !ui.length && !fade ? 'start' : 'b';
+    if (e.code === 'Escape' && !e.repeat) escAs = mode === 'play' && (!ui.length || top().escStart) && !fade ? 'start' : 'b';
     const k = e.code === 'Escape' ? escAs : KEYS[e.code];
     if (!k) return;
     e.preventDefault();
@@ -681,6 +693,7 @@
     [/\bSpace(?=:| twice| to )/g, 'A'],
     [/(Hold|Mash|Press|\+|then) Space\b/g, '$1 A'],
     [/\bEsc(?=:)/g, 'B'],
+    [/\bX(?=:)/g, 'B'],
     [/\bEnter(?=:)/g, 'START'],
     [/\bArrows(?=:| \+)/g, 'D-pad'],
     [/PRESS ENTER/g, 'PRESS START'],
@@ -1602,6 +1615,7 @@
   // there) and sends what you do. You sit bottom left, and the others go round clockwise
   // from you. Sitting down mid-hand, you're dealt in from the next one.
   const LIVE_SEAT_BG = ['#3868c8', '#9868c8', '#c86838', '#38a868'];
+  const LIVE_BUY_IN = 200; // what everyone sits down with (BUY_IN in server/tables/poker.js)
   function LivePoker() {
     const tb = mp.table = { t: 'poker', view: null, out: null, asked: false };
     // where each seat goes, counting clockwise from yours: a for its face, c its cards,
@@ -1637,7 +1651,29 @@
       });
       if (v.ph === 'play' && v.act === v.me && (!old || old.act !== v.me)) { sfx('ding'); btn = 1; }
     }
-    const gone = () => { remove(self); if (mp.table === tb) mp.table = null; };
+    // What each hand comes to, for the board (netNote): your stack once it's over against
+    // your stack once the last one was (or the buy-in). Getting up partway through a hand
+    // leaves what you'd put in in the pot. A hand whose end goes by unseen (the tab was
+    // hidden, say) is counted in with the next one.
+    let base = -1, lastSt = 0, doneHn = -1, played = false;
+    const settle = (st) => { if (base >= 0) netNote('pokerlive', st - base); base = st; };
+    function tally(v) {
+      const p = v.seats[v.me];
+      if (!p) return;
+      if (base < 0) base = LIVE_BUY_IN; // you're sitting down
+      if (p.d) played = true;
+      lastSt = p.st;
+      if (v.ph === 'result' && v.hn !== doneHn) { doneHn = v.hn; settle(p.st); }
+    }
+    // Up from the table: the board goes up once you've played a hand. The latest view
+    // first, since the table may have played on while you weren't looking (asked whether
+    // to leave, say, or in another tab).
+    const gone = () => {
+      remove(self); if (mp.table === tb) mp.table = null;
+      if (tb.view && tb.view !== prev) tally(tb.view);
+      settle(lastSt);
+      if (played && (BOARD_URL || boardDemo)) pendingBoard = { key: 'pokerlive', score: 0, owner: self };
+    };
     const myStack = () => { const v = tb.view, p = v && v.seats[v.me]; return p ? p.st : 0; };
     function leave() {
       wsSend({ k: 'stand', t: tb.t });
@@ -1672,7 +1708,7 @@
           }
           return;
         }
-        if (v !== prev) { hear(v, prev); prev = v; }
+        if (v !== prev) { hear(v, prev); tally(v); prev = v; }
         // your turn, unless you've already said what you're doing and the server's yet to hear
         const p = v.seats[v.me], key = v.hn + '/' + v.ev;
         const myTurn = !!p && v.ph === 'play' && v.act === v.me && acted !== key;
@@ -2404,6 +2440,7 @@
   // fastest-time games (low) are stored negated.
   const tenths = (n) => (n / 10).toFixed(1) + 's';
   const times = (n) => n + (n === 1 ? ' time' : ' times');
+  const signed = (n) => (n > 0 ? '+' : '') + n;
   const BOARDS = {
     coffee: { title: 'COFFEE MACHINE' }, punch5: { title: 'PUNCHING BAG' }, run: { title: 'TREADMILL', unit: 'm' }, toss: { title: 'PAPER TOSS' },
     stack: { title: 'PHOTOCOPIER' }, simon: { title: 'CONTROL PANEL' }, lunch: { title: 'FIND MY LUNCH' },
@@ -2416,6 +2453,8 @@
     legosolo: { title: 'LEGO BUILDING', unit: ' lines' },
     wokdishes: { title: 'NIK\'S WOK' }, carrotpct: { title: 'DMITRIY\'S CARROTS', unit: '%' }, dance: { title: 'PATRICK\'S DANCE-OFF', unit: '%' },
     poker: { title: 'SPRING ROLL HOLD\'EM' }, blackjack: { title: 'SPRING ROLL BLACKJACK' }, slots: { title: 'SPRING ROLL SLOTS' },
+    // the live table: spring rolls won less spring rolls lost there, all told (see netNote)
+    pokerlive: { title: 'LIVE HOLD\'EM', unit: ' rolls', net: true },
     catch: { title: 'FRISBEE CATCH' },
     bob: { title: 'BOBBING FOR APPLES' }, carve: { title: 'PUMPKIN CARVING' }, treat: { title: 'TRICK-OR-TREAT' },
     ghosts: { title: 'GHOST IN THE CUPBOARD' }, costume: { title: 'COSTUME CONTEST' },
@@ -2445,6 +2484,21 @@
     mine.then((r) => (r && typeof r.score === 'number' ? r.score : 0) + 1, () => 0) // couldn't check: show it, add nothing
       .then((score) => { pendingBoard = { key, score, owner: null, quiet: true }; });
   }
+  // A hand at the live poker table is over: n is what you came out of it with, ahead or
+  // behind. A net board (pokerlive) keeps each name's spring rolls won and lost there as
+  // two plain boards, <key>won and <key>lost, so both only ever go up; like the quests,
+  // each goes up from what the database already holds. One send at a time, and the board
+  // waits for them (see boardLoad).
+  let netSending = Promise.resolve();
+  function netNote(key, n) {
+    const name = playerName || store.get('name') || '';
+    if (!n || !name || !BOARD_URL || !BOARD_POSTS || boardDemo) return;
+    const path = key + (n > 0 ? 'won' : 'lost') + '/' + boardKey(name) + '.json';
+    netSending = netSending.then(() => boardFetch(path))
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((r) => boardFetch(path, { method: 'PUT', body: JSON.stringify({ name, score: (r && typeof r.score === 'number' ? r.score : 0) + Math.abs(n), t: { '.sv': 'timestamp' } }) }))
+      .catch(() => {}); // couldn't check what's there: add nothing
+  }
   // a name's row in the database: "Sam" and "sam" are the same person
   const boardKey = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '_');
   function boardFetch(path, opts) {
@@ -2467,6 +2521,11 @@
   // row), then fetch the top ten and the name's own row.
   function boardLoad(key, name, score) {
     const val = BOARDS[key].low ? -score : score, id = boardKey(name), send = name && score > 0 && (BOARD_POSTS || boardDemo);
+    // a net board is sent to hand by hand (netNote), and can only be put in order once it's all here
+    if (BOARDS[key].net) {
+      return netSending.then(() => boardAll(key, name))
+        .then((rows) => ({ rows: rows.slice(0, 10), mine: rows.find((r) => r.id === id) || null }));
+    }
     if (boardDemo) {
       const rows = DEMO_NAMES.map((n, i) => ({ id: boardKey(n), name: n, score: BOARDS[key].low ? -(20 + i * 3) : BOARDS[key].count ? Math.max(1, 7 - i) : 100 - i * 7, t: i }));
       const mine = send ? { name, score: val } : null;
@@ -2490,15 +2549,19 @@
   // The top ten at one game, with your own row picked out (and added underneath if you didn't make the list).
   function Leaderboard(p) {
     const b = BOARDS[p.key], name = playerName || store.get('name') || '', id = boardKey(name);
-    const fmt = (v) => boardFmt(p.key, v);
+    // a net board has columns for what's been won and lost, then the difference
+    const fmt = (v) => (b.net ? signed(v) : boardFmt(p.key, v));
+    const y0 = b.net ? 50 : 42, gap = b.net ? 15 : 16;
     let rows = null, mine = null, failed = false, t = 0;
     boardLoad(p.key, name, p.score).then((r) => { rows = r.rows; mine = r.mine; }, () => { failed = true; });
-    const row = (rank, who, score, y, me) => {
+    const right = (str, x, y, c) => text(str, x - str.length * 6, y, 1, c);
+    const row = (rank, who, r, y, me) => {
       if (me) { ctx.fillStyle = col.dark; ctx.fillRect(16, y - 4, SW - 32, 15); }
-      const c = me ? col.light : col.dark, sc = fmt(score);
+      const c = me ? col.light : col.dark;
       text(rank, 24, y, 1, c);
       text(who, 50, y, 1, c);
-      text(sc, SW - 24 - sc.length * 6, y, 1, c);
+      if (b.net) { right(String(r.won), 188, y, c); right(String(r.lost), 242, y, c); }
+      right(fmt(r.score), SW - 24, y, c);
     };
     const self = {
       update() {
@@ -2513,8 +2576,9 @@
         else if (!rows) ctext('Loading...', 110);
         else if (!rows.length) ctext('No scores yet', 110);
         else {
-          rows.forEach((r, i) => row((i + 1) + '.', r.name, r.score, 42 + i * 16, name && r.id === id));
-          if (mine && !rows.some((r) => r.id === id)) row('-', name, mine.score, 204, true);
+          if (b.net) [['WON', 188], ['LOST', 242], ['NET', SW - 24]].forEach(([h, x]) => right(h, x, 37, '#686878'));
+          rows.forEach((r, i) => row((i + 1) + '.', r.name, r, y0 + i * gap, name && r.id === id));
+          if (mine && !rows.some((r) => r.id === id)) row('-', name, mine, 204, true);
           else if (name && rows[0].id === id) { drawCrown(97, 205); text('You hold the crown!', 109, 204, 1, GOLD); }
         }
         if (t > 20 && (tick >> 4) & 1) ctext('Press Space', SH - 16);
@@ -2531,7 +2595,7 @@
   const FAME_GROUPS = [
     ['OFFICE', ['coffee', 'toss', 'lunch', 'candy', 'stack', 'simon', 'desk', 'jam', 'filter']],
     ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pulldown', 'ball', 'laundry']],
-    ['TVS AND CODY\'S CASINO', ['pong', 'snake', 'poker', 'blackjack', 'slots']],
+    ['TVS AND CODY\'S CASINO', ['pong', 'snake', 'poker', 'pokerlive', 'blackjack', 'slots']],
     ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cpr', 'engrave', 'golf', 'legosolo']],
     ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catch']],
     ['KINGSTON PLANT', ['forklift', 'paint']],
@@ -2550,15 +2614,30 @@
     ctx.fillRect(x, y + 2, 7, 3);
     ctx.fillStyle = '#b83028'; ctx.fillRect(x + 3, y + 3, 1, 1);
   }
-  // Every row of one board, best first.
+  // Every row of one board, best first. A net board's rows also have won and lost, its two
+  // halves (see netNote), and its score is the difference.
   function boardAll(key, name) {
+    const b = BOARDS[key] || {};
+    if (b.net) {
+      // (made up: won and lost picked separately for each name, and never a blank board)
+      const half = (k) => (!boardDemo ? boardAll(key + k, name) : Promise.resolve(DEMO_NAMES.concat(name ? [name] : [])
+        .filter((n) => hash(key + n) % 3).map((n) => ({ id: boardKey(n), name: n, score: hash(n + key + k) % 400 + 1, t: Date.now() - hash(key + n) % 6e8 }))));
+      return Promise.all([half('won'), half('lost')]).then(([won, lost]) => {
+        const rows = {};
+        for (const [half, k] of [[won, 'won'], [lost, 'lost']]) for (const r of half) {
+          const row = rows[r.id] || (rows[r.id] = { id: r.id, name: r.name, won: 0, lost: 0, t: 0 });
+          row[k] = r.score; row.t = Math.max(row.t, r.t);
+        }
+        return Object.values(rows).map((r) => Object.assign(r, { score: r.won - r.lost })).sort(byScore);
+      });
+    }
     if (boardDemo) {
       // a different made-up crowd at each game (you among them now and then), and a few boards nobody has played
       if (hash(key) % 6 === 0) return Promise.resolve([]);
       const crowd = DEMO_NAMES.concat(name ? [name] : []).filter((n) => hash(key + n) % 3);
       return Promise.resolve(crowd.map((n) => {
-        const v = BOARDS[key].count ? hash(n + key) % 4 + 1 : hash(n + key) % 400 + 1;
-        return { id: boardKey(n), name: n, score: BOARDS[key].low ? -v : v, t: Date.now() - hash(key + n) % 6e8 };
+        const v = b.count ? hash(n + key) % 4 + 1 : hash(n + key) % 400 + 1;
+        return { id: boardKey(n), name: n, score: b.low ? -v : v, t: Date.now() - hash(key + n) % 6e8 };
       }).sort(byScore));
     }
     return boardFetch(key + '.json').then((r) => {
@@ -2572,7 +2651,8 @@
     const groups = FAME_GROUPS.concat([['OTHER', games.filter((k) => !grouped.has(k))]]);
     let boards = null, failed = !(BOARD_URL || boardDemo), standings = [], latest = [], tab = 0, sel = 0, scroll = 0, t = 0;
     // Halloween's games only get a page in October, or once somebody has a score on them
-    const pages = () => ['CHAMPIONS', 'LATEST SCORES', 'QUESTS'].concat(groups.filter(([g, k]) => k.length &&
+    const LIVE = BOARDS.pokerlive.title;
+    const pages = () => ['CHAMPIONS', 'LATEST SCORES', 'QUESTS', LIVE].concat(groups.filter(([g, k]) => k.length &&
       (g !== 'HALLOWEEN' || HALLOWEEN || (boards && k.some((key) => boards[key].length)))));
     const rankOf = (key) => (boards && me ? boards[key].findIndex((r) => r.id === me) : -1);
     if (!failed) {
@@ -2652,6 +2732,24 @@
       if (me) ctext(l || e ? 'You: freed Linda ' + l + 'x, Employee of the Month ' + e + 'x' : 'You haven\'t done either yet.', 190);
       ctext(boards.linda.length + ' freed Linda   ' + boards.eotm.length + ' made Employee of the Month', 204, '#686878');
     }
+    // The live poker table's top ten, with what each name has won and lost there, in order of the difference.
+    function drawLive() {
+      const rows = boards.pokerlive, mine = me ? rows.findIndex((r) => r.id === me) : -1;
+      const at = (str, x, y, c) => text(str, x - str.length * 6, y, 1, c);
+      if (!rows.length) { ctext('Nobody has played at the live table yet.', 110); return; }
+      [['WON', 190], ['LOST', 246], ['NET', SW - 18]].forEach(([h, x]) => at(h, x, 46, '#686878'));
+      rows.slice(0, 10).forEach((r, i) => {
+        const y = 60 + i * 12, hi = i === mine, c = hi ? col.light : col.dark;
+        if (hi) { ctx.fillStyle = col.dark; ctx.fillRect(14, y - 2, SW - 28, 11); }
+        text(nth(i + 1), 20, y, 1, MEDALS[i] || c);
+        text(r.name, 50, y, 1, c);
+        at(String(r.won), 190, y, c); at(String(r.lost), 246, y, c); at(signed(r.score), SW - 18, y, c);
+      });
+      ctx.fillStyle = col.mid; ctx.fillRect(14, 184, SW - 28, 1);
+      const r = rows[mine];
+      if (me) ctext(r ? 'You\'re ' + nth(mine + 1) + ': won ' + r.won + ', lost ' + r.lost + ', net ' + signed(r.score) + '.' : 'You haven\'t played at the live table yet.', 190);
+      ctext('In order of rolls won less rolls lost', 204, '#686878');
+    }
     function drawLatest() {
       if (!latest.length) ctext('No scores yet. Go and set some!', 110);
       latest.forEach((r, i) => {
@@ -2714,6 +2812,7 @@
         else if (page === 'CHAMPIONS') drawChampions();
         else if (page === 'LATEST SCORES') drawLatest();
         else if (page === 'QUESTS') drawQuests();
+        else if (page === LIVE) drawLive();
         else drawGroup(page[1]);
         ctext(page === 'QUESTS' && questRoom() ? 'Arrows: pages, scroll   Esc: close' : typeof page === 'string' ? 'Arrows: pages   Esc: close' : 'Arrows: browse   Space: full board', SH - 16, '#686878');
       },
@@ -10501,21 +10600,24 @@
     return true;
   }
 
-  // Some coworkers have gone outside and are standing around the lot: at the fire, the
-  // cocoa stand, a car, the snowman and the spruce, and a couple pacing along the rink's
-  // boards. The ice is left for you. Who goes out is picked afresh every time the game
-  // loads; anyone with a part to play indoors stays in.
+  // Some coworkers have gone outside and are standing around the lot: one minding the
+  // rink's gate (who'll take you on at hockey), at the fire, the cocoa stand, a car, the
+  // snowman and the spruce, and a couple pacing along the rink's boards. The ice is left
+  // for you. Who goes out is picked afresh every time the game loads; anyone with a part
+  // to play indoors stays in.
   const STAY_IN = ['Lam', 'Linda', 'Jenn', 'Cody', 'Zin', 'Eugene'];
+  let gateKeeper = null;
   (function sendOutside() {
     if (!CHRISTMAS) return;
     const f = MAPS.floors[YARD], rink = f.rooms.find((r) => r.name === 'Ice Rink');
     const find = (ch, from) => { for (let y = 0; y < f.tiles.length; y++) { const x = f.tiles[y].indexOf(ch, from || 0); if (x >= 0) return [x, y]; } return null; };
     const [fx, fy] = find('f'), [hx, hy] = find('h'), [sx, sy] = find('s'), [tx, ty] = find('Y'), [cx, cy] = find('c', 10);
-    let hh = 0;
+    let hh = 0, gy = rink.y1;
     while (tileAt(YARD, hx, hy + hh) === 'h') hh++;
+    while (tileAt(YARD, rink.x2 + 1, gy) !== '~') gy++; // the gate, in the boards on the rink's right
     // where they stand, which way they face, what they talk about, and how far either side
     // they wander
-    const spots = [[fx, fy - 1, 'down', 'fire'], [fx - 1, fy + 1, 'up', 'fire'], [fx + 1, fy + 1, 'up', 'fire'],
+    const spots = [[rink.x2 + 2, gy - 1, 'down', 'gate'], [fx, fy - 1, 'down', 'fire'], [fx - 1, fy + 1, 'up', 'fire'], [fx + 1, fy + 1, 'up', 'fire'],
       [hx, hy + hh, 'up', 'cocoa'], [hx + 2, hy + hh, 'up', 'cocoa'],
       [rink.x1 + 6, rink.y1 - 2, 'down', 'watch', 2], [rink.x2 - 5, rink.y2 + 2, 'up', 'watch', 2],
       [cx + 1, cy + 4, 'up', 'car', 2], [sx - 2, sy, 'right', 'snowman'], [tx, ty + 3, 'up', 'tree']];
@@ -10527,6 +10629,7 @@
       Object.assign(n, { floor: YARD, moving: false, prog: 0, wait: 30 + Math.floor(Math.random() * 90),
         x, y, dir, look: dir, room: { x1: x - (pace || 0), y1: y, x2: x + (pace || 0), y2: y },
         lines: (own ? [own] : []).concat(lines[k] || ['Happy holidays!']) });
+      if (k === 'gate') gateKeeper = n;
     });
   })();
 
@@ -10536,7 +10639,7 @@
       'A car with its wipers frozen standing straight up.'],
     L: ['A lamp post with a wreath on it. Strings of lights run from it out over the rink.'],
     B: ['The boards around the rink. HAAKON, HAAKON, HAPPY HOLIDAYS.'],
-    n: ['A hockey net. Nobody has brought a puck yet.'],
+    n: ['A hockey net. Whoever is minding the gate has the pucks.'],
     f: ['A fire pit, crackling away. You hold your hands out to it. Lovely.'],
     b: ['A bench. Someone has left their skate guards on it.'],
     s: ['A snowman in a top hat and a red scarf. Somebody has given it a HAAKON lanyard.'],
@@ -10561,6 +10664,109 @@
     }
     const msgs = YARD_INFO[t];
     if (msgs) { sfx('select'); say(msgs[(tx * 3 + ty * 5) % msgs.length]); }
+  }
+
+  // ---------- hockey on the rink, one on one with whoever's minding the gate ----------
+  // The game itself (the rules, the skating, the puck and how your coworker plays) is
+  // js/hockey.js. This feeds it your keys, plays its sounds and puts the score and the
+  // clock up, while drawYard draws the two of you out on the ice (hockey) with the camera
+  // down low at the end of the rink.
+  const HOCKEY_VIEW = { dist: 17, pitch: 0.55 };
+  const HOCKEY_RINGS = ['#f8d040', '#e84848']; // round your skates and theirs, to tell you apart
+  const HOCKEY_SFX = { go: 'whistle', lunge: 'dash', pass: 'tap', steal: 'tap', block: 'tap', post: 'post', net: 'mesh', goal: 'horn', buzzer: 'buzz', bump: 'bump' };
+  let hockey = null; // { g, npc } while a game's on
+  function hockeyTalk(npc, says) {
+    ask(says('Fancy a game? One on one, three minutes, most goals wins. I\'ve got a spare stick.'), ['LET\'S PLAY', 'NOT NOW'], (i) => {
+      if (i !== 0) { say(says('The ice isn\'t going anywhere.')); return; }
+      sfx('menu');
+      startFade(() => ui.push(HockeyGame(npc)), '#f8f8f8');
+    });
+  }
+  function HockeyGame(npc) {
+    const foe = npc.name, FOE = foe.toUpperCase().slice(0, 9);
+    const g = HOCKEY.create(MAPS.floors[YARD], { seed: (Math.random() * 2 ** 31) | 0, players: [
+      { name: playerName || 'You', team: 0, hand: 1 },
+      { name: foe, team: 1, ai: true, hand: Math.random() < 0.4 ? 1 : -1 },
+    ] });
+    // scored: who got the last goal; go: ticks since the puck dropped
+    let state = 'play', t = 0, scored = 0, go = 99;
+    hockey = { g, npc };
+    function hear(e) {
+      if (e.e === 'go') go = 0;
+      if (e.e === 'goal') scored = e.team;
+      if (e.e === 'stride') { if (!g.players[e.p.i].ai) sfx('skate'); }
+      else if (e.e === 'shot') sfx('slap', e.power);
+      else if (e.e === 'hit' || e.e === 'shove') sfx('hit', e.e === 'hit' ? 40 : 0);
+      else if (e.e === 'boards') sfx('boards');
+      else if (HOCKEY_SFX[e.e]) sfx(HOCKEY_SFX[e.e]);
+    }
+    // back to where you were standing, and a word from your coworker
+    function finish(quit) {
+      remove(self);
+      const a = g.score[0], b = g.score[1], ot = g.ot ? ' in overtime' : '';
+      startFade(() => {
+        hockey = null;
+        npc.dir = OPPOSITE[P.dir];
+        const says = (line) => npc.name + ': ' + line;
+        say(says(quit ? 'Calling it a night? Fair enough. The ice will be here.'
+          : a > b ? 'Good game! ' + a + ' to ' + b + ot + '. You\'ve got hands.'
+            : b + ' to ' + a + ot + '! Rematch whenever you like.'));
+      }, '#f8f8f8');
+    }
+    const self = {
+      music: 'hockey', escStart: true, // Esc pauses (B is a check)
+      update() {
+        t++; go++;
+        updateNpcs(); // everyone else carries on round the lot
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b') || pressed.has('start'))) finish();
+          return;
+        }
+        if (pressed.has('start')) {
+          sfx('menu');
+          ui.push(Choice(['KEEP PLAYING', 'GIVE UP'], -1, 24, (i) => { if (i === 1) finish(true); }, { startCloses: true }));
+          return;
+        }
+        g.step([{ x: (held.right ? 1 : 0) - (held.left ? 1 : 0), y: (held.down ? 1 : 0) - (held.up ? 1 : 0), shoot: held.a, pass: pressed.has('b') }]);
+        g.events.forEach(hear);
+        // a goal or the buzzer, then the next faceoff (or the end, if it's been won)
+        if ((g.phase === 'goal' && g.t >= 150) || (g.phase === 'buzzer' && g.t >= 120)) {
+          if (g.over()) { state = 'done'; t = 0; sfx(g.score[0] > g.score[1] ? 'cup' : 'bump'); }
+          else startFade(g.faceoff, '#f8f8f8');
+        }
+      },
+      draw() {
+        // the scoreboard: you, the clock, them
+        const secs = Math.ceil(g.clock / 60), mine = 'YOU ' + g.score[0], theirs = g.score[1] + ' ' + FOE;
+        box(50, 0, 220, 20);
+        ctx.fillStyle = HOCKEY_RINGS[0]; ctx.fillRect(57, 7, 5, 5);
+        text(mine, 66, 7);
+        ctext(g.ot ? 'OT' : Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0'), 7, !g.ot && secs <= 10 ? '#c83030' : col.dark);
+        text(theirs, 254 - theirs.length * 6, 7);
+        ctx.fillStyle = HOCKEY_RINGS[1]; ctx.fillRect(258, 7, 5, 5);
+        const msg = (lines, big) => {
+          box(70, 84, 180, 16 + (big ? 18 : 0) + lines.length * 16);
+          if (big) text(big, (SW - big.length * 12) >> 1, 94, 2);
+          lines.forEach((l, i) => ctext(l, 96 + (big ? 18 : 0) + i * 16));
+        };
+        if (state === 'done') {
+          doneBox([g.score[0] > g.score[1] ? 'You win!' : foe + ' wins!', 'YOU ' + g.score[0] + ' - ' + g.score[1] + ' ' + FOE, g.ot ? 'In overtime' : ''], t);
+          return;
+        }
+        if (g.phase === 'ready' && g.ot) msg(['Overtime!', 'Next goal wins']);
+        else if (g.phase === 'ready' && g.clock === HOCKEY.LENGTH) {
+          // the controls, off to one side so the puck and both players show at the drop
+          const hints = ['Arrows: skate', 'Space: shoot', 'Hold Space: slapshot', 'X: body check'].map((l) => (isTouch ? touchHint(l) : l));
+          box(4, 84, 136, 16 + hints.length * 16);
+          hints.forEach((l, i) => text(l, 4 + ((136 - l.length * 6) >> 1), 96 + i * 16));
+        }
+        else if (g.phase === 'play' && go < 40) msg([], 'GO!');
+        else if (g.phase === 'goal') msg([scored === 0 ? 'You score!' : foe + ' scores!'], 'GOAL!');
+        else if (g.phase === 'buzzer') msg([g.score[0] === g.score[1] ? 'Tied: overtime!' : ''], 'TIME!');
+        text('Enter: pause', 4, SH - 10, 1, '#f8f8f8');
+      },
+    };
+    return self;
   }
 
   // The parking lot's own canvas: K times the game screen's size, under it, shown only
@@ -10640,20 +10846,34 @@
   function drawYard() {
     const h = hdScreen(), c = h.c, K = HD.K;
     const px = P.x * 16 + (P.moving ? P.mdx * P.prog : 0), py = P.y * 16 + (P.moving ? P.mdy * P.prog : 0);
-    // everyone out here: you, coworkers and other players
-    const people = [{ key: 'me:' + playerName + ':' + pick.gender + pick.index, spec: hdPerson('me:' + playerName + ':' + pick.gender + pick.index, playerName || 'New Hire', pick.gender, Art.LOOKS[pick.gender][pick.index]),
-      px, py, dir: P.dir, walk: P.glide ? -1 : stride(P.moving, P.step, P.prog), skate: iceAt(px, py) }];
+    const me = 'me:' + playerName + ':' + pick.gender + pick.index, mySpec = hdPerson(me, playerName || 'New Hire', pick.gender, Art.LOOKS[pick.gender][pick.index]);
+    const npcSpec = (n) => { const { body, look } = lookFor(n.name); return hdPerson('npc:' + n.name, n.name, body, look, personOf(n.name).style); };
+    // everyone out here: you, coworkers and other players (in a hockey game, you and
+    // whoever you're playing are out on the ice instead)
+    const people = hockey ? [] : [{ key: me, spec: mySpec, px, py, dir: P.dir, walk: P.glide ? -1 : stride(P.moving, P.step, P.prog), skate: iceAt(px, py) }];
     for (const n of npcs) {
-      if (n.floor !== YARD) continue;
+      if (n.floor !== YARD || (hockey && n === hockey.npc)) continue;
       const nx = n.x * 16 + (n.moving ? n.mdx * n.prog : 0), ny = n.y * 16 + (n.moving ? n.mdy * n.prog : 0);
-      const { body, look } = lookFor(n.name);
-      people.push({ key: 'npc:' + n.name, spec: hdPerson('npc:' + n.name, n.name, body, look, personOf(n.name).style),
-        px: nx, py: ny, dir: n.dir, walk: stride(n.moving, n.step, n.prog), skate: iceAt(nx, ny) });
+      people.push({ key: 'npc:' + n.name, spec: npcSpec(n), px: nx, py: ny, dir: n.dir, walk: stride(n.moving, n.step, n.prog), skate: iceAt(nx, ny) });
     }
     const others = mpHere().filter((o) => o.f === YARD);
     for (const o of others) {
       const mv = o.px !== o.x * 16 || o.py !== o.y * 16, key = 'mp:' + o.n + ':' + o.g + o.l;
       people.push({ key, spec: hdPerson(key, o.n, o.g, Art.LOOKS[o.g][o.l]), px: o.px, py: o.py, dir: o.dir, walk: mv ? (o.dist / 32) % 1 : -1, skate: iceAt(o.px, o.py) });
+    }
+    // the view follows you, or in a hockey game the play (mostly the puck, and leaning a
+    // little toward the net you're shooting at); hockey's places are in tiles from the map's
+    // corner, so a tile's middle is at a whole number and a half
+    let focus = [px, py], puck = null;
+    if (hockey) {
+      const g = hockey.g, at = (x, y) => [x * 16 - 8, y * 16 - 8], you = g.players[0];
+      g.players.forEach((p, i) => {
+        people.push({ key: i ? 'npc:' + hockey.npc.name : me, spec: i ? npcSpec(hockey.npc) : mySpec, px: p.x * 16 - 8, py: p.y * 16 - 8,
+          dir: ['down', 'right', 'up', 'left'][(Math.round(p.ang / (Math.PI / 2)) + 4) % 4], face: p.ang, walk: p.push ? (tick / 40) % 1 : -1, skate: true,
+          stick: g.stick(p), down: g.down(p), fall: p.fall, ring: HOCKEY_RINGS[p.team], full: g.puck.owner === p });
+      });
+      puck = at(g.puck.x, g.puck.y);
+      focus = at(g.puck.x * 0.65 + you.x * 0.35, g.puck.y * 0.65 + you.y * 0.35 - 1);
     }
     const now = Date.now();
 
@@ -10664,7 +10884,7 @@
       const ms = performance.now();
       if (ms - (h.drawn || 0) < 9) return;
       h.drawn = ms;
-      gl.draw({ t: tick, alpha: drawAlpha, focus: [px, py], people });
+      gl.draw({ t: tick, alpha: drawAlpha, focus, people, view: hockey ? HOCKEY_VIEW : null, puck });
       // names and speech bubbles, flat, over the 3D
       c.setTransform(1, 0, 0, 1, 0, 0);
       c.clearRect(0, 0, h.cv.width, h.cv.height);
@@ -10679,11 +10899,19 @@
     }
 
     const lot = h.lot || (h.lot = HD.paintLot(MAPS.floors[YARD]));
-    // the view follows you, but stops at the edges of the lot
-    const cx = Math.max(0, Math.min(lot.w - SW, px + 8 - SW / 2)), cy = Math.max(0, Math.min(lot.h - SH, py + 8 - SH / 2));
+    // (stopping at the edges of the lot)
+    const cx = Math.max(0, Math.min(lot.w - SW, focus[0] + 8 - SW / 2)), cy = Math.max(0, Math.min(lot.h - SH, focus[1] + 8 - SH / 2));
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.drawImage(lot.ground, cx * K, cy * K, SW * K, SH * K, 0, 0, SW * K, SH * K);
     c.setTransform(K, 0, 0, K, -cx * K, -cy * K);
+    // in a hockey game, each player's ring on the ice (filled in for whoever has the puck)
+    // and the puck, bigger than life so it can be seen
+    for (const it of people) {
+      if (!it.ring) continue;
+      c.beginPath(); c.ellipse(it.px + 8, it.py + 12, 7, 3.5, 0, 0, Math.PI * 2);
+      if (it.full) { c.fillStyle = it.ring; c.fill(); } else { c.strokeStyle = it.ring; c.lineWidth = 1.5; c.stroke(); }
+    }
+    if (puck) { c.fillStyle = '#18181e'; c.beginPath(); c.ellipse(puck[0] + 8, puck[1] + 8, 2.2, 1.4, 0, 0, Math.PI * 2); c.fill(); }
     // everyone and everything standing up, back to front by where their feet are
     const items = lot.props.filter((p) => !p.img || (p.x < cx + SW && p.x + p.w > cx && p.y < cy + SH && p.y + p.h > cy));
     for (const it of people) {
@@ -10808,6 +11036,7 @@
       const says = (line) => npc.name + ': ' + line;
       if (npc.dog) { dogTalk(npc); return; }
       if (npc.guest) { guestTalk(npc, says); return; }
+      if (npc === gateKeeper) { hockeyTalk(npc, says); return; }
       if (npc.name === 'Damir') {
         say(says('Do you feel safe in the dark?'), () => ui.push(DarkGame()));
         return;
@@ -11511,5 +11740,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, mp, press, release, get quest() { return quest; } };
+  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; } };
 })();

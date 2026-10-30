@@ -351,4 +351,26 @@ window.MUSIC = {
       { type: 'drums', vol: 0.35, notes: 'k h h h s h h h | k h h h s h h h' },
     ],
   },
+  // hockey on the rink: a rink organ, a tune and its harmony in thirds over a bouncing bass
+  hockey: {
+    bpm: 152,
+    voices: [
+      { type: 'square', vol: 0.03, notes:
+        'C5 - E5 - G5 - E5 - | F5 - A5 - G5 - E5 - | D5 - F5 - E5 - C5 - | D5 - - - G4 - - - |' +
+        'C5 - E5 - G5 - C6 - | B5 - G5 - A5 - F5 - | E5 - D5 - C5 - D5 - | C5 - - - . . . . |' +
+        'A4 - A4 - C5 - A4 - | G4 - G4 - B4 - G4 - | F4 - A4 - C5 - F5 - | E5 - - - D5 - - - |' +
+        'A4 - A4 - C5 - E5 - | D5 - B4 - G4 - B4 - | C5 - E5 - D5 - B4 - | C5 - - - C5 - . . |' },
+      { type: 'square', vol: 0.018, notes:
+        'A4 - C5 - E5 - C5 - | D5 - F5 - E5 - C5 - | B4 - D5 - C5 - A4 - | B4 - - - D4 - - - |' +
+        'A4 - C5 - E5 - A5 - | G5 - E5 - F5 - D5 - | C5 - B4 - A4 - B4 - | E4 - - - . . . . |' +
+        'F4 - F4 - A4 - F4 - | E4 - E4 - G4 - E4 - | C4 - F4 - A4 - C5 - | C5 - - - B4 - - - |' +
+        'F4 - F4 - A4 - C5 - | B4 - G4 - D4 - G4 - | A4 - C5 - B4 - G4 - | E4 - - - E4 - . . |' },
+      { type: 'triangle', vol: 0.09, notes:
+        'C3 . G2 . C3 . G2 . | F2 . C3 . C3 . G2 . | D3 . A2 . A2 . E2 . | G2 . D3 . G2 . B2 . |' +
+        'C3 . G2 . C3 . E3 . | G2 . D3 . F2 . C3 . | C3 . G2 . G2 . D3 . | C3 . G2 . C3 . . . |' +
+        'F2 . C3 . F2 . C3 . | E2 . B2 . E2 . B2 . | F2 . C3 . A2 . C3 . | C3 . G2 . G2 . D3 . |' +
+        'F2 . C3 . A2 . C3 . | G2 . D3 . G2 . D3 . | A2 . E3 . G2 . D3 . | C3 . G2 . C3 . . . |' },
+      { type: 'drums', vol: 0.45, notes: 'k . h . s . h . | k . h k s . h h' },
+    ],
+  },
 };

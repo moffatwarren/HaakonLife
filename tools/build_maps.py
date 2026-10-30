@@ -460,6 +460,7 @@ f2.vline(72, 3, 11)
 f2.office('162 Michael Tam', 46, 4, 50, 9, 'S'); f2.door((46, 10), (47, 10))
 f2.office('161 Lauren', 52, 4, 56, 9, 'S'); f2.door((52, 10), (53, 10))
 f2.office('159 Gigi', 58, 4, 62, 9, 'S'); f2.door((61, 10), (62, 10))
+f2.rooms[-1].update(person='Gigi', area=[65, 15, 71, 19])  # Gigi hangs out in Daphne's office
 f2.office('146 Joe', 64, 4, 71, 9, 'S'); f2.door((64, 10), (65, 10))
 f2.hline(72, 106, 11)
 for x in (80, 89, 97):
@@ -932,9 +933,10 @@ fc.rooms.append({'name': 'Poker Table', 'x1': 87, 'y1': 20, 'x2': 87, 'y2': 20, 
 # =====================================================================
 # PARKING LOT: out through the fitness room's side doors, only at Christmas. The
 # office is the wall along the top, its doors opening onto the sidewalk; the rink
-# sits in the middle of the lot with cars parked above and below it, and room to
-# spare all round (for things to come). East of the lot is a park of snow with the
-# hot chocolate stand, the big spruce and a fire pit. Woods all round.
+# runs north to south down the lot, its nets at either end, with cars parked along
+# the top and bottom either side of it, and room to spare all round (for things to
+# come). East of the lot is a park of snow with the hot chocolate stand, the big
+# spruce and a fire pit. Woods all round.
 # =====================================================================
 fy = Floor('Parking Lot', 56, 40)
 fy.outdoor = True
@@ -944,19 +946,19 @@ fy.fill(1, 3, 54, 38, '.')                      # snow
 fy.fill(1, 3, 54, 3, ',')                       # the sidewalk
 fy.fill(1, 4, 43, 37, ',')                      # the plowed lot
 fy.rooms.append({'name': 'Parking Lot', 'x1': 1, 'y1': 3, 'x2': 54, 'y2': 38})
-# the rink: boards round a 22 x 10 sheet of ice, a gate in the north and south sides
-fy.fill(10, 14, 33, 25, 'B')
-fy.fill(11, 15, 32, 24, '~')
-fy.put(25, 14, '~'); fy.put(26, 14, '~')
-fy.put(15, 25, '~'); fy.put(16, 25, '~')
-fy.fill(13, 19, 13, 20, 'n'); fy.fill(30, 19, 30, 20, 'n')
-fy.rooms.append({'name': 'Ice Rink', 'x1': 11, 'y1': 15, 'x2': 32, 'y2': 24, 'parent': 'Parking Lot'})
-for x, y in ((9, 13), (34, 13), (9, 26), (34, 26)):
+# the rink: boards round a 14 x 30 sheet of ice, a net three metres in from either end
+# and a gate in the east side, facing the way down from the doors (the hockey game's
+# rink attendant stands by it), with a lamp post off each corner
+fy.fill(10, 5, 25, 36, 'B')
+fy.fill(11, 6, 24, 35, '~')
+fy.put(25, 20, '~'); fy.put(25, 21, '~')
+fy.fill(17, 8, 18, 8, 'n'); fy.fill(17, 33, 18, 33, 'n')
+fy.rooms.append({'name': 'Ice Rink', 'x1': 11, 'y1': 6, 'x2': 24, 'y2': 35, 'parent': 'Parking Lot'})
+for x, y in ((10, 4), (25, 4), (10, 37), (25, 37)):
     fy.put(x, y, 'L')
-for x in (2, 5, 11, 17, 35, 38):                # cars along the top, nose to the office,
-    fy.fill(x, 6, x + 1, 8, 'c')                # leaving the way from the doors clear
-for x in (2, 8, 11, 20, 26, 32, 38):            # and along the bottom
-    fy.fill(x, 30, x + 1, 32, 'c')
+for x in (2, 5, 8, 31, 34, 37, 40):             # cars along the top, nose to the office,
+    fy.fill(x, 4, x + 1, 6, 'c')                # leaving the way from the doors clear,
+    fy.fill(x, 34, x + 1, 36, 'c')              # and along the bottom
 fy.fill(47, 6, 49, 7, 'h')                      # hot chocolate stand
 fy.put(52, 11, 's')
 fy.put(49, 19, 'Y')                             # the big spruce

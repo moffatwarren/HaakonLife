@@ -68,6 +68,7 @@ Walk up to these and press A:
 - **Washer and dryer** (fitness room): catch the load the machine is asking for, let the rest drop
 - **Joe's Lego shelf** (2nd floor, office 146): the same falling bricks as Joe's brick battle, but on your own. Rows of grey bricks push up from the bottom, slowly at first and then faster and faster, so see how many lines you can clear before they reach the top
 - **Elevator**: every ride, a coworker gets in and makes conversation
+- **Hockey** (the parking lot's rink, at Christmas): one on one against a coworker; see Christmas below
 - **Forklift** (Kingston plant, in the warehouse): Forklift Rush. The truck at the dock
   calls for one kind of pallet at a time (fan, coil, damper or motor); drive the forks
   into it to pick it up, and into the trailer to load it (or into an empty rack bay to
@@ -104,7 +105,8 @@ start each game with 200:
   200 spring rolls, the blinds stay at 2/4, and if a hand is going you're dealt in from
   the next one. On your own you wait for somebody to join. You have 30 seconds to act
   (run out twice in a row and you lose your seat), and running out of rolls gets you up
-  from the table; sit back down for another 200
+  from the table; sit back down for another 200. The live table has its own leaderboard
+  (see **Leaderboards**), which comes up when you get up from the table
 - **Slot machines**: Spring Roll Slots. Left and right pick your bet (5, 10, 25, 50 or
   100) and A pulls the lever; the reels stop by themselves one after another, or press
   A to stop the next one. Three of a kind on the line pays 100 times your bet for
@@ -158,6 +160,16 @@ one person. Richard's duel, Wade's match and Kiki's jar are win-or-lose, so
 they have no board. Pong's board counts how many times each name has beaten the TV:
 each win adds one and shows the board, and a loss leaves it alone.
 
+The live poker table's board (**Live Hold'em**) is a running tally rather than a best
+score. Every hand you're dealt into counts: if you end it with more spring rolls than you
+were dealt in with, the difference goes on your total won, and if you end it with fewer
+(getting up partway through a hand loses what you'd put in), it goes on your total lost.
+The board shows each name's total won, total lost and the difference between them, and
+it's in order of that difference, so 1st is whoever is furthest ahead overall, not
+whoever has won the most. It comes up when you get up from the table (once you've played
+a hand), and the Hall of Fame has a page of its own for it as well as listing it with
+the other casino games.
+
 ### The Hall of Fame
 
 The tall gold-framed board on the left wall of **Reception** (opposite the candy table)
@@ -173,6 +185,10 @@ shows every leaderboard at once. Left and right flip between its pages:
   when the lists get long). Each time you finish one, that quest's leaderboard comes up
   once you're back walking around, with your count one higher. The quests don't earn
   Office Champion points.
+- **Live Hold'em**: the live poker table's top ten, with each name's spring rolls won,
+  spring rolls lost and the difference, in order of the difference. Underneath you see
+  your place and your own totals. (Live Hold'em is on the casino page too, like the
+  other games.)
 - **One page per area** (Office, Fitness Room, TVs and Cody's Casino, Boardroom and 2nd Floor,
   Coworkers and Dogs, Kingston Plant, and Halloween in October or once it has scores):
   each game's champion and their score, or "up for grabs" if nobody has played it.
@@ -259,6 +275,10 @@ lights, mummy wrap) are stored as negative numbers.
 Which games have a board, and their titles, is the `BOARDS` list in `js/game.js`. The two
 quests and Pong are stored the same way, under `scores/linda`, `scores/eotm` and
 `scores/pong`, with the number of times as the score, so the rules above already cover them.
+So is Live Hold'em: its totals won and lost are two boards of their own,
+`scores/pokerlivewon` and `scores/pokerlivelost`, each holding a name's total as the score
+(so both only go up), and the game works out the difference. To reset someone's tally,
+delete their row from both.
 
 ## Playing together
 
@@ -544,19 +564,36 @@ From November 27 to December 31 (by your device's date) the office does Christma
 - The fitness room's side doors (on its left wall) open onto the **parking lot**, a map
   of its own drawn in a rough, cel-shaded cartoon style instead of pixels (thick black
   outlines, flat colour, a hard shadow and highlight): snow falling, lights strung over
-  the lot, the office's brick front along the top, a rink in the middle, and room to
-  spare all round. Walk back into the doors to go inside again.
+  the lot, the office's brick front along the top, a rink running down the middle, and
+  room to spare all round. Walk back into the doors to go inside again.
 - **Skating**: step onto the ice and you're on skates. Keep pushing one way to pick
   up speed (up to twice walking pace), turn and you lose some, let go and you glide
   on, slowing down little by little until you come to a stop (about 10 tiles from full
   speed). The boards stop you dead. In 3D you crouch and push off one skate then the
   other, toe turned out, swaying over the one you're gliding on with your arms swinging
   across, and coast with both skates side by side.
-- Ten coworkers, picked at random each time the game loads, have gone out there and
-  stand around the lot: at the fire pit, the hot chocolate stand, a car, the snowman
-  and the big spruce, and two pacing along the rink's boards. The ice is all yours. Anyone with a part to play indoors (the Employee of
+- Eleven coworkers, picked at random each time the game loads, have gone out there and
+  stand around the lot: one minding the gate in the rink's boards, at the fire pit, the
+  hot chocolate stand, a car, the snowman and the big spruce, and two pacing along the
+  rink's boards. The ice is all yours. Anyone with a part to play indoors (the Employee of
   the Month list, Lam, Linda, Jenn, Cody, Zin, Eugene) stays in. The hot chocolate
   stand pours as many as you like.
+- **Hockey**: talk to whoever is minding the rink's gate and they'll take you on, one
+  on one, three minutes, no goalies. Arrows skate (diagonals too, and you carry on
+  coasting when you let go). With the puck, tap A to shoot, or hold A to wind up a
+  slapshot (harder, but wilder); B sends it the way you're steering (straight ahead if
+  you aren't), to bank it off the boards or get it past them. Without it, A is a poke
+  check and B a body check, a burst of speed the way you're steering that wears off over
+  a second or so: come in hard, head on or from the side at speed, and you knock them
+  flat and the puck off their stick; catch them up from behind or from a standstill and
+  it's only a shove (which might jar it loose). Either way it dribbles off nearby,
+  there for whoever gets to it first, though whoever lost it can't take it straight
+  back. Miss and you're off balance for a moment. Each faceoff starts you both 4 metres
+  either side of the puck, racing for it when it drops. Enter (or Esc) pauses,
+  and you can give up from there. Tied at the buzzer, it goes to overtime, next goal
+  wins. You're the yellow ring, they're the red, and whoever has the puck has theirs
+  filled in. The ice is 14 by 30 metres. In 3D the camera drops low behind the rink's
+  near end, looking up the ice at the net you're shooting at.
 
 The parking lot is drawn in 3D by `js/lot3d.js`: the same cel-shaded look (three flat
 bands of light and a black outline on everything), seen from high up to the south like
@@ -589,6 +626,16 @@ that is picked from their name; set `style: { hair, hat, beard, build, outfit }`
 (the options are listed at the top of `js/people.js`). What they say out there is
 `CHRISTMAS_LINES` at the bottom of `js/people.js`, and anyone in `PEOPLE` can have a
 `christmas:` line of their own. The rink's layout is in `tools/build_maps.py`.
+
+The hockey game's rules, skating, puck and the coworker you play against are in
+`js/hockey.js`, which only works out what happens (`js/game.js` reads your keys into it,
+plays the sounds and puts up the score, and `js/lot3d.js` or `js/hd.js` draws it). It's
+the same every time from the same seed and never reads keys or draws, so a game server
+could run it as it is when it's played against other players one day; passing is already
+in for two on two (B with the puck goes to a teammate if there's one the way you're
+steering). The
+coworker reads the play a few ticks late, skates a little slower than you, goes round you
+rather than shooting into you, and sees a check coming about half the time.
 
 Players on a copy from before Christmas existed can't tell the parking lot from the
 ground floor: until they reload, someone outside shows up on their ground floor at
@@ -666,7 +713,8 @@ you in the Kingston plant.
 `&visitor=Alex` puts that visitor in the visitor office, and `&visit=120` has
 whoever is there leave through the portal in 120 ticks (2 seconds).
 
-`game=board&key=snake` opens that game's leaderboard without sending anything, and
+`game=board&key=snake` opens that game's leaderboard without sending anything (`key=pokerlive`
+is the live poker table's), and
 `game=fame` opens the Hall of Fame (in `tools/test.html` it's filled with made-up rows,
 with `&name=Sam` among them on some boards).
 

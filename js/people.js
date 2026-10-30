@@ -83,7 +83,7 @@ window.PEOPLE = {
   "Davisson": { body: 'male', hair: '#d06030', skin: '#f8d0a8', top: '#f8f8f8', accent: '#f8f8f8', pants: '#3a3050', lines: ["Everything perfectly organised."] },
   "Michael Tam": { body: 'male', hair: '#181010', skin: '#f8d8b8', top: '#40a0a0', accent: '#3050a8', pants: '#484858', lines: [] },
   "Lauren": { body: 'female', hair: '#181010', skin: '#8a5838', top: '#f0b030', accent: '#f8f8f8', pants: '#303040', lines: [] },
-  "Gigi": { body: 'female', hair: '#8a5a3a', skin: '#8a5838', top: '#40a0a0', accent: '#283878', pants: '#383848', lines: [] },
+  "Gigi": { body: 'female', hair: '#8a5a3a', skin: '#8a5838', top: '#40a0a0', accent: '#283878', pants: '#383848', lines: ["Do you know the lyrics to 'Bohemian Rhapsody'?"] },
   "Joe": { body: 'male', hair: '#8a5a3a', skin: '#8a5838', top: '#b83028', accent: '#3050a8', pants: '#b09870', lines: ["Have you seen my Lego shelf? That spaceship took me all weekend."] },
   "Mauro": { body: 'male', hair: '#d06030', skin: '#8a5838', top: '#40a0a0', accent: '#2c6a34', pants: '#3a3050', lines: ["I'm young and Italian!"], halloween: "This costume makes me look even younger. And even more Italian." },
   "Alyssa": { body: 'female', hair: '#a8a8b0', skin: '#f8d0a8', top: '#78a8e8', accent: '#283878', pants: '#b09870', lines: ["Why do I feel so old? Did Mauro steal my youth?"] },

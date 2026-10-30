@@ -18,6 +18,11 @@
 // 1): everyone is drawn that far between where they were last tick and where they are
 // now, so movement stays smooth however fast the screen refreshes. walk is -1 for someone
 // coasting on skates (anything else: their legs follow how far they've actually gone).
+// During a hockey game (js/hockey.js) draw also takes view ({ dist, pitch }: the camera
+// lower than the zoom's) and puck ([px, py]), and each player face (which way they face,
+// an angle as in FACING), stick ({ k, a, p, hand }: what they're doing with it), down (0
+// to 1, knocked over), fall (which side they go over on), ring (their team's colour) and
+// full (they have the puck: the ring is filled in).
 window.LOT3D = (function () {
   const TAU = Math.PI * 2;
   const SW = 320, SH = 240;
@@ -533,7 +538,7 @@ window.LOT3D = (function () {
       }
 
       return {
-        root, rig, upper, hips, knees, arms, elbows, head, boots, skates,
+        root, body, rig, upper, hips, knees, arms, elbows, head, boots, skates,
         ang: 0, w: 0, glide: 0, cyc: 0, spd: 0, phase: R() * TAU, seen: 0,
         tick: null, prev: new V3(), cur: new V3(), last: null,
       };
@@ -760,6 +765,7 @@ window.LOT3D = (function () {
       x: (TX(Math.min(...bx)) + TX(Math.max(...bx))) / 2, z: (TZ(Math.min(...by)) + TZ(Math.max(...by))) / 2,
       w: Math.max(...bx) - Math.min(...bx), h: Math.max(...by) - Math.min(...by), r: 1.125,
     };
+    RINK.tall = RINK.h > RINK.w; // running north to south
     const rinkShape = new T.Shape();
     {
       const w = RINK.w / 2, h = RINK.h / 2, r = RINK.r;
@@ -767,7 +773,9 @@ window.LOT3D = (function () {
       rinkShape.lineTo(w, h - r); rinkShape.quadraticCurveTo(w, h, w - r, h); rinkShape.lineTo(-w + r, h);
       rinkShape.quadraticCurveTo(-w, h, -w, h - r); rinkShape.lineTo(-w, -h + r); rinkShape.quadraticCurveTo(-w, -h, -w + r, -h);
     }
-    const nets = topLeft('n').map(([x, y]) => new V3(TX(x), 0, TZ(y) + 0.5));
+    // each net's goal line, through the middle of its two tiles (side by side in the end of a
+    // rink running north to south)
+    const nets = topLeft('n').map(([x, y]) => (tAt(x + 1, y) === 'n' ? new V3(TX(x) + 0.5, 0, TZ(y)) : new V3(TX(x), 0, TZ(y) + 0.5)));
     const iceTex = tex('ice', RINK.w * 60, RINK.h * 60, (g, w, h) => {
       g.fillStyle = '#d6ebf7'; g.fillRect(0, 0, w, h);
       for (let i = 0; i < 12; i++) {
@@ -775,22 +783,27 @@ window.LOT3D = (function () {
         g.fillStyle = i % 2 ? 'rgba(240,250,255,.6)' : 'rgba(255,255,255,.45)';
         g.beginPath(); g.moveTo(x, 0); g.lineTo(x + ww, 0); g.lineTo(x + ww - 300, h); g.lineTo(x - 300, h); g.fill();
       }
-      // the lines, under the scratches
-      g.fillStyle = 'rgba(200,40,42,.75)'; g.fillRect(w / 2 - 7, 0, 14, h);
-      g.fillStyle = 'rgba(40,80,170,.6)'; g.fillRect(w * 0.34 - 9, 0, 18, h); g.fillRect(w * 0.66 - 9, 0, 18, h);
-      g.strokeStyle = 'rgba(40,80,170,.6)'; g.lineWidth = 7; g.beginPath(); g.arc(w / 2, h / 2, 90, 0, TAU); g.stroke();
-      g.fillStyle = 'rgba(40,80,170,.6)'; g.beginPath(); g.arc(w / 2, h / 2, 9, 0, TAU); g.fill();
-      g.fillStyle = 'rgba(36,64,138,.22)'; g.font = '900 64px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('HAAKON', w / 2, h / 2 - 140);
+      // the lines, under the scratches: drawn as if the rink ran east to west (lw long by lh
+      // across), and turned for one that runs north to south
+      const lw = RINK.tall ? h : w, lh = RINK.tall ? w : h;
+      g.save();
+      if (RINK.tall) { g.translate(w, 0); g.rotate(Math.PI / 2); }
+      g.fillStyle = 'rgba(200,40,42,.75)'; g.fillRect(lw / 2 - 7, 0, 14, lh);
+      g.fillStyle = 'rgba(40,80,170,.6)'; g.fillRect(lw * 0.34 - 9, 0, 18, lh); g.fillRect(lw * 0.66 - 9, 0, 18, lh);
+      g.strokeStyle = 'rgba(40,80,170,.6)'; g.lineWidth = 7; g.beginPath(); g.arc(lw / 2, lh / 2, 90, 0, TAU); g.stroke();
+      g.fillStyle = 'rgba(40,80,170,.6)'; g.beginPath(); g.arc(lw / 2, lh / 2, 9, 0, TAU); g.fill();
       for (const n of nets) {
-        const nx = (n.x - RINK.x + RINK.w / 2) * 60, right = n.x < RINK.x;
-        g.fillStyle = 'rgba(200,40,42,.6)'; g.fillRect(nx - 4, 24, 8, h - 48);
-        g.fillStyle = 'rgba(120,175,230,.5)'; g.beginPath(); g.arc(nx, h / 2, 84, right ? -Math.PI / 2 : Math.PI / 2, right ? Math.PI / 2 : Math.PI * 1.5); g.fill();
+        const nx = (RINK.tall ? n.z - RINK.z + RINK.h / 2 : n.x - RINK.x + RINK.w / 2) * 60, right = RINK.tall ? n.z < RINK.z : n.x < RINK.x;
+        g.fillStyle = 'rgba(200,40,42,.6)'; g.fillRect(nx - 4, 24, 8, lh - 48);
+        g.fillStyle = 'rgba(120,175,230,.5)'; g.beginPath(); g.arc(nx, lh / 2, 84, right ? -Math.PI / 2 : Math.PI / 2, right ? Math.PI / 2 : Math.PI * 1.5); g.fill();
         for (const dz of [-1, 1]) {
-          const fx = nx + (right ? 1 : -1) * 150, fy = h / 2 + dz * 110;
+          const fx = nx + (right ? 1 : -1) * 150, fy = lh / 2 + dz * 110;
           g.strokeStyle = 'rgba(200,40,42,.55)'; g.lineWidth = 5; g.beginPath(); g.arc(fx, fy, 70, 0, TAU); g.stroke();
           g.fillStyle = 'rgba(200,40,42,.6)'; g.beginPath(); g.arc(fx, fy, 8, 0, TAU); g.fill();
         }
       }
+      g.restore();
+      g.fillStyle = 'rgba(36,64,138,.22)'; g.font = '900 64px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('HAAKON', w / 2, h / 2 - 140);
       // skate marks: long sweeping curves, short stops, and a few hairline cracks
       for (let i = 0; i < 520; i++) {
         g.strokeStyle = R() < 0.7 ? 'rgba(150,175,198,.3)' : 'rgba(255,255,255,.55)'; g.lineWidth = 0.8 + R();
@@ -853,7 +866,8 @@ window.LOT3D = (function () {
     const netTex = tex('net', 32, 32, (g) => { g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 2; g.strokeRect(1, 1, 30, 30); }, 6, 5);
     for (const n of nets) {
       const g = new T.Group();
-      g.position.copy(n); g.rotation.y = n.x < RINK.x ? 0 : Math.PI; scene.add(g);
+      // (built opening east, then turned to face the middle of the ice)
+      g.position.copy(n); g.rotation.y = RINK.tall ? (n.z < RINK.z ? -Math.PI / 2 : Math.PI / 2) : n.x < RINK.x ? 0 : Math.PI; scene.add(g);
       const red = toon('#c8262a'), P = (a, b, c) => new V3(a, b, c);
       for (const s of [-1, 1]) {
         g.add(rod(P(0, 0, s * 0.62), P(0, 0.88, s * 0.62), 0.035, red));
@@ -864,14 +878,17 @@ window.LOT3D = (function () {
       g.add(rod(P(-0.6, 0.03, -0.5), P(-0.6, 0.03, 0.5), 0.03, red));
       const nm = new T.Mesh(new T.BoxGeometry(0.56, 0.84, 1.18), new T.MeshBasicMaterial({ map: netTex, transparent: true, side: T.DoubleSide, depthWrite: false }));
       nm.position.set(-0.3, 0.44, 0); g.add(nm);
-      // a puck or two left lying about
-      for (let i = 0; i < 2; i++) scene.add(at(cyl(0.04, 0.04, 0.025, toon('#1c1c22'), null, 10), n.x + (n.x < RINK.x ? 1 : -1) * (1 + R() * 2), 0.035, n.z + (R() - 0.5) * 3));
     }
-    // a stick leaning on the boards by each gate
-    findTiles('~').filter(([x, y]) => tAt(x, y - 1) !== '~' && tAt(x - 1, y) === 'B' && (tAt(x, y + 1) === ',' || tAt(x, y - 1) === ',')).forEach(([x, y]) => {
-      const out = tAt(x, y + 1) === ',' ? 1 : -1;
-      scene.add(rod(new V3(TX(x) - 1.2, 0.05, TZ(y) + out * 0.25), new V3(TX(x) - 1.05, 1.15, TZ(y) + out * 0.1), 0.022, toon('#d8b07a')));
-      scene.add(at(box(0.3, 0.07, 0.035, toon('#22222a')), TX(x) - 1.35, 0.05, TZ(y) + out * 0.27));
+    // a stick leaning on the outside of the boards by each gate (beside its first tile: west
+    // of a gate in the north or south side, north of one in the east or west)
+    const [bx0, bx1, by0, by1] = [Math.min(...bx), Math.max(...bx), Math.min(...by), Math.max(...by)];
+    findTiles('~').filter(([x, y]) => ((x === bx0 || x === bx1) && tAt(x, y - 1) === 'B') || ((y === by0 || y === by1) && tAt(x - 1, y) === 'B')).forEach(([x, y]) => {
+      const side = x === bx0 || x === bx1, out = side ? (x === bx1 ? 1 : -1) : y === by1 ? 1 : -1;
+      // along the boards (a) and out from them (o), as a point
+      const pt = (a, o, h) => (side ? new V3(TX(x) + out * o, h, TZ(y) + a) : new V3(TX(x) + a, h, TZ(y) + out * o));
+      scene.add(rod(pt(-1.2, 0.25, 0.05), pt(-1.05, 0.1, 1.15), 0.022, toon('#d8b07a')));
+      const blade = box(side ? 0.035 : 0.3, 0.07, side ? 0.3 : 0.035, toon('#22222a'));
+      blade.position.copy(pt(-1.35, 0.27, 0.05)); scene.add(blade);
     });
 
     // ---- cars, two tiles by three, nosed in toward the edges; some are pickups ----
@@ -1204,7 +1221,7 @@ window.LOT3D = (function () {
     let zoom = ZOOMS[0], cssH = 0;
     const focus = new V3(), want = new V3(), fPrev = new V3(), fCur = new V3();
     let primed = false, fTick = null, last = 0, frame = 0;
-    const people = new Map();
+    const people = new Map(), puck = { mesh: null, tick: null, prev: new V3(), cur: new V3() };
     const world = (px, py, h) => new V3((px + 8) / 16 - MW / 2, h || 0, (py + 8) / 16 - MH / 2);
     // where something is this frame: between last tick's place and this tick's (a jump of
     // more than a tile and a half, like coming through a door, isn't smoothed)
@@ -1216,15 +1233,16 @@ window.LOT3D = (function () {
     }
 
     // bend a leg so its ankle comes to `foot`, with the knee pointing along `fwd` (both in the
-    // rig's own terms): the thigh and shin are the two sides of a triangle with the hip, and
-    // the hip turns that triangle to face the foot
+    // rig's own terms): the thigh and shin (a and b long) are the two sides of a triangle with
+    // the hip, and the hip turns that triangle to face the foot. An arm works the same way,
+    // with its elbow pointing along `fwd`
     const _d = new V3(), _n = new V3(), _x = new V3(), _y = new V3(), _z = new V3(), _m = new T.Matrix4();
-    function reach(hip, knee, foot, fwd) {
+    function reach(hip, knee, foot, fwd, a, b) {
       _d.subVectors(foot, hip.position);
-      const D = clamp(_d.length(), THIGH - SHIN + 1e-3, THIGH + SHIN - 1e-3);
+      const D = clamp(_d.length(), Math.abs(a - b) + 1e-3, a + b - 1e-3);
       _d.normalize();
-      const atHip = Math.acos(clamp((THIGH * THIGH + D * D - SHIN * SHIN) / (2 * THIGH * D), -1, 1));
-      const atKnee = Math.acos(clamp((THIGH * THIGH + SHIN * SHIN - D * D) / (2 * THIGH * SHIN), -1, 1));
+      const atHip = Math.acos(clamp((a * a + D * D - b * b) / (2 * a * D), -1, 1));
+      const atKnee = Math.acos(clamp((a * a + b * b - D * D) / (2 * a * b), -1, 1));
       _n.crossVectors(_d, fwd).normalize();
       _y.copy(_d).applyAxisAngle(_n, atHip).negate(); // up the thigh
       _z.crossVectors(_n, _y).negate(); // the way the knee points
@@ -1237,6 +1255,62 @@ window.LOT3D = (function () {
     const PUSH = 0.32, LIFT = 0.18;
     const ease = (x) => x * x * (3 - 2 * x);
     const _h = new V3(), _f = new V3(), _k = new V3(), _inv = new T.Matrix4(), _rq = new T.Quaternion(), _q = new T.Quaternion(), _e = new T.Euler();
+    const _g = new V3(), _s = new V3(), _u = new V3(), UP = new V3(0, 1, 0);
+
+    // A hockey stick (it.stick: { k, a, p, hand }, see js/hockey.js): for each thing they do
+    // with it, where the blade's heel and the top hand go, in the body's own terms (facing
+    // +z, their left +x) for a left shot; a right shot is the mirror image. The stick runs
+    // from the heel through the top hand, and both hands are reached on to it.
+    const STICK_L = 1.05;
+    const lerp3 = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
+    const mix2 = (A, B, k) => [lerp3(A[0], B[0], k), lerp3(A[1], B[1], k)];
+    const READY = [[0.24, 0.02, 0.62], [-0.04, 0.92, 0.2]], WOUND = [[0.62, 1.45, -0.3], [-0.05, 1, 0.18]], STRIKE = [[0.2, 0.02, 0.55], [0, 0.9, 0.25]];
+    // a swing from `from` through the strike and on to `to`, then back to the ready
+    const swing = (from, to, a) => (a < 0.25 ? mix2(from, STRIKE, ease(a / 0.25)) : a < 0.7 ? mix2(STRIKE, to, ease((a - 0.25) / 0.45)) : mix2(to, READY, ease((a - 0.7) / 0.3)));
+    function stickPose(k, a, p) {
+      switch (k) {
+        // stickhandling: a is how far through the side-to-side (the blade's middle where
+        // js/hockey.js keeps the puck)
+        case 'carry': return [[0.19 + Math.sin(a) * 0.13, 0.02, 0.5 + Math.cos(2 * a) * 0.04], [-0.04 + Math.sin(a) * 0.05, 0.92, 0.2]];
+        case 'wind': return mix2(READY, WOUND, ease(a));
+        case 'shot': return swing(mix2(READY, WOUND, p || 0), [[-0.35, 0.75, 0.85], [-0.25, 1.05, 0.35]], a);
+        case 'pass': return swing(READY, [[-0.1, 0.12, 0.85], [-0.05, 0.95, 0.3]], a);
+        case 'poke': return mix2(READY, [[0.12, 0.02, 1.15], [0, 0.9, 0.6]], Math.sin(Math.PI * a));
+        case 'check': return mix2(READY, [[0.55, 0.3, 0.3], [-0.12, 1.05, 0.3]], Math.sin(Math.PI * a));
+        case 'cheer': return mix2(READY, [[0.15, 2.05, 0.15], [0.05, 1.45, 0.15]], ease(Math.min(1, a * 4)));
+        case 'down': return [[0.7, 0.03, 0.35], [0.45, 0.03, -0.65]];
+        default: return READY;
+      }
+    }
+    function holdStick(person, st) {
+      const hand = st.hand || 1;
+      if (!person.stick) {
+        const shaft = new T.Group(), tape = toon('#22222a');
+        shaft.add(at(box(0.03, STICK_L, 0.022, toon('#d8b07a')), 0, STICK_L / 2, 0));
+        shaft.add(at(box(0.034, 0.1, 0.026, tape, { ol: false }), 0, STICK_L - 0.05, 0)); // tape round the knob
+        person.stick = { shaft, blade: box(0.27, 0.075, 0.016, tape) };
+        person.body.add(shaft); person.body.add(person.stick.blade);
+      }
+      const { shaft, blade } = person.stick, [heel, top] = stickPose(st.k, st.a, st.p);
+      shaft.visible = blade.visible = true;
+      _s.set(heel[0] * hand, heel[1], heel[2]);
+      _u.set(top[0] * hand - _s.x, top[1] - _s.y, top[2] - _s.z).normalize(); // up the shaft
+      shaft.position.copy(_s); shaft.quaternion.setFromUnitVectors(UP, _u);
+      // the blade lies flat, pointing away from the hands
+      const bl = Math.hypot(_u.x, _u.z) || 1, bx = -_u.x / bl, bz = -_u.z / bl;
+      blade.position.set(_s.x + bx * 0.13, _s.y + 0.035, _s.z + bz * 0.13); blade.rotation.y = Math.atan2(-bz, bx);
+      if (st.k === 'down') return; // they've let go of it
+      // the top hand near the end, the other a little over halfway up, elbows out, down and back
+      const { rig, upper } = person;
+      rig.updateMatrix(); upper.updateMatrix();
+      _inv.multiplyMatrices(rig.matrix, upper.matrix).invert();
+      _rq.copy(rig.quaternion).multiply(upper.quaternion).invert();
+      for (const [side, along] of [[-hand, STICK_L - 0.06], [hand, STICK_L * 0.6]]) {
+        _g.copy(_s).addScaledVector(_u, along).applyMatrix4(_inv);
+        _k.set(side * 0.6, -0.4, -0.7).normalize().applyQuaternion(_rq);
+        reach(person.arms[side], person.elbows[side], _g, _k, 0.22, 0.25);
+      }
+    }
 
     // How someone moves: their legs keep pace with how far they've actually gone (a stride
     // is a little longer the faster they go, so feet don't slide), easing in and out as
@@ -1260,7 +1334,7 @@ window.LOT3D = (function () {
       const moved = d < 1.5 ? d : 0;
       person.spd += (moved / Math.max(dt, 1e-3) - person.spd) * (1 - Math.exp(-dt * 10));
       const going = person.spd > 0.6;
-      const to = FACING[it.dir];
+      const to = it.face !== undefined ? it.face : FACING[it.dir];
       if (to !== undefined) person.ang += wrapAngle(to - person.ang) * (1 - Math.exp(-dt * 15));
       person.root.rotation.y = person.ang;
       person.w += ((going && !coast ? 1 : 0) - person.w) * (1 - Math.exp(-dt * 8));
@@ -1275,10 +1349,12 @@ window.LOT3D = (function () {
       rig.scale.y = 1 + Math.sin(t * 2.2 + person.phase) * 0.012 * (1 - w);
       if (sk) {
         const act = Math.max(w, gl);
+        // with a hockey stick, lower and further forward, and further still into a check
+        const hold = it.stick ? 1 : 0, lunge = hold && it.stick.k === 'check' ? Math.sin(Math.PI * it.stick.a) : 0;
         // the hips over the skate that's carrying you, lowest as the other one finishes its push
         const sway = -Math.sin(c) * 0.06 * w;
-        const hipH = 0.685 - 0.04 * act - 0.03 * w * (1 + Math.cos(2 * (c - PUSH * TAU))) / 2;
-        const lean = 0.1 + 0.3 * w + 0.22 * gl;
+        const hipH = 0.685 - 0.04 * act - 0.05 * hold - 0.03 * w * (1 + Math.cos(2 * (c - PUSH * TAU))) / 2;
+        const lean = 0.1 + 0.3 * w + 0.22 * gl + 0.2 * hold + 0.3 * lunge;
         rig.rotation.set(lean, 0, -sway * 1.2);
         _h.set(0, HIP_Y * rig.scale.y, 0).applyEuler(rig.rotation);
         rig.position.set(sway, hipH, 0).sub(_h);
@@ -1294,7 +1370,7 @@ window.LOT3D = (function () {
           _f.set(s * (Math.abs(hips[s].position.x) + 0.02 + 0.15 * out * w), BLADE + 0.02 + 0.08 * lift * w, -0.1 * back * w + s * 0.07 * gl);
           const toe = s * (0.06 + 0.5 * out * w);
           _k.set(Math.sin(toe), 0, Math.cos(toe)).applyQuaternion(_rq);
-          reach(hips[s], knees[s], _f.applyMatrix4(_inv), _k);
+          reach(hips[s], knees[s], _f.applyMatrix4(_inv), _k, THIGH, SHIN);
           // the skate turns at the ankle to stay flat, tipped on to its inside edge as it pushes
           _q.setFromEuler(_e.set(0, toe, s * 0.3 * out * w, 'YXZ')).premultiply(_rq);
           person.skates[s > 0 ? 1 : 0].quaternion.copy(hips[s].quaternion).multiply(knees[s].quaternion).invert().multiply(_q);
@@ -1304,7 +1380,7 @@ window.LOT3D = (function () {
           arms[s].rotation.set(lean * 0.8 - 0.8 * fwd + 0.1 * gl, 0, s * (0.16 - 0.2 * fwd + 0.2 * gl));
           elbows[s].rotation.x = -0.25 - 0.35 * act;
         }
-        upper.rotation.y = -Math.sin(c) * 0.12 * w;
+        upper.rotation.y = -Math.sin(c) * 0.12 * w * (1 - 0.5 * hold) + (hold ? it.stick.hand || 1 : 0) * 0.5 * lunge; // leading with a shoulder into a check
         head.rotation.x = -lean * 0.75; // looking where they're going
       } else {
         for (const s of [-1, 1]) {
@@ -1320,6 +1396,37 @@ window.LOT3D = (function () {
         rig.position.set(0, ((Math.cos(2 * c) + 1) / 2) * (0.03 + 0.04 * run) * w - 0.02 * w, 0);
         head.rotation.x = 0;
       }
+      if (it.stick) holdStick(person, it.stick);
+      else if (person.stick) person.stick.shaft.visible = person.stick.blade.visible = false;
+      // knocked over (it.down, 0 to 1): tipped on to one side (it.fall) on the ice, arms and
+      // legs out
+      const dn = ease(clamp(it.down || 0, 0, 1));
+      if (dn > 0) {
+        _h.set(0, HIP_Y * rig.scale.y, 0).applyEuler(rig.rotation);
+        _g.copy(rig.position).add(_h); // where the hips are
+        rig.rotation.set(rig.rotation.x * (1 - dn), rig.rotation.y, rig.rotation.z * (1 - dn) + (it.fall || 1) * 1.4 * dn);
+        _h.set(0, HIP_Y * rig.scale.y, 0).applyEuler(rig.rotation);
+        rig.position.set(_g.x, _g.y + (0.26 - _g.y) * dn, _g.z).sub(_h);
+        for (const s of [-1, 1]) {
+          hips[s].quaternion.slerp(_q.setFromEuler(_e.set(-0.3, 0, s * 0.2)), dn);
+          knees[s].rotation.x *= 1 - 0.7 * dn;
+          arms[s].quaternion.slerp(_q.setFromEuler(_e.set(-0.6, 0, s * 1.1)), dn);
+          elbows[s].rotation.x += (-0.5 - elbows[s].rotation.x) * dn;
+        }
+      }
+      // a ring of a team's colour on the ice round their feet
+      // their team's ring on the ice round them, filled in while they have the puck (it.full)
+      if (it.ring && !person.ring) {
+        const mat = new T.MeshBasicMaterial({ color: it.ring, transparent: true, opacity: 0.8, depthWrite: false });
+        person.ring = new T.Mesh(new T.RingGeometry(0.42, 0.52, 28), mat);
+        person.ring.rotation.x = -Math.PI / 2; person.ring.position.y = 0.04; person.root.add(person.ring);
+        person.disc = new T.Mesh(new T.CircleGeometry(0.42, 28), mat);
+        person.ring.add(person.disc);
+      }
+      if (person.ring) {
+        person.ring.visible = !!it.ring; person.disc.visible = !!it.full;
+        if (it.ring) person.ring.material.color.set(it.ring);
+      }
       // a look about while standing still (the head steadies against the twist)
       head.rotation.y = -upper.rotation.y * 0.8 + Math.sin(t * 0.55 + person.phase) * 0.3 * (1 - w) * (1 - gl);
     }
@@ -1329,9 +1436,11 @@ window.LOT3D = (function () {
       const alpha = clamp(f.alpha || 0, 0, 1);
       last = now; frame++;
 
-      // the view follows you, but stops short of the edges of the lot
-      cam.dist += (zoom.dist - cam.dist) * (1 - Math.exp(-dt * 5));
-      cam.pitch += (zoom.pitch - cam.pitch) * (1 - Math.exp(-dt * 5));
+      // the view follows you (or whatever f.focus is), but stops short of the edges of the
+      // lot; f.view ({ dist, pitch }) holds it at a view of its own instead of the zoom's
+      const zv = f.view || zoom;
+      cam.dist += (zv.dist - cam.dist) * (1 - Math.exp(-dt * 5));
+      cam.pitch += (zv.pitch - cam.pitch) * (1 - Math.exp(-dt * 5));
       const fo = { tick: fTick };
       const p = between(fo, f.t, alpha, world(f.focus[0], f.focus[1]), fPrev, fCur);
       fTick = fo.tick;
@@ -1347,9 +1456,17 @@ window.LOT3D = (function () {
 
       for (const it of f.people) {
         let person = people.get(it.key);
-        if (!person) { person = buildPerson(it.spec); people.set(it.key, person); scene.add(person.root); person.ang = FACING[it.dir] || 0; }
+        if (!person) { person = buildPerson(it.spec); people.set(it.key, person); scene.add(person.root); person.ang = it.face !== undefined ? it.face : FACING[it.dir] || 0; }
         person.seen = frame; person.root.visible = true;
         pose(person, it, between(person, f.t, alpha, world(it.px, it.py), person.prev, person.cur), dt, t);
+      }
+      // a puck (f.puck: [px, py], during a hockey game), half again as big as a real one so
+      // it can be seen from up here
+      if (f.puck && !puck.mesh) { puck.mesh = at(cyl(0.06, 0.06, 0.038, toon('#18181e'), null, 16), 0, 0, 0); scene.add(puck.mesh); }
+      if (puck.mesh) {
+        puck.mesh.visible = !!f.puck;
+        if (f.puck) puck.mesh.position.copy(between(puck, f.t, alpha, world(f.puck[0], f.puck[1], 0.04), puck.prev, puck.cur));
+        else puck.tick = null;
       }
       // anyone who's gone in (or offline) is hidden, and dropped after a while
       for (const [key, person] of people) {
