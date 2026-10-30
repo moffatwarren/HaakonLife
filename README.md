@@ -523,6 +523,42 @@ The costumes are drawn in `COSTUMES` in `js/art.js`. What people say about their
 costume is `COSTUME_LINES` at the bottom of `js/people.js`, and anyone in `PEOPLE` can
 have a `halloween:` line of their own.
 
+## Christmas
+
+From November 27 to December 31 (by your device's date) the office does Christmas:
+
+- Strings of lights run along the walls on both floors, the exits have wreaths, the
+  potted plants have baubles, and there's a tree in reception by the front doors
+  (press A on it).
+- The fitness room's side doors (on its left wall) open onto the **parking lot**, a map
+  of its own drawn in a rough, cel-shaded cartoon style instead of pixels (thick black
+  outlines, flat colour, a hard shadow and highlight): snow falling, lights strung over
+  the lot, the office's brick front along the top, a rink in the middle, and room to
+  spare all round. Walk back into the doors to go inside again.
+- **Skating**: step onto the ice and you're on skates. Keep pushing one way to pick
+  up speed (up to twice walking pace), turn and you lose some, let go and you glide
+  on for up to 8 tiles, slowing down. The boards stop you dead.
+- Ten coworkers, picked at random each time the game loads, have gone out there:
+  three skate laps of the rink, the rest stand around the fire pit, the hot
+  chocolate stand and the boards. Anyone with a part to play indoors (the Employee of
+  the Month list, Lam, Linda, Jenn, Cody, Zin, Eugene) stays in. The hot chocolate
+  stand pours as many as you like.
+
+The parking lot is drawn by `js/hd.js`, on a canvas four times the size of the game
+screen that sits under it (the game screen goes see-through outside, so menus and
+dialogs still draw on top as usual). Everyone in it is drawn from the colours they
+already have (`js/people.js`, or a player's look), dressed for a Canadian winter:
+flannel, denim on denim, hockey sweaters, parkas or puffer vests, toques and trapper
+hats, beards from stubble to mountain man, and five builds from lanky to big. All of
+that is picked from their name; set `style: { hair, hat, beard, build, outfit }` on someone in `PEOPLE` to choose
+(the options are listed at the top of `js/people.js`). What they say out there is
+`CHRISTMAS_LINES` at the bottom of `js/people.js`, and anyone in `PEOPLE` can have a
+`christmas:` line of their own. The rink's layout is in `tools/build_maps.py`.
+
+Players on a copy from before Christmas existed can't tell the parking lot from the
+ground floor: until they reload, someone outside shows up on their ground floor at
+the same x and y.
+
 ## Shortcuts
 
 Add these to the end of the address (after `index.html`) and press Enter.
@@ -536,6 +572,12 @@ Add these to the end of the address (after `index.html`) and press Enter.
 - Add `&costume=witch` (or `clown`, `vampire`, `skeleton`, `pumpkin`, `mummy`, `fan`,
   `sdg`) to a `#play` link to pick what you're wearing.
 - `#halloween=0` switches it off during October.
+
+**Christmas outside its dates**
+
+- `index.html#christmas=1`: the whole game with Christmas switched on.
+- `index.html#play&christmas=1&yard=1`: start outside the parking lot's doors.
+- `#christmas=0` switches it off during the holidays.
 
 **Straight into a mini-game**
 
@@ -647,6 +689,8 @@ python3 tools/check_maps.py   # make sure every room is still reachable
 ```
 
 The Kingston plant is a third map in the same file. It isn't linked to the office
-floors, so the checker also starts from where you wake up in the plant.
+floors, so the checker also starts from where you wake up in the plant. The parking
+lot (Christmas) is a fifth, with glyphs of its own (listed in the legend); the
+checker starts from its doors too.
 
 1 tile is about 0.1" on the printed plan (roughly half a metre).

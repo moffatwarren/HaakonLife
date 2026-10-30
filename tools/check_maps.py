@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Flood-fills js/maps.js from the start point (following stairs + elevator) and
-from where you wake up in the Kingston plant (walking into Cody's cubicle takes you
-into his casino), and reports any walkable tiles or named rooms that can't be reached."""
+from where you wake up in the Kingston plant and the parking lot's doors (walking
+into Cody's cubicle takes you into his casino), and reports any walkable tiles or named rooms that can't be reached."""
 import json, os
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 src = open(os.path.join(root, 'js', 'maps.js')).read()
 d = json.loads(src[src.index('{'):src.rindex('}') + 1])
-WALK = '.,:_;DSjC-'  # curtains can be opened
+WALK = '.,:_;DSjC-~'  # curtains can be opened; ~ is the parking lot's ice
 
 
 def warp(f, x, y):
@@ -39,6 +39,7 @@ def swap(f, x, y):
 
 
 seen, q = set(), [(p['floor'], p['x'], p['y']) for p in (d['start'], d['plant'])]
+q.append((d['yard']['floor'], d['yard']['x'], d['yard']['y'] + 1))
 while q:
     f, x, y = q.pop()
     if (f, x, y) in seen:

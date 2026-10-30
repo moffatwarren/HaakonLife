@@ -5,6 +5,16 @@
 //   lines: what they say when you talk to them (one is picked at random).
 //          Leave it empty to use the generic greetings.
 //   halloween: (optional) something extra they might say at the Halloween party
+//   christmas: (optional) something extra they might say if they're out in the parking
+//          lot at Christmas
+//   style: (optional) how they look out in the parking lot at Christmas, which is drawn
+//          in a cartoon style. Anything left out is picked from their name:
+//            hair:   'short', 'spiky', 'swept', 'curly', 'mullet', 'shaggy' or 'bald' (male),
+//                    'long', 'ponytail', 'bob', 'bun', 'braids' or 'messy' (female)
+//            hat:    'toque', 'stripes', 'leaf' (a maple leaf toque), 'trapper' or 'none'
+//            beard:  'huge', 'full', 'chops', 'stache', 'goatee' or 'stubble' (or false)
+//            build:  'average', 'burly', 'lanky', 'stocky' or 'big'
+//            outfit: 'flannel', 'denim', 'jersey', 'parka' or 'vest'
 // Body types are a best guess from each name; colours are random placeholders.
 // Office 182 is the visitor office: people from out of town take turns in it,
 // coming and going through the portal in the corner (in a new order every time
@@ -190,4 +200,18 @@ window.COSTUME_LINES = {
   fan: ["I'm a plenum fan. Ask me about my static pressure. Please. Nobody has.", "I'm a big fan of this party.", "Careful, I'm running at full speed. I've had two coffees."],
   sdg: ["I'm SDG. Double-click me and wait ninety seconds.", "I came as the scariest thing in the office: SDG on a Monday morning.", "Please don't close me without saving."],
   ghost: ["Two eye holes and a bedsheet. Lean manufacturing.", "Boo! Sorry, was that on schedule?", "Linda says I'm doing it all wrong."],
+};
+
+// Christmas: what coworkers out in the parking lot talk about (one is picked at random,
+// along with their own christmas: line if they have one), by where they are.
+window.CHRISTMAS_LINES = {
+  rink: ["I haven't skated since I was ten. It's all coming back to me. Mostly.", "Anticlockwise! Everyone goes anticlockwise!",
+    "Somebody flooded this on their lunch break. Respect.", "My toes went numb two laps ago. I'm committed now.",
+    "One more lap, then hot chocolate. Then one more lap."],
+  fire: ["Best seat in the lot. Warm on the front, freezing on the back.", "I've been rotating like a rotisserie chicken for an hour.",
+    "Smells like woodsmoke and marshmallows. Don't tell anyone I brought marshmallows.", "This fire puts out more BTUs than half our heating coils."],
+  cocoa: ["They have the little marshmallows. Not the big ones. The little ones.", "I'm on my third. Don't judge me.",
+    "Whipped cream AND marshmallows? It's the holidays."],
+  watch: ["I'm just here to watch people fall over. Purely supportive.", "Someone needs to bring a puck. We could get a game going.",
+    "I'd skate, but these are my good shoes."],
 };

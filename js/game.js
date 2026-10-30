@@ -2,7 +2,7 @@
   // View: 20 x 15 tiles of 16px.
   const SW = 320, SH = 240;
   const MAPS = window.OFFICE_MAPS;
-  const WALKABLE = '.,:_;DSj-';
+  const WALKABLE = '.,:_;DSj-~';
   const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
   const canvas = document.getElementById('screen');
@@ -30,7 +30,8 @@
   // ---------- art ----------
   const GENDERS = ['male', 'female'];
   const col = Art.UI;
-  const floorCanvas = MAPS.floors.map((f) => Art.renderFloor(f));
+  // (the parking lot is drawn by js/hd.js instead: see "Christmas")
+  const floorCanvas = MAPS.floors.map((f) => (f.outdoor ? null : Art.renderFloor(f)));
   const miniCanvas = MAPS.floors.map((f) => Art.renderMini(f));
   const charSprites = {};
   GENDERS.forEach((g) => { charSprites[g] = Art.LOOKS[g].map((look) => Art.renderSprites(g, look)); });
@@ -91,6 +92,17 @@
   const CASINO_AT = CASINO >= 0 ? MAPS.floors[CASINO].casino : null;
   // the floor someone on floor f shows up on, on the map
   const mapFloor = (f) => (f === CASINO ? CASINO_AT.floor : f);
+  // Christmas: from Nov 27 to Dec 31 (by your device's date) the office is decorated and
+  // the fitness room's side doors open onto the parking lot, a map of its own with a rink
+  // on it (see "Christmas" further down). Adding &christmas=1 (or =0) to a #play link
+  // forces it on (or off) for testing.
+  const YARD = MAPS.floors.findIndex((f) => f.outdoor);
+  const CHRISTMAS = YARD >= 0 && (function () {
+    const m = /[#&]christmas=(\d)/.exec(location.hash);
+    if (m) return m[1] !== '0';
+    const d = new Date();
+    return (d.getMonth() === 10 && d.getDate() >= 27) || d.getMonth() === 11;
+  })();
   // The desk phones ('!' tiles). They ring the whole time, except while you're on one.
   // Eugene's sends you to the plant; the one on the plant's reception desk calls you back.
   const phones = [];
@@ -139,7 +151,7 @@
     "Have you seen the new parts upstairs?",
   ];
   const NOT_PEOPLE = ['Meeting Room', 'First Aid Station', 'Ansys Station', 'Reception', 'Engraver'];
-  const NPC_FLOOR = '.,:_;j-';
+  const NPC_FLOOR = '.,:_;j-~';
   const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
   function hash(str) {
     let h = 2166136261;
@@ -349,13 +361,16 @@
     for (const n of npcs.concat(dogs)) {
       if (n.floor !== P.floor) continue;
       if (n.moving) {
-        if (++n.prog >= 16) { n.x += n.mdx; n.y += n.mdy; n.moving = false; n.prog = 0; }
+        n.prog += n.lap ? n.lap.speed : 1;
+        if (n.prog >= 16) { n.x += n.mdx; n.y += n.mdy; n.moving = false; n.prog = 0; }
         continue;
       }
+      if (n.lap) { skateOn(n); continue; } // skating laps of the rink
       if (visit && n === visit.npc && visit.phase !== 'stay') continue; // on their way to or from the portal
       if (--n.wait > 0) continue;
       n.wait = n.dog ? 10 + Math.floor(Math.random() * 70) : 40 + Math.floor(Math.random() * 140);
-      n.dir = ['up', 'down', 'left', 'right'][Math.floor(Math.random() * 4)];
+      // someone standing around outside mostly keeps facing what they're stood by
+      n.dir = n.look && Math.random() < 0.6 ? n.look : ['up', 'down', 'left', 'right'][Math.floor(Math.random() * 4)];
       if (Math.random() < 0.25) continue; // sometimes just look around
       const [dx, dy] = DIRS[n.dir], tx = n.x + dx, ty = n.y + dy, r = n.room;
       if (tx < r.x1 || tx > r.x2 || ty < r.y1 || ty > r.y2) continue;
@@ -463,6 +478,7 @@
     thump: () => { tone(70, 0.12, 'sine', 0.14, -30); tone(62, 0.1, 'sine', 0.11, -25, 0.16); },
     beep: () => tone(1480, 0.09, 'square', 0.03), // a forklift backing up
     spray: () => noise(0.09, 5200, 0.03), // a spray gun's hiss
+    skate: () => noise(0.16, 4200, 0.025), // a skate stroke on the ice
   };
   function sfx(name, arg) { if (soundOn && actx) SFX[name](arg); }
 
@@ -571,6 +587,7 @@
     if (mode === 'play' && P.floor !== PLANT && inPhoneRoom()) return null; // nothing but the phone ringing in Eugene's office
     if (mode === 'play' && P.floor === PLANT) return 'plant';
     if (mode === 'play' && P.floor === CASINO) return 'poker';
+    if (mode === 'play' && P.floor === YARD) return 'jingle';
     return 'office';
   }
 
@@ -781,8 +798,9 @@
   function MapView() {
     const here = mapFloor(P.floor);
     let fi = here;
-    // the office floors flip between each other; the plant is a map on its own
-    const floors = MAPS.floors.map((f, i) => i).filter((i) => i !== CASINO && (i === PLANT) === (here === PLANT));
+    // the office floors flip between each other; the plant and the parking lot are maps on their own
+    const own = (i) => (i === PLANT || i === YARD ? i : -1);
+    const floors = MAPS.floors.map((f, i) => i).filter((i) => i !== CASINO && own(i) === own(here));
     const self = {
       update() {
         if (floors.length > 1 && (pressed.has('left') || pressed.has('right') || pressed.has('up') || pressed.has('down'))) {
@@ -7268,7 +7286,8 @@
     hw.worn = true;
     sprites = Art.renderCostume(pick.gender, Art.LOOKS[pick.gender][pick.index], hw.costume, sdgIcon);
   }
-  const propAt = (fi, x, y) => (hw.state === 'party' && fi === hw.floor && hw.props.find((p) => p.x === x && p.y === y)) || null;
+  const propAt = (fi, x, y) => (hw.state === 'party' && fi === hw.floor && hw.props.find((p) => p.x === x && p.y === y))
+    || (CHRISTMAS && fi === xmas.tree.floor && y === xmas.tree.y && x >= xmas.tree.x && x < xmas.tree.x + 2 && xmas.tree) || null;
   const doorShut = (fi, x, y) => hw.state === 'party' && fi === hw.floor && hw.doors.some((d) => d.x === x && d.y === y);
 
   // Who comes: Lam (the MC), eight others at random, each in a different costume, and Linda.
@@ -9428,11 +9447,65 @@
     ctx.drawImage(sprites.down[0], 0, 0, 16, 16, x + 4, y - 3, 8, 9);
   }
 
+  // ---------- on-screen keyboard ----------
+  // What you pick characters from with the D-pad (or arrows) + A, when naming yourself or
+  // typing a line to say: laid out QWERTY like a phone's, each row of keys staggered a bit
+  // further right, then a row of wider keys (SHIFT, SPACE, DEL and the one that's done).
+  // Letters show in capitals while SHIFT is on. It comes on by itself for the first
+  // letter (and after a space, if `eachWord`), and goes off again after one letter.
+  // Up and down go to whichever key is nearest above or below.
+  function Keyboard(rows, { x0, pitch, stagger, eachWord }) {
+    rows = rows.map((r) => (typeof r === 'string' ? r.split('') : r));
+    const kb = { r: 0, c: 0, shift: true };
+    const isLetter = (t) => t.length === 1 && t.toLowerCase() !== t.toUpperCase();
+    // where a key starts across the screen, and how wide it is
+    const wide = (row) => row.some((t) => t.length > 1);
+    kb.x = (r, c) => {
+      const row = rows[r];
+      if (!wide(row)) return x0 + (stagger[r] || 0) + c * pitch;
+      let x = x0;
+      for (let i = 0; i < c; i++) x += row[i].length * 6 + 18;
+      return x;
+    };
+    const mid = (r, c) => kb.x(r, c) + rows[r][c].length * 3;
+    kb.label = (t) => (isLetter(t) && kb.shift ? t.toUpperCase() : t);
+    kb.token = () => rows[kb.r][kb.c];
+    kb.move = () => {
+      const row = rows[kb.r];
+      for (const d of ['up', 'down']) {
+        if (!pressed.has(d)) continue;
+        const x = mid(kb.r, kb.c);
+        kb.r = (kb.r + (d === 'up' ? rows.length - 1 : 1)) % rows.length;
+        kb.c = rows[kb.r].reduce((best, t, c) => (Math.abs(mid(kb.r, c) - x) < Math.abs(mid(kb.r, best) - x) ? c : best), 0);
+        sfx('select');
+      }
+      if (pressed.has('left')) { kb.c = (kb.c + row.length - 1) % row.length; sfx('select'); }
+      if (pressed.has('right')) { kb.c = (kb.c + 1) % row.length; sfx('select'); }
+    };
+    // The character a key types (with SHIFT seen to), '' for SHIFT itself, or null for a
+    // key the caller deals with (DEL, and the one that's done).
+    kb.char = (t) => {
+      if (t === 'SHIFT') { kb.shift = !kb.shift; sfx('select'); return ''; }
+      if (t === 'SPACE') { if (eachWord) kb.shift = true; return ' '; }
+      if (t.length > 1) return null;
+      const ch = kb.label(t);
+      if (isLetter(t)) kb.shift = false;
+      return ch;
+    };
+    // after the text has changed some other way (rubbing out, or a real keyboard)
+    kb.fit = (str) => { kb.shift = !str || (eachWord && str.endsWith(' ')); };
+    kb.draw = (y0, rowH) => rows.forEach((row, r) => row.forEach((t, c) => {
+      const x = kb.x(r, c), y = y0 + r * rowH, sel = kb.r === r && kb.c === c, label = kb.label(t);
+      if (sel) { ctx.fillStyle = col.dark; ctx.fillRect(x - 4, y - 3, label.length * 6 + 7, rowH - 3); }
+      text(label, x, y, 1, sel ? col.light : col.dark);
+    }));
+    return kb;
+  }
+
   // ---------- your name, for the picture ----------
   const NAME_MAX = 12;
-  const NAME_ROWS = ['ABCDEFGHIJKLM', 'NOPQRSTUVWXYZ', 'abcdefghijklm', 'nopqrstuvwxyz'].map((r) => r.split(''))
-    .concat([['-', '\'', '.', 'SPACE', 'DEL', 'OK']]);
-  const nameCur = { r: 0, c: 0 };
+  const nameKeys = Keyboard(['qwertyuiop', 'asdfghjkl\'', 'zxcvbnm-.', ['SHIFT', 'SPACE', 'DEL', 'OK']],
+    { x0: 46, pitch: 24, stagger: [0, 8, 20], eachWord: true });
   // Bob owns the company, so nobody else gets to be Bob (or BOB, or B.o.b, or B0B).
   const isBob = (name) => name.toLowerCase().replace(/0/g, 'o').replace(/[^a-z]/g, '') === 'bob';
   let bobNote = 0; // ticks the "only ONE true Bob" message has been up; 0 when it isn't
@@ -9447,19 +9520,26 @@
   function enterOffice() {
     mode = 'play'; roomName = null; curRoom = null; updateRoom();
     if (HALLOWEEN) questQueue.push('It\'s Halloween at Haakon! When you\'re ready for the party, go and take a seat in the downstairs boardroom.');
+    if (CHRISTMAS) questQueue.push('Happy holidays from Haakon! The office is all decked out, and somebody has flooded a rink in the parking lot. Head out through the fitness room\'s side doors.');
   }
   function nameType(tok) {
     if (tok === 'OK') { nameDone(); return; }
-    if (tok === 'DEL') { playerName = playerName.slice(0, -1); sfx('select'); return; }
-    const ch = tok === 'SPACE' ? ' ' : tok;
-    if (playerName.length < NAME_MAX) { playerName += ch; sfx('blip'); } else sfx('bump');
+    if (tok === 'DEL') { playerName = playerName.slice(0, -1); nameKeys.fit(playerName); sfx('select'); return; }
+    if (playerName.length >= NAME_MAX) { if (tok !== 'SHIFT') sfx('bump'); else nameKeys.char(tok); return; }
+    const ch = nameKeys.char(tok);
+    if (ch) { playerName += ch; sfx('blip'); }
   }
   // physical keyboard: type straight into the name
   function nameKey(e) {
     if (bobNote) { if (!e.repeat && bobNote > 20) { bobNote = 0; sfx('select'); } return true; }
     if (e.code === 'Enter') { if (!e.repeat) nameDone(); return true; }
     if (e.code === 'Backspace') { nameType('DEL'); return true; }
-    if (e.key && e.key.length === 1 && /[A-Za-z0-9 .'\-]/.test(e.key)) { nameType(e.key === ' ' ? 'SPACE' : e.key); return true; }
+    if (e.key && e.key.length === 1 && /[A-Za-z0-9 .'\-]/.test(e.key)) {
+      // typed as is (the on-screen SHIFT doesn't touch a real keyboard's capitals)
+      if (playerName.length < NAME_MAX) { playerName += e.key; sfx('blip'); } else sfx('bump');
+      nameKeys.fit(playerName);
+      return true;
+    }
     return false;
   }
   function updateName() {
@@ -9467,12 +9547,8 @@
       if (++bobNote > 20 && (pressed.has('a') || pressed.has('b') || pressed.has('start'))) { bobNote = 0; sfx('select'); }
       return;
     }
-    const row = () => NAME_ROWS[nameCur.r];
-    if (pressed.has('up')) { nameCur.r = (nameCur.r + NAME_ROWS.length - 1) % NAME_ROWS.length; nameCur.c = Math.min(nameCur.c, row().length - 1); sfx('select'); }
-    if (pressed.has('down')) { nameCur.r = (nameCur.r + 1) % NAME_ROWS.length; nameCur.c = Math.min(nameCur.c, row().length - 1); sfx('select'); }
-    if (pressed.has('left')) { nameCur.c = (nameCur.c + row().length - 1) % row().length; sfx('select'); }
-    if (pressed.has('right')) { nameCur.c = (nameCur.c + 1) % row().length; sfx('select'); }
-    if (pressed.has('a')) nameType(row()[nameCur.c]);
+    nameKeys.move();
+    if (pressed.has('a')) nameType(nameKeys.token());
     if (pressed.has('b')) nameType('DEL');
     if (pressed.has('start')) nameDone();
   }
@@ -9488,15 +9564,7 @@
     text(playerName, 92, 58, 2);
     if ((tick >> 4) & 1) { ctx.fillStyle = col.dark; ctx.fillRect(92 + playerName.length * 12, 58, 2, 16); }
     // letters to pick with the arrows (for touch screens)
-    NAME_ROWS.forEach((row, r) => {
-      const last = r === NAME_ROWS.length - 1;
-      row.forEach((tok, c) => {
-        const x = last ? 34 + c * 44 : 34 + c * 20, y = 100 + r * 18;
-        const sel = nameCur.r === r && nameCur.c === c;
-        if (sel) { ctx.fillStyle = col.dark; ctx.fillRect(x - 4, y - 4, tok.length * 6 + 7, 15); }
-        text(tok, x, y, 1, sel ? col.light : col.dark);
-      });
-    });
+    nameKeys.draw(102, 18);
     if (isTouch) {
       text('Pick letters with the D-pad + A,', (SW - 32 * 6) >> 1, SH - 34);
       text('then choose OK (or press START)', (SW - 31 * 6) >> 1, SH - 22);
@@ -9951,8 +10019,10 @@
       // a floor change, or falling more than a few tiles behind, jumps straight there
       if (o.f !== o.drawnF || Math.abs(dx) + Math.abs(dy) > 64) { o.px = tx; o.py = ty; o.drawnF = o.f; o.dir = o.d; continue; }
       if (!dx && !dy) { o.dir = o.d; o.dist = 0; continue; }
-      // walk at your pace, a little quicker when lagging, one axis at a time like the player
-      const sp = Math.abs(dx) + Math.abs(dy) > 16 ? 3 : 2;
+      // walk at your pace, a little quicker when lagging (a lot quicker when they're
+      // skating), one axis at a time like the player
+      const far = Math.abs(dx) + Math.abs(dy);
+      const sp = far <= 16 ? 2 : o.f === YARD ? Math.min(5, far / 8) : 3;
       if (dx) { o.px += Math.sign(dx) * Math.min(sp, Math.abs(dx)); o.dir = dx < 0 ? 'left' : 'right'; }
       else { o.py += Math.sign(dy) * Math.min(sp, Math.abs(dy)); o.dir = dy < 0 ? 'up' : 'down'; }
       o.dist += sp;
@@ -9970,6 +10040,12 @@
     ctx.fillStyle = col.dark; ctx.fillRect(x + (w >> 1) - 1, y + 13, 3, 2);
     text(str, x + 4, y + 3);
   }
+  // what someone has just said, or "..." while they're in a menu or a game
+  function mpSaying(o, now) {
+    const said = o.s >= 0 ? MP_LINES[o.s] : o.w;
+    if (o.said && o.sn !== o.sn0 && said && now - o.said < mpSayFor(said) * 1000 / 60) return said;
+    return o.b ? '.'.repeat(1 + ((tick >> 4) % 3)).padEnd(3) : null;
+  }
   function mpDrawTags(cx, cy, px, py) {
     const now = Date.now();
     for (const o of mpHere()) {
@@ -9979,9 +10055,8 @@
       const w = o.n.length * 6 + 3;
       ctx.globalAlpha = 0.7; ctx.fillStyle = col.dark; ctx.fillRect(sx - (w >> 1), sy - 11, w, 10); ctx.globalAlpha = 1;
       text(o.n, sx - (w >> 1) + 2, sy - 10, 1, '#f8f8f8');
-      const said = o.s >= 0 ? MP_LINES[o.s] : o.w;
-      if (o.said && o.sn !== o.sn0 && said && now - o.said < mpSayFor(said) * 1000 / 60) mpBubble(said, sx, sy - 28);
-      else if (o.b) mpBubble('.'.repeat(1 + ((tick >> 4) % 3)).padEnd(3), sx, sy - 28);
+      const said = mpSaying(o, now);
+      if (said) mpBubble(said, sx, sy - 28);
     }
     if (mp.bubble) mpBubble(mp.bubble.str, px - cx + 8, py - cy - 22);
   }
@@ -10006,17 +10081,24 @@
   // Typing your own line: straight from a keyboard, or picking characters with the arrows
   // (or D-pad) + A, like naming yourself. B rubs out a character, or backs out once it's
   // empty.
-  const MP_TYPE_ROWS = ['ABCDEFGHIJKLM', 'NOPQRSTUVWXYZ', 'abcdefghijklm', 'nopqrstuvwxyz', '0123456789', '.,!?\'"-:/&()+']
-    .map((r) => r.split('')).concat([['SPACE', 'DEL', 'SAY IT']]);
+  const MP_TYPE_ROWS = ['1234567890', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm,.?', '!\'"-:/&()+', ['SHIFT', 'SPACE', 'DEL', 'SAY IT']];
   function MpType() {
     let str = '';
-    const cur = { r: 0, c: 0 }, Y = SH - 152;
-    const row = () => MP_TYPE_ROWS[cur.r];
+    const keys = Keyboard(MP_TYPE_ROWS, { x0: 40, pitch: 24, stagger: [0, 0, 8, 20, 0] }), Y = SH - 152;
     function type(tok) {
       if (tok === 'SAY IT') { done(); return; }
-      if (tok === 'DEL') { if (str) { str = str.slice(0, -1); sfx('select'); } else { remove(self); sfx('select'); mpSayMenu(); } return; }
+      if (tok === 'DEL') {
+        if (str) { str = str.slice(0, -1); keys.fit(str); sfx('select'); } else { remove(self); sfx('select'); mpSayMenu(); }
+        return;
+      }
+      if (str.length >= MP_TYPE_MAX && tok !== 'SHIFT') { sfx('bump'); return; }
+      const ch = keys.char(tok);
+      if (ch) { str += ch; sfx('blip'); }
+    }
+    // a real keyboard types exactly what it types
+    function typeKey(ch) {
       if (str.length >= MP_TYPE_MAX) { sfx('bump'); return; }
-      str += tok === 'SPACE' ? ' ' : tok; sfx('blip');
+      str += ch; keys.fit(str); sfx('blip');
     }
     function done() {
       remove(self);
@@ -10032,15 +10114,12 @@
         if (e.code === 'Escape') { if (!e.repeat) { remove(self); sfx('select'); } return true; }
         if (e.code === 'Backspace') { if (str) type('DEL'); return true; }
         // (not a held key repeating: Space or E opened this box, and might still be down)
-        if (e.key && e.key.length === 1 && MP_TYPE_OK.test(e.key)) { if (!e.repeat) type(e.key === ' ' ? 'SPACE' : e.key); return true; }
+        if (e.key && e.key.length === 1 && MP_TYPE_OK.test(e.key)) { if (!e.repeat) typeKey(e.key); return true; }
         return false;
       },
       update() {
-        if (pressed.has('up')) { cur.r = (cur.r + MP_TYPE_ROWS.length - 1) % MP_TYPE_ROWS.length; cur.c = Math.min(cur.c, row().length - 1); sfx('select'); }
-        if (pressed.has('down')) { cur.r = (cur.r + 1) % MP_TYPE_ROWS.length; cur.c = Math.min(cur.c, row().length - 1); sfx('select'); }
-        if (pressed.has('left')) { cur.c = (cur.c + row().length - 1) % row().length; sfx('select'); }
-        if (pressed.has('right')) { cur.c = (cur.c + 1) % row().length; sfx('select'); }
-        if (pressed.has('a')) type(row()[cur.c]);
+        keys.move();
+        if (pressed.has('a')) type(keys.token());
         if (pressed.has('b')) type('DEL');
         if (pressed.has('start')) done();
       },
@@ -10053,15 +10132,7 @@
         ctx.fillStyle = '#f8f8f8'; ctx.fillRect(9, Y + 20, SW - 18, 13);
         text(str, 12, Y + 23);
         if ((tick >> 4) & 1) { ctx.fillStyle = col.dark; ctx.fillRect(12 + str.length * 6, Y + 22, 1, 9); }
-        MP_TYPE_ROWS.forEach((r, ri) => {
-          const last = ri === MP_TYPE_ROWS.length - 1;
-          r.forEach((tok, c) => {
-            const x = last ? 30 + c * 64 : 30 + c * 20, y = Y + 42 + ri * 13;
-            const sel = cur.r === ri && cur.c === c;
-            if (sel) { ctx.fillStyle = col.dark; ctx.fillRect(x - 3, y - 3, tok.length * 6 + 5, 13); }
-            text(tok, x, y, 1, sel ? col.light : col.dark);
-          });
-        });
+        keys.draw(Y + 42, 15);
         text(isTouch ? 'A: pick  B: rub out  START: say it' : 'Type, then Enter   Esc: cancel', 10, SH - 14, 1, '#686878');
       },
     };
@@ -10099,9 +10170,289 @@
     say(here.length ? 'Also here: ' + here.map((o) => o.n + ' (' + mpWhere(o) + ')').join(', ') + '.' : 'Nobody else is playing right now.');
   }
 
+  // ---------- Christmas: lights, a tree, and the parking lot out back ----------
+  // Lights run along the foot of every wall on both office floors, there's a tree in
+  // reception, wreaths hang on the exits and the potted plants get a few baubles. And the
+  // fitness room's side doors open onto the parking lot (YARD), drawn in js/hd.js's
+  // smoother style on a canvas of its own under the game screen: a rink with coworkers
+  // skating laps of it, a fire pit, a hot chocolate stand and falling snow.
+  const xmas = (function () {
+    const office = (fi) => fi !== PLANT && fi !== CASINO && fi !== YARD;
+    const each = (test) => MAPS.floors.map((f, fi) => {
+      const list = [];
+      if (office(fi)) f.tiles.forEach((row, y) => [...row].forEach((ch, x) => { if (test(ch, x, y, f)) list.push({ x, y }); }));
+      return list;
+    });
+    const rec = MAPS.floors[0].rooms.find((r) => /Reception$/.test(r.name));
+    return {
+      // the foot of every wall you can see: a wall tile with floor in front of it
+      lights: each((ch, x, y, f) => ch === '#' && !'# X'.includes((f.tiles[y + 1] || ' ')[x])),
+      exits: each((ch) => ch === 'X'),
+      plants: each((ch) => ch === 'p'),
+      // the tree stands two tiles wide in reception's front corner, by the doors
+      tree: { floor: 0, x: rec.x2 - 2, y: rec.y2 - 1 },
+      frames: [0, 1, 2].map(treeFrame),
+      cocoa: 0, // hot chocolates had
+    };
+  })();
+  // The reception tree, in three frames so its lights twinkle.
+  function treeFrame(k) {
+    const cv = document.createElement('canvas');
+    cv.width = 32; cv.height = 52;
+    const c = cv.getContext('2d');
+    const px = (x, y, w, h, col) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
+    px(14, 38, 4, 6, '#6a3c20');
+    for (const [top, bot, w0, w1] of [[24, 41, 6, 15], [14, 30, 4, 12], [5, 19, 2, 8]]) {
+      for (let y = top; y <= bot; y++) {
+        const hw = Math.round(w0 + (w1 - w0) * (y - top) / (bot - top));
+        px(16 - hw, y, hw * 2, 1, '#2c6a34');
+        px(16 - hw, y, Math.max(1, hw >> 1), 1, '#3f8a4a');
+      }
+      px(16 - w1, bot, w1 * 2, 1, '#1c4a24');
+    }
+    // tinsel and baubles
+    for (let i = 0; i < 9; i++) { px(8 + i * 2, 17 + i, 2, 1, '#f0d050'); px(5 + i * 2, 38 - i, 2, 1, '#f0d050'); }
+    for (const [x, y, col] of [[12, 15, '#e03030'], [19, 21, '#3878e0'], [9, 25, '#e070c0'], [22, 28, '#e03030'],
+      [14, 33, '#3878e0'], [6, 38, '#e03030'], [25, 37, '#e070c0'], [17, 27, '#f0d050']]) {
+      px(x, y, 2, 2, col); px(x, y, 1, 1, '#f8f8f8');
+    }
+    const BULB = ['#f8f040', '#f05050', '#60e070', '#60b0f8'];
+    [[15, 9], [11, 13], [19, 12], [8, 20], [16, 19], [23, 23], [12, 23], [6, 31], [18, 32], [26, 34], [10, 35], [21, 39],
+      [4, 40], [28, 40], [15, 29], [20, 16]].forEach(([x, y], i) => px(x, y, 1, 1, (i + k) % 3 ? BULB[i % 4] : '#183a20'));
+    // the star
+    px(15, 0, 2, 6, '#f8d840'); px(13, 2, 6, 2, '#f8d840'); px(15, 2, 2, 2, '#fff8c0');
+    // presents at the foot
+    for (const [x, y, w, h, box, ribbon] of [[1, 43, 10, 8, '#d83030', '#f0d040'], [21, 42, 10, 9, '#3878e0', '#f8f8f8'], [11, 45, 9, 7, '#58a848', '#e03030']]) {
+      px(x - 1, y - 1, w + 2, h + 2, '#181820'); px(x, y, w, h, box);
+      px(x + (w >> 1) - 1, y, 2, h, ribbon); px(x, y + (h >> 1) - 1, w, 2, ribbon);
+      px(x + (w >> 1) - 3, y - 2, 2, 2, ribbon); px(x + (w >> 1) + 1, y - 2, 2, 2, ribbon);
+    }
+    return cv;
+  }
+  const XMAS_LIGHTS = ['#f84848', '#f8d040', '#48d860', '#4898f8'];
+  // Drawn over the floor, under the people.
+  function drawChristmas(cx, cy) {
+    const seen = (x, y) => x * 16 - cx > -16 && x * 16 - cx < SW && y * 16 - cy > -16 && y * 16 - cy < SH;
+    for (const { x, y } of xmas.lights[P.floor]) {
+      if (!seen(x, y)) continue;
+      const sx = x * 16 - cx, sy = y * 16 - cy + 2;
+      ctx.fillStyle = '#1c3a20';
+      ctx.fillRect(sx, sy, 4, 1); ctx.fillRect(sx + 4, sy + 1, 8, 1); ctx.fillRect(sx + 12, sy, 4, 1);
+      for (let i = 0; i < 2; i++) {
+        const k = x * 2 + i, lit = ((tick >> 5) + k * 3 + y) % 4 !== 0;
+        ctx.fillStyle = lit ? XMAS_LIGHTS[(k + y) % 4] : '#484850';
+        ctx.fillRect(sx + 3 + i * 8, sy + 2, 2, 3);
+        if (lit) { ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.fillRect(sx + 3 + i * 8, sy + 2, 1, 1); }
+      }
+    }
+    for (const { x, y } of xmas.exits[P.floor]) {
+      if (!seen(x, y)) continue;
+      // a ring of green, a bow at the bottom and a few berries
+      const sx = x * 16 - cx + 8, sy = y * 16 - cy + 9;
+      ctx.fillStyle = '#1c4a24';
+      ctx.fillRect(sx - 3, sy - 5, 6, 2); ctx.fillRect(sx - 3, sy + 3, 6, 2); ctx.fillRect(sx - 5, sy - 3, 2, 6); ctx.fillRect(sx + 3, sy - 3, 2, 6);
+      ctx.fillRect(sx - 4, sy - 4, 1, 1); ctx.fillRect(sx + 3, sy - 4, 1, 1); ctx.fillRect(sx - 4, sy + 3, 1, 1); ctx.fillRect(sx + 3, sy + 3, 1, 1);
+      ctx.fillStyle = '#3f8a4a';
+      ctx.fillRect(sx - 2, sy - 5, 3, 1); ctx.fillRect(sx - 5, sy - 2, 1, 3); ctx.fillRect(sx + 3, sy - 1, 1, 2);
+      ctx.fillStyle = '#e03030';
+      ctx.fillRect(sx - 3, sy + 3, 2, 2); ctx.fillRect(sx + 1, sy + 3, 2, 2); ctx.fillRect(sx - 1, sy + 4, 2, 3);
+      ctx.fillRect(sx + 2, sy - 4, 1, 1); ctx.fillRect(sx - 4, sy, 1, 1); ctx.fillRect(sx + 4, sy + 1, 1, 1);
+    }
+    for (const { x, y } of xmas.plants[P.floor]) {
+      if (!seen(x, y)) continue;
+      const sx = x * 16 - cx, sy = y * 16 - cy;
+      [[5, 3, 0], [9, 5, 1], [6, 7, 2], [10, 2, 3]].forEach(([dx, dy, i]) => {
+        ctx.fillStyle = XMAS_LIGHTS[(i + x + y) % 4]; ctx.fillRect(sx + dx, sy + dy, 1, 1);
+      });
+    }
+  }
+  function treeTalk() {
+    sfx('select');
+    say('A Christmas tree, covered in lights and baubles. The presents underneath all say "DO NOT OPEN UNTIL THE 25TH". One of them rattles.');
+  }
+
+  // The fitness room's side doors and the parking lot's doors are the same two doors:
+  // walk into one and you come out of the other (only at Christmas; the rest of the year
+  // the fitness room's are just an exit).
+  function sideDoor(fi, x, y) {
+    const Y = MAPS.yard;
+    if (!CHRISTMAS || !Y) return false;
+    let to = null;
+    if (fi === Y.office.floor && x === Y.office.x && y >= Y.office.y && y < Y.office.y + 2) to = [YARD, Y.x + y - Y.office.y, Y.y + 1, 'down'];
+    else if (fi === YARD && y === Y.y && x >= Y.x && x < Y.x + 2) to = [Y.office.floor, Y.office.x + 1, Y.office.y + x - Y.x, 'right'];
+    if (!to) return false;
+    sfx('stairs');
+    startFade(() => {
+      placePlayer(...to);
+      P.skate = 0;
+      if (curRoom) showBanner(curRoom.name);
+    }, '#f8f8f8');
+    return true;
+  }
+
+  // Some coworkers have gone outside: a few skate laps of the rink (anticlockwise, in two
+  // lanes), the rest stand around the fire, the cocoa stand and the boards. Who goes out
+  // is picked afresh every time the game loads; anyone with a part to play indoors stays in.
+  const STAY_IN = ['Lam', 'Linda', 'Jenn', 'Cody', 'Zin', 'Eugene'];
+  function laneRound(x1, y1, x2, y2) {
+    const path = [];
+    for (let y = y1; y <= y2; y++) path.push([x1, y]);
+    for (let x = x1 + 1; x <= x2; x++) path.push([x, y2]);
+    for (let y = y2 - 1; y >= y1; y--) path.push([x2, y]);
+    for (let x = x2 - 1; x > x1; x--) path.push([x, y1]);
+    return path;
+  }
+  (function sendOutside() {
+    if (!CHRISTMAS) return;
+    const f = MAPS.floors[YARD], rink = f.rooms.find((r) => r.name === 'Ice Rink');
+    const find = (ch) => { for (let y = 0; y < f.tiles.length; y++) { const x = f.tiles[y].indexOf(ch); if (x >= 0) return [x, y]; } return null; };
+    const lanes = [laneRound(rink.x1 + 1, rink.y1 + 1, rink.x2 - 1, rink.y2 - 1), laneRound(rink.x1 + 4, rink.y1 + 3, rink.x2 - 4, rink.y2 - 3)];
+    const skaters = [[0, 0], [0, 0.5], [1, 0.25]]; // lane, how far round it (kept few, so there's room to skate)
+    const [fx, fy] = find('f'), [hx, hy] = find('h');
+    let hh = 0;
+    while (tileAt(YARD, hx, hy + hh) === 'h') hh++;
+    // where the others stand, which way they face, and what they talk about
+    const spots = [[fx, fy - 1, 'down', 'fire'], [fx - 1, fy + 1, 'up', 'fire'], [fx + 1, fy + 1, 'up', 'fire'],
+      [hx, hy + hh, 'up', 'cocoa'], [hx + 2, hy + hh, 'up', 'cocoa'],
+      [rink.x1 + 6, rink.y1 - 2, 'down', 'watch'], [rink.x2 - 5, rink.y2 + 2, 'up', 'watch']];
+    const lines = window.CHRISTMAS_LINES || {};
+    const pool = shuffled(npcs.filter((n) => !n.ghost && !n.extra && !n.guest && !(visit && n === visit.npc)
+      && !STAY_IN.includes(n.name) && !COWORKERS.some((c) => c.name === n.name)));
+    pool.slice(0, skaters.length + spots.length).forEach((n, i) => {
+      const own = personOf(n.name).christmas;
+      const talk = (k) => (own ? [own] : []).concat(lines[k] || ['Happy holidays!']);
+      Object.assign(n, { floor: YARD, moving: false, prog: 0, wait: 30 + Math.floor(Math.random() * 90) });
+      if (i < skaters.length) {
+        const [li, at] = skaters[i], path = lanes[li], j = Math.floor(at * path.length);
+        Object.assign(n, { x: path[j][0], y: path[j][1], lap: { path, i: j, speed: 1.4 + Math.random() * 1.2 }, lines: talk('rink') });
+      } else {
+        const [x, y, dir, k] = spots[i - skaters.length];
+        Object.assign(n, { x, y, dir, look: dir, room: { x1: x, y1: y, x2: x, y2: y }, lines: talk(k) });
+      }
+    });
+  })();
+  // A skater's next stride round their lane (waiting if someone's in the way).
+  function skateOn(n) {
+    const L = n.lap, [x, y] = L.path[(L.i + 1) % L.path.length];
+    const dx = x - n.x, dy = y - n.y;
+    n.dir = dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
+    if (npcAt(n.floor, x, y) || playerAt(x, y)) return;
+    L.i = (L.i + 1) % L.path.length;
+    Object.assign(n, { moving: true, prog: 0, mdx: dx, mdy: dy });
+    n.step ^= 1;
+  }
+
+  // Things to look at outside.
+  const YARD_INFO = {
+    c: ['A car under a foot of snow. Somebody is going to be scraping for a while.', 'Somebody has written HAAKON in the snow on this car\'s back window.',
+      'A car with its wipers frozen standing straight up.'],
+    L: ['A lamp post with a wreath on it. Strings of lights run from it out over the rink.'],
+    B: ['The boards around the rink. HAAKON, HAAKON, HAPPY HOLIDAYS.'],
+    n: ['A hockey net. Nobody has brought a puck yet.'],
+    f: ['A fire pit, crackling away. You hold your hands out to it. Lovely.'],
+    b: ['A bench. Someone has left their skate guards on it.'],
+    s: ['A snowman in a top hat and a red scarf. Somebody has given it a HAAKON lanyard.'],
+    '*': ['A big pile of plowed snow.'],
+    Y: ['A big spruce strung with lights, with a star on top.'],
+    '#': ['The office. It looks warm in there.'],
+    ' ': ['Snowy woods. It is very quiet in there.'],
+  };
+  function yardTalk(t, tx, ty) {
+    if (t === 'h') {
+      sfx('select');
+      ask('The hot chocolate stand. Free for Haakon staff!', ['HAVE ONE', 'NO THANKS'], (i) => {
+        if (i !== 0) return;
+        xmas.cocoa++;
+        sfx('cup');
+        say(xmas.cocoa === 1 ? 'A hot chocolate with a mountain of whipped cream. Warm hands at last.'
+          : xmas.cocoa < 4 ? 'Another hot chocolate. Extra marshmallows this time.'
+            : 'Hot chocolate number ' + xmas.cocoa + '. The person at the stand is starting to look worried.');
+      });
+      return;
+    }
+    const msgs = YARD_INFO[t];
+    if (msgs) { sfx('select'); say(msgs[(tx * 3 + ty * 5) % msgs.length]); }
+  }
+
+  // The parking lot's own canvas: K times the game screen's size, under it, shown only
+  // while you're outside (the game screen goes see-through so it shows, with any menus
+  // and dialogs still drawn on top in the usual pixels).
+  let hd = null;
+  function hdScreen() {
+    if (hd) return hd;
+    const cv = document.createElement('canvas');
+    cv.width = SW * HD.K; cv.height = SH * HD.K;
+    cv.style.position = 'absolute'; cv.style.borderRadius = '2px';
+    canvas.parentNode.style.position = 'relative';
+    canvas.style.position = 'relative'; canvas.style.zIndex = '1';
+    canvas.parentNode.insertBefore(cv, canvas);
+    hd = { cv, c: cv.getContext('2d'), lot: HD.paintLot(MAPS.floors[YARD]), people: {}, shown: false };
+    hdPlace();
+    return hd;
+  }
+  function hdPlace() {
+    if (!hd) return;
+    Object.assign(hd.cv.style, { left: canvas.offsetLeft + 'px', top: canvas.offsetTop + 'px', width: canvas.style.width, height: canvas.style.height });
+  }
+  function hdShow(on) {
+    if ((hd ? hd.shown : false) === on) return;
+    hdScreen().shown = on;
+    hd.cv.style.display = on ? 'block' : 'none';
+    canvas.style.background = on ? 'transparent' : '';
+  }
+  // someone's look in the smoother style, made once
+  const hdPerson = (key, name, body, look, style) => hd.people[key] || (hd.people[key] = HD.person(name, body, look, style));
+  const iceAt = (px, py) => tileAt(YARD, Math.round(px / 16), Math.round(py / 16)) === '~';
+  // how far through a stride someone is (two steps to a stride), or -1 standing still
+  const stride = (moving, step, prog) => (moving ? ((step ? 1 : 0) + prog / 16) / 2 : -1);
+
+  function drawYard() {
+    const h = hdScreen(), c = h.c, lot = h.lot, K = HD.K;
+    const px = P.x * 16 + (P.moving ? P.mdx * P.prog : 0), py = P.y * 16 + (P.moving ? P.mdy * P.prog : 0);
+    // the view follows you, but stops at the edges of the lot
+    const cx = Math.max(0, Math.min(lot.w - SW, px + 8 - SW / 2)), cy = Math.max(0, Math.min(lot.h - SH, py + 8 - SH / 2));
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.drawImage(lot.ground, cx * K, cy * K, SW * K, SH * K, 0, 0, SW * K, SH * K);
+    c.setTransform(K, 0, 0, K, -cx * K, -cy * K);
+    // everyone and everything standing up, back to front by where their feet are
+    const items = lot.props.filter((p) => !p.img || (p.x < cx + SW && p.x + p.w > cx && p.y < cy + SH && p.y + p.h > cy));
+    items.push({ base: py + 13, x: px + 8, spec: hdPerson('me:' + playerName + ':' + pick.gender + pick.index, playerName || 'New Hire', pick.gender, Art.LOOKS[pick.gender][pick.index]),
+      dir: P.dir, walk: P.glide ? -1 : stride(P.moving, P.step, P.prog), skate: iceAt(px, py) });
+    for (const n of npcs) {
+      if (n.floor !== YARD) continue;
+      const nx = n.x * 16 + (n.moving ? n.mdx * n.prog : 0), ny = n.y * 16 + (n.moving ? n.mdy * n.prog : 0);
+      if (nx < cx - 32 || nx > cx + SW + 16 || ny < cy - 16 || ny > cy + SH + 48) continue;
+      const { body, look } = lookFor(n.name);
+      items.push({ base: ny + 13, x: nx + 8, spec: hdPerson('npc:' + n.name, n.name, body, look, personOf(n.name).style),
+        dir: n.dir, walk: stride(n.moving, n.step, n.prog), skate: iceAt(nx, ny) });
+    }
+    const others = mpHere().filter((o) => o.f === YARD);
+    for (const o of others) {
+      const mv = o.px !== o.x * 16 || o.py !== o.y * 16;
+      items.push({ base: o.py + 13, x: o.px + 8, spec: hdPerson('mp:' + o.n + ':' + o.g + o.l, o.n, o.g, Art.LOOKS[o.g][o.l]),
+        dir: o.dir, walk: mv ? (o.dist / 32) % 1 : -1, skate: iceAt(o.px, o.py) });
+    }
+    items.sort((a, b) => a.base - b.base);
+    for (const it of items) {
+      if (it.spec) HD.drawPerson(c, it.spec, it.x, it.base, { dir: it.dir, t: tick, walk: it.walk, skate: it.skate });
+      else HD.drawProp(c, it, tick);
+    }
+    HD.overlay(c, lot, tick, cx, cy, SW, SH);
+    // names over other players' heads, and what anyone's saying
+    c.setTransform(K, 0, 0, K, -cx * K, -cy * K);
+    const now = Date.now();
+    for (const o of others) {
+      HD.tag(c, o.n, o.px + 8, o.py - 29);
+      const said = mpSaying(o, now);
+      if (said) HD.bubble(c, said, o.px + 8, o.py - 34, cx, cx + SW);
+    }
+    if (mp.bubble) HD.bubble(c, mp.bubble.str, px + 8, py - 30, cx, cx + SW);
+  }
+
   // ---------- player / world ----------
   const S0 = MAPS.start;
-  const P = { floor: S0.floor, x: S0.x, y: S0.y, dir: S0.dir, moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, turnWait: 0, walked: false, bump: 0 };
+  // skate: how much speed you've built up on the ice (0 to 8); glide: coasting on it
+  const P = { floor: S0.floor, x: S0.x, y: S0.y, dir: S0.dir, moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, turnWait: 0, walked: false, bump: 0, skate: 0, glide: false };
   let mode = 'title', tick = 0, roomName = null, curRoom = null, banner = null;
   let fade = null; // {t, cb, color}
 
@@ -10168,6 +10519,7 @@
 
   function tryMove(d) {
     const [dx, dy] = DIRS[d];
+    if (sideDoor(P.floor, P.x + dx, P.y + dy)) return;
     const blocked = genderBlock(P.x + dx, P.y + dy, dx, dy);
     if (blocked) { P.walked = false; say(blocked); return; }
     if (walkable(P.floor, P.x + dx, P.y + dy) && !npcAt(P.floor, P.x + dx, P.y + dy)) {
@@ -10265,6 +10617,9 @@
         : 'Just a gym bag, some old sneakers and a faint chill.');
       return;
     }
+    if (t === 'X' && sideDoor(P.floor, tx, ty)) return;
+    if (P.floor === YARD) { yardTalk(t, tx, ty); return; }
+    if (CHRISTMAS && propAt(P.floor, tx, ty) === xmas.tree) { treeTalk(); return; }
     const partyGame = partyGameAt(tx, ty, t);
     if (partyGame) {
       const [msg, opt, Game] = partyGame;
@@ -10294,7 +10649,7 @@
     if (t === '*') { sfx('menu'); ui.push(HallOfFame()); return; }
     if (t === 'E') {
       const ends = findLink(P.floor, tx, ty);
-      const names = MAPS.floors.filter((f) => !f.plant && !f.casino).map((f, i) => (i === 0 ? 'GROUND' : i + 1 + 'F'));
+      const names = MAPS.floors.filter((f) => !f.plant && !f.casino && !f.outdoor).map((f, i) => (i === 0 ? 'GROUND' : i + 1 + 'F'));
       sfx('select');
       ask('The elevator. Which floor?', names.concat(['CANCEL']), (i) => {
         if (i < 0 || i >= names.length) return;
@@ -10385,7 +10740,7 @@
 
   function updatePlayer() {
     if (P.moving) {
-      P.prog += 2; // always at running pace
+      P.prog = Math.min(16, P.prog + 2 + P.skate / 4); // always at running pace, and faster still on skates
       if (P.prog < 16) return;
       P.moving = false; P.prog = 0;
       P.x += P.mdx; P.y += P.mdy;
@@ -10393,10 +10748,27 @@
       onArrive();
       if (fade) return;
     }
+    const d = heldDir();
+    // On the ice you skate: keep pushing one way to pick up speed, turn and you lose some,
+    // let go and you glide on, slowing down gently (up to 8 tiles from full speed). The
+    // boards stop you dead.
+    if (tileAt(P.floor, P.x, P.y) !== '~') P.skate = 0;
+    else if (P.walked && !pressed.has('start') && !pressed.has('map') && !pressed.has('a') && (d || P.skate)) {
+      if (d) P.skate = d === P.dir ? Math.min(8, P.skate + 2) : Math.max(0, P.skate - 3);
+      else P.skate = Math.max(0, P.skate - 1);
+      P.glide = !d;
+      if (d) P.dir = d;
+      if (d || P.skate) {
+        tryMove(P.dir);
+        if (!P.moving) P.skate = 0;
+        else if (d && P.step) sfx('skate');
+        return;
+      }
+    }
+    P.glide = false;
     if (pressed.has('start')) { openStartMenu(); return; }
     if (pressed.has('map')) { sfx('menu'); ui.push(MapView()); return; }
     if (pressed.has('a')) { interact(); return; }
-    const d = heldDir();
     if (!d) { P.walked = false; P.turnWait = 0; P.bump = 0; return; }
     if (d !== P.dir) {
       P.dir = d; P.bump = 0;
@@ -10455,6 +10827,7 @@
       store.set('gender', pick.gender); store.set('look', pick.index);
       sprites = charSprites[pick.gender][pick.index];
       if (!playerName) playerName = store.get('name') || '';
+      nameKeys.fit(playerName);
       startFade(() => { mode = 'name'; });
     }
   }
@@ -10495,7 +10868,7 @@
       wearCostume(COSTUME_KEYS[costumeCur]);
       store.set('costume', hw.costume);
       startFade(enterOffice);
-    } else if (pressed.has('b')) { sfx('select'); startFade(() => { mode = 'name'; }); }
+    } else if (pressed.has('b')) { sfx('select'); nameKeys.fit(playerName); startFade(() => { mode = 'name'; }); }
   }
   function drawCostume() {
     ctx.fillStyle = col.light; ctx.fillRect(0, 0, SW, SH);
@@ -10582,6 +10955,7 @@
     }
     const spooky = HALLOWEEN && P.floor === hw.floor;
     if (spooky) drawHalloween(cx, cy, 0);
+    if (CHRISTMAS) drawChristmas(cx, cy);
     // people, drawn back to front so nearer ones overlap farther ones
     const actors = [{ x: px, y: py, img: sprites[P.dir][frameIndex()] }];
     if (party) {
@@ -10603,10 +10977,15 @@
         alpha: visit && visit.npc === n ? visit.a : 1 });
     }
     for (const o of mpHere()) if (o.f === P.floor) actors.push({ x: o.px, y: o.py, img: mpSprites(o)[o.dir][mpFrame(o)] });
-    actors.sort((a, b) => a.y - b.y);
+    // the reception tree sorts in by the row it stands on (z), not by its top
+    const tr = xmas.tree;
+    if (CHRISTMAS && P.floor === tr.floor)
+      actors.push({ x: tr.x * 16, y: (tr.y + 1) * 16 - 48, z: tr.y * 16, img: xmas.frames[(tick >> 5) % 3] });
+    const z = (a) => (a.z === undefined ? a.y : a.z);
+    actors.sort((a, b) => z(a) - z(b));
     for (const a of actors) {
       const sx = a.x - cx, sy = a.y - cy - 4;
-      if (!(sx > -16 && sx < SW && sy > -20 && sy < SH)) continue;
+      if (!(sx > -a.img.width && sx < SW && sy > -a.img.height - 4 && sy < SH)) continue;
       if (a.freeing) drawFreeing(sx, sy, a.img);
       else if (a.ghost) {
         // ghosts are see-through and bob up and down
@@ -10700,8 +11079,11 @@
   }
 
   function draw() {
-    ctx.fillStyle = col.dark;
-    ctx.fillRect(0, 0, SW, SH);
+    // outside, the screen is see-through over the parking lot's own canvas
+    const outside = !['title', 'select', 'name', 'costume'].includes(mode) && P.floor === YARD;
+    hdShow(outside);
+    if (outside) ctx.clearRect(0, 0, SW, SH);
+    else { ctx.fillStyle = col.dark; ctx.fillRect(0, 0, SW, SH); }
     if (mode === 'title') drawTitle();
     else if (mode === 'select') drawSelect();
     else if (mode === 'name') drawName();
@@ -10711,7 +11093,7 @@
       const shake = ui.reduce((m, el) => Math.max(m, el.shake || 0), 0);
       ctx.save();
       if (shake) ctx.translate(Math.round((Math.random() - 0.5) * 2 * shake), Math.round((Math.random() - 0.5) * 2 * shake));
-      drawWorld();
+      if (outside) drawYard(); else drawWorld();
       ctx.restore();
       drawBanner();
       ui.forEach((el) => el.draw());
@@ -10740,6 +11122,7 @@
     s = Math.max(0.5, s);
     canvas.style.width = SW * s + 'px';
     canvas.style.height = SH * s + 'px';
+    hdPlace();
   }
   addEventListener('resize', layout);
   addEventListener('orientationchange', layout);
@@ -10762,6 +11145,8 @@
     // &plant=1 wakes you up in the Kingston plant; &phone=1 stands you at Eugene's phone,
     // and &call=1 answers it
     if (q.has('plant')) placePlayer(MAPS.plant.floor, MAPS.plant.x, MAPS.plant.y, MAPS.plant.dir);
+    // &yard=1 stands you outside the parking lot's doors (at Christmas, or with &christmas=1)
+    if (q.has('yard') && CHRISTMAS) placePlayer(YARD, MAPS.yard.x, MAPS.yard.y + 1, 'down');
     if ((q.has('phone') || q.has('call')) && phone) placePlayer(phone.floor, ...phoneSpot());
     mode = q.has('title') ? 'title' : q.has('select') ? 'select' : q.has('naming') ? 'name' : 'play';
     if (q.has('costumes')) openCostumes();

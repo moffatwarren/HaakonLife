@@ -34,6 +34,16 @@ Map glyphs
              [ blackjack table   ] poker table   7 slot machine (two tiles tall)
   walkable:  j computer parts scattered on the floor
 
+The parking lot (behind the fitness room) is a fifth map, only open for Christmas
+(Nov 27 to Dec 31): its glyphs mean something of their own, since js/hd.js draws it
+in the smoother style rather than from tiles:
+  walkable:  , plowed asphalt   . snow   ~ ice (you skate on it)
+  solid:     # the office   X the fitness room's side doors   B rink boards   n hockey net
+             c parked car (2 wide, 3 tall)   L lamp post   b bench   h hot chocolate stand
+             f fire pit   s snowman   * snowbank   Y the big spruce   (space) the woods
+Its doors, side by side in the office wall along the top, are the fitness room's two
+'X' doors in order ('yard' in the output).
+
 The Kingston plant is a third map, not linked to the office floors: Eugene's phone
 sends you there, and 'Leave plant' in the start menu (or the phone on reception's
 desk) brings you back.
@@ -69,6 +79,7 @@ class Floor:
         self.rooms = []
         self.plant = False
         self.casino = None
+        self.outdoor = False
 
     # --- primitives (all coordinates inclusive) ---
     def fill(self, x1, y1, x2, y2, ch):
@@ -155,6 +166,8 @@ class Floor:
             d['plant'] = True
         if self.casino:
             d['casino'] = self.casino
+        if self.outdoor:
+            d['outdoor'] = True
         return d
 
 
@@ -915,6 +928,42 @@ fc.rooms.append({'name': 'Blackjack Table', 'x1': 80, 'y1': 18, 'x2': 80, 'y2': 
 fc.rooms.append({'name': 'Poker Table', 'x1': 87, 'y1': 20, 'x2': 87, 'y2': 20, 'parent': "Cody's Casino",
                  'people': ['Zin'], 'lines': ["Pull up a chair. Zin deals, and Zin always wins."]})
 
+# =====================================================================
+# PARKING LOT: out through the fitness room's side doors, only at Christmas. The
+# office is the wall along the top, its doors opening onto the sidewalk; the rink
+# sits in the middle of the lot with cars parked above and below it, and room to
+# spare all round (for things to come). East of the lot is a park of snow with the
+# hot chocolate stand, the big spruce and a fire pit. Woods all round.
+# =====================================================================
+fy = Floor('Parking Lot', 56, 40)
+fy.outdoor = True
+fy.fill(0, 0, 55, 2, '#')                       # the office
+fy.exit((27, 2), (28, 2))
+fy.fill(1, 3, 54, 38, '.')                      # snow
+fy.fill(1, 3, 54, 3, ',')                       # the sidewalk
+fy.fill(1, 4, 43, 37, ',')                      # the plowed lot
+fy.rooms.append({'name': 'Parking Lot', 'x1': 1, 'y1': 3, 'x2': 54, 'y2': 38})
+# the rink: boards round a 22 x 10 sheet of ice, a gate in the north and south sides
+fy.fill(10, 14, 33, 25, 'B')
+fy.fill(11, 15, 32, 24, '~')
+fy.put(25, 14, '~'); fy.put(26, 14, '~')
+fy.put(15, 25, '~'); fy.put(16, 25, '~')
+fy.fill(13, 19, 13, 20, 'n'); fy.fill(30, 19, 30, 20, 'n')
+fy.rooms.append({'name': 'Ice Rink', 'x1': 11, 'y1': 15, 'x2': 32, 'y2': 24, 'parent': 'Parking Lot'})
+for x, y in ((9, 13), (34, 13), (9, 26), (34, 26)):
+    fy.put(x, y, 'L')
+for x in (2, 5, 11, 17, 35, 38):                # cars along the top, nose to the office,
+    fy.fill(x, 6, x + 1, 8, 'c')                # leaving the way from the doors clear
+for x in (2, 8, 11, 20, 26, 32, 38):            # and along the bottom
+    fy.fill(x, 30, x + 1, 32, 'c')
+fy.fill(47, 6, 49, 7, 'h')                      # hot chocolate stand
+fy.put(52, 11, 's')
+fy.put(49, 19, 'Y')                             # the big spruce
+fy.put(49, 30, 'f')                             # fire pit, a bench either side
+fy.put(47, 30, 'b'); fy.put(51, 30, 'b')
+for x, y in ((1, 36), (1, 37), (2, 37), (42, 37), (43, 37), (43, 36), (54, 37), (54, 38), (53, 38), (54, 4), (53, 4)):
+    fy.put(x, y, '*')
+
 # Make sure floor layer exists under every object / door tile.
 for f in (f1, f2, fp):
     for y in range(f.h):
@@ -922,8 +971,11 @@ for f in (f1, f2, fp):
             if f.fl[y][x] == ' ' and f.g[y][x] not in '# X':
                 f.fl[y][x] = ','
 
-data = {'floors': [f1.out(), f2.out(), fp.out(), fc.out()], 'links': links, 'start': {'floor': 0, 'x': 27, 'y': 36, 'dir': 'up'},
-        'plant': {'floor': 2, 'x': 24, 'y': 9, 'dir': 'down'}}
+data = {'floors': [f1.out(), f2.out(), fp.out(), fc.out(), fy.out()], 'links': links, 'start': {'floor': 0, 'x': 27, 'y': 36, 'dir': 'up'},
+        'plant': {'floor': 2, 'x': 24, 'y': 9, 'dir': 'down'},
+        # the parking lot's doors (x, y and the one to its right) and the fitness room's
+        # (x, y and the one below)
+        'yard': {'floor': 4, 'x': 27, 'y': 2, 'office': {'floor': 0, 'x': 2, 'y': 5}}}
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 out = os.path.join(root, 'js', 'maps.js')
@@ -933,7 +985,7 @@ with open(out, 'w') as fh:
     fh.write('window.OFFICE_MAPS = ' + json.dumps(data, indent=1) + ';\n')
 
 if __name__ == '__main__':
-    for f in (f1, f2, fp, fc):
+    for f in (f1, f2, fp, fc, fy):
         print(f.name)
         for i, r in enumerate(f.g):
             print(f'{i:2d} ' + ''.join(r))

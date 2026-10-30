@@ -326,4 +326,29 @@ window.MUSIC = {
       { type: 'drums', vol: 0.45, notes: 'k . h . s . h h | k . h k s . h .' },
     ],
   },
+  // Christmas, out in the parking lot: Jingle Bells (a verse and the chorus twice), sleigh bells and all
+  jingle: {
+    bpm: 132,
+    voices: [
+      { type: 'square', vol: 0.03, notes:
+        'G4 - E5 - D5 - C5 - | G4 - - - - - G4 G4 | G4 - E5 - D5 - C5 - | A4 - - - - - . . |' +
+        'A4 - F5 - E5 - D5 - | B4 - - - - - . . | G5 - G5 - F5 - D5 - | E5 - - - - - . . |' +
+        'G4 - E5 - D5 - C5 - | G4 - - - - - . . | G4 - E5 - D5 - C5 - | A4 - - - - - A4 - |' +
+        'A4 - F5 - E5 - D5 - | G5 - G5 - G5 - G5 - | A5 - G5 - F5 - D5 - | C5 - - - G5 - - - |' +
+        'E5 - E5 - E5 - - - | E5 - E5 - E5 - - - | E5 - G5 - C5 - - D5 | E5 - - - - - . . |' +
+        'F5 - F5 - F5 - - F5 | F5 - E5 - E5 - E5 E5 | E5 - D5 - D5 - E5 - | D5 - - - G5 - - - |' +
+        'E5 - E5 - E5 - - - | E5 - E5 - E5 - - - | E5 - G5 - C5 - - D5 | E5 - - - - - . . |' +
+        'F5 - F5 - F5 - F5 - | F5 - E5 - E5 - E5 E5 | G5 - G5 - F5 - D5 - | C5 - - - - - . . |' },
+      { type: 'triangle', vol: 0.09, notes:
+        'C3 . G2 . C3 . G2 . | C3 . G2 . C3 . G2 . | C3 . G2 . C3 . G2 . | F2 . C3 . F2 . C3 . |' +
+        'D3 . A2 . D3 . A2 . | G2 . D3 . G2 . D3 . | G2 . D3 . G2 . B2 . | C3 . G2 . C3 . G2 . |' +
+        'C3 . G2 . C3 . G2 . | C3 . G2 . C3 . G2 . | C3 . G2 . C3 . G2 . | F2 . C3 . F2 . C3 . |' +
+        'D3 . A2 . D3 . A2 . | G2 . D3 . G2 . D3 . | G2 . D3 . G2 . B2 . | C3 . G2 . C3 . G2 . |' +
+        'C3 . G2 . C3 . G2 . | C3 . G2 . C3 . G2 . | C3 . G2 . C3 . G2 . | C3 . G2 . C3 . G2 . |' +
+        'F2 . C3 . F2 . C3 . | C3 . G2 . C3 . G2 . | D3 . A2 . D3 . A2 . | G2 . D3 . G2 . B2 . |' +
+        'C3 . G2 . C3 . G2 . | C3 . G2 . C3 . G2 . | C3 . G2 . C3 . G2 . | C3 . G2 . C3 . G2 . |' +
+        'F2 . C3 . F2 . C3 . | C3 . G2 . C3 . G2 . | G2 . D3 . G2 . B2 . | C3 . G2 . C3 . . . |' },
+      { type: 'drums', vol: 0.35, notes: 'k h h h s h h h | k h h h s h h h' },
+    ],
+  },
 };
