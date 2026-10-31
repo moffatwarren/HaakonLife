@@ -1,8 +1,8 @@
-// Pond hockey on the parking lot's rink: one on one against a coworker for now, two on two
-// one day (so passing is in already). This is the rules, the skating, the puck and how the
-// players nobody's playing play; nothing in here draws or reads keys (js/game.js's
-// HockeyGame does that, and js/lot3d.js draws the players and the puck), so a game server
-// could run it as it is.
+// Pond hockey on the parking lot's rink: one on one against a coworker, or one on one or two
+// on two against other players. This is the rules, the skating, the puck and how the players
+// nobody's playing play; nothing in here draws or reads keys (js/game.js's HockeyGame and
+// LiveHockey do that, and js/lot3d.js draws the players and the puck), so the game server
+// runs it as it is for a live game (server/tables/hockey.js).
 //
 //   const g = HOCKEY.create(floor, { players: [{ name, team, ai, hand }], seed })
 //   g.step(inputs)   // one tick (a 60th of a second). inputs[i] is what player i is doing,
@@ -27,6 +27,8 @@
 // their stick), softly it only shoves them, and it leaves you off balance if it misses.
 //
 //   HOCKEY.LENGTH    // ticks in a game, before any overtime
+//   HOCKEY.rink(floor) // the rink: its boards (x0, y0, x1, y1, r for the corners), middle
+//                      // (cx, cy) and nets ({ x, y, dir })
 window.HOCKEY = (function () {
   const DT = 1 / 60;
   const LENGTH = 3 * 60 * 60; // three minutes of play
@@ -557,5 +559,5 @@ window.HOCKEY = (function () {
     return g;
   }
 
-  return { create, LENGTH };
+  return { create, LENGTH, rink: rinkOf };
 })();

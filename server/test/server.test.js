@@ -263,3 +263,41 @@ test('dropping out and coming back keeps your seat', async () => {
   assert.equal(srv.worlds.test.tables.get('poker').seated().length, 2);
   for (const c of [a, b2]) { c.send({ k: 'stand', t: 'poker' }); await c.for((d) => d.k === 'tb' && !d.s); c.ws.close(); }
 });
+
+// into a live hockey lobby, the way browsers do it
+async function lobby(t, ...cs) {
+  for (const c of cs) {
+    await c.open(); c.me();
+    await pause(20);
+    c.send({ k: 'sit', t });
+    await c.for((d) => d.k === 'tb' && d.s && d.s.ph === 'lobby');
+  }
+}
+
+test('live hockey: two in the lobby press start and play; a third is told a game is on', async () => {
+  const a = client(), b = client(), c = client();
+  await lobby('hockey1', a, b);
+  a.send({ k: 'tin', t: 'hockey1', d: { mv: 'right' } });
+  const moved = await b.for((d) => d.k === 'tb' && d.s.slots && d.s.slots[1] && d.s.slots[1].id === a.id);
+  assert.equal(moved.s.slots[0].id, b.id, 'swapped');
+  for (const x of [a, b]) x.send({ k: 'tin', t: 'hockey1', d: { go: true } });
+  const v = await a.for((d) => d.k === 'tb' && d.s.ph === 'play');
+  assert.equal(v.s.me, 1);
+  assert.deepEqual(v.s.who.map((w) => w.id), [b.id, a.id]);
+  await c.open(); c.me();
+  await pause(20);
+  c.send({ k: 'sit', t: 'hockey1' });
+  assert.equal((await c.for((d) => d.k === 'tb')).r, 'busy');
+  // steering: a's skater (team 1) skates down the ice once the puck has dropped
+  a.send({ k: 'tin', t: 'hockey1', d: { x: 0, y: 1, a: 0, ap: 0, bp: 0 } });
+  const later = await a.for((d) => d.k === 'tb' && d.s.gp === 'play' && d.s.gt > 30, 5000);
+  assert.ok(later.s.pl[1][1] > v.s.pl[1][1] + 1);
+  // b leaves: the computer takes over b's skater, and a plays on
+  b.send({ k: 'stand', t: 'hockey1' });
+  assert.equal((await b.for((d) => d.k === 'tb' && !d.s)).r, 'left');
+  await a.for((d) => d.k === 'tb' && d.s.who && d.s.who[0].ai);
+  a.send({ k: 'stand', t: 'hockey1' });
+  await a.for((d) => d.k === 'tb' && !d.s);
+  assert.equal(srv.worlds.test.tables.size, 0);
+  for (const x of [a, b, c]) x.ws.close();
+});

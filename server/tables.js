@@ -9,8 +9,10 @@
 // A table game is a module in tables/, listed by its key in tables/index.js, that exports:
 //   hz                 how many times a second it ticks (default 10)
 //   create({ rng })    the starting state, with nobody sitting
-//   sit(s, id, name)   sit them down; false if there's no room
+//   sit(s, id, name)   sit them down: true, or false if there's no room (or a word for why
+//                      not, which they're sent as the r above)
 //   stand(s, id)       get them up
+//   away(s, id, gone)  (optional) their connection dropped (gone true), or came back
 //   input(s, id, d)    they did something. d comes straight from their browser: check it
 //   tick(s)            one step. Returns who it's got up, as [{ id, r: why }]
 //   seated(s)          the ids of everyone sitting there
@@ -28,7 +30,8 @@ export class Table {
   seated() { return this.game.seated(this.state); }
 
   sit(pid, name) {
-    if (!this.game.sit(this.state, pid, name)) return false;
+    const got = this.game.sit(this.state, pid, name);
+    if (got !== true) return got || false;
     this.sent.delete(pid);
     this.show(pid);
     return true;
@@ -48,13 +51,21 @@ export class Table {
   gone(pid) {
     if (this.away.has(pid) || !this.seated().includes(pid)) return;
     this.away.set(pid, setTimeout(() => { this.away.delete(pid); this.stand(pid, 'gone'); }, GRACE));
+    this.tell(pid, true);
   }
 
   back(pid) {
+    if (this.away.has(pid)) this.tell(pid, false);
     clearTimeout(this.away.get(pid));
     this.away.delete(pid);
     this.sent.delete(pid); // they need to be told everything again
     this.show(pid);
+  }
+
+  // let the game know their connection dropped or came back, if it wants to
+  tell(pid, gone) {
+    if (!this.game.away) return;
+    try { this.game.away(this.state, pid, gone); } catch (e) { this.crash(e); }
   }
 
   out(pid, why) {

@@ -74,7 +74,7 @@ Walk up to these and press A:
 - **Washer and dryer** (fitness room): catch the load the machine is asking for, let the rest drop
 - **Joe's Lego shelf** (2nd floor, office 146): the same falling bricks as Joe's brick battle, but on your own. Rows of grey bricks push up from the bottom, slowly at first and then faster and faster, so see how many lines you can clear before they reach the top
 - **Elevator**: every ride, a coworker gets in and makes conversation
-- **Hockey** (the parking lot's rink, at Christmas): one on one against a coworker; see Christmas below
+- **Hockey** (the parking lot's rink, at Christmas): one on one against a coworker, or live against other players; see Christmas below
 - **Forklift** (Kingston plant, in the warehouse): Forklift Rush. The truck at the dock
   calls for one kind of pallet at a time (fan, coil, damper or motor); drive the forks
   into it to pick it up, and into the trailer to load it (or into an empty rack bay to
@@ -455,6 +455,17 @@ up whenever they like. `server/tables.js` describes what a table game exports, a
 `server/tables/index.js` lists them. To try it, open
 `tools/test.html#play&game=pokerlive&server=ws://localhost:8080` in two tabs.
 
+Live hockey is two tables of this kind, `hockey1` (one on one) and `hockey2` (two on
+two), both `server/tables/hockey.js`: a lobby, then `js/hockey.js`'s game played 60 ticks
+a second, with where everyone is sent out 30 times a second. The server reads
+`js/hockey.js` and `js/maps.js` (for the rink) from the site's files, so it needs the
+whole repository there, not just `server/`. If it can't find them, it says so in its log,
+live hockey is off (players are told so) and everything else carries on. On Render with
+`server` as the root directory, a change to just `js/hockey.js` doesn't redeploy the
+server on its own, so deploy it by hand then (or change something in `server/` too). To
+try it, open `tools/test.html#play&yard=1&christmas=1&game=hockey1&server=ws://localhost:8080`
+(or `hockey2`) in two tabs (four for two on two).
+
 ## Coworker games
 
 Some coworkers have a game for you. Walk up to them and press A:
@@ -605,6 +616,24 @@ From November 27 to December 31 (by your device's date) the office does Christma
   wins. You're the yellow ring, they're the red, and whoever has the puck has theirs
   filled in. The ice is 14 by 30 metres. In 3D the camera drops low behind the rink's
   near end, looking up the ice at the net you're shooting at.
+- **Live hockey**: with a game server, whoever's minding the gate also offers **PLAY
+  LIVE**: pick **1 ON 1** or **2 ON 2**. The first one there waits in the lobby, which
+  shows each team's spots (YELLOW on the left, RED on the right; in two on two, players
+  3 and 4 sit behind 1 and 2, who take the faceoffs) and START underneath. Left and
+  right move you to the other team, swapping places with whoever's level with you if
+  it's full (up and down swap rows with your teammate). Once every spot is taken and
+  everyone has pressed start (moving means pressing it again), the puck drops. It's
+  the same game as against a coworker, played on the game server: you always shoot up
+  the ice on your own screen (the red team's view is turned end for end), your team is
+  on the left of the scoreboard, and everyone else has their name over their head.
+  B with the puck passes to a teammate if there's one the way you're steering. Enter
+  (or Esc) brings up a menu but doesn't pause, since the others are still playing.
+  Leave partway through (or drop out for more than about 12 seconds) and the computer
+  plays your skater for the rest of the game, marked (CPU); if everyone leaves, the game
+  is called off and the lobby is open again. After the final score,
+  everyone still there goes back to the lobby, on the same teams, for another. There's
+  one lobby each for one on one and two on two, so while a game is on, anyone else is
+  told to try again once it's over.
 
 The parking lot is drawn in 3D by `js/lot3d.js`: the same cel-shaded look (three flat
 bands of light and a black outline on everything), seen from high up to the south like
@@ -641,10 +670,9 @@ that is picked from their name; set `style: { hair, hat, beard, build, outfit }`
 The hockey game's rules, skating, puck and the coworker you play against are in
 `js/hockey.js`, which only works out what happens (`js/game.js` reads your keys into it,
 plays the sounds and puts up the score, and `js/lot3d.js` or `js/hd.js` draws it). It's
-the same every time from the same seed and never reads keys or draws, so a game server
-could run it as it is when it's played against other players one day; passing is already
-in for two on two (B with the puck goes to a teammate if there's one the way you're
-steering). The
+the same every time from the same seed and never reads keys or draws, so the game server
+runs it as it is for live hockey (`server/tables/hockey.js`, drawn by `LiveHockey` in
+`js/game.js`). The
 coworker reads the play a few ticks late, skates a little slower than you, goes round you
 rather than shooting into you, and sees a check coming about half the time.
 
@@ -704,7 +732,7 @@ Best scores are saved in the browser, and sent to the online leaderboards when
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
-`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `pokerlive` (with `&server=`), `blackjack`, `build`, `forklift`, `paint`) opens a game straight away.
+`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `pokerlive`, `hockey1` and `hockey2` (live hockey, with `&yard=1` to be out at the rink; these three need `&server=`), `blackjack`, `build`, `forklift`, `paint`) opens a game straight away.
 `&dog=Bella` puts that dog right in front of you; `game=catch` plays catch with it
 and `game=dogs` shows the frisbee leaderboard.
 For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,

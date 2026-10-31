@@ -10172,8 +10172,9 @@
   // stays the same across a reconnect, and mpKey proves to the server that it's still you.
   // What comes down: 'all' (everyone here, when you connect), 'p' (one record changed,
   // or null when they've gone), 'm' (a message for you), 'st' and 'end' (a server-run
-  // game's state and result), and 'tb' (what you see at the live poker table, or null
-  // once you're not at it). See server/world.js.
+  // game's state and result), and 'tb' (what you see at the live poker table or in live
+  // hockey, or null once you're not there; mp.table.feed, if it's set, hears every one).
+  // See server/world.js.
   const mpKey = Math.random().toString(36).slice(2, 12);
   const ws = { sock: null, tree: {}, skew: 0, retry: 0 };
   const wsSend = (d) => { if (ws.sock && ws.sock.readyState === 1) ws.sock.send(JSON.stringify(d)); };
@@ -10211,7 +10212,9 @@
       if (tb && !tb.out && !(d.tables || []).includes(tb.t)) { if (tb.view) tb.out = 'gone'; else tb.asked = false; }
     } else if (d.k === 'tb') {
       const tb = mp.table;
-      if (tb && d.t === tb.t && !tb.out) { if (d.s && typeof d.s === 'object') tb.view = d.s; else tb.out = d.r || 'gone'; }
+      if (tb && d.t === tb.t && !tb.out) {
+        if (d.s && typeof d.s === 'object') { tb.view = d.s; if (tb.feed) tb.feed(d.s); } else tb.out = d.r || 'gone';
+      }
     } else if (d.k === 'p' && typeof d.id === 'string') {
       if (d.r && typeof d.r === 'object') ws.tree[d.id] = wsRec(d.r); else delete ws.tree[d.id];
       mpPlayers(ws.tree);
@@ -10794,17 +10797,41 @@
   // The game itself (the rules, the skating, the puck and how your coworker plays) is
   // js/hockey.js. This feeds it your keys, plays its sounds and puts the score and the
   // clock up, while drawYard draws the two of you out on the ice (hockey) with the camera
-  // down low at the end of the rink.
+  // down low at the end of the rink. With a game server, whoever's minding the gate can
+  // also put you in a live game against other players (LiveHockey, below).
   const HOCKEY_VIEW = { dist: 17, pitch: 0.55 };
   const HOCKEY_RINGS = ['#f8d040', '#e84848']; // round your skates and theirs, to tell you apart
   const HOCKEY_SFX = { go: 'whistle', lunge: 'dash', pass: 'tap', steal: 'tap', block: 'tap', post: 'post', net: 'mesh', goal: 'horn', buzzer: 'buzz', bump: 'bump' };
-  let hockey = null; // { g, npc } while a game's on
+  // While a game's on: { scene(), npc (the coworker you're playing), ids (the other
+  // players in it, live) }. scene() is what drawYard draws: { skaters, puck, you } (see
+  // HockeyGame's), with places in tiles from the map's corner.
+  let hockey = null;
   function hockeyTalk(npc, says) {
-    ask(says('Fancy a game? One on one, three minutes, most goals wins. I\'ve got a spare stick.'), ['LET\'S PLAY', 'NOT NOW'], (i) => {
-      if (i !== 0) { say(says('The ice isn\'t going anywhere.')); return; }
-      sfx('menu');
-      startFade(() => ui.push(HockeyGame(npc)), '#f8f8f8');
+    const solo = () => { sfx('menu'); startFade(() => ui.push(HockeyGame(npc)), '#f8f8f8'); };
+    if (!MP_WS) {
+      ask(says('Fancy a game? One on one, three minutes, most goals wins. I\'ve got a spare stick.'), ['LET\'S PLAY', 'NOT NOW'], (i) => {
+        if (i !== 0) say(says('The ice isn\'t going anywhere.')); else solo();
+      });
+      return;
+    }
+    ask(says('Fancy a three-minute game? One on one with me, or live against other players.'), ['PLAY SOLO', 'PLAY LIVE', 'NOT NOW'], (i) => {
+      if (i === 0) solo();
+      else if (i === 1) {
+        ask(says('One on one, or two on two?'), ['1 ON 1', '2 ON 2'], (j) => {
+          if (j < 0) { say(says('The ice isn\'t going anywhere.')); return; }
+          sfx('menu');
+          startFade(() => ui.push(LiveHockey(j ? 4 : 2, npc)), '#f8f8f8');
+        });
+      } else say(says('The ice isn\'t going anywhere.'));
     });
+  }
+  // a hockey game's sound for one of js/hockey.js's events; mine: a stride is yours
+  function hockeySfx(e, mine) {
+    if (e.e === 'stride') { if (mine) sfx('skate'); }
+    else if (e.e === 'shot') sfx('slap', e.power);
+    else if (e.e === 'hit' || e.e === 'shove') sfx('hit', e.e === 'hit' ? 40 : 0);
+    else if (e.e === 'boards') sfx('boards');
+    else if (HOCKEY_SFX[e.e]) sfx(HOCKEY_SFX[e.e]);
   }
   function HockeyGame(npc) {
     const foe = npc.name, FOE = foe.toUpperCase().slice(0, 9);
@@ -10814,15 +10841,22 @@
     ] });
     // scored: who got the last goal; go: ticks since the puck dropped
     let state = 'play', t = 0, scored = 0, go = 99;
-    hockey = { g, npc };
+    // each skater: where (x, y), facing (ang), pushing off (push), their stick and how far
+    // down they are (for drawing them), fall, the colour of their ring, whether they have
+    // the puck (full), and who they are: you (me), a coworker (npc), or another player
+    // (look: { n, g, l }, and tag, their name to put over them)
+    hockey = {
+      npc,
+      scene: () => ({
+        you: g.players[0], puck: g.puck,
+        skaters: g.players.map((p, i) => ({ x: p.x, y: p.y, ang: p.ang, push: p.push, stick: g.stick(p), down: g.down(p), fall: p.fall,
+          ring: HOCKEY_RINGS[p.team], full: g.puck.owner === p, me: !i, npc: i ? npc : null })),
+      }),
+    };
     function hear(e) {
       if (e.e === 'go') go = 0;
       if (e.e === 'goal') scored = e.team;
-      if (e.e === 'stride') { if (!g.players[e.p.i].ai) sfx('skate'); }
-      else if (e.e === 'shot') sfx('slap', e.power);
-      else if (e.e === 'hit' || e.e === 'shove') sfx('hit', e.e === 'hit' ? 40 : 0);
-      else if (e.e === 'boards') sfx('boards');
-      else if (HOCKEY_SFX[e.e]) sfx(HOCKEY_SFX[e.e]);
+      hockeySfx(e, e.e === 'stride' && !e.p.ai);
     }
     // back to where you were standing, and a word from your coworker
     function finish(quit) {
@@ -10890,6 +10924,286 @@
         text('Enter: pause', 4, SH - 10, 1, '#f8f8f8');
       },
     };
+    return self;
+  }
+
+  // ---------- live hockey: one on one or two on two, against other players ----------
+  // The game server runs it (server/tables/hockey.js, with js/hockey.js) and this shows what
+  // it says (mp.table.view, see view() there). First the lobby: whoever's first waits there
+  // for everyone else, anyone can move over to the other team, and once every spot is taken
+  // and everyone's pressed start, the puck drops. Then the game, out on the rink just like
+  // one against a coworker. Everyone shoots up the ice on their own screen: for the team
+  // attacking the bottom net, the rink is turned end for end, and so is the way they steer
+  // before it's sent. The server sends where everyone is 30 times a second, and they're
+  // drawn LIVE_LAG behind the newest, between the views either side, so they glide.
+  const HOCKEY_TEAMS = ['YELLOW', 'RED']; // after their rings, team 0 then team 1
+  const LIVE_LAG = 4; // game ticks (60ths of a second)
+  function LiveHockey(size, npc) {
+    const tb = mp.table = { t: size === 2 ? 'hockey1' : 'hockey2', view: null, out: null, asked: false, feed: (v) => got(v) };
+    const R = HOCKEY.rink(MAPS.floors[YARD]), says = (line) => (npc ? npc.name + ': ' : '') + line;
+    // snaps: the game's views so far, oldest first. est: the game tick the newest is
+    // probably at by now. heard: the newest view whose sounds have played. gn: which game
+    const live = { npc: null, ids: [], scene: () => scene };
+    let snaps = [], est = -1, heard = -1, gn = -1, me = -1, scene = null;
+    // rink: showing the game (rather than the lobby); menu: the option picked on the menu
+    // (-1 while it's shut); go: ticks since the puck dropped; scored: the latest goal; left:
+    // who's just left the game, and when
+    let t = 0, rink = false, menu = -1, go = 99, scored = null, won = null, left = null, ais = '', lobby = null;
+    // what you're doing on the ice, as last sent: A and B presses are counted (ap, bp)
+    let ap = 0, bp = 0, sent = '', sentBtn = '', sendT = 0;
+
+    function got(v) {
+      if (!v || v.ph === 'lobby' || !Array.isArray(v.pl) || !Array.isArray(v.who) || !Array.isArray(v.pk) || !Array.isArray(v.sc)) return;
+      if (v.gn !== gn) { gn = v.gn; snaps = []; est = -1; heard = v.n - 1; ap = bp = 0; sent = sentBtn = ''; won = null; ais = ''; }
+      if (snaps.length && v.n <= snaps[snaps.length - 1].n) return;
+      me = v.me;
+      snaps.push(v);
+      if (snaps.length > 60) snaps.shift();
+    }
+    const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+    // Where everything is on this screen now: between the two views either side of a moment
+    // just behind the newest (or carried on a little from the newest, if the next is late).
+    function place() {
+      const last = snaps[snaps.length - 1];
+      if (!last) return;
+      est += 1 + (last.n - est) * 0.05;
+      if (est < 0 || Math.abs(last.n - est) > 30) est = last.n;
+      const at = est - LIVE_LAG;
+      let i = snaps.length - 1;
+      while (i > 0 && snaps[i].n > at) i--;
+      // (the sounds of every view up to now, unless it's so far behind they'd all go off at once)
+      for (const s of snaps) if (s.n > heard && s.n <= at) { if (at - s.n < 20) s.ev.forEach(hear); heard = s.n; }
+      if (i > 3) { snaps.splice(0, i - 3); i = 3; }
+      const a = snaps[i], b = snaps[i + 1] && snaps[i + 1].fo === a.fo ? snaps[i + 1] : null;
+      const f = b ? Math.max(0, Math.min(1, (at - a.n) / (b.n - a.n))) : 0;
+      const ahead = !b && last.ph === 'play' && a.gp === 'play' ? Math.max(0, Math.min(6, at - a.n)) / 60 : 0;
+      const k = b && f >= 0.5 ? b : a; // the nearer, for anything that can't be in between
+      const flip = a.me % 2 === 1;
+      const spot = (x, y) => (flip ? [R.x0 + R.x1 - x, R.y0 + R.y1 - y] : [x, y]);
+      const mid = (p, q, j) => (q ? p[j] + (q[j] - p[j]) * f : p[j] + (j < 2 ? p[j + 2] * ahead : 0));
+      const skaters = a.pl.map((p, j) => {
+        const q = b && b.pl[j], n = k.pl[j], w = a.who[j] || {}, o = mp.others[w.id];
+        const [x, y] = spot(mid(p, q, 0), mid(p, q, 1)), ang = q ? p[4] + wrapA(q[4] - p[4]) * f : p[4];
+        return { x, y, ang: wrapA(ang + (flip ? Math.PI : 0)), push: !!n[5], down: +n[6] || 0, fall: n[7] || 1,
+          stick: { k: n[8], a: +n[9] || 0, p: +n[10] || 0, hand: 1 }, ring: HOCKEY_RINGS[j % 2], full: k.pk[4] === j,
+          me: j === a.me, look: j === a.me ? null : o ? { n: o.n, g: o.g, l: o.l } : { n: String(w.n || '?'), g: 'male', l: 0 },
+          tag: j === a.me ? '' : String(w.n || '?') + (w.ai ? ' (CPU)' : '') };
+      });
+      const [px, py] = spot(mid(a.pk, b && b.pk, 0), mid(a.pk, b && b.pk, 1));
+      scene = { skaters, puck: { x: px, y: py }, you: skaters[a.me] || { x: px, y: py },
+        sc: k.sc, clk: k.clk, ot: k.ot, gp: k.gp, gt: k.gt, fo: k.fo, me: a.me, who: k.who };
+    }
+    function hear(e) {
+      if (e.e === 'go') go = 0;
+      if (e.e === 'goal') scored = e;
+      hockeySfx(e, e.p === me);
+    }
+
+    // Switching to another tab or app stops the game here, so let go of everything first,
+    // rather than skating on into the boards while you're away.
+    const hidden = () => {
+      if (document.visibilityState !== 'hidden' || !tb.view || tb.view.ph !== 'play') return;
+      wsSend({ k: 'tin', t: tb.t, d: { x: 0, y: 0, a: 0, ap, bp } });
+      sent = '';
+    };
+    document.addEventListener('visibilitychange', hidden);
+
+    // Away from the rink (or the lobby), with a word from whoever's minding the gate.
+    function gone(line) {
+      remove(self);
+      document.removeEventListener('visibilitychange', hidden);
+      if (mp.table === tb) mp.table = null;
+      const back = () => { if (hockey === live) hockey = null; if (line) say(line); };
+      if (rink) startFade(back, '#f8f8f8'); else back();
+    }
+    function leave() {
+      wsSend({ k: 'stand', t: tb.t });
+      sfx('select');
+      gone(says(rink && tb.view && tb.view.ph === 'play' ? 'Off already? The computer can have your spot, then.'
+        : gn >= 0 ? 'Good games out there! The ice will be here.' : 'No worries. The ice isn\'t going anywhere.'));
+    }
+    const name = (j) => {
+      const w = scene && scene.who[j];
+      return j === me ? 'YOU' : String(w ? w.n : '?').toUpperCase();
+    };
+
+    const self = {
+      music: 'hockey',
+      get escStart() { return rink; }, // Esc opens the menu in a game (B is a check), and leaves the lobby
+      update() {
+        t++; go++;
+        updateNpcs(); // everyone else carries on round the lot
+        if (tb.out) {
+          gone(says({
+            busy: 'There\'s a live game on the ice already. Try again once it\'s over, or play me!',
+            full: 'Both teams are full right now. Try again in a bit, or play me!',
+            off: 'Live hockey isn\'t set up on the game server yet. Play me instead!',
+          }[tb.out] || 'You lost your spot. The connection to the game server dropped.'));
+          return;
+        }
+        const v = tb.view;
+        if (!v) {
+          // into the lobby once the server's there and knows who you are
+          if (!tb.asked && ws.sock && ws.sock.readyState === 1 && mp.sentKey) { tb.asked = true; wsSend({ k: 'sit', t: tb.t }); }
+          if (pressed.has('b') || t > 600) {
+            if (tb.asked) wsSend({ k: 'stand', t: tb.t });
+            gone(t > 600 ? says('Nobody\'s answering about the live game right now. Try again in a bit, or play me!') : '');
+            if (t <= 600) sfx('select');
+          }
+          return;
+        }
+        if (v.ph === 'lobby') {
+          // back from a game: the rink fades out to the lobby
+          if (rink) { startFade(() => { rink = false; if (hockey === live) hockey = null; menu = -1; }, '#f8f8f8'); return; }
+          const mine = v.slots[v.me];
+          if (pressed.has('b')) { leave(); return; }
+          for (const d of ['left', 'right', 'up', 'down']) if (pressed.has(d)) { wsSend({ k: 'tin', t: tb.t, d: { mv: d } }); sfx('select'); }
+          if ((pressed.has('a') || pressed.has('start')) && mine && !mine.r) { wsSend({ k: 'tin', t: tb.t, d: { go: true } }); sfx('menu'); }
+          return;
+        }
+        place();
+        if (!scene) return;
+        // the puck's about to drop: out onto the ice
+        if (!rink) { startFade(() => { rink = true; hockey = live; }, '#f8f8f8'); return; }
+        live.ids = scene.who.filter((w) => !w.ai).map((w) => w.id);
+        // someone's left, and the computer's playing them
+        const now = scene.who.map((w) => (w.ai ? 1 : 0)).join('');
+        if (ais && now !== ais) { const j = [...now].findIndex((c, i) => c === '1' && ais[i] === '0'); if (j >= 0) left = { j, t: 0 }; }
+        ais = now;
+        if (left) left.t++;
+        if (v.ph === 'over' && won === null && v.last && Array.isArray(v.last.sc)) {
+          const my = v.me % 2;
+          won = v.last.sc[my] > v.last.sc[1 - my];
+          sfx(won ? 'cup' : 'bump');
+        }
+        // the menu (Enter): the game carries on underneath
+        if (menu >= 0) {
+          if (pressed.has('up') || pressed.has('down')) { menu = 1 - menu; sfx('select'); }
+          if (pressed.has('a') && menu === 1) { leave(); return; }
+          if (pressed.has('a') || pressed.has('b') || pressed.has('start')) { menu = -1; sfx('select'); }
+        } else if (pressed.has('start')) { menu = 0; sfx('menu'); }
+        // what you're doing, sent whenever it changes (steering at most 30 times a second)
+        if (v.ph !== 'play') return;
+        const on = menu < 0, s = on ? steer() : { x: 0, y: 0 }, k = v.me % 2 === 1 ? -100 : 100;
+        if (on && pressed.has('a')) ap++;
+        if (on && pressed.has('b')) bp++;
+        const d = { x: Math.round(s.x * k) / 100, y: Math.round(s.y * k) / 100, a: on && held.a ? 1 : 0, ap, bp };
+        const key = d.x + ',' + d.y + ',' + d.a + ',' + ap + ',' + bp, btn = d.a + ',' + ap + ',' + bp;
+        sendT++;
+        if (key !== sent && (btn !== sentBtn || sendT >= 2)) { wsSend({ k: 'tin', t: tb.t, d }); sent = key; sentBtn = btn; sendT = 0; }
+      },
+      draw() {
+        const v = tb.view;
+        if (v && v.ph === 'lobby') lobby = v;
+        if (!rink || !scene) { drawLobby(lobby); return; }
+        const sc = scene, my = Math.max(0, sc.me) % 2;
+        // white over the ice as the players go back for a faceoff
+        let lvl = 0;
+        if (v.ph === 'play') {
+          if (sc.gp === 'goal' && !sc.ot && sc.gt > 134) lvl = (sc.gt - 134) / 16;
+          else if (sc.gp === 'buzzer' && sc.sc[0] === sc.sc[1] && sc.gt > 104) lvl = (sc.gt - 104) / 16;
+          else if (sc.gp === 'ready' && sc.fo > 0 && sc.gt < 16) lvl = (16 - sc.gt) / 16;
+        }
+        if (lvl > 0) {
+          ctx.globalAlpha = Math.min(1, Math.ceil(lvl * 4) / 4);
+          ctx.fillStyle = '#f8f8f8'; ctx.fillRect(0, 0, SW, SH);
+          ctx.globalAlpha = 1;
+        }
+        // the scoreboard: your team, the clock, theirs
+        const team = (tm) => sc.who.map((w, j) => j).filter((j) => j % 2 === tm).sort((a, b) => (b === sc.me) - (a === sc.me))
+          .map((j) => (size === 2 ? name(j).slice(0, 9) : name(j).slice(0, j === sc.me ? 3 : 4))).join('+');
+        const secs = Math.ceil(sc.clk / 60), mine = team(my) + ' ' + sc.sc[my], theirs = sc.sc[1 - my] + ' ' + team(1 - my);
+        box(50, 0, 220, 20);
+        ctx.fillStyle = HOCKEY_RINGS[my]; ctx.fillRect(57, 7, 5, 5);
+        text(mine, 66, 7);
+        ctext(sc.ot ? 'OT' : Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0'), 7, !sc.ot && secs <= 10 ? '#c83030' : col.dark);
+        text(theirs, 254 - theirs.length * 6, 7);
+        ctx.fillStyle = HOCKEY_RINGS[1 - my]; ctx.fillRect(258, 7, 5, 5);
+        const msg = (lines, big) => {
+          box(70, 84, 180, 16 + (big ? 18 : 0) + lines.length * 16);
+          if (big) text(big, (SW - big.length * 12) >> 1, 94, 2);
+          lines.forEach((l, i) => ctext(l, 96 + (big ? 18 : 0) + i * 16));
+        };
+        if (v.ph === 'over' && v.last) {
+          const a = v.last.sc[my], b = v.last.sc[1 - my], foe = size === 2 ? name(1 - my).slice(0, 9) : 'THEM';
+          box(40, 72, 240, 84);
+          [won ? (size === 2 ? 'You win!' : 'Your team wins!') : (size === 2 ? name(1 - my) + ' wins!' : 'They win!'),
+            (size === 2 ? 'YOU ' : 'US ') + a + ' - ' + b + ' ' + foe, v.last.ot ? 'In overtime' : ''].forEach((l, i) => ctext(l, 86 + i * 16));
+          if ((tick >> 4) & 1) ctext('Back to the lobby in a moment', 136);
+        } else if (sc.gp === 'ready' && sc.ot) msg(['Overtime!', 'Next goal wins']);
+        else if (sc.gp === 'ready' && sc.clk === HOCKEY.LENGTH && !sc.fo) {
+          // the controls, off to one side so the puck and everyone show at the drop
+          const hints = ['Arrows: skate', 'Space: shoot', 'Hold Space: slapshot', 'X: pass or check'].map((l) => (buttonHints() ? touchHint(l) : l));
+          box(4, 84, 136, 16 + hints.length * 16);
+          hints.forEach((l, i) => text(l, 4 + ((136 - l.length * 6) >> 1), 96 + i * 16));
+        }
+        else if (sc.gp === 'play' && go < 40) msg([], 'GO!');
+        else if (sc.gp === 'goal') {
+          const by = scored && scored.p !== undefined ? scored.p : -1, tm = scored ? scored.team : 0;
+          msg([by === sc.me ? 'You score!' : by >= 0 ? name(by) + ' scores!' : tm === my ? 'Your team scores!' : 'They score!'], 'GOAL!');
+        } else if (sc.gp === 'buzzer') msg([sc.sc[0] === sc.sc[1] ? 'Tied: overtime!' : ''], 'TIME!');
+        // someone's gone, and the computer's playing them
+        if (left && left.t < 240 && v.ph === 'play') {
+          const l = name(left.j) + ' left. The computer has them.';
+          box(0, 22, SW, 18); ctext(l, 28);
+        }
+        if (menu >= 0) {
+          box(SW - 118, 24, 118, 40);
+          ['KEEP PLAYING', 'LEAVE GAME'].forEach((o, i) => { text(o, SW - 102, 32 + i * 16); if (i === menu) text('>', SW - 110, 32 + i * 16); });
+        }
+        text('Enter: menu', 4, SH - 10, 1, '#f8f8f8');
+      },
+    };
+
+    // The lobby, laid out like the two teams' benches: yours on the left or the right, the
+    // front row (who take the faceoffs) at the bottom, and start underneath.
+    function drawLobby(v) {
+      box(0, 0, SW, SH);
+      const title = 'LIVE HOCKEY: ' + (size === 2 ? '1 ON 1' : '2 ON 2'), dots = '.'.repeat(1 + ((tick >> 4) % 3));
+      text(title, (SW - title.length * 6) >> 1, 10);
+      if (!v) {
+        ctext('Finding you a spot' + dots, 104);
+        text('Esc: never mind', 10, SH - 18);
+        return;
+      }
+      const four = size === 4, top = four ? 40 : 62, w = 128, h = four ? 48 : 74;
+      [0, 1].forEach((tm) => {
+        const x = tm ? 182 : 10;
+        ctx.fillStyle = HOCKEY_RINGS[tm]; ctx.fillRect(x + 6, top - 14, 5, 5);
+        text(HOCKEY_TEAMS[tm], x + 14, top - 14);
+      });
+      v.slots.forEach((q, i) => slot(v, q, i, i % 2 ? 182 : 10, four && !(i >> 1) ? top + h + 6 : top, w, h));
+      text('VS', 148, four ? top + h - 4 : top + (h >> 1) - 7, 2);
+      // start, and what it's waiting for
+      const mine = v.slots[v.me], by = four ? 156 : 152, waiting = v.slots.filter((q) => !q).length;
+      box(90, by, 140, 24);
+      const lbl = mine && mine.r ? 'READY!' : 'START';
+      text(lbl, 160 - lbl.length * 6, by + 6, 2);
+      if (!(mine && mine.r) && (tick >> 4) & 1) text('>', 100, by + 9);
+      const slow = v.slots.filter((q) => q && !q.r);
+      const note = waiting ? 'Waiting for ' + waiting + ' more player' + (waiting > 1 ? 's' : '') + dots
+        : !(mine && mine.r) ? 'Get the teams right, then press start'
+          : slow.length === 1 ? 'Waiting for ' + slow[0].n + ' to press start' : 'Waiting for ' + slow.length + ' players to press start';
+      ctext(note, by + 30);
+      if (v.last && Array.isArray(v.last.sc)) ctext('Last game: ' + HOCKEY_TEAMS[0] + ' ' + v.last.sc[0] + ' - ' + v.last.sc[1] + ' ' + HOCKEY_TEAMS[1] + (v.last.ot ? ' (OT)' : ''), by + 44);
+      const hint = 'Arrows: ' + (four ? 'move' : 'switch team') + '  Space: start  Esc: leave';
+      text(hint, (SW - hint.length * 6) >> 1, SH - 16);
+    }
+    // one spot in the lobby: who's in it (their face, name, and whether they've pressed
+    // start), or that it's waiting for someone
+    function slot(v, q, i, x, y, w, h) {
+      box(x, y, w, h);
+      if (i === v.me && (tick >> 4) & 1) { ctx.fillStyle = HOCKEY_RINGS[i % 2]; ring(x - 2, y - 2, w + 4, h + 4); ring(x - 1, y - 1, w + 2, h + 2); }
+      ctx.fillStyle = HOCKEY_RINGS[i % 2]; ctx.fillRect(x + 8, y + 8, 5, 5);
+      text('PLAYER ' + (i + 1), x + 16, y + 8);
+      const big = h > 60, tx = x + (big ? 46 : 30);
+      if (!q) { text('Waiting' + '.'.repeat(1 + ((tick >> 4) % 3)), tx, y + (big ? 36 : 24), 1, col.mid); return; }
+      const o = mp.others[q.id], sheet = i === v.me ? sprites : o ? mpSprites(o) : charSprites.male[0];
+      ctx.drawImage(sheet.down[0], x + 8, y + (big ? 26 : 22), big ? 32 : 16, big ? 32 : 16);
+      text(q.n, tx, y + (big ? 26 : 22));
+      const tag = (i === v.me ? 'YOU' : '') + (q.r ? (i === v.me ? '  ' : '') + 'READY' : '');
+      if (tag) text(tag, tx, y + (big ? 40 : 34));
+    }
     return self;
   }
 
@@ -10975,14 +11289,15 @@
     const npcSpec = (n) => { const { body, look } = lookFor(n.name); return hdPerson('npc:' + n.name, n.name, body, look, personOf(n.name).style); };
     // everyone out here: you, coworkers and other players (in a hockey game, you and
     // whoever you're playing are out on the ice instead)
-    const people = hockey ? [] : [{ key: me, spec: mySpec, px, py, dir: P.dir, face: P.free ? P.face : undefined,
+    const sc = hockey && hockey.scene();
+    const people = sc ? [] : [{ key: me, spec: mySpec, px, py, dir: P.dir, face: P.free ? P.face : undefined,
       walk: P.glide || !(P.vx || P.vy) ? -1 : (P.dist / 32) % 1, skate: iceAt(px, py) }];
     for (const n of npcs) {
-      if (n.floor !== YARD || (hockey && n === hockey.npc)) continue;
+      if (n.floor !== YARD || (sc && n === hockey.npc)) continue;
       const nx = n.x * 16 + (n.moving ? n.mdx * n.prog : 0), ny = n.y * 16 + (n.moving ? n.mdy * n.prog : 0);
       people.push({ key: 'npc:' + n.name, spec: npcSpec(n), px: nx, py: ny, dir: n.dir, walk: stride(n.moving, n.step, n.prog), skate: iceAt(nx, ny) });
     }
-    const others = mpHere().filter((o) => o.f === YARD);
+    const others = mpHere().filter((o) => o.f === YARD && !(sc && hockey.ids && hockey.ids.includes(o.id)));
     for (const o of others) {
       const [tx, ty] = mpTarget(o), mv = o.px !== tx || o.py !== ty, key = 'mp:' + o.n + ':' + o.g + o.l;
       people.push({ key, spec: hdPerson(key, o.n, o.g, Art.LOOKS[o.g][o.l]), px: o.px, py: o.py, dir: o.dir, face: o.face,
@@ -10992,15 +11307,18 @@
     // little toward the net you're shooting at); hockey's places are in tiles from the map's
     // corner, so a tile's middle is at a whole number and a half
     let focus = [px, py], puck = null;
-    if (hockey) {
-      const g = hockey.g, at = (x, y) => [x * 16 - 8, y * 16 - 8], you = g.players[0];
-      g.players.forEach((p, i) => {
-        people.push({ key: i ? 'npc:' + hockey.npc.name : me, spec: i ? npcSpec(hockey.npc) : mySpec, px: p.x * 16 - 8, py: p.y * 16 - 8,
+    if (sc) {
+      const at = (x, y) => [x * 16 - 8, y * 16 - 8];
+      sc.skaters.forEach((p, i) => {
+        const lk = p.look, key = p.me ? me : p.npc ? 'npc:' + p.npc.name : 'mp:' + lk.n + ':' + lk.g + lk.l;
+        const spec = p.me ? mySpec : p.npc ? npcSpec(p.npc) : hdPerson(key, lk.n, lk.g, Art.LOOKS[lk.g][lk.l] || Art.LOOKS[lk.g][0]);
+        // (another player on the ice gets a figure of their own, apart from the one out in the lot)
+        people.push({ key: p.look ? 'ice:' + i + ':' + key : key, spec, px: p.x * 16 - 8, py: p.y * 16 - 8,
           dir: ['down', 'right', 'up', 'left'][(Math.round(p.ang / (Math.PI / 2)) + 4) % 4], face: p.ang, walk: p.push ? (tick / 40) % 1 : -1, skate: true,
-          stick: g.stick(p), down: g.down(p), fall: p.fall, ring: HOCKEY_RINGS[p.team], full: g.puck.owner === p });
+          stick: p.stick, down: p.down, fall: p.fall, ring: p.ring, full: p.full, tag: p.tag });
       });
-      puck = at(g.puck.x, g.puck.y);
-      focus = at(g.puck.x * 0.65 + you.x * 0.35, g.puck.y * 0.65 + you.y * 0.35 - 1);
+      puck = at(sc.puck.x, sc.puck.y);
+      focus = at(sc.puck.x * 0.65 + sc.you.x * 0.35, sc.puck.y * 0.65 + sc.you.y * 0.35 - 1);
     }
     const now = Date.now();
 
@@ -11011,7 +11329,7 @@
       const ms = performance.now();
       if (ms - (h.drawn || 0) < 9) return;
       h.drawn = ms;
-      gl.draw({ t: tick, alpha: drawAlpha, focus, people, view: hockey ? HOCKEY_VIEW : null, puck });
+      gl.draw({ t: tick, alpha: drawAlpha, focus, people, view: sc ? HOCKEY_VIEW : null, puck });
       // names and speech bubbles, flat, over the 3D
       c.setTransform(1, 0, 0, 1, 0, 0);
       c.clearRect(0, 0, h.cv.width, h.cv.height);
@@ -11021,6 +11339,7 @@
         const said = mpSaying(o, now);
         if (said) HD.bubble(c, said, ...gl.toScreen(o.px, o.py, 2.65), 0, SW);
       }
+      for (const it of people) if (it.tag) HD.tag(c, it.tag, ...gl.toScreen(it.px, it.py, 2.35)); // other players on the ice
       if (mp.bubble) HD.bubble(c, mp.bubble.str, ...gl.toScreen(px, py, 2.5), 0, SW);
       return;
     }
@@ -11058,6 +11377,7 @@
       const said = mpSaying(o, now);
       if (said) HD.bubble(c, said, o.px + 8, o.py - 34, cx, cx + SW);
     }
+    for (const it of people) if (it.tag) HD.tag(c, it.tag, it.px + 8, it.py - 29); // other players on the ice
     if (mp.bubble) HD.bubble(c, mp.bubble.str, px + 8, py - 30, cx, cx + SW);
   }
 
@@ -11829,7 +12149,7 @@
   addEventListener('resize', layout);
   addEventListener('orientationchange', layout);
 
-  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|lego|wok|carrot|jar|poker|blackjack|slots|pokertable|pokerlive|bjtable, or locker|list|eotm with &quest=)
+  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|lego|wok|carrot|jar|poker|blackjack|slots|pokertable|pokerlive|bjtable|hockey1|hockey2, or locker|list|eotm with &quest=)
   if (location.hash.startsWith('#play')) {
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
@@ -11895,6 +12215,7 @@
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
       dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp, slots: SlotsGame,
       pokertable: () => PokerApp(null, true), pokerlive: LivePoker, bjtable: () => BlackjackApp(null, true),
+      hockey1: () => LiveHockey(2, gateKeeper), hockey2: () => LiveHockey(4, gateKeeper),
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
       fame: HallOfFame, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];

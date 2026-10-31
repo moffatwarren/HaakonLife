@@ -130,9 +130,10 @@ export class World {
       });
       this.tables.set(t, table);
     }
-    if (table.sit(p.id, p.rec.n)) p.table = t;
+    const got = table.sit(p.id, p.rec.n);
+    if (got === true) p.table = t;
     else {
-      this.send(p.id, { k: 'tb', t, s: null, r: 'full' });
+      this.send(p.id, { k: 'tb', t, s: null, r: typeof got === 'string' ? got : 'full' });
       if (!table.seated().length) { table.close(); this.tables.delete(t); }
     }
   }

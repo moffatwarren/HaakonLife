@@ -1515,9 +1515,14 @@ window.LOT3D = (function () {
 
     const v = new V3();
     function toScreen(px, py, h) {
-      // over whoever's standing there, drawn where they're drawn
-      let pos = world(px, py, h);
-      for (const person of people.values()) if (person.seen === frame && person.root.position.distanceTo(new V3(pos.x, 0, pos.z)) < 1.2) { pos = person.root.position.clone(); pos.y = h; break; }
+      // over whoever's standing there, drawn where they're drawn (the nearest, when two are
+      // close together, as skaters fighting for the puck are)
+      const pos = world(px, py, h), at = new V3(pos.x, 0, pos.z);
+      let best = 1.2;
+      for (const person of people.values()) {
+        const d = person.seen === frame ? person.root.position.distanceTo(at) : Infinity;
+        if (d < best) { best = d; pos.copy(person.root.position); pos.y = h; }
+      }
       v.copy(pos).project(camera);
       return [(v.x * 0.5 + 0.5) * SW, (-v.y * 0.5 + 0.5) * SH];
     }
