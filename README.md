@@ -82,6 +82,7 @@ Walk up to these and press A:
 - **Joe's Lego shelf** (2nd floor, office 146): the same falling bricks as Joe's brick battle, but on your own. Rows of grey bricks push up from the bottom, slowly at first and then faster and faster, so see how many lines you can clear before they reach the top
 - **Elevator**: every ride, a coworker gets in and makes conversation
 - **Hockey** (the parking lot's rink, at Christmas): one on one against a coworker, or live against other players; see Christmas below
+- **Winter games** (around the parking lot, at Christmas): chopping wood, toasting marshmallows, decorating the big spruce, building a snowman, working the hot chocolate stand and a snowball fight; see Christmas below
 - **Forklift** (Kingston plant, in the warehouse): Forklift Rush. The truck at the dock
   calls for one kind of pallet at a time (fan, coil, damper or motor); drive the forks
   into it to pick it up, and into the trailer to load it (or into an empty rack bay to
@@ -203,14 +204,18 @@ shows every leaderboard at once. Left and right flip between its pages:
   your place and your own totals. (Live Hold'em is on the casino page too, like the
   other games.)
 - **One page per area** (Office, Fitness Room, TVs and Cody's Casino, Boardroom and 2nd Floor,
-  Coworkers and Dogs, Kingston Plant, and Halloween in October or once it has scores):
+  Coworkers and Dogs, Kingston Plant, Halloween and Christmas):
   each game's champion and their score, or "up for grabs" if nobody has played it.
   Up and down pick a game, which shows what it takes to climb: the score to beat for the
   next place up, or how far ahead you are if you hold the crown. A opens that game's
   full top ten.
 
 The pages are `FAME_GROUPS` in `js/game.js`; a board you add to `BOARDS` without putting
-it in a group shows up on an "Other" page. When you finish a game and you're 1st on its
+it in a group shows up on an "Other" page. A holiday's games stay out of the Hall of Fame
+altogether (their page, Champion points and Latest scores) until the day that holiday first
+starts (`SEASON_FROM`: Halloween on Oct 1 2026, Christmas on Nov 27 2026), even if scores
+were put in earlier, and from then on they stay for good. Forcing the holiday on in a link
+(`&christmas=1`) shows them early, on that screen only. When you finish a game and you're 1st on its
 leaderboard, it tells you you hold the crown.
 
 Only the name and the score are sent. If the leaderboard can't be reached the game
@@ -648,7 +653,54 @@ From November 27 to December 31 (by your device's date) the office does Christma
   hot chocolate stand, a car, the snowman and the big spruce, and two pacing along the
   rink's boards. The ice is all yours. Anyone with a part to play indoors (the Employee of
   the Month list, Lam, Linda, Jenn, Cody, Zin, Eugene) stays in. The hot chocolate
-  stand pours as many as you like.
+  stand pours as many as you like (or you can work it: see the winter games below).
+- **Winter games**: walk up to these around the lot and press A. Each has its own
+  leaderboard, on a Christmas page of the Hall of Fame.
+  - **Chopping block** (the east end of the woodpile): split each log down the crack
+    across its top in 60 seconds. Arrows slide the axe over the crack; hold A to heft it
+    and let go to bring it down. The higher it goes the harder it lands, but the more it
+    sways, and it sinks again if you hold it up too long. Big logs need a big swing or the
+    axe sticks (mash A to work it free), a swing off the crack only opens the crack up a
+    little, and a knot bounces the axe off. The logs get bigger and your arms more tired
+    as you go.
+  - **Fire pit**: five marshmallows, 20 seconds each, each scored out of 100 for being
+    golden brown all the way round. Up and down raise and lower the stick (lower is
+    hotter), left and right give it a quarter turn, and A takes it off to eat. The side
+    facing the fire toasts fastest, the two beside it a little, the top hardly at all;
+    the circle on the right shows the marshmallow end on, with the bottom side facing the
+    fire. Now and then the fire crackles and flares up. Let a side go black and the
+    marshmallow catches fire: blow it out with A, quick, or it's charcoal.
+  - **Big spruce**: 45 seconds to hang everything the box hands you (baubles in five
+    colours, candy canes and bows, with the next one shown in the box). Steer your hand
+    and press A to hang it on a branch. Each is worth 10, plus 5 if nothing the same is
+    near it and 5 if it has room to itself; hang one right up against another and it
+    slips off and breaks (-5). Then the star swings back and forth over the top: press A
+    to drop it, up to 50 more the straighter it lands.
+  - **Snowman**: roll the bottom, then the middle, then the head, in 60 seconds. A ball
+    picks up the fresh snow it rolls over, leaving bare ground behind, and slows down as
+    it grows; A stands it where it is and starts the next one. Then they're stacked, and
+    you're scored on how tall your snowman stands, in centimetres. A ball has to be
+    smaller than the one it goes on or it rolls off (the next one goes on whatever is
+    still standing), so the top of the screen shows the size you're rolling and the size
+    it has to beat.
+  - **Hot chocolate stand** (WORK THE STAND): coworkers line up with their orders for 90
+    seconds. Hold A to pour up to the red line on the mug (the last of the stream still
+    falls after you let go), then Left drops in a marshmallow, Up adds whipped cream,
+    Right a candy cane, and Down hands it over. The right toppings earn a star, and the
+    fill earns two more if it's spot on (one if it's close). Pour over the rim and you
+    start a new mug. Keep anyone waiting too long and they walk off; three walk-offs and
+    the stand shuts.
+  - **Snowbanks**: a snowball fight against five coworkers, behind three forts across the
+    lot and two further back, for 90 seconds or until you've been hit three times. Left
+    and right move you along your wall; A throws straight up the lot, hitting whoever is
+    standing up at a fort as it passes (the near forts stop it). Holding Down ducks
+    behind your wall, where nothing can hit you, and packs another snowball (you hold
+    5). They pop up, wind up and throw at where you're standing, with a mark on your wall
+    where each will land, so duck or get out of the way. More of them pop up at once, and
+    they throw faster and straighter, as it goes on.
+
+  They're in `js/game.js` after `yardTalk` (ChopGame, MallowGame, SpruceGame, SnowmanGame,
+  CocoaGame and SnowballGame), and `YARD_GAMES` says which prop starts which.
 - **Hockey**: talk to whoever is minding the rink's gate and they'll take you on, one
   on one, three minutes, no goalies. Arrows skate (diagonals too, and you carry on
   coasting when you let go); a thumbstick (on a phone's screen or a controller) skates
@@ -778,6 +830,7 @@ Add these to the end of the address (after `index.html`) and press Enter.
 | Kingston plant | `forklift`, `paint` (Even Coat) |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`), `fame` (the Hall of Fame) |
 | Halloween | `contest`, `bob`, `mummy`, `carve`, `treat`, `ghosts`, `hsplash` (the closing screen) |
+| Christmas | `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball` |
 
 Plain `index.html#play` skips the title screen and drops you at the entrance.
 
@@ -793,7 +846,8 @@ Best scores are saved in the browser, and sent to the online leaderboards when
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
-`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `pokerlive`, `hockey1` and `hockey2` (live hockey, with `&yard=1` to be out at the rink; these three need `&server=`), `blackjack`, `build`, `forklift`, `paint`) opens a game straight away.
+`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `pokerlive`, `hockey1` and `hockey2` (live hockey, with `&yard=1` to be out at the rink; these three need `&server=`), `blackjack`, `build`, `forklift`, `paint`,
+`chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`) opens a game straight away.
 `&dog=Bella` puts that dog right in front of you; `game=catch` plays catch with it
 and `game=dogs` shows the frisbee leaderboard.
 For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,

@@ -495,6 +495,9 @@
     post: () => { tone(1980, 0.5, 'triangle', 0.07); tone(2970, 0.3, 'sine', 0.035); },
     mesh: () => noise(0.18, 1300, 0.05),
     horn: () => { for (const f of [233, 294, 349]) { tone(f, 0.9, 'sawtooth', 0.04); tone(f, 1.1, 'sawtooth', 0.04, 0, 0.95); } },
+    // out in the parking lot: packing snow, and a snowball landing on somebody
+    crunch: () => noise(0.08, 650, 0.05),
+    splat: () => { noise(0.14, 900, 0.1); tone(220, 0.1, 'sine', 0.06, -140); },
   };
   function sfx(name, arg) { if (soundOn && actx) SFX[name](arg); }
 
@@ -2583,6 +2586,8 @@
     golf: { title: 'WADE\'S PUTTING GREEN', low: true }, dark: { title: 'DAMIR\'S LIGHTS', unit: 's', low: true },
     mummy: { title: 'MUMMY WRAP', unit: tenths, low: true },
     forklift: { title: 'FORKLIFT RUSH', unit: ' pallets' }, paint: { title: 'EVEN COAT' },
+    chop: { title: 'WOOD CHOPPING', unit: ' logs' }, mallow: { title: 'MARSHMALLOWS' }, spruce: { title: 'DECK THE SPRUCE' },
+    snowman: { title: 'SNOWMAN', unit: ' cm' }, cocoa: { title: 'HOT CHOCOLATE STAND', unit: ' stars' }, snowball: { title: 'SNOWBALL FIGHT', unit: ' hits' },
     // the side quests: the "score" is how many times that name has done it (see questBoard), as it is for Pong (count)
     linda: { title: 'LINDA SET FREE', unit: times, quest: true, count: true }, eotm: { title: 'EMPLOYEE OF THE MONTH', unit: times, quest: true, count: true },
   };
@@ -2722,7 +2727,13 @@
     ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catch']],
     ['KINGSTON PLANT', ['forklift', 'paint']],
     ['HALLOWEEN', ['bob', 'mummy', 'carve', 'treat', 'ghosts', 'costume']],
+    ['CHRISTMAS', ['chop', 'mallow', 'spruce', 'snowman', 'cocoa', 'snowball']],
   ];
+  // The holidays' games stay out of the Hall of Fame altogether (their page, the champions'
+  // points and the latest scores) until the day that holiday first came round, so scores
+  // put in early while trying them out don't show; from then on they're there for good.
+  // Forcing the holiday on (&christmas=1) shows them early, on that screen only.
+  const SEASON_FROM = { HALLOWEEN: new Date(2026, 9, 1), CHRISTMAS: new Date(2026, 10, 27) };
   const GOLD = '#c08818', MEDALS = [GOLD, '#8890a0', '#b06830'];
   const pts = (n) => n + (n === 1 ? ' pt' : ' pts');
   const nth = (n) => n + ((n % 100 >= 11 && n % 100 <= 13) ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
@@ -2769,13 +2780,14 @@
   }
   function HallOfFame() {
     const name = playerName || store.get('name') || '', me = name ? boardKey(name) : null;
-    const keys = Object.keys(BOARDS), games = keys.filter((k) => !BOARDS[k].quest), grouped = new Set(FAME_GROUPS.flatMap(([, k]) => k));
-    const groups = FAME_GROUPS.concat([['OTHER', games.filter((k) => !grouped.has(k))]]);
+    // (leaving out any holiday that hasn't come round yet: see SEASON_FROM)
+    const SEASON = { HALLOWEEN, CHRISTMAS }, early = (g) => g in SEASON_FROM && !SEASON[g] && Date.now() < SEASON_FROM[g];
+    const shown = FAME_GROUPS.filter(([g]) => !early(g)), hidden = new Set(FAME_GROUPS.filter(([g]) => early(g)).flatMap(([, k]) => k));
+    const keys = Object.keys(BOARDS).filter((k) => !hidden.has(k)), games = keys.filter((k) => !BOARDS[k].quest), grouped = new Set(FAME_GROUPS.flatMap(([, k]) => k));
+    const groups = shown.concat([['OTHER', games.filter((k) => !grouped.has(k))]]);
     let boards = null, failed = !(BOARD_URL || boardDemo), standings = [], latest = [], tab = 0, sel = 0, scroll = 0, t = 0;
-    // Halloween's games only get a page in October, or once somebody has a score on them
     const LIVE = BOARDS.pokerlive.title;
-    const pages = () => ['CHAMPIONS', 'LATEST SCORES', 'QUESTS', LIVE].concat(groups.filter(([g, k]) => k.length &&
-      (g !== 'HALLOWEEN' || HALLOWEEN || (boards && k.some((key) => boards[key].length)))));
+    const pages = () => ['CHAMPIONS', 'LATEST SCORES', 'QUESTS', LIVE].concat(groups.filter(([, k]) => k.length));
     const rankOf = (key) => (boards && me ? boards[key].findIndex((r) => r.id === me) : -1);
     if (!failed) {
       Promise.all(keys.map((k) => boardAll(k, name).catch(() => null))).then((all) => {
@@ -10106,6 +10118,8 @@
     dance: 'Playing Dance-Off', jar: 'Playing Candy Jar', bob: 'Playing Bobbing for Apples', mummy: 'Playing Mummy Wrap',
     carve: 'Playing Pumpkin Carving', treat: 'Playing Trick-or-Treat', ghosts: 'Playing Ghost in the Cupboard',
     costume: 'Playing Costume Contest', forklift: 'Playing Forklift Rush', paint: 'Playing Even Coat',
+    chop: 'Chopping wood', mallow: 'Roasting marshmallows', spruce: 'Decorating the spruce', snowman: 'Building a snowman',
+    cocoa: 'Pouring hot chocolate', snowball: 'In a snowball fight',
   };
   // the game you've got open, for over your head (or null)
   const mpDoing = () => { for (let i = ui.length - 1; i >= 0; i--) if (ui[i].doing) return ui[i]; return null; };
@@ -10815,31 +10829,1107 @@
     L: ['A lamp post with a wreath on it. Strings of lights run from it out over the rink.'],
     B: ['The boards around the rink. HAAKON, HAAKON, HAPPY HOLIDAYS.'],
     n: ['A hockey net. Whoever is minding the gate has the pucks.'],
-    f: ['A fire pit, crackling away. You hold your hands out to it. Lovely.'],
     b: ['A bench. Someone has left their skate guards on it.'],
-    s: ['A snowman in a top hat and a red scarf. Somebody has given it a HAAKON lanyard.'],
-    '*': ['A big pile of plowed snow.'],
-    Y: ['A big spruce strung with lights, with a star on top.'],
-    w: ['A stack of split firewood for the fire pit. Someone has left the axe in the chopping block.'],
     '#': ['The office. It looks warm in there.'],
     ' ': ['Snowy woods. It is very quiet in there.'],
+  };
+  // The winter games (below), at the props they're played at. The hot chocolate stand's
+  // is in yardTalk, since it pours you one as well.
+  const YARD_GAMES = {
+    w: ['A stack of split firewood for the fire pit, running low. Someone has left the axe in the chopping block.', 'CHOP WOOD', ChopGame],
+    f: ['A fire pit, crackling away. Somebody has left a bag of marshmallows and a pile of roasting sticks on the bench.', 'ROAST ONE', MallowGame],
+    Y: ['A big spruce strung with lights. The wind has blown the star off the top, and there\'s a box of decorations nobody has got round to.', 'DECORATE IT', SpruceGame],
+    s: ['A snowman in a top hat and a red scarf. Somebody has given it a HAAKON lanyard. It looks like it could use a friend.', 'BUILD ONE', SnowmanGame],
+    '*': ['A big pile of plowed snow, just right for a fort. Across the lot, somebody is already packing snowballs.', 'SNOWBALL FIGHT', SnowballGame],
   };
   function yardTalk(t, tx, ty) {
     if (t === 'h') {
       sfx('select');
-      ask('The hot chocolate stand. Free for Haakon staff!', ['HAVE ONE', 'NO THANKS'], (i) => {
+      ask('The hot chocolate stand. Free for Haakon staff! Whoever was pouring has gone on break, and there\'s a line.', ['HAVE ONE', 'WORK THE STAND', 'NO THANKS'], (i) => {
+        if (i === 1) { sfx('menu'); ui.push(CocoaGame()); return; }
         if (i !== 0) return;
         xmas.cocoa++;
         sfx('cup');
         say(xmas.cocoa === 1 ? 'A hot chocolate with a mountain of whipped cream. Warm hands at last.'
           : xmas.cocoa < 4 ? 'Another hot chocolate. Extra marshmallows this time.'
-            : 'Hot chocolate number ' + xmas.cocoa + '. The person at the stand is starting to look worried.');
+            : 'Hot chocolate number ' + xmas.cocoa + '. The line behind you is starting to look worried.');
       });
       return;
     }
     if (MP_WS && 'B~n'.includes(t)) { rinkTalk(); return; } // the boards, the ice, a net
+    if (YARD_GAMES[t]) {
+      const [msg, opt, Game] = YARD_GAMES[t];
+      sfx('select');
+      ask(msg, [opt, 'NOT NOW'], (i) => { if (i === 0) { sfx('menu'); ui.push(Game()); } });
+      return;
+    }
     const msgs = YARD_INFO[t];
     if (msgs) { sfx('select'); say(msgs[(tx * 3 + ty * 5) % msgs.length]); }
+  }
+
+  // ---------- winter games around the parking lot ----------
+  // Six games at the lot's props: the chopping block at the end of the woodpile (ChopGame),
+  // the fire pit (MallowGame), the big spruce (SpruceGame), the snowman (SnowmanGame), the
+  // hot chocolate stand (CocoaGame) and the snowbanks (SnowballGame). They fill the screen
+  // like the games indoors (cover tells draw it needn't draw the lot underneath them).
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  function disc(x, y, r, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+  function oval(x, y, rx, ry, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); }
+  // the sky at dusk from y0 down to y1, with the woods along the bottom of it
+  function duskSky(y0, y1) {
+    const BANDS = ['#141a38', '#1c2448', '#28305a', '#3a3866', '#54426c', '#704e70'], h = (y1 - y0) / BANDS.length;
+    BANDS.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(0, Math.floor(y0 + i * h), SW, Math.ceil(h) + 1); });
+    ctx.fillStyle = '#10182a';
+    for (let x = 4; x < SW + 12; x += 11) {
+      const th = 12 + (x * 37) % 13;
+      for (let k = 0; k < th; k += 2) { const w = Math.round(k / th * 6) + 1; ctx.fillRect(x - w, y1 - th + k, w * 2, 2); }
+    }
+  }
+  // snow falling over everything
+  function snowfall(t, n) {
+    ctx.fillStyle = 'rgba(248, 250, 255, 0.85)';
+    for (let i = 0; i < n; i++) {
+      const s = i % 3 ? 1 : 2;
+      const x = Math.round(((i * 97 + t * 0.2 + Math.sin(t / 50 + i) * 5) % SW + SW) % SW), y = Math.round((i * 53 + t * (0.3 + (i % 5) * 0.1)) % SH);
+      ctx.fillRect(x, y, s, s);
+    }
+  }
+  // along the top: the game and your score on the left, the clock (red near the end) and your best on the right
+  function winterHud(title, score, best, left) {
+    text(title, 12, 10, 1, '#f8e8a0');
+    text(score, 12, 24, 1, '#f8f8f8');
+    const tm = 'Time ' + Math.ceil(left / 60);
+    text(tm, SW - 12 - tm.length * 6, 10, 1, left < 300 ? '#f05040' : '#f8f8f8');
+    text(best, SW - 12 - best.length * 6, 24, 1, '#c8ccd8');
+  }
+  // a five-pointed star
+  function starShape(x, y, r, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 5, rr = i & 1 ? r * 0.45 : r;
+      ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    ctx.fill();
+  }
+  // n coworkers for a game: whoever is out in the lot, then anyone from inside
+  function lotCrew(n) {
+    const ok = (p) => !p.ghost && !p.extra && !p.guest;
+    return shuffled(npcs.filter((p) => ok(p) && p.floor === YARD)).concat(shuffled(npcs.filter((p) => ok(p) && p.floor !== YARD))).slice(0, n);
+  }
+
+  // Wood chopping: split each log down the crack across its top. Slide the axe over the
+  // crack, hold A to heft it and let go to bring it down. The higher it goes the harder it
+  // lands, but the more it sways, and it sinks again if you hold it up too long. A big log
+  // needs a big swing or the axe sticks (mash A to work it free); off the crack, it only
+  // opens the crack a little; a knot bounces it straight off. 60 seconds.
+  function ChopGame() {
+    const TIME = 60 * 60, CX = 160, BLOCK = 176, LOG_H = 44;
+    const SIZES = [{ w: 32, need: 0.3 }, { w: 46, need: 0.52 }, { w: 60, need: 0.74 }];
+    let state = 'ready', t = 0, left = TIME, aim = CX, power = 0, rising = true, winding = false, swing = 0, hit = null,
+      log = null, next = 0, drop = 0, stuck = 0, logs = 0, pieces = [], shake = 0, record = false, msg = '', msgT = 0;
+    function newLog() {
+      // the bigger logs turn up more as you go
+      const size = Math.min(2, Math.floor(Math.random() * (1.7 + logs * 0.15))), s = SIZES[size], half = s.w / 2;
+      const crack = Math.round((Math.random() * 2 - 1) * (half - 7));
+      let knot = null;
+      if (size && Math.random() < 0.6) {
+        const k = crack + (crack > 0 ? -1 : 1) * (11 + Math.random() * 5);
+        if (Math.abs(k) < half - 4) knot = k;
+      }
+      log = { size, w: s.w, need: s.need, crack, knot, tol: 5 };
+      drop = 14;
+    }
+    // the axe sways more the higher it's lifted, and more the more you've chopped (tired arms)
+    const sway = () => power * Math.min(14, 5 + logs * 0.45) * Math.sin(t * 0.13);
+    function chop() {
+      const off = hit.x - CX, half = log.w / 2;
+      if (Math.abs(off) > half + 2) { sfx('thump'); msg = 'Missed the log!'; msgT = 40; return; }
+      if (log.knot !== null && Math.abs(off - log.knot) < 5) { sfx('bump'); shake = 5; msg = 'A knot! The axe bounces off.'; msgT = 45; return; }
+      if (hit.power < log.need) { sfx('chop'); stuck = 4 + log.size * 2; msgT = 0; return; }
+      if (Math.abs(off - log.crack) > log.tol) {
+        log.tol = Math.min(13, log.tol + 3);
+        sfx('chop'); shake = 2; msg = 'Off the crack. It opens up a little.'; msgT = 45;
+        return;
+      }
+      // a clean split: the halves fly off either side
+      logs++;
+      sfx('hit', 90); shake = 4; msg = 'Clean split!'; msgT = 35;
+      const mid = BLOCK - LOG_H / 2, lw = log.crack + half, rw = half - log.crack;
+      pieces.push({ x: CX - half + lw / 2, y: mid, w: lw, vx: -2 - Math.random() * 1.5, vy: -4 - Math.random() * 2, a: 0, va: -0.1 - Math.random() * 0.08 },
+        { x: CX + log.crack + rw / 2, y: mid, w: rw, vx: 2 + Math.random() * 1.5, vy: -4 - Math.random() * 2, a: 0, va: 0.1 + Math.random() * 0.08 });
+      log = null; next = 30;
+    }
+    function drawAxe(x, y) {
+      x = Math.round(x); y = Math.round(y);
+      ctx.fillStyle = '#3a2410'; ctx.fillRect(x - 3, y - 58, 6, 50);
+      ctx.fillStyle = '#b07840'; ctx.fillRect(x - 2, y - 58, 4, 50);
+      ctx.fillStyle = '#20242c'; ctx.fillRect(x - 6, y - 66, 12, 13); // your mittens on the handle
+      ctx.fillStyle = '#c84030'; ctx.fillRect(x - 5, y - 65, 10, 11);
+      ctx.fillStyle = '#e86050'; ctx.fillRect(x - 4, y - 64, 3, 4);
+      ctx.fillStyle = '#20242c'; ctx.fillRect(x - 9, y - 13, 18, 13); // the head, edge down
+      ctx.fillStyle = '#8890a0'; ctx.fillRect(x - 8, y - 12, 16, 10);
+      ctx.fillStyle = '#c03028'; ctx.fillRect(x - 3, y - 12, 6, 4);
+      ctx.fillStyle = '#e8f0f8'; ctx.fillRect(x - 8, y - 3, 16, 2);
+    }
+    const self = {
+      music: 'jingle', doing: 'chop', cover: true,
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; newLog(); } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(logs ? 'You split ' + logs + (logs === 1 ? ' log' : ' logs') + '. The fire pit is set for the night.' + (record ? ' A new record!' : '')
+              : 'Not one log split. The axe goes back in the block.');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You leave the axe in the block for the next person.'); return; }
+        if (msgT > 0) msgT--;
+        shake *= 0.8;
+        for (const p of pieces) { p.x += p.vx; p.y += p.vy; p.vy += 0.35; p.a += p.va; }
+        pieces = pieces.filter((p) => p.y < SH + 40);
+        if (--left <= 0) { left = 0; state = 'done'; t = 0; winding = false; power = 0; record = saveBest('chop', logs); sfx('ding'); return; }
+        if (drop > 0) drop--;
+        if (next > 0 && --next === 0) newLog();
+        if (stuck) {
+          if (pressed.has('a')) { stuck--; shake = 2; sfx('bump'); }
+          if (!stuck) { swing = 0; hit = null; }
+          return;
+        }
+        if (swing) {
+          if (++swing === 6) chop();
+          if (swing >= 20 && !stuck) { swing = 0; hit = null; }
+          return;
+        }
+        const sp = winding ? 0.9 : 2;
+        if (held.left) aim -= sp;
+        if (held.right) aim += sp;
+        aim = clamp(aim, CX - 80, CX + 80);
+        if (!log || drop) { winding = false; power = 0; return; }
+        if (held.a) {
+          if (!winding) { winding = true; power = 0; rising = true; }
+          power += rising ? 0.028 : -0.028;
+          if (power >= 1) { power = 1; rising = false; }
+          if (power <= 0.1) { power = 0.1; rising = true; }
+        } else if (winding) {
+          winding = false; hit = { x: aim + sway(), power }; power = 0; swing = 1; sfx('swish');
+        }
+      },
+      draw() {
+        duskSky(0, 128);
+        ctx.fillStyle = '#e8eef8'; ctx.fillRect(0, 128, SW, SH - 128);
+        ctx.fillStyle = '#c8d4e8'; ctx.fillRect(0, 128, SW, 3);
+        snowfall(t, 30);
+        winterHud('Wood chopping', 'Logs ' + logs, 'Best ' + getBest('chop'), left);
+        ctx.save();
+        if (shake > 0.5) ctx.translate(Math.round((Math.random() - 0.5) * shake), Math.round((Math.random() - 0.5) * shake));
+        // the woodpile, growing as you go
+        for (let i = 0; i < Math.min(40, 8 + logs * 2); i++) {
+          const row = Math.floor(i / 5), x = 256 + (i % 5) * 11 + (row & 1) * 5, y = 210 - row * 9;
+          disc(x, y, 5.5, '#4a2c14'); disc(x, y, 4.5, '#d8b070'); disc(x, y, 2, '#a87840');
+        }
+        // the chopping block
+        ctx.fillStyle = '#4a2c14'; ctx.fillRect(CX - 41, BLOCK, 82, 36);
+        ctx.fillStyle = '#5e3a20'; ctx.fillRect(CX - 40, BLOCK, 80, 36);
+        ctx.fillStyle = '#6e4628'; for (let x = CX - 36; x < CX + 38; x += 9) ctx.fillRect(x, BLOCK + 5, 2, 31);
+        oval(CX, BLOCK, 40, 7, '#c89860'); oval(CX, BLOCK, 28, 5, '#b08048'); oval(CX, BLOCK, 14, 3, '#c89860');
+        const top = BLOCK - LOG_H;
+        if (log) {
+          const half = log.w / 2, ty = top - drop * drop * 0.6, x0 = CX - half;
+          ctx.fillStyle = '#3a2410'; ctx.fillRect(x0 - 1, ty, log.w + 2, BLOCK - ty + 1);
+          ctx.fillStyle = '#6a4224'; ctx.fillRect(x0, ty, log.w, BLOCK - ty);
+          ctx.fillStyle = '#7e5432'; for (let x = x0 + 3; x < x0 + log.w - 2; x += 7) ctx.fillRect(x, ty + 4, 2, BLOCK - ty - 7);
+          // its top: the rings, the crack (wider as it opens up) and any knot
+          oval(CX, ty, half + 1, 6, '#3a2410'); oval(CX, ty, half, 5, '#e0b878'); oval(CX, ty, half * 0.66, 3.4, '#c89858'); oval(CX, ty, half * 0.33, 1.7, '#e0b878');
+          const cw = Math.max(1, Math.round((log.tol - 3) / 2)), cx = Math.round(CX + log.crack - cw / 2);
+          ctx.fillStyle = '#2a180c'; ctx.fillRect(cx, Math.round(ty - 4), cw, 9); ctx.fillRect(cx, Math.round(ty + 5), Math.max(1, cw - 1), 4 + (log.tol - 5) * 2);
+          if (log.knot !== null) { oval(CX + log.knot, ty, 3.5, 2.2, '#5a3418'); oval(CX + log.knot, ty, 1.5, 1, '#2a180c'); }
+        }
+        for (const p of pieces) {
+          ctx.save(); ctx.translate(Math.round(p.x), Math.round(p.y)); ctx.rotate(p.a);
+          ctx.fillStyle = '#3a2410'; ctx.fillRect(-p.w / 2 - 1, -LOG_H / 2 - 1, p.w + 2, LOG_H + 2);
+          ctx.fillStyle = '#6a4224'; ctx.fillRect(-p.w / 2, -LOG_H / 2, p.w, LOG_H);
+          ctx.fillStyle = '#e0b878'; ctx.fillRect(p.vx < 0 ? p.w / 2 - 4 : -p.w / 2, -LOG_H / 2, 4, LOG_H); // the fresh split face
+          ctx.restore();
+        }
+        // the axe: over the log, lifted while you heft it, coming down when you let go
+        let ax = aim + sway(), ay = top - 22 - power * 62;
+        if (hit) {
+          const up = top - 22 - hit.power * 62, down = log && Math.abs(hit.x - CX) > log.w / 2 + 2 ? BLOCK + 2 : top + 3;
+          ax = hit.x; ay = swing && swing < 6 ? up + (down - up) * swing / 6 : down;
+        }
+        drawAxe(ax, ay);
+        ctx.restore();
+        // how hard it'll come down, and (the gold mark) how hard this log needs it
+        const MX = 18, MY = 60, MH = 110, pw = winding ? power : hit ? hit.power : 0;
+        ctx.fillStyle = '#181820'; ctx.fillRect(MX - 2, MY - 2, 12, MH + 4);
+        ctx.fillStyle = '#404858'; ctx.fillRect(MX, MY, 8, MH);
+        ctx.fillStyle = log && pw >= log.need ? '#58c848' : '#f09030';
+        ctx.fillRect(MX, MY + MH - Math.round(pw * MH), 8, Math.round(pw * MH));
+        if (log) { ctx.fillStyle = '#f8e040'; ctx.fillRect(MX - 4, MY + MH - Math.round(log.need * MH), 16, 2); }
+        text('Power', MX - 8, MY + MH + 6, 1, '#40485a');
+        if (stuck) ctext('Stuck! Mash Space to work it free', 44, '#f05040');
+        else if (msgT > 0) ctext(msg, 44, '#f8e040');
+        if (state === 'ready') readyBox(t, 'Hold Space, let go to chop');
+        else if (state === 'done') doneBox(['Time!', 'Logs split: ' + logs, record ? 'New record!' : 'Best ' + getBest('chop')], t);
+        else text('Arrows: aim   Hold Space: heft   Esc: give up', 12, SH - 14, 1, '#40485a');
+      },
+    };
+    return self;
+  }
+
+  // Toasting marshmallows over the fire pit, golden brown all the way round. Up and down
+  // raise and lower the stick (lower is hotter), left and right give it a quarter turn, and
+  // A takes it off to eat. The side facing the fire toasts fastest, the two beside it a
+  // little and the top hardly at all, and now and then the fire flares up (it crackles
+  // first). Let a side go black and it catches fire: blow it out with A, quick, or it's
+  // charcoal. Five marshmallows, 20 seconds each, each scored out of 100.
+  function MallowGame() {
+    const N = 5, EACH = 20 * 60, HI = 66, LO = 156, MX = 160;
+    const TOAST = [[0, [246, 242, 232]], [0.35, [240, 216, 156]], [0.62, [218, 156, 70]], [0.85, [146, 84, 36]], [1, [46, 28, 18]]];
+    // the four sides going round; sides[turn] faces the fire
+    let state = 'ready', t = 0, n = 0, y = 96, sides = [0, 0, 0, 0], turn = 0, roll = 0, left = EACH, flare = 0, gust = 240,
+      burning = 0, ignite = 1, total = 0, last = null, record = false, embers = [];
+    function toast(v) {
+      v = clamp(v, 0, 1);
+      let i = 0;
+      while (i < TOAST.length - 2 && v > TOAST[i + 1][0]) i++;
+      const [a, ca] = TOAST[i], [b, cb] = TOAST[i + 1], f = (v - a) / (b - a);
+      return 'rgb(' + ca.map((c, k) => Math.round(c + (cb[k] - c) * f)).join(',') + ')';
+    }
+    // a side's score: 100 at golden brown, less either way, nothing once it's black
+    const sideScore = (v) => (v >= 1 ? 0 : Math.max(0, 100 - Math.abs(v - 0.62) * 230));
+    // how hot it is where the marshmallow is: nothing up high, 1 down in the flames (more in a flare-up)
+    const heat = () => Math.pow(clamp((y - HI) / (LO - HI), 0, 1), 2) * (0.88 + 0.12 * Math.sin(t * 0.37) + (flare ? 0.9 : 0));
+    function nextMallow() { n++; sides = [0, 0, 0, 0]; turn = 0; roll = 0; left = EACH; y = 96; burning = 0; ignite = 1; state = 'play'; t = 0; }
+    function serve(why) {
+      const s = Math.round(sides.reduce((a, v) => a + sideScore(v), 0) / 4);
+      total += s;
+      last = { s, line: why || (sides.some((v) => v >= 1) ? 'Charred on one side' : s >= 90 ? 'Perfect golden brown!' : s >= 70 ? 'Nicely toasted'
+        : Math.max(...sides) < 0.3 ? 'Barely warm' : s >= 40 ? 'A bit patchy' : 'Raw on one side') };
+      state = 'eat'; t = 0; burning = 0;
+      sfx(s >= 70 ? 'ding' : 'blip');
+    }
+    function tongue(x, base, w, h, c) {
+      ctx.fillStyle = c; ctx.beginPath();
+      ctx.moveTo(x - w, base); ctx.lineTo(x + w, base); ctx.lineTo(x + Math.sin(t * 0.2 + x) * 3, base - h);
+      ctx.fill();
+    }
+    const self = {
+      music: 'jingle', doing: 'mallow', cover: true,
+      update() {
+        t++;
+        // embers drift up off the fire the whole time
+        if (Math.random() < (flare ? 0.6 : 0.25)) embers.push({ x: MX - 30 + Math.random() * 60, y: 196, vx: (Math.random() - 0.5) * 0.6, vy: -0.8 - Math.random() * 1.2, life: 40 + Math.random() * 40 });
+        for (const e of embers) { e.x += e.vx; e.y += e.vy; e.life--; }
+        embers = embers.filter((e) => e.life > 0);
+        if (state === 'ready') { if (t > 75) nextMallow(); return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say('Five marshmallows, ' + total + ' points out of ' + N * 100 + '.' + (record ? ' A new record!' : '') + ' You feel a little bit sick.');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You hand your stick to somebody else.'); return; }
+        if (state === 'eat') {
+          if (t > 80) { if (n >= N) { state = 'done'; t = 0; record = saveBest('mallow', total); sfx('ding'); } else nextMallow(); }
+          return;
+        }
+        // the fire flares up now and then, with a crackle first to warn you
+        if (flare > 0) flare--;
+        else if (--gust <= 0) { flare = 50; gust = Math.floor(200 + Math.random() * 260); }
+        else if (gust === 24) sfx('sizzle');
+        if (held.up) y -= 1.5;
+        if (held.down) y += 1.5;
+        y = clamp(y, HI - 2, LO + 8);
+        if (roll) roll -= Math.sign(roll);
+        if (pressed.has('left')) { turn = (turn + 3) % 4; roll = -8; sfx('select'); }
+        if (pressed.has('right')) { turn = (turn + 1) % 4; roll = 8; sfx('select'); }
+        const h = heat() / 150;
+        sides[turn] += h; sides[(turn + 1) % 4] += h * 0.3; sides[(turn + 3) % 4] += h * 0.3; sides[(turn + 2) % 4] += h * 0.08;
+        if (burning) {
+          for (let i = 0; i < 4; i++) sides[i] += 0.006;
+          if (pressed.has('a')) { burning = 0; ignite = Math.max(...sides) + 0.25; sfx('swish'); }
+          else if (--burning <= 0) { sides = [1.4, 1.4, 1.4, 1.4]; serve('Charcoal. Pure charcoal.'); return; }
+        } else if (sides.some((v) => v >= ignite)) { burning = 50; sfx('sizzle'); }
+        else if (pressed.has('a')) { serve(); return; }
+        if (--left <= 0) serve();
+      },
+      draw() {
+        duskSky(0, 150);
+        ctx.fillStyle = '#dfe6f2'; ctx.fillRect(0, 150, SW, SH - 150);
+        ctx.fillStyle = '#c4cfe2'; ctx.fillRect(0, 150, SW, 3);
+        // the glow of the fire on the snow
+        oval(MX, 208, 130, 36, 'rgba(248, 160, 60, ' + (0.18 + (flare ? 0.12 : 0) + Math.sin(t * 0.3) * 0.03) + ')');
+        snowfall(t, 24);
+        winterHud('Marshmallow ' + Math.max(1, Math.min(n, N)) + '/' + N, 'Score ' + total, 'Best ' + getBest('mallow'), left);
+        // the fire pit: stones round the back, logs, the flames (leaping in a flare-up), then the stones in front
+        const stone = (a) => { const x = MX + Math.cos(a) * 54, sy = 206 + Math.sin(a) * 13; oval(x, sy, 9, 6, '#383c48'); oval(x - 1, sy - 1, 7, 4, '#7a808e'); };
+        for (let i = 0; i < 9; i++) stone(Math.PI + i * Math.PI / 8);
+        ctx.fillStyle = '#3a2410'; ctx.fillRect(MX - 34, 198, 68, 8);
+        ctx.fillStyle = '#5a3820'; ctx.fillRect(MX - 32, 199, 64, 6);
+        const fh = 32 + (flare ? 30 : gust < 24 ? 6 : 0);
+        for (let i = 0; i < 7; i++) {
+          const fx = MX - 36 + i * 12, hh = fh * (0.55 + 0.45 * Math.abs(Math.sin(t * 0.17 + i * 1.7))) * (i === 0 || i === 6 ? 0.6 : 1);
+          tongue(fx, 202, 9, hh, '#d84818'); tongue(fx, 202, 6, hh * 0.7, '#f89828'); tongue(fx, 202, 3, hh * 0.4, '#f8e870');
+        }
+        for (const e of embers) { ctx.fillStyle = e.life > 30 ? '#f8c048' : '#c05020'; ctx.fillRect(Math.round(e.x), Math.round(e.y), 1, 1); }
+        for (let i = 1; i < 8; i++) stone(i * Math.PI / 8);
+        // the stick, then the marshmallow on the end of it: the top, the side facing you, and the side facing the fire
+        const my = Math.round(y);
+        ctx.strokeStyle = '#3a2410'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(MX - 20, my); ctx.lineTo(SW + 10, my + 46); ctx.stroke();
+        ctx.strokeStyle = '#8a6038'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(MX - 20, my); ctx.lineTo(SW + 10, my + 46); ctx.stroke();
+        ctx.fillStyle = '#2a201a'; ctx.fillRect(MX - 16, my - 13, 32, 26); ctx.fillRect(MX - 15, my - 14, 30, 28);
+        const band = (by, bh, v) => { ctx.fillStyle = toast(v); ctx.fillRect(MX - 15, by, 30, bh); };
+        band(my - 13, 6, sides[(turn + 2) % 4]); band(my - 7, 14, sides[(turn + 1) % 4]); band(my + 7, 6, sides[turn]);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; ctx.fillRect(MX - 12, my - 5, 3, 9);
+        if (burning) for (let i = 0; i < 4; i++) {
+          const fx = MX - 12 + i * 8, hh = 10 + Math.abs(Math.sin(t * 0.3 + i * 2)) * 10;
+          tongue(fx, my - 8, 5, hh, '#e05018'); tongue(fx, my - 8, 3, hh * 0.6, '#f8c040');
+        }
+        // the marshmallow seen end on: its four sides, the bottom one facing the fire
+        const IX = 284, IY = 84, rot = -roll / 8 * Math.PI / 2;
+        disc(IX, IY, 17, '#181820');
+        for (let k = 0; k < 4; k++) {
+          const a = Math.PI / 2 - k * Math.PI / 2 + rot;
+          ctx.fillStyle = toast(sides[(turn + k) % 4]); ctx.beginPath(); ctx.moveTo(IX, IY);
+          ctx.arc(IX, IY, 15, a - Math.PI / 4 + 0.06, a + Math.PI / 4 - 0.06); ctx.fill();
+        }
+        text('Sides', IX - 15, IY - 30, 1, '#f8f8f8');
+        tongue(IX, IY + 30, 4, 8, '#f89828');
+        // how hot it is where you're holding it
+        const HX = 18, HY = 60, HH = 110, hv = Math.min(1, heat() / 1.6);
+        ctx.fillStyle = '#181820'; ctx.fillRect(HX - 2, HY - 2, 12, HH + 4);
+        ctx.fillStyle = '#404858'; ctx.fillRect(HX, HY, 8, HH);
+        ctx.fillStyle = hv > 0.55 ? '#e84828' : hv > 0.25 ? '#f0a030' : '#f0d860';
+        ctx.fillRect(HX, HY + HH - Math.round(hv * HH), 8, Math.round(hv * HH));
+        text('Heat', HX - 5, HY + HH + 6, 1, '#40485a');
+        if (burning) ctext('ON FIRE! Space: blow it out', 44, '#f05040');
+        else if (state === 'eat') ctext(last.line + '  +' + last.s, 44, last.s >= 70 ? '#58e048' : '#f8e040');
+        else if (flare) ctext('The fire flares up!', 44, '#f8a040');
+        if (state === 'ready') readyBox(t, 'Golden brown on every side');
+        else if (state === 'done') doneBox(['All eaten!', 'Score: ' + total + ' / ' + N * 100, record ? 'New record!' : 'Best ' + getBest('mallow')], t);
+        else text('Up/Down: height  Left/Right: turn  Space: eat', 12, SH - 12, 1, '#40485a');
+      },
+    };
+    return self;
+  }
+
+  // Decorating the big spruce: 45 seconds to hang everything the box hands you. Steer your
+  // hand with the arrows and hang the next decoration with A. Each is worth 10, plus 5 with
+  // nothing the same near it and 5 with room to itself; right up against another, it slips
+  // off and breaks (-5). Then the star goes back on: drop it as it swings over the top.
+  function SpruceGame() {
+    const TIME = 45 * 60, CX = 160, APEX = 34;
+    // the three tiers of branches: [top, bottom, half the width at the bottom]
+    const TIERS = [[APEX, 96, 44], [70, 150, 72], [118, 204, 102]];
+    const BALLS = { red: '#e03838', gold: '#f0c030', blue: '#3c7ce8', purple: '#a050d8', silver: '#d8e0e8' };
+    const KINDS = Object.keys(BALLS).concat(['cane', 'bow']);
+    const inTree = (x, y) => TIERS.some(([y0, y1, hw]) => y >= y0 + 8 && y <= y1 - 2 && Math.abs(x - CX) <= hw * (y - y0) / (y1 - y0) - 4);
+    const bulbs = [];
+    for (let i = 0; bulbs.length < 44 && i < 999; i++) {
+      const x = CX - 100 + Math.random() * 200, y = APEX + Math.random() * 170;
+      if (inTree(x, y)) bulbs.push({ x: Math.round(x), y: Math.round(y) });
+    }
+    const pick = () => KINDS[Math.floor(Math.random() * KINDS.length)];
+    let state = 'ready', t = 0, left = TIME, hx = CX, hy = 140, cur = pick(), nxt = pick(), hung = [], falling = [], pops = [], score = 0,
+      star = null, record = false, msg = '', msgT = 0;
+    // the nearest decoration to (x, y), and whether one of kind k is near it
+    function around(x, y, k) {
+      let near = Infinity, same = false;
+      for (const o of hung) {
+        const d = Math.hypot(o.x - x, o.y - y);
+        near = Math.min(near, d);
+        if (o.k === k && d < 34) same = true;
+      }
+      return { near, same };
+    }
+    function hang() {
+      if (!inTree(hx, hy)) { sfx('bump'); msg = 'Nothing to hang it on there.'; msgT = 40; return; }
+      const { near, same } = around(hx, hy, cur);
+      if (near < 10) {
+        score -= 5; sfx('buzz'); msg = 'Too crowded! It slipped off.'; msgT = 40;
+        falling.push({ x: hx, y: hy, vy: 0, k: cur });
+      } else {
+        const pts = 10 + (same ? 0 : 5) + (near >= 26 ? 5 : 0);
+        score += pts; sfx(pts === 20 ? 'cup' : 'blip', true);
+        hung.push({ x: hx, y: hy, k: cur });
+        pops.push({ x: hx, y: hy - 12, s: '+' + pts, t: 0 });
+        if (pts < 20) { msg = same ? 'The same as the one next to it.' : 'A bit close to its neighbour.'; msgT = 35; }
+      }
+      cur = nxt; nxt = pick();
+    }
+    function deco(x, y, k) {
+      x = Math.round(x); y = Math.round(y);
+      if (k === 'cane') {
+        ctx.fillStyle = '#181820'; ctx.fillRect(x - 1, y - 6, 4, 13); ctx.fillRect(x - 5, y - 8, 6, 4); ctx.fillRect(x - 6, y - 7, 3, 5);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x, y - 5, 2, 11); ctx.fillRect(x - 4, y - 7, 5, 2); ctx.fillRect(x - 5, y - 6, 2, 3);
+        ctx.fillStyle = '#e03030'; ctx.fillRect(x, y - 3, 2, 2); ctx.fillRect(x, y + 1, 2, 2); ctx.fillRect(x, y + 5, 2, 1); ctx.fillRect(x - 3, y - 7, 2, 2);
+      } else if (k === 'bow') {
+        ctx.fillStyle = '#181820'; ctx.fillRect(x - 7, y - 4, 15, 8); ctx.fillRect(x - 3, y + 2, 7, 6);
+        ctx.fillStyle = '#d02830'; ctx.fillRect(x - 6, y - 3, 5, 6); ctx.fillRect(x + 2, y - 3, 5, 6); ctx.fillRect(x - 2, y + 2, 2, 5); ctx.fillRect(x + 1, y + 2, 2, 5);
+        ctx.fillStyle = '#f05858'; ctx.fillRect(x - 1, y - 2, 3, 4); ctx.fillRect(x - 5, y - 2, 2, 2);
+      } else {
+        ctx.fillStyle = '#b8a060'; ctx.fillRect(x - 1, y - 7, 3, 2);
+        disc(x + 0.5, y, 5.5, '#181820'); disc(x + 0.5, y, 4.5, BALLS[k]);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.75)'; ctx.fillRect(x - 2, y - 2, 2, 2);
+      }
+    }
+    function tier(y0, y1, hw, c) {
+      ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(CX, y0); ctx.lineTo(CX + hw, y1);
+      for (let i = 1, x = hw - 10; x > -hw; i++, x -= 10) ctx.lineTo(CX + x, y1 - (i & 1 ? 5 : 0));
+      ctx.lineTo(CX - hw, y1); ctx.fill();
+    }
+    const self = {
+      music: 'jingle', doing: 'spruce', cover: true,
+      update() {
+        t++;
+        for (const p of pops) { p.t++; p.y -= 0.5; }
+        pops = pops.filter((p) => p.t < 40);
+        for (const f of falling) { f.vy += 0.3; f.y += f.vy; }
+        falling = falling.filter((f) => f.y < 214);
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say('The spruce is decorated, ' + score + ' points\' worth.' + (record ? ' A new record!' : '') + ' Somebody behind you says "Ooh."');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You leave the box of decorations for somebody else.'); return; }
+        if (msgT > 0) msgT--;
+        if (state === 'star') {
+          star.t++;
+          if (!star.drop) {
+            star.x = CX + Math.sin(star.t * 0.05) * 60;
+            if (pressed.has('a')) { star.drop = true; sfx('swish'); }
+          } else if (star.done) {
+            // on top, where it belongs
+          } else if (!star.off) {
+            star.vy += 0.3; star.y += star.vy;
+            if (star.y >= APEX - 6) {
+              const dx = Math.abs(star.x - CX);
+              if (dx > 14) { star.off = true; star.bonus = 0; msg = 'It missed the top!'; sfx('bump'); }
+              else {
+                star.y = APEX - 6; star.bonus = Math.max(0, Math.round(50 * (1 - dx / 14))); score += star.bonus;
+                msg = star.bonus >= 45 ? 'Dead straight! +' + star.bonus : 'On top! +' + star.bonus; sfx('ding');
+                star.done = true;
+              }
+              msgT = 90; star.t = 0;
+            }
+          } else { star.vy += 0.3; star.y += star.vy; star.x += 1.5; }
+          if ((star.done || star.off) && star.t > 70) { state = 'done'; t = 0; score = Math.max(0, score); record = saveBest('spruce', score); sfx('ding'); }
+          return;
+        }
+        // (any way at all with a thumbstick)
+        const s = steer(), m = Math.max(1, Math.hypot(s.x, s.y));
+        hx = clamp(hx + s.x / m * 2.2, 40, SW - 40); hy = clamp(hy + s.y / m * 2.2, 40, 206);
+        if (pressed.has('a')) hang();
+        if (--left <= 0) { left = 0; state = 'star'; star = { x: CX, y: 10, vy: 0, t: 0, drop: false }; msg = 'Now the star! Space: drop it'; msgT = 999; }
+      },
+      draw() {
+        duskSky(0, 176);
+        ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 176, SW, SH - 176);
+        ctx.fillStyle = '#c8d2e4'; ctx.fillRect(0, 176, SW, 3);
+        snowfall(t, 30);
+        winterHud('Deck the spruce', 'Score ' + score, 'Best ' + getBest('spruce'), left);
+        // the trunk, the branches (with snow on the tips) and the lights already on it
+        ctx.fillStyle = '#3a2410'; ctx.fillRect(CX - 9, 196, 18, 18);
+        ctx.fillStyle = '#5a3820'; ctx.fillRect(CX - 8, 196, 16, 17);
+        for (const [y0, y1, hw] of TIERS) {
+          tier(y0, y1, hw, '#10301c'); tier(y0 + 3, y1 - 2, hw - 3, '#24603a'); tier(y0 + 6, y1 - 6, (hw - 3) * 0.45, '#2e7444');
+          ctx.fillStyle = '#f0f4fa';
+          for (let x = hw - 10; x > -hw + 4; x -= 20) ctx.fillRect(CX + x - 2, y1 - 3, 5, 2);
+        }
+        const BULB = ['#f8f040', '#f05050', '#60e070', '#60b0f8'];
+        bulbs.forEach((b, i) => { ctx.fillStyle = ((t >> 4) + i) % 5 ? BULB[i % 4] : '#183a20'; ctx.fillRect(b.x, b.y, 2, 2); });
+        for (const o of hung) deco(o.x, o.y, o.k);
+        for (const f of falling) deco(f.x, f.y, f.k);
+        if (star) {
+          starShape(star.x, star.y, 11, '#181820'); starShape(star.x, star.y, 9, '#f8d840'); starShape(star.x - 1, star.y - 1, 4, '#fff8c0');
+          if (!star.drop) { ctx.fillStyle = 'rgba(248, 216, 64, 0.5)'; ctx.fillRect(Math.round(star.x), Math.round(star.y) + 12, 1, APEX - 18 - Math.round(star.y)); }
+        } else starShape(CX, APEX - 6, 5, '#686048'); // where it goes
+        for (const p of pops) text(p.s, Math.round(p.x - p.s.length * 3), Math.round(p.y), 1, p.s === '+20' ? '#f8e040' : '#f8f8f8');
+        if (state === 'play') {
+          // your hand with the next decoration: faint where it can't go, ringed in red where it's too crowded
+          const ok = inTree(hx, hy), { near } = around(hx, hy, cur);
+          ctx.globalAlpha = ok ? 1 : 0.45;
+          deco(hx, hy, cur);
+          ctx.globalAlpha = 1;
+          if (ok && near < 10) { ctx.strokeStyle = '#f04040'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.stroke(); }
+          const mx = Math.round(hx), my = Math.round(hy) - 12;
+          ctx.fillStyle = '#181820'; ctx.fillRect(mx - 5, my - 9, 11, 10);
+          ctx.fillStyle = '#c84030'; ctx.fillRect(mx - 4, my - 8, 9, 8); ctx.fillRect(mx + 4, my - 6, 3, 3);
+          // what the box hands you after this one
+          ctx.fillStyle = '#181820'; ctx.fillRect(270, 146, 42, 40);
+          ctx.fillStyle = '#7a4a28'; ctx.fillRect(271, 147, 40, 38);
+          text('Next', 279, 150, 1, '#f8e8a0');
+          deco(291, 172, nxt);
+        }
+        if (msgT > 0) ctext(msg, 44, '#f8e040');
+        if (state === 'ready') readyBox(t, 'Spread them out, mix them up');
+        else if (state === 'done') doneBox(['All decorated!', 'Score: ' + score, record ? 'New record!' : 'Best ' + getBest('spruce')], t);
+        else if (state === 'play') text('Arrows: move   Space: hang it   Esc: give up', 12, SH - 12, 1, '#40485a');
+      },
+    };
+    return self;
+  }
+
+  // Building a snowman: roll the bottom, then the middle, then the head. A ball picks up the
+  // fresh snow it rolls over (leaving bare ground behind it), and the bigger it gets the
+  // slower it goes. A stands it up where it is and starts the next. Then they're stacked,
+  // and the snowman is as tall as it stands: a ball has to be smaller than the one it goes
+  // on, or it rolls off (and the next one goes on whatever is still standing). 60 seconds.
+  function SnowmanGame() {
+    const TIME = 60 * 60, CELL = 8, GW = 38, GH = 24, X0 = 8, Y0 = 36, CM = 1.6;
+    const NAMES = ['The bottom', 'The middle', 'The head'];
+    const snow = new Uint8Array(GW * GH).fill(1);
+    // a few patches already scraped bare, and three spruces in the way
+    for (let i = 0; i < 6; i++) {
+      const px = Math.random() * GW, py = Math.random() * GH, r = 1.5 + Math.random() * 2.5;
+      for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) if (Math.hypot(gx + 0.5 - px, gy + 0.5 - py) < r) snow[gy * GW + gx] = 0;
+    }
+    const trees = [];
+    for (let i = 0; trees.length < 3 && i < 500; i++) {
+      const o = { x: X0 + 30 + Math.random() * (GW * CELL - 60), y: Y0 + 24 + Math.random() * (GH * CELL - 48), r: 11 };
+      if (Math.hypot(o.x - 40, o.y - 132) > 50 && trees.every((p) => Math.hypot(p.x - o.x, p.y - o.y) > 60)) trees.push(o);
+    }
+    const rOf = (v) => 5 + 1.5 * Math.sqrt(v), cm = (r) => Math.round(r * 2 * CM);
+    // made: the balls stood up so far; tower: the ones still standing once they're stacked
+    let state = 'ready', t = 0, left = TIME, ball = { x: 40, y: 132, v: 0, spin: 0 }, made = [], tower = [], dir = 'right', moving = false,
+      height = 0, record = false, msg = '', msgT = 0;
+    const inField = (x, y, r) => x >= X0 + r && x <= X0 + GW * CELL - r && y >= Y0 + r && y <= Y0 + GH * CELL - r;
+    const clear = (x, y, r) => trees.concat(made).every((o) => Math.hypot(o.x - x, o.y - y) >= o.r + r);
+    // somewhere near (x, y) with room for a new ball
+    function roomNear(x, y) {
+      for (let k = 0; k < 600; k++) {
+        const a = k * 2.4, d = k * 0.6, px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
+        if (inField(px, py, 6) && clear(px, py, 8)) return [px, py];
+      }
+      return [x, y];
+    }
+    // Each ball goes on the top of the snowman (sinking into it a little) and stays there
+    // if it's the smaller of the two. ty is where it comes down.
+    function stack() {
+      tower = [];
+      for (const b of made) {
+        const on = tower[tower.length - 1];
+        b.ty = on ? on.ty - (on.r + b.r) * 0.88 : 204 - b.r;
+        b.stand = !on || b.r < on.r;
+        if (b.stand) tower.push(b);
+      }
+      const top = tower[tower.length - 1];
+      height = Math.round((204 - top.ty + top.r) * CM);
+      state = 'build'; t = 0;
+    }
+    function standUp() {
+      made.push({ x: ball.x, y: ball.y, r: rOf(ball.v) });
+      sfx('thump');
+      if (made.length >= 3) { stack(); return; }
+      const [dx, dy] = DIRS[dir], r = rOf(ball.v), [nx, ny] = roomNear(ball.x - dx * (r + 10), ball.y - dy * (r + 10));
+      ball = { x: nx, y: ny, v: 0, spin: 0 };
+      msg = NAMES[made.length] + ' next. Smaller than ' + cm(topR()) + ' cm!'; msgT = 90;
+    }
+    // the ball the next one will go on: whichever is the top of the snowman so far, which is
+    // always the smallest yet
+    const topR = () => Math.min(...made.map((b) => b.r));
+    function snowball(x, y, r) {
+      disc(x + 2, y + 2, r, '#a8b4c8'); disc(x, y, r + 1, '#5a6478'); disc(x, y, r, '#f8fbff');
+      disc(x + r * 0.25, y + r * 0.25, r * 0.7, '#e4ecf8'); disc(x - r * 0.35, y - r * 0.35, Math.max(1, r * 0.25), '#ffffff');
+    }
+    const self = {
+      music: 'jingle', doing: 'snowman', cover: true,
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(height ? 'Your snowman stands ' + height + ' cm tall.' + (record ? ' A new record!' : '') + (tower.length >= 3 ? ' The other snowman looks jealous.' : '')
+              : 'No snowman this time. Just a lot of bare grass.');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You kick the snow off your boots and leave it.'); return; }
+        if (state === 'build') {
+          for (let i = 1; i < made.length; i++) if (t === i * 40 + 10) sfx(made[i].stand ? 'thump' : 'bump');
+          if (t > made.length * 40 + 50) { state = 'done'; t = 0; record = saveBest('snowman', height); sfx('ding'); }
+          return;
+        }
+        if (msgT > 0) msgT--;
+        if (--left <= 0) {
+          left = 0;
+          if (rOf(ball.v) >= 9) made.push({ x: ball.x, y: ball.y, r: rOf(ball.v) });
+          if (made.length) stack(); else { state = 'done'; t = 0; height = 0; }
+          return;
+        }
+        const s = steer(), len = Math.hypot(s.x, s.y);
+        moving = len > 0.1;
+        if (moving) {
+          // (gentler on a thumbstick pushed only part way)
+          const r = rOf(ball.v), sp = Math.max(0.55, 2.3 - r * 0.055) * Math.min(1, len), dx = s.x / len * sp, dy = s.y / len * sp;
+          dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+          const ox = ball.x, oy = ball.y;
+          if (inField(ball.x + dx, ball.y, r) && clear(ball.x + dx, ball.y, r)) ball.x += dx;
+          if (inField(ball.x, ball.y + dy, r) && clear(ball.x, ball.y + dy, r)) ball.y += dy;
+          ball.spin += Math.hypot(ball.x - ox, ball.y - oy) / r;
+          // it picks up the fresh snow under it
+          const reach = Math.max(6, r * 0.75);
+          let got = 0;
+          for (let gy = Math.floor((ball.y - reach - Y0) / CELL); gy <= Math.floor((ball.y + reach - Y0) / CELL); gy++)
+            for (let gx = Math.floor((ball.x - reach - X0) / CELL); gx <= Math.floor((ball.x + reach - X0) / CELL); gx++) {
+              if (gx < 0 || gy < 0 || gx >= GW || gy >= GH || !snow[gy * GW + gx]) continue;
+              if (Math.hypot(X0 + gx * CELL + 4 - ball.x, Y0 + gy * CELL + 4 - ball.y) < reach) { snow[gy * GW + gx] = 0; ball.v++; got++; }
+            }
+          if (got && t % 6 === 0) sfx('crunch');
+        }
+        if (pressed.has('a')) {
+          if (rOf(ball.v) < 9) { sfx('bump'); msg = 'Roll it a bit bigger first.'; msgT = 40; }
+          else standUp();
+        }
+      },
+      draw() {
+        if (state === 'build' || (state === 'done' && made.length)) { drawBuilt(); return; }
+        ctx.fillStyle = '#1c2448'; ctx.fillRect(0, 0, SW, SH);
+        // the snow, and the ground where it's been rolled up
+        ctx.fillStyle = '#181820'; ctx.fillRect(X0 - 2, Y0 - 2, GW * CELL + 4, GH * CELL + 4);
+        ctx.fillStyle = '#7d8c6a'; ctx.fillRect(X0, Y0, GW * CELL, GH * CELL);
+        for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
+          const x = X0 + gx * CELL, y = Y0 + gy * CELL;
+          if (snow[gy * GW + gx]) { ctx.fillStyle = '#f2f6fc'; ctx.fillRect(x, y, CELL, CELL); }
+          else { ctx.fillStyle = '#6a7858'; ctx.fillRect(x + (gx * 3 + gy * 5) % 7, y + (gx * 5 + gy) % 7, 1, 1); }
+        }
+        for (const o of trees) {
+          disc(o.x + 3, o.y + 3, o.r, 'rgba(40, 50, 80, 0.35)'); disc(o.x, o.y, o.r + 1, '#10301c'); disc(o.x, o.y, o.r - 1, '#24603a'); disc(o.x - 2, o.y - 2, o.r * 0.5, '#2e7444');
+          ctx.fillStyle = '#f0f4fa'; ctx.fillRect(o.x - 6, o.y - 3, 3, 2); ctx.fillRect(o.x + 3, o.y + 2, 3, 2); ctx.fillRect(o.x - 1, o.y - 8, 2, 2);
+        }
+        made.forEach((b, i) => { snowball(b.x, b.y, b.r); text(String(i + 1), Math.round(b.x) - 2, Math.round(b.y) - 3, 1, '#8890a0'); });
+        // you, pushing from behind it
+        const r = rOf(ball.v), [dx, dy] = DIRS[dir], px = ball.x - dx * (r + 6), py = ball.y - dy * (r + 6);
+        const you = () => ctx.drawImage(sprites[dir][moving ? 1 + ((t >> 3) & 1) : 0], Math.round(px) - 12, Math.round(py) - 16, 24, 24);
+        if (py < ball.y) you();
+        if (state === 'play' || state === 'ready') {
+          snowball(ball.x, ball.y, r);
+          // a couple of flecks going round as it rolls
+          for (let k = 0; k < 2; k++) {
+            const a = ball.spin + k * Math.PI;
+            ctx.fillStyle = '#b8c4d8'; ctx.fillRect(Math.round(ball.x + Math.cos(a) * r * 0.55 * Math.abs(dy || 1)), Math.round(ball.y + Math.sin(a) * r * 0.55 * Math.abs(dx || 1)), 2, 2);
+          }
+        }
+        if (py >= ball.y) you();
+        ctx.fillStyle = '#1c2448'; ctx.fillRect(0, 0, SW, Y0 - 2);
+        const under = made.length ? topR() : 0, now = NAMES[Math.min(2, made.length)] + ' ' + cm(r) + ' cm';
+        text('Snowman', 12, 10, 1, '#f8e8a0');
+        text(now, 12, 24, 1, under && r >= under ? '#f05040' : '#f8f8f8');
+        if (under) text('(under it ' + cm(under) + ')', 12 + now.length * 6 + 6, 24, 1, '#8890a0');
+        const tm = 'Time ' + Math.ceil(left / 60), bs = 'Best ' + getBest('snowman') + ' cm';
+        text(tm, SW - 12 - tm.length * 6, 10, 1, left < 300 ? '#f05040' : '#f8f8f8');
+        text(bs, SW - 12 - bs.length * 6, 24, 1, '#c8ccd8');
+        if (msgT > 0) ctext(msg, Y0 + 6, '#2a3450');
+        text('Arrows: roll   Space: stand it up   Esc: give up', 12, SH - 10, 1, '#c8ccd8');
+        if (state === 'ready') readyBox(t, 'Bottom, middle, then the head');
+        else if (state === 'done') doneBox(['Time!', 'Not enough for a snowman.', 'Best ' + getBest('snowman') + ' cm'], t);
+      },
+    };
+    // the finished snowman, stacked up one ball at a time beside a measuring stick, with
+    // how you did on the right (where it doesn't hide the snowman)
+    function drawBuilt() {
+      const tt = state === 'build' ? t : 999, SX = 110;
+      duskSky(0, 176);
+      ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 176, SW, SH - 176);
+      ctx.fillStyle = '#c8d2e4'; ctx.fillRect(0, 176, SW, 3);
+      snowfall(state === 'build' ? t : tick, 30);
+      // the measuring stick, every 50 cm
+      ctx.fillStyle = '#181820'; ctx.fillRect(37, 40, 6, 165);
+      ctx.fillStyle = '#f0d860'; ctx.fillRect(38, 41, 4, 163);
+      for (let c = 50; 204 - c / CM > 40; c += 50) {
+        const y = Math.round(204 - c / CM);
+        ctx.fillStyle = '#181820'; ctx.fillRect(34, y, 12, 1);
+        text(String(c), 31 - String(c).length * 6, y - 3, 1, '#f8f8f8');
+      }
+      let off = 0;
+      made.forEach((b, i) => {
+        const at = i * 40;
+        if (tt < at) return;
+        let x = SX, y = b.ty - (1 - Math.min(1, (tt - at) / 10)) * 60;
+        if (!b.stand && tt > at + 10) {
+          // too big for the one under it: it rolls off and lands beside the snowman
+          const k = Math.min(1, (tt - at - 10) / 20);
+          x += k * (made[0].r + b.r + 16 + off); y += k * (204 - b.r - y);
+          off += b.r * 2 + 6;
+        }
+        snowball(x, y, b.r);
+      });
+      if (tt > made.length * 40) {
+        // a face, buttons, arms and a hat on whatever is still standing
+        const head = tower[tower.length - 1], hy = head.ty, hr = head.r;
+        disc(SX - hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1), '#181820'); disc(SX + hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1), '#181820');
+        ctx.fillStyle = '#f07820'; ctx.beginPath(); ctx.moveTo(SX, hy - 1); ctx.lineTo(SX + hr * 0.7, hy + 2); ctx.lineTo(SX, hy + 4); ctx.fill();
+        ctx.fillStyle = '#181820'; ctx.fillRect(SX - hr * 0.7, hy - hr - 3, hr * 1.4, 4); ctx.fillRect(SX - hr * 0.45, hy - hr * 1.9, hr * 0.9, hr * 0.95);
+        ctx.fillStyle = '#c02828'; ctx.fillRect(SX - hr * 0.45, hy - hr - 6, hr * 0.9, 3);
+        if (tower.length >= 2) {
+          const body = tower[tower.length - 2], by = body.ty, br = body.r;
+          for (let k = -1; k <= 1; k++) disc(SX, by + k * br * 0.35, Math.max(1.5, br * 0.07), '#181820');
+          ctx.strokeStyle = '#4a2c14'; ctx.lineWidth = 2; ctx.beginPath();
+          ctx.moveTo(SX - br * 0.8, by - br * 0.2); ctx.lineTo(SX - br * 1.6, by - br * 0.8);
+          ctx.moveTo(SX + br * 0.8, by - br * 0.2); ctx.lineTo(SX + br * 1.6, by - br * 0.9); ctx.stroke();
+          ctx.fillStyle = '#c02828'; ctx.fillRect(SX - br * 0.6, by - br - 2, br * 1.2, 4);
+        }
+        const top = Math.round(204 - height / CM);
+        ctx.fillStyle = '#f8e040'; for (let x = 46; x < SX; x += 4) ctx.fillRect(x, top, 2, 1);
+        text(height + ' cm', 48, top - 10, 1, '#f8e040');
+      }
+      if (state === 'done') {
+        const lines = [tower.length < made.length ? 'Some rolled off!' : 'Snowman built!', 'Height ' + height + ' cm', record ? 'New record!' : 'Best ' + getBest('snowman') + ' cm'];
+        if (t > 30 && (tick >> 4) & 1) lines.push('Press Space');
+        box(190, 60, 122, 74);
+        lines.forEach((l, i) => { if (buttonHints()) l = touchHint(l); text(l, 251 - l.length * 3, 72 + i * 14); });
+      }
+    }
+    return self;
+  }
+
+  // The hot chocolate stand: coworkers line up with their orders. Hold A to pour up to the
+  // line on the mug (the last of the stream keeps falling for a moment after you let go),
+  // then the toppings: Left drops in a marshmallow, Up is whipped cream, Right is a candy
+  // cane, and Down hands it over. Toppings right earns a star, and the fill earns two more
+  // spot on (one if it's close). Over the rim and it's a new mug. Keep anyone waiting too
+  // long and they walk off; three walk-offs and the stand shuts. 90 seconds.
+  function CocoaGame() {
+    const TIME = 90 * 60, MUG = { x: 214, bottom: 168, h: 44 }, crew = lotCrew(10);
+    let state = 'ready', t = 0, left = TIME, line = [], mug = null, pouring = false, drip = 0, stars = 0, served = 0, walked = 0, k = 0,
+      verdict = null, why = '', record = false, msg = '', msgT = 0;
+    function join() {
+      const npc = crew.length ? crew[k++ % crew.length] : null, max = Math.max(8, 16 - served * 0.5) * 60;
+      line.push({ name: npc ? npc.name : 'Somebody', sprites: npc ? npc.sprites : sprites, patience: max, max,
+        order: { fill: 0.55 + Math.floor(Math.random() * 8) * 0.05, mallows: Math.floor(Math.random() * 4), cream: Math.random() < 0.5, cane: Math.random() < 0.35 } });
+    }
+    const newMug = () => { mug = { level: 0, mallows: 0, cream: false, cane: false, spilled: 0 }; pouring = false; drip = 0; };
+    function nextUp() { line.shift(); join(); newMug(); }
+    function finish(how) { state = 'done'; t = 0; why = how; record = saveBest('cocoa', stars); sfx('ding'); }
+    function serve() {
+      const o = line[0].order, off = Math.abs(mug.level - o.fill);
+      const right = mug.mallows === o.mallows && mug.cream === o.cream && mug.cane === o.cane;
+      const s = right ? 1 + (off <= 0.04 ? 2 : off <= 0.1 ? 1 : 0) : 0;
+      stars += s; served++;
+      const wrong = mug.mallows !== o.mallows ? (o.mallows === 1 ? 'I said one marshmallow.' : 'I said ' + (o.mallows || 'no') + ' marshmallows.')
+        : mug.cream !== o.cream ? (o.cream ? 'Where\'s my whipped cream?' : 'I didn\'t want cream.')
+          : o.cane ? 'No candy cane?' : 'What\'s the candy cane for?';
+      verdict = { t: 0, s, line: !right ? wrong : s === 3 ? 'Perfect! Thank you!' : s === 2 ? (mug.level > o.fill ? 'A bit full. Thanks!' : 'A bit short. Thanks!')
+        : mug.level > o.fill ? 'That\'s way too full.' : 'Half of this is air.' };
+      sfx(s === 3 ? 'cup' : s ? 'blip' : 'buzz', true);
+    }
+    const star5 = (x, y, on) => { starShape(x, y, 6, '#181820'); starShape(x, y, 5, on ? '#f8d030' : '#686878'); };
+    function drawMug(o) {
+      const { x, bottom, h } = MUG, lvl = mug.level * h;
+      for (let i = 0; i < h; i++) {
+        const y = bottom - 1 - i, hw = 14 + Math.round(i * 3 / h);
+        ctx.fillStyle = '#20242c'; ctx.fillRect(x - hw - 1, y, hw * 2 + 2, 1);
+        ctx.fillStyle = i < lvl ? (i + 1 >= lvl ? '#9a5a30' : '#5e3218') : '#cbdbe6';
+        ctx.fillRect(x - hw, y, hw * 2, 1);
+      }
+      ctx.fillStyle = '#20242c'; ctx.fillRect(x - 15, bottom, 30, 2); ctx.fillRect(x - 18, bottom - h - 1, 36, 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)'; ctx.fillRect(x - 11, bottom - h + 4, 2, h - 8);
+      ctx.strokeStyle = '#20242c'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x + 18, bottom - h / 2, 9, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+      ctx.strokeStyle = '#cbdbe6'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x + 18, bottom - h / 2, 9, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+      // the line the order asks for
+      if (o) { const ly = Math.round(bottom - o.fill * h); ctx.fillStyle = '#d02828'; for (let lx = x - 16; lx < x + 16; lx += 4) ctx.fillRect(lx, ly, 2, 1); }
+      // the toppings, floating on top
+      const sy = Math.round(bottom - lvl);
+      if (mug.cream) { oval(x, sy - 3, 13, 5, '#d8dce8'); oval(x, sy - 4, 12, 4, '#f8f8f8'); oval(x - 1, sy - 8, 8, 4, '#f8f8f8'); oval(x, sy - 11, 4, 3, '#f8f8f8'); }
+      for (let i = 0; i < mug.mallows; i++) {
+        const mx = x - 10 + (i * 7) % 20, my = sy - 3 - (mug.cream ? 6 : 0) - Math.floor(i / 3) * 3;
+        ctx.fillStyle = '#20242c'; ctx.fillRect(mx - 1, my - 1, 7, 5); ctx.fillStyle = '#f8f0f0'; ctx.fillRect(mx, my, 5, 3);
+      }
+      if (mug.cane) {
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 8, sy - 20, 3, 22); ctx.fillRect(x + 2, sy - 22, 8, 3); ctx.fillRect(x + 1, sy - 21, 3, 5);
+        ctx.fillStyle = '#e03030'; for (let i = 0; i < 5; i++) ctx.fillRect(x + 8, sy - 18 + i * 4, 3, 2);
+        ctx.fillRect(x + 4, sy - 22, 2, 3);
+      }
+    }
+    const self = {
+      music: 'jingle', doing: 'cocoa', cover: true,
+      update() {
+        t++;
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; while (line.length < 3) join(); newMug(); } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say('You served ' + served + (served === 1 ? ' hot chocolate' : ' hot chocolates') + ' and earned ' + stars + (stars === 1 ? ' star.' : ' stars.') + (record ? ' A new record!' : ''));
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You hang the apron back up. Somebody else can pour.'); return; }
+        if (msgT > 0) msgT--;
+        if (--left <= 0) { left = 0; finish('Time!'); return; }
+        if (verdict) { if (++verdict.t > 60) { verdict = null; nextUp(); } return; }
+        if (mug.spilled) { if (--mug.spilled <= 0) newMug(); return; }
+        const c = line[0];
+        if (--c.patience <= 0) {
+          walked++; sfx('buzz'); msg = c.name + ' got tired of waiting.'; msgT = 60;
+          if (walked >= 3) { finish('Three walked off!'); return; }
+          nextUp();
+          return;
+        }
+        if (held.a && !mug.cream) {
+          pouring = true;
+          mug.level += 0.0085;
+          if (t % 8 === 0) sfx('pour', mug.level * 60);
+        } else if (pouring) { pouring = false; drip = 8; }
+        if (drip > 0) { drip--; mug.level += 0.0085 * drip / 10; }
+        if (pressed.has('a') && mug.cream) { msg = 'There\'s cream on it already.'; msgT = 40; }
+        if (mug.level > 1.02) { mug.spilled = 45; pouring = false; drip = 0; sfx('splash'); msg = 'It overflowed! New mug.'; msgT = 50; return; }
+        const poured = mug.level > 0.2;
+        if (pressed.has('left') || pressed.has('up') || pressed.has('right')) {
+          if (!poured) { sfx('bump'); msg = 'Pour the hot chocolate first.'; msgT = 40; }
+          else if (pressed.has('left')) { if (mug.mallows < 6) { mug.mallows++; sfx('blip', mug.mallows & 1); } }
+          else if (pressed.has('up')) { if (!mug.cream) { mug.cream = true; sfx('spray'); } }
+          else if (!mug.cane) { mug.cane = true; sfx('tap'); }
+        }
+        if (pressed.has('down')) { if (poured) serve(); else { sfx('bump'); msg = 'It\'s empty!'; msgT = 40; } }
+      },
+      draw() {
+        duskSky(0, 150);
+        ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 150, SW, SH - 150);
+        snowfall(t, 24);
+        // the stand's awning
+        for (let x = 0; x < SW; x += 20) { ctx.fillStyle = (x / 20) & 1 ? '#f8f8f8' : '#d02828'; ctx.fillRect(x, 34, 20, 12); }
+        ctx.fillStyle = '#181820'; ctx.fillRect(0, 46, SW, 2);
+        for (let x = 0; x < SW; x += 20) { ctx.fillStyle = (x / 20) & 1 ? '#f8f8f8' : '#d02828'; ctx.beginPath(); ctx.arc(x + 10, 48, 10, 0, Math.PI); ctx.fill(); }
+        winterHud('Hot chocolate stand', 'Stars ' + stars + '   Walk-offs ' + walked, 'Best ' + getBest('cocoa'), left);
+        // the line, the one at the front biggest, with their order (or what they think of it) over them
+        for (let i = Math.min(line.length, 3) - 1; i >= 1; i--) ctx.drawImage(line[i].sprites.down[0], 76 + i * 24, 132, 32, 32);
+        const c = line[0];
+        if (c) {
+          ctx.drawImage(c.sprites.down[verdict && !verdict.s ? 0 : (t >> 5) & 1 ? 1 : 0], 30, 118, 48, 48);
+          ctx.fillStyle = '#181820'; ctx.fillRect(8, 56, 152, 54); ctx.fillRect(48, 110, 8, 6);
+          ctx.fillStyle = '#f8f8f8'; ctx.fillRect(9, 57, 150, 52); ctx.fillRect(49, 109, 6, 6);
+          text(c.name, 14, 61, 1, '#2858a8');
+          if (verdict) {
+            wrap(verdict.line, 23).forEach((l, i) => text(l, 14, 75 + i * 11, 1, '#181820'));
+            for (let i = 0; i < 3; i++) star5(98 + i * 16, 98, i < verdict.s);
+          } else {
+            const o = c.order;
+            text(o.mallows ? o.mallows + ' marshmallow' + (o.mallows > 1 ? 's' : '') : 'No marshmallows', 14, 73, 1, '#181820');
+            text(o.cream ? 'Whipped cream' : 'No cream', 14, 84, 1, '#181820');
+            text(o.cane ? 'A candy cane' : 'No candy cane', 14, 95, 1, '#181820');
+          }
+        }
+        // the urn and its tap
+        ctx.fillStyle = '#20242c'; ctx.fillRect(189, 54, 50, 56); ctx.fillRect(193, 50, 42, 6);
+        ctx.fillStyle = '#b8c0cc'; ctx.fillRect(190, 56, 48, 53); ctx.fillStyle = '#e0e6ee'; ctx.fillRect(194, 58, 6, 49);
+        ctx.fillStyle = '#7a3a1c'; ctx.fillRect(196, 72, 36, 12); text('COCOA', 199, 74, 1, '#f8e8c8');
+        ctx.fillStyle = '#20242c'; ctx.fillRect(210, 109, 8, 10); ctx.fillRect(204, 108, 20, 3);
+        if (pouring || drip > 0) { ctx.fillStyle = '#6a3a1c'; ctx.fillRect(212, 119, pouring ? 4 : 2, Math.max(0, Math.round(MUG.bottom - mug.level * MUG.h) - 119)); }
+        // the counter and the toppings
+        ctx.fillStyle = '#5a3418'; ctx.fillRect(0, 168, SW, 72);
+        ctx.fillStyle = '#c89060'; ctx.fillRect(0, 166, SW, 6);
+        ctx.fillStyle = '#4a2c14'; for (let x = 0; x < SW; x += 40) ctx.fillRect(x, 172, 2, 68);
+        if (mug && !mug.spilled) drawMug(c && !verdict ? c.order : null);
+        else if (mug) { oval(MUG.x, 168, 26, 4, '#6a3a1c'); }
+        ctx.fillStyle = '#181820'; ctx.fillRect(254, 132, 20, 34); ctx.fillStyle = '#f0e8e0'; ctx.fillRect(255, 133, 18, 32);
+        ctx.fillStyle = '#f8f8f8'; for (let i = 0; i < 4; i++) ctx.fillRect(257 + (i & 1) * 8, 140 + (i >> 1) * 8, 6, 5);
+        ctx.fillStyle = '#181820'; ctx.fillRect(278, 128, 12, 38); ctx.fillStyle = '#d8dce4'; ctx.fillRect(279, 136, 10, 29);
+        ctx.fillStyle = '#d02828'; ctx.fillRect(281, 129, 6, 7);
+        ctx.fillStyle = '#181820'; ctx.fillRect(294, 140, 20, 26); ctx.fillStyle = '#a8d0e8'; ctx.fillRect(295, 141, 18, 24);
+        for (let i = 0; i < 3; i++) { ctx.fillStyle = '#f8f8f8'; ctx.fillRect(298 + i * 5, 130, 2, 14); ctx.fillStyle = '#e03030'; ctx.fillRect(298 + i * 5, 132, 2, 2); ctx.fillRect(298 + i * 5, 137, 2, 2); }
+        text('L', 261, 156, 1, '#181820'); text('U', 282, 156, 1, '#181820'); text('R', 302, 156, 1, '#181820');
+        // how long they'll wait
+        if (c && !verdict) {
+          const p = c.patience / c.max;
+          ctx.fillStyle = '#181820'; ctx.fillRect(24, 176, 64, 6);
+          ctx.fillStyle = p > 0.5 ? '#58c848' : p > 0.25 ? '#f0c030' : '#e84828'; ctx.fillRect(25, 177, Math.round(62 * p), 4);
+        }
+        if (msgT > 0) ctext(msg, 188, '#f8e040');
+        if (state === 'ready') readyBox(t, 'Pour to the red line');
+        else if (state === 'done') doneBox([why, 'Stars: ' + stars, record ? 'New record!' : 'Best ' + getBest('cocoa')], t);
+        else {
+          text('Hold Space: pour   Down: hand it over', 12, 204, 1, '#f0d8b8');
+          text('Left: marshmallow  Up: cream  Right: cane', 12, 216, 1, '#f0d8b8');
+          text('Esc: give up', 12, 228, 1, '#f0d8b8');
+        }
+      },
+    };
+    return self;
+  }
+
+  // Snowball fight: you're behind your wall at the bottom, coworkers are behind the forts
+  // across the lot. A throws straight up the lot: it gets whoever is standing up at a fort
+  // as it passes, and the near forts stop it. Holding Down ducks behind your wall, where
+  // nothing can hit you, and packs another snowball (you can hold 5). They pop up, wind up
+  // and throw at where you're standing, so duck or get out of the way. Three hits and
+  // you're out; otherwise it's 90 seconds.
+  function SnowballGame() {
+    const TIME = 90 * 60, WALL = 206, AMMO = 5;
+    // three forts near and two further back, behind the gaps
+    const forts = [[70, 136, 26], [160, 136, 26], [250, 136, 26], [115, 90, 18], [205, 90, 18]].map(([x, y, hw], i) => ({ x, y, hw, far: i > 2 }));
+    const crew = lotCrew(forts.length);
+    forts.forEach((f, i) => Object.assign(f, { name: crew[i] ? crew[i].name : 'Somebody', sprites: crew[i] ? crew[i].sprites : sprites,
+      state: 'hide', wait: 60 + Math.random() * 160, up: 0, st: 0, dx: 0 }));
+    let state = 'ready', t = 0, left = TIME, px = 160, duck = false, ammo = AMMO, pack = 0, cool = 0, hearts = 3, hits = 0,
+      mine = [], theirs = [], blobs = [], pops = [], record = false, msg = '', msgT = 0;
+    const gone = () => (TIME - left) / 60; // seconds in
+    function out(how) { state = 'done'; t = 0; msg = how; record = saveBest('snowball', hits); sfx('ding'); }
+    // a snowball, outlined so it shows up against the snow
+    const ball = (x, y, r) => { disc(x, y, r + 1, '#3a4458'); disc(x, y, r, '#ffffff'); disc(x + r * 0.3, y + r * 0.3, r * 0.5, '#c8d4e6'); };
+    function splat() {
+      blobs = [];
+      for (let i = 0; i < 7; i++) blobs.push({ x: 40 + Math.random() * 240, y: 50 + Math.random() * 150, r: 10 + Math.random() * 18, life: 80 });
+    }
+    function moveForts() {
+      let upNow = forts.filter((f) => f.state !== 'hide').length;
+      const maxUp = Math.min(3, 1 + Math.floor(gone() / 25));
+      for (const f of forts) {
+        f.st++;
+        if (f.state === 'hide') {
+          f.up = Math.max(0, f.up - 0.1);
+          if (--f.wait <= 0 && upNow < maxUp) { f.state = 'wind'; f.st = 0; f.dx = (Math.random() * 2 - 1) * (f.hw - 10); upNow++; }
+        } else if (f.state === 'wind') {
+          f.up = Math.min(1, f.up + 0.1);
+          if (f.st >= Math.max(26, 64 - gone() * 0.45)) {
+            // they throw at where you are, a little off at first
+            const err = Math.max(4, 26 - gone() * 0.25);
+            theirs.push({ x0: f.x + f.dx, y0: f.y - 22, tx: px + (Math.random() * 2 - 1) * err, t: 0, dur: f.far ? 58 : 46 });
+            f.state = 'after'; f.st = 0; sfx('swish');
+          }
+        } else if (f.st >= (f.state === 'hit' ? 40 : 22)) {
+          // (after a hit they stay down longer)
+          f.wait = (f.state === 'hit' ? 160 : 70) + Math.random() * Math.max(60, 200 - gone() * 1.5); f.state = 'hide';
+        }
+      }
+    }
+    const self = {
+      music: 'jingle', doing: 'snowball', cover: true,
+      update() {
+        t++;
+        for (const b of blobs) b.life--;
+        blobs = blobs.filter((b) => b.life > 0);
+        for (const p of pops) { p.t++; p.y -= 0.4; }
+        pops = pops.filter((p) => p.t < 50);
+        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
+        if (state === 'done') {
+          if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+            remove(self);
+            say(hits ? 'You got ' + hits + (hits === 1 ? ' hit' : ' hits') + ' in.' + (record ? ' A new record!' : '') + ' Everyone has snow down their collar.'
+              : 'Not a single hit. You have snow everywhere, and nobody else does.');
+          }
+          return;
+        }
+        if (pressed.has('b')) { remove(self); say('You wave a white mitten. Truce.'); return; }
+        if (msgT > 0) msgT--;
+        if (--left <= 0) { left = 0; out('Time!'); return; }
+        // you: duck and pack, or stand and move and throw
+        duck = held.down;
+        if (cool > 0) cool--;
+        if (duck) {
+          if (ammo < AMMO && ++pack >= 28) { ammo++; pack = 0; sfx('crunch'); }
+        } else {
+          pack = 0;
+          if (held.left) px -= 2.4;
+          if (held.right) px += 2.4;
+          px = clamp(px, 20, SW - 20);
+          if (pressed.has('a')) {
+            if (!ammo) { sfx('bump'); msg = 'Out of snowballs! Hold Down to pack more'; msgT = 60; }
+            else if (!cool) { ammo--; cool = 12; mine.push({ x: px, y: WALL - 24, y0: WALL - 24 }); sfx('swish'); }
+          }
+        }
+        moveForts();
+        // yours go straight up the lot: whoever is up at a fort as it passes, or the fort itself
+        for (const b of mine) {
+          const was = b.y;
+          b.y -= 4.2;
+          for (const f of forts) {
+            if (b.dead || !(was > f.y && b.y <= f.y)) continue;
+            if ((f.state === 'wind' || f.state === 'after') && f.up > 0.6 && Math.abs(b.x - (f.x + f.dx)) < (f.far ? 8 : 10)) {
+              b.dead = true; hits++; f.state = 'hit'; f.st = 0; sfx('splat');
+              pops.push({ x: f.x + f.dx, y: f.y - 40, s: 'Got ' + f.name + '!', t: 0 });
+            } else if (Math.abs(b.x - f.x) < f.hw) { b.dead = true; sfx('tap'); }
+          }
+          if (b.y < 50) b.dead = true;
+        }
+        mine = mine.filter((b) => !b.dead);
+        // theirs come at where you were when they threw
+        for (const b of theirs) {
+          if (++b.t < b.dur) continue;
+          b.dead = true;
+          if (Math.abs(b.tx - px) >= 13) continue;
+          if (duck) { sfx('tap'); continue; }
+          hearts--; sfx('splat'); splat();
+          if (hearts <= 0) { out('Snowed under!'); return; }
+        }
+        theirs = theirs.filter((b) => !b.dead);
+      },
+      draw() {
+        duskSky(0, 62);
+        ctx.fillStyle = '#e6ecf6'; ctx.fillRect(0, 62, SW, SH - 62);
+        ctx.fillStyle = '#d4dcec'; for (let y = 70; y < SH; y += 18) ctx.fillRect(0, y, SW, 1);
+        // a couple of cars under the snow at the back
+        for (const [x, c] of [[40, '#8a2a2a'], [270, '#2a4a8a']]) {
+          ctx.fillStyle = '#181820'; ctx.fillRect(x - 21, 57, 42, 12);
+          ctx.fillStyle = c; ctx.fillRect(x - 20, 60, 40, 8);
+          ctx.fillStyle = '#f4f8fc'; ctx.fillRect(x - 20, 56, 40, 5); ctx.fillRect(x - 12, 52, 24, 5);
+        }
+        snowfall(t, 24);
+        winterHud('Snowball fight', 'Hits ' + hits, 'Best ' + getBest('snowball'), left);
+        for (let i = 0; i < 3; i++) {
+          const hx = SW - 18 - i * 12, hy = 38;
+          ctx.fillStyle = i < hearts ? '#e03040' : '#585868';
+          ctx.fillRect(hx, hy + 1, 3, 3); ctx.fillRect(hx + 4, hy + 1, 3, 3); ctx.fillRect(hx, hy + 2, 7, 3); ctx.fillRect(hx + 1, hy + 5, 5, 1); ctx.fillRect(hx + 2, hy + 6, 3, 1);
+        }
+        // the forts, back to front, with whoever is behind each one
+        for (const f of forts.slice().sort((a, b) => a.y - b.y)) {
+          const size = f.far ? 24 : 32, fh = f.far ? 10 : 14, top = f.y - fh, ex = Math.round(f.x + f.dx - size / 2);
+          if (f.up > 0) {
+            ctx.save(); ctx.beginPath(); ctx.rect(0, 0, SW, top + 2); ctx.clip();
+            const ey = Math.round(top + 2 - f.up * size * 0.75);
+            ctx.drawImage(f.sprites.down[0], ex, ey, size, size);
+            if (f.state === 'wind') ball(ex + size * 0.85, ey + size * 0.15 + Math.sin(f.st / 3), f.far ? 2.5 : 3.5);
+            if (f.state === 'hit') { disc(ex + size / 2, ey + size * 0.3, size * 0.22, '#f8fbff'); disc(ex + size * 0.4, ey + size * 0.25, size * 0.12, '#ffffff'); }
+            ctx.restore();
+          }
+          ctx.fillStyle = '#5a6478'; ctx.fillRect(f.x - f.hw - 1, top - 1, f.hw * 2 + 2, fh + 6);
+          ctx.fillStyle = '#f4f8fc'; ctx.fillRect(f.x - f.hw, top, f.hw * 2, fh + 4);
+          ctx.fillStyle = '#c8d4e6'; ctx.fillRect(f.x - f.hw, top + fh, f.hw * 2, 4);
+          for (let x = f.x - f.hw + 8; x < f.x + f.hw - 2; x += 10) ctx.fillRect(x, top + 2, 1, fh - 3);
+          ctx.fillRect(f.x - f.hw, top + Math.round(fh / 2), f.hw * 2, 1);
+        }
+        for (const b of mine) {
+          const p = (b.y0 - b.y) / (b.y0 - 50), y = b.y - Math.sin(Math.min(1, p) * Math.PI) * 14;
+          ball(b.x, y, 4 - p * 2);
+        }
+        // you, behind your wall
+        const yt = WALL - 46 + (duck ? 26 : 0);
+        ctx.drawImage(sprites.up[!duck && (held.left || held.right) ? 1 + ((t >> 3) & 1) : 0], Math.round(px) - 20, yt, 40, 40);
+        if (!duck && cool > 6) ball(px + 14, yt + 8, 3.5);
+        ctx.fillStyle = '#5a6478'; ctx.fillRect(0, WALL - 11, SW, 24);
+        ctx.fillStyle = '#f4f8fc'; ctx.fillRect(0, WALL - 10, SW, 18);
+        ctx.fillStyle = '#c8d4e6'; ctx.fillRect(0, WALL + 4, SW, 4); for (let x = 6; x < SW; x += 16) ctx.fillRect(x, WALL - 8, 1, 12);
+        ctx.fillStyle = '#4a5468'; ctx.fillRect(0, WALL + 8, SW, SH - WALL - 8);
+        // your snowballs, and the next one as you pack it
+        for (let i = 0; i < AMMO; i++) {
+          if (i < ammo) disc(16 + i * 12, WALL + 14, 4, '#f8fbff');
+          else if (i === ammo && duck) disc(16 + i * 12, WALL + 14, 1 + pack / 28 * 3, '#c8d4e6');
+          else disc(16 + i * 12, WALL + 14, 1, '#68748a');
+        }
+        // theirs on the way (coming at you, so in front of everything), each with a mark on
+        // your wall where it will land
+        for (const b of theirs) {
+          const p = b.t / b.dur, x = b.x0 + (b.tx - b.x0) * p, y = b.y0 + (WALL - 26 - b.y0) * p - Math.sin(p * Math.PI) * 34;
+          oval(b.tx, WALL - 10, 4 + p * 7, 1.5 + p * 1.5, p > 0.6 ? 'rgba(210, 50, 50, 0.75)' : 'rgba(60, 70, 100, 0.45)');
+          ball(x, y, 2 + p * 4);
+        }
+        for (const p of pops) text(p.s, Math.round(clamp(p.x - p.s.length * 3, 4, SW - 4 - p.s.length * 6)), Math.round(p.y), 1, '#f8e040');
+        for (const b of blobs) { ctx.globalAlpha = Math.min(1, b.life / 40); disc(b.x, b.y, b.r, '#f8fbff'); disc(b.x + b.r * 0.6, b.y + b.r * 0.5, b.r * 0.45, '#f8fbff'); ctx.globalAlpha = 1; }
+        if (msgT > 0 && state === 'play') ctext(msg, 46, '#f8e040');
+        if (state === 'ready') readyBox(t, 'Space: throw  Down: duck');
+        else if (state === 'done') doneBox([msg, 'Hits: ' + hits, record ? 'New record!' : 'Best ' + getBest('snowball')], t);
+        else text('Arrows: move  Space: throw  Down: duck  Esc: quit', 10, SH - 10, 1, '#c8ccd8');
+      },
+    };
+    return self;
   }
 
   // ---------- hockey on the rink, one on one with whoever's minding the gate ----------
@@ -12386,7 +13476,8 @@
       const shake = ui.reduce((m, el) => Math.max(m, el.shake || 0), 0);
       ctx.save();
       if (shake) ctx.translate(Math.round((Math.random() - 0.5) * 2 * shake), Math.round((Math.random() - 0.5) * 2 * shake));
-      if (outside) drawYard(); else drawWorld();
+      // (outside, a game that fills the screen saves drawing the lot under it)
+      if (outside) { if (!ui.some((el) => el.cover)) drawYard(); } else drawWorld();
       ctx.restore();
       drawBanner();
       ui.forEach((el) => el.draw());
@@ -12495,6 +13586,7 @@
       pokertable: () => PokerApp(null, true), pokerlive: LivePoker, bjtable: () => BlackjackApp(null, true),
       hockey1: () => LiveHockey(2), hockey2: () => LiveHockey(4),
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
+      chop: ChopGame, mallow: MallowGame, spruce: SpruceGame, snowman: SnowmanGame, cocoa: CocoaGame, snowball: SnowballGame,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
       fame: HallOfFame, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];
     // &vs=1 plays a head-to-head game (a VERSUS key: duel, jar, lego, dance, coffee, run,

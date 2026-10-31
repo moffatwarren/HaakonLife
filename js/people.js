@@ -206,13 +206,16 @@ window.COSTUME_LINES = {
 // along with their own christmas: line if they have one), by where they are.
 window.CHRISTMAS_LINES = {
   fire: ["Best seat in the lot. Warm on the front, freezing on the back.", "I've been rotating like a rotisserie chicken for an hour.",
-    "Smells like woodsmoke and marshmallows. Don't tell anyone I brought marshmallows.", "This fire puts out more BTUs than half our heating coils."],
+    "Smells like woodsmoke and marshmallows. Don't tell anyone I brought marshmallows.", "This fire puts out more BTUs than half our heating coils.",
+    "Golden brown on every side. Keep it turning and keep it out of the flames.", "We're nearly out of firewood. The axe is in the block if you're feeling strong."],
   cocoa: ["They have the little marshmallows. Not the big ones. The little ones.", "I'm on my third. Don't judge me.",
-    "Whipped cream AND marshmallows? It's the holidays."],
+    "Whipped cream AND marshmallows? It's the holidays.", "Whoever was pouring went on break. You could always hop behind the counter."],
   watch: ["I'm just here to watch people fall over. Purely supportive.", "Someone needs to bring a puck. We could get a game going.",
     "I'd skate, but these are my good shoes.", "Somebody flooded this on their lunch break. Respect."],
   car: ["Found my car. I think. They all look the same under a foot of snow.", "I'm warming it up. Twenty more minutes and it might start.",
-    "I left my scraper inside. I've been using my loyalty card."],
-  snowman: ["Somebody gave him a lanyard. He has better building access than I do.", "I did the head. I'm very proud of the head."],
-  tree: ["Whoever strung all these lights deserves a raise.", "I tried counting the bulbs. I lost count at forty."],
+    "I left my scraper inside. I've been using my loyalty card.", "Watch yourself near the snowbanks. Somebody's building a fort."],
+  snowman: ["Somebody gave him a lanyard. He has better building access than I do.", "I did the head. I'm very proud of the head.",
+    "I tried building him a friend. The head kept rolling off."],
+  tree: ["Whoever strung all these lights deserves a raise.", "I tried counting the bulbs. I lost count at forty.",
+    "There's a whole box of decorations at the bottom. Nobody's hung a single one."],
 };
