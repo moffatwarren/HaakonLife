@@ -611,6 +611,19 @@ window.LOT3D = (function () {
         head.add(at(cyl(0.255, 0.26, 0.05, toon('#5c4c3a'), { ol: false }, 18), 0, 0.13, 0));
         head.add(ball(toon(mixc(p.hatC.f, '#000000', 0.25)), 0, 0.335, 0, 0.15, 0.03, 0.11, { ol: false })); // the crease
       }
+      if (p.hat === 'crown') {
+        // the Office Champion's: a gold band round a red velvet cap, five points with a pearl on
+        // each, and a ruby out front between two sapphires
+        head.add(at(mesh(HEMI, toon('#b83028')), 0, 0.2, 0, 0.215, 0.17, 0.215));
+        head.add(at(cyl(0.25, 0.235, 0.1, hatM, null, 20), 0, 0.19, 0));
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * TAU, x = Math.sin(a) * 0.235, z = Math.cos(a) * 0.235;
+          head.add(at(mesh(new T.ConeGeometry(0.055, 0.13, 4), hatM), x, 0.3, z));
+          head.add(ball(toon('#efe6d2'), x, 0.375, z, 0.026, 0.026, 0.026));
+        }
+        head.add(ball(toon('#c8282e'), 0, 0.19, 0.25, 0.035, 0.035, 0.02, { ol: false }));
+        for (const s of [-1, 1]) head.add(ball(toon('#3a6ad8'), Math.sin(s * 0.6) * 0.245, 0.19, Math.cos(s * 0.6) * 0.245, 0.022, 0.022, 0.022, { ol: false }));
+      }
       if (p.wear === 'glasses' || p.wear === 'shades') {
         const fm = basic('#16121c'), thin = { ol: false, cast: false };
         for (const s of [-1, 1]) {
@@ -833,8 +846,9 @@ window.LOT3D = (function () {
       for (const x of wins) { const cx = x + 1 - MW / 2; sills.push({ m: mtx(cx, FH - 3.45, FZ + 0.08, 1, 1, 1), c: '#c8c0b4' }); sillSnow.push({ m: mtx(cx, FH - 3.38, FZ + 0.1, 1, 1, 1) }); }
       instanced(new T.BoxGeometry(2.2, 0.1, 0.16), WHITE, sills);
       instanced(new T.BoxGeometry(2.0, 0.06, 0.14), snowM, sillSnow, { ol: false, cast: false });
-      // downpipes, every so often
+      // downpipes, every so often (but not down the middle of the doorway)
       for (let x = -MW / 2 + 3.5; x < MW / 2; x += 12) {
+        if (x > d0 - MW / 2 - 1.2 && x < d1 - MW / 2 + 1.2) continue;
         scene.add(at(cyl(0.06, 0.06, FH - 0.2, toon('#5a606c'), null, 8), x, (FH - 0.2) / 2, FZ + 0.1));
         lumps.push({ m: mtx(x, 0.06, FZ + 0.05, 0.3, 0.18, 0.2) });
       }

@@ -43,6 +43,10 @@
   // the character last picked.
   const oldPick = (g, i) => Art.lookLike(g, Art.LOOKS[g][Math.max(0, Math.min(Math.floor(+i) || 0, Art.LOOKS[g].length - 1))]);
   let myLook = Art.lookFrom(store.get('avatar')) || oldPick(GENDERS.includes(store.get('gender')) ? store.get('gender') : 'male', store.get('look'));
+  // The Office Champion (1st in the Hall of Fame) wears the crown in place of whatever head
+  // thing they picked, which stays saved underneath for when they lose it (see crownCheck).
+  let crowned = false;
+  const wornLook = (look) => (crowned ? Object.assign({}, look, { hat: Art.CROWN }) : look);
   let sprites = lookSprites(myLook);
 
   // Curtains ('C' tiles): closed until the player peeks around them, then
@@ -2565,6 +2569,7 @@
   // fastest-time games (low) are stored negated.
   const tenths = (n) => (n / 10).toFixed(1) + 's';
   const times = (n) => n + (n === 1 ? ' time' : ' times');
+  const goals = (n) => n + (n === 1 ? ' goal' : ' goals');
   const signed = (n) => (n > 0 ? '+' : '') + n;
   const BOARDS = {
     coffee: { title: 'COFFEE MACHINE' }, punch5: { title: 'PUNCHING BAG' }, run: { title: 'TREADMILL', unit: 'm' }, toss: { title: 'PAPER TOSS' },
@@ -2588,6 +2593,8 @@
     forklift: { title: 'FORKLIFT RUSH', unit: ' pallets' }, paint: { title: 'EVEN COAT' },
     chop: { title: 'WOOD CHOPPING', unit: ' logs' }, mallow: { title: 'MARSHMALLOWS' }, spruce: { title: 'DECK THE SPRUCE' },
     snowman: { title: 'SNOWMAN', unit: ' cm' }, cocoa: { title: 'HOT CHOCOLATE STAND', unit: ' stars' }, snowball: { title: 'SNOWBALL FIGHT', unit: ' hits' },
+    // the most you've scored in one game of hockey against a coworker (played to the end)
+    hockey: { title: 'HOCKEY GOALS', unit: goals },
     // the side quests: the "score" is how many times that name has done it (see questBoard), as it is for Pong (count)
     linda: { title: 'LINDA SET FREE', unit: times, quest: true, count: true }, eotm: { title: 'EMPLOYEE OF THE MONTH', unit: times, quest: true, count: true },
   };
@@ -2727,7 +2734,7 @@
     ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catch']],
     ['KINGSTON PLANT', ['forklift', 'paint']],
     ['HALLOWEEN', ['bob', 'mummy', 'carve', 'treat', 'ghosts', 'costume']],
-    ['CHRISTMAS', ['chop', 'mallow', 'spruce', 'snowman', 'cocoa', 'snowball']],
+    ['CHRISTMAS', ['chop', 'mallow', 'spruce', 'snowman', 'cocoa', 'snowball', 'hockey']],
   ];
   // The holidays' games stay out of the Hall of Fame altogether (their page, the champions'
   // points and the latest scores) until the day that holiday first came round, so scores
@@ -2778,13 +2785,47 @@
       return r.json();
     }).then(boardRows);
   }
-  function HallOfFame() {
-    const name = playerName || store.get('name') || '', me = name ? boardKey(name) : null;
-    // (leaving out any holiday that hasn't come round yet: see SEASON_FROM)
+  // The boards in the Hall of Fame, leaving out any holiday that hasn't come round yet (see
+  // SEASON_FROM): `keys` is all of them, `games` the ones that earn points and `groups` its pages.
+  function fameBoards() {
     const SEASON = { HALLOWEEN, CHRISTMAS }, early = (g) => g in SEASON_FROM && !SEASON[g] && Date.now() < SEASON_FROM[g];
     const shown = FAME_GROUPS.filter(([g]) => !early(g)), hidden = new Set(FAME_GROUPS.filter(([g]) => early(g)).flatMap(([, k]) => k));
     const keys = Object.keys(BOARDS).filter((k) => !hidden.has(k)), games = keys.filter((k) => !BOARDS[k].quest), grouped = new Set(FAME_GROUPS.flatMap(([, k]) => k));
-    const groups = shown.concat([['OTHER', games.filter((k) => !grouped.has(k))]]);
+    return { keys, games, groups: shown.concat([['OTHER', games.filter((k) => !grouped.has(k))]]) };
+  }
+  // Everyone in the running for Office Champion, best first, from every game's board
+  // (boards[key], best first): points for each top ten, then crowns to break a tie.
+  function fameStandings(boards, games) {
+    const pts = {};
+    for (const k of games) boards[k].slice(0, 10).forEach((r, i) => {
+      const s = pts[r.id] || (pts[r.id] = { id: r.id, name: r.name, points: 0, crowns: 0 });
+      s.points += 10 - i;
+      if (!i) s.crowns++;
+    });
+    return Object.values(pts).sort((a, b) => b.points - a.points || b.crowns - a.crowns || a.name.localeCompare(b.name));
+  }
+  // Whether a name is the Office Champion right now, from every game's board as the Hall of
+  // Fame has them. Nobody is if none of the boards can be had, and a New Hire never is.
+  function crownCheck(name) {
+    if (!name || name === 'New Hire' || !(BOARD_URL || boardDemo)) return Promise.resolve(false);
+    const { games } = fameBoards();
+    return Promise.all(games.map((k) => boardAll(k, name).catch(() => null))).then((all) => {
+      if (all.every((r) => r === null)) return false;
+      const boards = {};
+      games.forEach((k, i) => { boards[k] = all[i] || []; });
+      const top = fameStandings(boards, games)[0];
+      return !!top && top.id === boardKey(name);
+    }, () => false);
+  }
+  // Put the crown on (or take it off). In a costume it waits: a costume has no head thing.
+  function setCrowned(on) {
+    if (on === crowned) return;
+    crowned = on;
+    if (!hw.worn) sprites = lookSprites(wornLook(myLook));
+  }
+  function HallOfFame() {
+    const name = playerName || store.get('name') || '', me = name ? boardKey(name) : null;
+    const { keys, games, groups } = fameBoards();
     let boards = null, failed = !(BOARD_URL || boardDemo), standings = [], latest = [], tab = 0, sel = 0, scroll = 0, t = 0;
     const LIVE = BOARDS.pokerlive.title;
     const pages = () => ['CHAMPIONS', 'LATEST SCORES', 'QUESTS', LIVE].concat(groups.filter(([, k]) => k.length));
@@ -2794,13 +2835,9 @@
         if (all.every((r) => r === null)) { failed = true; return; }
         boards = {};
         keys.forEach((k, i) => { boards[k] = all[i] || []; });
-        const pts = {};
-        for (const k of games) boards[k].slice(0, 10).forEach((r, i) => {
-          const s = pts[r.id] || (pts[r.id] = { id: r.id, name: r.name, points: 0, crowns: 0 });
-          s.points += 10 - i;
-          if (!i) s.crowns++;
-        });
-        standings = Object.values(pts).sort((a, b) => b.points - a.points || b.crowns - a.crowns || a.name.localeCompare(b.name));
+        standings = fameStandings(boards, games);
+        // (and the crown goes to whoever's on top now, if that's changed since you came in)
+        if (me && name !== 'New Hire') setCrowned(!!standings.length && standings[0].id === me);
         latest = keys.flatMap((k) => boards[k].map((r, i) => Object.assign({ key: k, rank: i }, r)))
           .sort((a, b) => b.t - a.t).slice(0, 7);
       });
@@ -7902,6 +7939,24 @@
     return null;
   }
 
+  // The rest of the year (outside October) a jack-o'-lantern sits on the left end of the
+  // reception desk, and any of the party games can be played from it, the costume contest
+  // too (in the costume you last picked), without the party.
+  const deskPumpkin = (function () {
+    const f = MAPS.floors[0], r = f.rooms.find((rm) => /Reception$/.test(rm.name));
+    let at = null;
+    for (let y = r ? r.y1 : 0; r && y <= r.y2; y++)
+      for (let x = r.x1; x <= r.x2; x++) if (f.tiles[y][x] === 'r' && (!at || y > at.y)) at = { floor: 0, x, y };
+    return HALLOWEEN ? null : at;
+  })();
+  const DESK_GAMES = [['bob', BobGame], ['mummy', MummyGame], ['carve', CarveGame], ['treat', TreatGame], ['ghosts', GhostGame], ['costume', () => CostumeContest(true)]];
+  function deskPumpkinTalk() {
+    sfx('select');
+    ask('A jack-o\'-lantern left over from the Halloween party. Which party game?', DESK_GAMES.map(([k]) => BOARDS[k].title).concat(['NOT NOW']), (i) => {
+      if (i >= 0 && i < DESK_GAMES.length) { sfx('menu'); ui.push(DESK_GAMES[i][1]()); }
+    });
+  }
+
   // Bobbing for apples: slide along the tub and dunk when an apple is under you.
   function BobGame() {
     const TIME = 30 * 60, WATER = 152, X0 = 44, X1 = 276;
@@ -7924,7 +7979,7 @@
           }
           return;
         }
-        if (pressed.has('b')) { remove(self); say('You dry your face on your costume.'); return; }
+        if (pressed.has('b')) { remove(self); say('You dry your face on your ' + (hw.worn ? 'costume.' : 'sleeve.')); return; }
         if (msgT > 0) msgT--;
         const rush = 1 + (TIME - left) / TIME * 0.7; // the apples get livelier as the clock runs down
         for (const o of things) {
@@ -8338,7 +8393,10 @@
   // Lam's costume contest. Three coworkers walk the catwalk and get their scorecards, then
   // it's your turn: ten poses, each an arrow with a ring closing in on it, faster every
   // time. Hit that arrow as the ring meets the mark. The three judges' cards come from how well you timed them.
-  function CostumeContest() {
+  function CostumeContest(desk) {
+    // from the reception jack-o'-lantern: you change into your costume for it, and back after
+    const before = desk && { sprites, worn: hw.worn };
+    if (desk) wearCostume(hw.costume);
     const pool = hw.guests.length ? hw.guests : pickGuests();
     const mc = pool.find((g) => g.name === 'Lam'), linda = pool.find((g) => g.name === 'Linda');
     const rest = shuffled(pool.filter((g) => g !== mc && g !== linda));
@@ -8411,9 +8469,10 @@
         if (state === 'done' && t > 40 && (pressed.has('a') || pressed.has('b'))) {
           const won = order[0] === me;
           remove(self);
+          if (desk) { sprites = before.sprites; hw.worn = before.worn; }
           say('Lam: ' + (won ? 'Best costume of the night goes to ' + me.name + ' the ' + me.outfit + '! Take a bow!'
             : 'Best costume goes to ' + order[0].name + ' the ' + order[0].outfit + '! Hard luck, ' + me.name + '. There\'s always next October.'),
-          () => ui.push(HalloweenSplash()));
+          desk ? null : () => ui.push(HalloweenSplash()));
         }
       },
       draw() {
@@ -10366,7 +10425,7 @@
     const rec = {
       // (a copy from before the character editor goes by g and l, so it sees one of its own
       // characters in your place)
-      n: playerName || 'New Hire', a: Art.lookCode(myLook), g: myLook.g, l: 0, c: hw.worn ? hw.costume : '', f: P.floor,
+      n: playerName || 'New Hire', a: Art.lookCode(wornLook(myLook)), g: myLook.g, l: 0, c: hw.worn ? hw.costume : '', f: P.floor,
       x: P.x + (P.moving ? P.mdx : 0), y: P.y + (P.moving ? P.mdy : 0), d: P.dir, b: ui.length || fade ? 1 : 0,
       s: mp.say, sn: mp.sayN, v: MP_VER, p: MP_PROTO, tc: isTouch ? 1 : 0,
     };
@@ -10920,13 +10979,17 @@
 
   // Wood chopping: split each log down the crack across its top. Slide the axe over the
   // crack, hold A to heft it and let go to bring it down. The higher it goes the harder it
-  // lands, but the more it sways, and it sinks again if you hold it up too long. A big log
-  // needs a big swing or the axe sticks (mash A to work it free); off the crack, it only
-  // opens the crack a little; a knot bounces it straight off. 60 seconds.
+  // lands, but the more it sways, and it sinks again if you hold it up too long. Each log
+  // wants a swing inside its band on the power meter (the bigger the log, the higher the
+  // band): too soft and the axe sticks (mash A to work it free), too hard and the log
+  // splinters and doesn't count. Off the crack, it only opens the crack a little; a knot
+  // bounces it straight off. 60 seconds.
   function ChopGame() {
-    const TIME = 60 * 60, CX = 160, BLOCK = 176, LOG_H = 44;
-    const SIZES = [{ w: 32, need: 0.3 }, { w: 46, need: 0.52 }, { w: 60, need: 0.74 }];
-    let state = 'ready', t = 0, left = TIME, aim = CX, power = 0, rising = true, winding = false, swing = 0, hit = null,
+    const TIME = 60 * 60, CX = 160, BLOCK = 176, LOG_H = 44, BAND = 0.11;
+    const SIZES = [{ w: 32, sweet: 0.3 }, { w: 46, sweet: 0.52 }, { w: 60, sweet: 0.74 }];
+    // calm: how long since A was last down, once the axe has been worked free. It won't heft
+    // again until you've stopped mashing for a moment, so the mashing can't start a swing.
+    let state = 'ready', t = 0, left = TIME, aim = CX, power = 0, rising = true, winding = false, swing = 0, hit = null, calm = 99,
       log = null, next = 0, drop = 0, stuck = 0, logs = 0, pieces = [], shake = 0, record = false, msg = '', msgT = 0;
     function newLog() {
       // the bigger logs turn up more as you go
@@ -10937,7 +11000,7 @@
         const k = crack + (crack > 0 ? -1 : 1) * (11 + Math.random() * 5);
         if (Math.abs(k) < half - 4) knot = k;
       }
-      log = { size, w: s.w, need: s.need, crack, knot, tol: 5 };
+      log = { size, w: s.w, lo: s.sweet - BAND, hi: s.sweet + BAND, crack, knot, tol: 5 };
       drop = 14;
     }
     // the axe sways more the higher it's lifted, and more the more you've chopped (tired arms)
@@ -10946,7 +11009,17 @@
       const off = hit.x - CX, half = log.w / 2;
       if (Math.abs(off) > half + 2) { sfx('thump'); msg = 'Missed the log!'; msgT = 40; return; }
       if (log.knot !== null && Math.abs(off - log.knot) < 5) { sfx('bump'); shake = 5; msg = 'A knot! The axe bounces off.'; msgT = 45; return; }
-      if (hit.power < log.need) { sfx('chop'); stuck = 4 + log.size * 2; msgT = 0; return; }
+      if (hit.power < log.lo) { sfx('chop'); stuck = 4 + log.size * 2; msgT = 0; return; }
+      if (hit.power > log.hi) {
+        // too hard: it goes to splinters, and that log's gone
+        sfx('crunch'); sfx('thump'); shake = 6; msg = 'Too hard! The log splinters.'; msgT = 50;
+        for (let i = 0; i < 9; i++) {
+          pieces.push({ x: CX - half + Math.random() * log.w, y: BLOCK - LOG_H / 2 + (Math.random() - 0.5) * 30, w: 3 + Math.random() * 5, h: 6 + Math.random() * 12,
+            vx: (Math.random() - 0.5) * 6, vy: -3 - Math.random() * 4, a: 0, va: (Math.random() - 0.5) * 0.4, chip: true });
+        }
+        log = null; next = 45;
+        return;
+      }
       if (Math.abs(off - log.crack) > log.tol) {
         log.tol = Math.min(13, log.tol + 3);
         sfx('chop'); shake = 2; msg = 'Off the crack. It opens up a little.'; msgT = 45;
@@ -10995,7 +11068,7 @@
         if (next > 0 && --next === 0) newLog();
         if (stuck) {
           if (pressed.has('a')) { stuck--; shake = 2; sfx('bump'); }
-          if (!stuck) { swing = 0; hit = null; }
+          if (!stuck) { swing = 0; hit = null; calm = 0; msg = 'Free! Let go, then swing again'; msgT = 50; }
           return;
         }
         if (swing) {
@@ -11008,13 +11081,17 @@
         if (held.right) aim += sp;
         aim = clamp(aim, CX - 80, CX + 80);
         if (!log || drop) { winding = false; power = 0; return; }
+        if (calm < 12) { calm = held.a ? 0 : calm + 1; return; }
         if (held.a) {
           if (!winding) { winding = true; power = 0; rising = true; }
           power += rising ? 0.028 : -0.028;
           if (power >= 1) { power = 1; rising = false; }
           if (power <= 0.1) { power = 0.1; rising = true; }
         } else if (winding) {
-          winding = false; hit = { x: aim + sway(), power }; power = 0; swing = 1; sfx('swish');
+          // a quick tap just lets the axe back down: it takes a proper heft to swing it
+          winding = false;
+          if (power >= 0.15) { hit = { x: aim + sway(), power }; swing = 1; sfx('swish'); }
+          power = 0;
         }
       },
       draw() {
@@ -11049,30 +11126,34 @@
         }
         for (const p of pieces) {
           ctx.save(); ctx.translate(Math.round(p.x), Math.round(p.y)); ctx.rotate(p.a);
-          ctx.fillStyle = '#3a2410'; ctx.fillRect(-p.w / 2 - 1, -LOG_H / 2 - 1, p.w + 2, LOG_H + 2);
-          ctx.fillStyle = '#6a4224'; ctx.fillRect(-p.w / 2, -LOG_H / 2, p.w, LOG_H);
-          ctx.fillStyle = '#e0b878'; ctx.fillRect(p.vx < 0 ? p.w / 2 - 4 : -p.w / 2, -LOG_H / 2, 4, LOG_H); // the fresh split face
+          const ph = p.h || LOG_H;
+          ctx.fillStyle = '#3a2410'; ctx.fillRect(-p.w / 2 - 1, -ph / 2 - 1, p.w + 2, ph + 2);
+          ctx.fillStyle = p.chip ? '#c89858' : '#6a4224'; ctx.fillRect(-p.w / 2, -ph / 2, p.w, ph);
+          if (!p.chip) { ctx.fillStyle = '#e0b878'; ctx.fillRect(p.vx < 0 ? p.w / 2 - 4 : -p.w / 2, -ph / 2, 4, ph); } // the fresh split face
           ctx.restore();
         }
         // the axe: over the log, lifted while you heft it, coming down when you let go
         let ax = aim + sway(), ay = top - 22 - power * 62;
         if (hit) {
-          const up = top - 22 - hit.power * 62, down = log && Math.abs(hit.x - CX) > log.w / 2 + 2 ? BLOCK + 2 : top + 3;
+          // (once the log's split or splintered, the axe goes on down into the block)
+          const up = top - 22 - hit.power * 62, down = !log || Math.abs(hit.x - CX) > log.w / 2 + 2 ? BLOCK + 2 : top + 3;
           ax = hit.x; ay = swing && swing < 6 ? up + (down - up) * swing / 6 : down;
         }
         drawAxe(ax, ay);
         ctx.restore();
-        // how hard it'll come down, and (the gold mark) how hard this log needs it
-        const MX = 18, MY = 60, MH = 110, pw = winding ? power : hit ? hit.power : 0;
+        // how hard it'll come down, and (between the gold marks) how hard this log wants it:
+        // orange is too soft, green just right, red too hard
+        const MX = 18, MY = 60, MH = 110, pw = winding ? power : hit ? hit.power : 0, my = (v) => MY + MH - Math.round(v * MH);
         ctx.fillStyle = '#181820'; ctx.fillRect(MX - 2, MY - 2, 12, MH + 4);
         ctx.fillStyle = '#404858'; ctx.fillRect(MX, MY, 8, MH);
-        ctx.fillStyle = log && pw >= log.need ? '#58c848' : '#f09030';
-        ctx.fillRect(MX, MY + MH - Math.round(pw * MH), 8, Math.round(pw * MH));
-        if (log) { ctx.fillStyle = '#f8e040'; ctx.fillRect(MX - 4, MY + MH - Math.round(log.need * MH), 16, 2); }
+        if (log) { ctx.fillStyle = '#4a6a50'; ctx.fillRect(MX, my(log.hi), 8, my(log.lo) - my(log.hi)); }
+        ctx.fillStyle = !log || pw < log.lo ? '#f09030' : pw > log.hi ? '#e83828' : '#58c848';
+        ctx.fillRect(MX, my(pw), 8, Math.round(pw * MH));
+        if (log) { ctx.fillStyle = '#f8e040'; ctx.fillRect(MX - 4, my(log.hi) - 1, 16, 2); ctx.fillRect(MX - 4, my(log.lo) - 1, 16, 2); }
         text('Power', MX - 8, MY + MH + 6, 1, '#40485a');
         if (stuck) ctext('Stuck! Mash Space to work it free', 44, '#f05040');
         else if (msgT > 0) ctext(msg, 44, '#f8e040');
-        if (state === 'ready') readyBox(t, 'Hold Space, let go to chop');
+        if (state === 'ready') readyBox(t, 'Let go between the gold marks');
         else if (state === 'done') doneBox(['Time!', 'Logs split: ' + logs, record ? 'New record!' : 'Best ' + getBest('chop')], t);
         else text('Arrows: aim   Hold Space: heft   Esc: give up', 12, SH - 14, 1, '#40485a');
       },
@@ -11083,14 +11164,14 @@
   // Toasting marshmallows over the fire pit, golden brown all the way round. Up and down
   // raise and lower the stick (lower is hotter), left and right give it a quarter turn, and
   // A takes it off to eat. The side facing the fire toasts fastest, the two beside it a
-  // little and the top hardly at all, and now and then the fire flares up (it crackles
-  // first). Let a side go black and it catches fire: blow it out with A, quick, or it's
+  // little and the top hardly at all. The fire never holds still: it dies down and builds
+  // up again all the time, and now and then it flares right up (it crackles first). Let a side go black and it catches fire: blow it out with A, quick, or it's
   // charcoal. Five marshmallows, 20 seconds each, each scored out of 100.
   function MallowGame() {
     const N = 5, EACH = 20 * 60, HI = 66, LO = 156, MX = 160;
     const TOAST = [[0, [246, 242, 232]], [0.35, [240, 216, 156]], [0.62, [218, 156, 70]], [0.85, [146, 84, 36]], [1, [46, 28, 18]]];
     // the four sides going round; sides[turn] faces the fire
-    let state = 'ready', t = 0, n = 0, y = 96, sides = [0, 0, 0, 0], turn = 0, roll = 0, left = EACH, flare = 0, gust = 240,
+    let state = 'ready', t = 0, n = 0, y = 96, sides = [0, 0, 0, 0], turn = 0, roll = 0, left = EACH,
       burning = 0, ignite = 1, total = 0, last = null, record = false, embers = [];
     function toast(v) {
       v = clamp(v, 0, 1);
@@ -11099,10 +11180,14 @@
       const [a, ca] = TOAST[i], [b, cb] = TOAST[i + 1], f = (v - a) / (b - a);
       return 'rgb(' + ca.map((c, k) => Math.round(c + (cb[k] - c) * f)).join(',') + ')';
     }
+    // how big the fire is: it eases toward a new strength every second or two, and now and
+    // then toward a flare-up (1.7 and over) instead, warned of by a crackle
+    let fire = 1, want = 1, retarget = 90, surge = false;
+    const flaring = () => fire > 1.45;
     // a side's score: 100 at golden brown, less either way, nothing once it's black
     const sideScore = (v) => (v >= 1 ? 0 : Math.max(0, 100 - Math.abs(v - 0.62) * 230));
-    // how hot it is where the marshmallow is: nothing up high, 1 down in the flames (more in a flare-up)
-    const heat = () => Math.pow(clamp((y - HI) / (LO - HI), 0, 1), 2) * (0.88 + 0.12 * Math.sin(t * 0.37) + (flare ? 0.9 : 0));
+    // how hot it is where the marshmallow is: nothing up high, the fire's strength down in the flames
+    const heat = () => Math.pow(clamp((y - HI) / (LO - HI), 0, 1), 2) * (fire + 0.06 * Math.sin(t * 0.37));
     function nextMallow() { n++; sides = [0, 0, 0, 0]; turn = 0; roll = 0; left = EACH; y = 96; burning = 0; ignite = 1; state = 'play'; t = 0; }
     function serve(why) {
       const s = Math.round(sides.reduce((a, v) => a + sideScore(v), 0) / 4);
@@ -11122,7 +11207,7 @@
       update() {
         t++;
         // embers drift up off the fire the whole time
-        if (Math.random() < (flare ? 0.6 : 0.25)) embers.push({ x: MX - 30 + Math.random() * 60, y: 196, vx: (Math.random() - 0.5) * 0.6, vy: -0.8 - Math.random() * 1.2, life: 40 + Math.random() * 40 });
+        if (Math.random() < 0.1 + fire * 0.22) embers.push({ x: MX - 30 + Math.random() * 60, y: 196, vx: (Math.random() - 0.5) * 0.6, vy: -0.8 - Math.random() * 1.2, life: 40 + Math.random() * 40 });
         for (const e of embers) { e.x += e.vx; e.y += e.vy; e.life--; }
         embers = embers.filter((e) => e.life > 0);
         if (state === 'ready') { if (t > 75) nextMallow(); return; }
@@ -11138,10 +11223,14 @@
           if (t > 80) { if (n >= N) { state = 'done'; t = 0; record = saveBest('mallow', total); sfx('ding'); } else nextMallow(); }
           return;
         }
-        // the fire flares up now and then, with a crackle first to warn you
-        if (flare > 0) flare--;
-        else if (--gust <= 0) { flare = 50; gust = Math.floor(200 + Math.random() * 260); }
-        else if (gust === 24) sfx('sizzle');
+        // the fire dies down and builds up, and flares up now and then, with a crackle first to warn you
+        if (--retarget === 24 && surge) sfx('sizzle');
+        if (retarget <= 0) {
+          want = surge ? 1.7 + Math.random() * 0.3 : 0.35 + Math.random() * 1.05;
+          retarget = surge ? 60 + Math.floor(Math.random() * 30) : 40 + Math.floor(Math.random() * 100);
+          surge = !surge && Math.random() < 0.22; // (what the one after this will be)
+        }
+        fire += (want - fire) * 0.04;
         if (held.up) y -= 1.5;
         if (held.down) y += 1.5;
         y = clamp(y, HI - 2, LO + 8);
@@ -11163,15 +11252,15 @@
         ctx.fillStyle = '#dfe6f2'; ctx.fillRect(0, 150, SW, SH - 150);
         ctx.fillStyle = '#c4cfe2'; ctx.fillRect(0, 150, SW, 3);
         // the glow of the fire on the snow
-        oval(MX, 208, 130, 36, 'rgba(248, 160, 60, ' + (0.18 + (flare ? 0.12 : 0) + Math.sin(t * 0.3) * 0.03) + ')');
+        oval(MX, 208, 130, 36, 'rgba(248, 160, 60, ' + (0.08 + fire * 0.1 + Math.sin(t * 0.3) * 0.03) + ')');
         snowfall(t, 24);
         winterHud('Marshmallow ' + Math.max(1, Math.min(n, N)) + '/' + N, 'Score ' + total, 'Best ' + getBest('mallow'), left);
-        // the fire pit: stones round the back, logs, the flames (leaping in a flare-up), then the stones in front
+        // the fire pit: stones round the back, logs, the flames (as big as the fire is), then the stones in front
         const stone = (a) => { const x = MX + Math.cos(a) * 54, sy = 206 + Math.sin(a) * 13; oval(x, sy, 9, 6, '#383c48'); oval(x - 1, sy - 1, 7, 4, '#7a808e'); };
         for (let i = 0; i < 9; i++) stone(Math.PI + i * Math.PI / 8);
         ctx.fillStyle = '#3a2410'; ctx.fillRect(MX - 34, 198, 68, 8);
         ctx.fillStyle = '#5a3820'; ctx.fillRect(MX - 32, 199, 64, 6);
-        const fh = 32 + (flare ? 30 : gust < 24 ? 6 : 0);
+        const fh = 8 + fire * 26 + (surge && retarget < 24 ? 6 : 0);
         for (let i = 0; i < 7; i++) {
           const fx = MX - 36 + i * 12, hh = fh * (0.55 + 0.45 * Math.abs(Math.sin(t * 0.17 + i * 1.7))) * (i === 0 || i === 6 ? 0.6 : 1);
           tongue(fx, 202, 9, hh, '#d84818'); tongue(fx, 202, 6, hh * 0.7, '#f89828'); tongue(fx, 202, 3, hh * 0.4, '#f8e870');
@@ -11209,7 +11298,7 @@
         text('Heat', HX - 5, HY + HH + 6, 1, '#40485a');
         if (burning) ctext('ON FIRE! Space: blow it out', 44, '#f05040');
         else if (state === 'eat') ctext(last.line + '  +' + last.s, 44, last.s >= 70 ? '#58e048' : '#f8e040');
-        else if (flare) ctext('The fire flares up!', 44, '#f8a040');
+        else if (flaring()) ctext('The fire flares up!', 44, '#f8a040');
         if (state === 'ready') readyBox(t, 'Golden brown on every side');
         else if (state === 'done') doneBox(['All eaten!', 'Score: ' + total + ' / ' + N * 100, record ? 'New record!' : 'Best ' + getBest('mallow')], t);
         else text('Up/Down: height  Left/Right: turn  Space: eat', 12, SH - 12, 1, '#40485a');
@@ -11219,11 +11308,13 @@
   }
 
   // Decorating the big spruce: 45 seconds to hang everything the box hands you. Steer your
-  // hand with the arrows and hang the next decoration with A. Each is worth 10, plus 5 with
-  // nothing the same near it and 5 with room to itself; right up against another, it slips
-  // off and breaks (-5). Then the star goes back on: drop it as it swings over the top.
+  // hand with the arrows and hang the next decoration with A. A circle round your hand shows
+  // what it's worth there before you hang it: 20 with the circle to itself, 15 with something
+  // else in it, 10 with one the same in it (those are outlined), and right up against another
+  // it slips off and breaks (-5). Then the star goes back on: drop it as it swings over the top.
   function SpruceGame() {
-    const TIME = 45 * 60, CX = 160, APEX = 34;
+    const TIME = 45 * 60, CX = 160, APEX = 34, ROOM = 28;
+    const WORTH = { 20: '#58e048', 15: '#f8e040', 10: '#f09030', '-5': '#f04040' };
     // the three tiers of branches: [top, bottom, half the width at the bottom]
     const TIERS = [[APEX, 96, 44], [70, 150, 72], [118, 204, 102]];
     const BALLS = { red: '#e03838', gold: '#f0c030', blue: '#3c7ce8', purple: '#a050d8', silver: '#d8e0e8' };
@@ -11237,28 +11328,27 @@
     const pick = () => KINDS[Math.floor(Math.random() * KINDS.length)];
     let state = 'ready', t = 0, left = TIME, hx = CX, hy = 140, cur = pick(), nxt = pick(), hung = [], falling = [], pops = [], score = 0,
       star = null, record = false, msg = '', msgT = 0;
-    // the nearest decoration to (x, y), and whether one of kind k is near it
-    function around(x, y, k) {
-      let near = Infinity, same = false;
-      for (const o of hung) {
-        const d = Math.hypot(o.x - x, o.y - y);
-        near = Math.min(near, d);
-        if (o.k === k && d < 34) same = true;
-      }
-      return { near, same };
+    const tally = { 20: 0, 15: 0, 10: 0, '-5': 0 };
+    // what hanging kind k at (x, y) would be worth (null off the tree), and what's in its circle
+    function worth(x, y, k) {
+      if (!inTree(x, y)) return { pts: null, inside: [] };
+      let near = Infinity;
+      const inside = hung.filter((o) => { const d = Math.hypot(o.x - x, o.y - y); near = Math.min(near, d); return d < ROOM; });
+      const pts = near < 10 ? -5 : inside.some((o) => o.k === k) ? 10 : inside.length ? 15 : 20;
+      return { pts, inside };
     }
     function hang() {
-      if (!inTree(hx, hy)) { sfx('bump'); msg = 'Nothing to hang it on there.'; msgT = 40; return; }
-      const { near, same } = around(hx, hy, cur);
-      if (near < 10) {
-        score -= 5; sfx('buzz'); msg = 'Too crowded! It slipped off.'; msgT = 40;
+      const { pts } = worth(hx, hy, cur);
+      if (pts === null) { sfx('bump'); msg = 'Nothing to hang it on there.'; msgT = 40; return; }
+      score += pts; tally[pts]++;
+      if (pts < 0) {
+        sfx('buzz'); msg = 'Too close! It slipped off.'; msgT = 40;
         falling.push({ x: hx, y: hy, vy: 0, k: cur });
       } else {
-        const pts = 10 + (same ? 0 : 5) + (near >= 26 ? 5 : 0);
-        score += pts; sfx(pts === 20 ? 'cup' : 'blip', true);
+        sfx(pts === 20 ? 'cup' : 'blip', true);
         hung.push({ x: hx, y: hy, k: cur });
         pops.push({ x: hx, y: hy - 12, s: '+' + pts, t: 0 });
-        if (pts < 20) { msg = same ? 'The same as the one next to it.' : 'A bit close to its neighbour.'; msgT = 35; }
+        if (pts < 20) { msg = pts === 10 ? 'One the same in its circle: mix them up!' : 'Something else in its circle: spread out!'; msgT = 50; }
       }
       cur = nxt; nxt = pick();
     }
@@ -11354,12 +11444,26 @@
         } else starShape(CX, APEX - 6, 5, '#686048'); // where it goes
         for (const p of pops) text(p.s, Math.round(p.x - p.s.length * 3), Math.round(p.y), 1, p.s === '+20' ? '#f8e040' : '#f8f8f8');
         if (state === 'play') {
-          // your hand with the next decoration: faint where it can't go, ringed in red where it's too crowded
-          const ok = inTree(hx, hy), { near } = around(hx, hy, cur);
-          ctx.globalAlpha = ok ? 1 : 0.45;
+          // your hand with the next decoration (faint where it can't go), in its circle coloured
+          // by what it'd be worth, with whatever's in the circle outlined (red if it's the same)
+          const { pts, inside } = worth(hx, hy, cur);
+          if (pts !== null) {
+            ctx.lineWidth = 1;
+            for (const o of inside) {
+              ctx.strokeStyle = o.k === cur ? '#f04040' : '#f8f8f8';
+              ctx.beginPath(); ctx.arc(o.x + 0.5, o.y, 8, 0, Math.PI * 2); ctx.stroke();
+            }
+            ctx.strokeStyle = WORTH[pts]; ctx.setLineDash([3, 3]);
+            ctx.beginPath(); ctx.arc(hx, hy, ROOM, 0, Math.PI * 2); ctx.stroke();
+            ctx.setLineDash([]);
+          }
+          ctx.globalAlpha = pts !== null ? 1 : 0.45;
           deco(hx, hy, cur);
           ctx.globalAlpha = 1;
-          if (ok && near < 10) { ctx.strokeStyle = '#f04040'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.stroke(); }
+          if (pts !== null) {
+            const label = pts < 0 ? 'slips!' : '+' + pts, lx = Math.round(hx) + 10, ly = Math.round(hy) - 26;
+            text(label, lx + 1, ly + 1, 1, '#181820'); text(label, lx, ly, 1, WORTH[pts]);
+          }
           const mx = Math.round(hx), my = Math.round(hy) - 12;
           ctx.fillStyle = '#181820'; ctx.fillRect(mx - 5, my - 9, 11, 10);
           ctx.fillStyle = '#c84030'; ctx.fillRect(mx - 4, my - 8, 9, 8); ctx.fillRect(mx + 4, my - 6, 3, 3);
@@ -11370,8 +11474,9 @@
           deco(291, 172, nxt);
         }
         if (msgT > 0) ctext(msg, 44, '#f8e040');
-        if (state === 'ready') readyBox(t, 'Spread them out, mix them up');
-        else if (state === 'done') doneBox(['All decorated!', 'Score: ' + score, record ? 'New record!' : 'Best ' + getBest('spruce')], t);
+        if (state === 'ready') readyBox(t, 'Aim for the green circle');
+        else if (state === 'done') doneBox(['All decorated! Score: ' + score, '+20 x' + tally[20] + '  +15 x' + tally[15] + '  +10 x' + tally[10] + '  Slipped ' + tally[-5],
+          record ? 'New record!' : 'Best ' + getBest('spruce')], t);
         else if (state === 'play') text('Arrows: move   Space: hang it   Esc: give up', 12, SH - 12, 1, '#40485a');
       },
     };
@@ -11974,8 +12079,9 @@
       { name: playerName || 'You', team: 0, hand: 1 },
       { name: foe, team: 1, ai: true, hand: Math.random() < 0.4 ? 1 : -1 },
     ] });
-    // scored: who got the last goal; go: ticks since the puck dropped
-    let state = 'play', t = 0, scored = 0, go = 99;
+    // scored: who got the last goal; go: ticks since the puck dropped; record: your goals
+    // this game are your most yet (they go on the HOCKEY GOALS board when it's over)
+    let state = 'play', t = 0, scored = 0, go = 99, record = false;
     // each skater: where (x, y), facing (ang), pushing off (push), their stick and how far
     // down they are (for drawing them), fall, the colour of their ring, whether they have
     // the puck (full), and who they are: you (me), a coworker (npc), or another player
@@ -12024,7 +12130,7 @@
         g.events.forEach(hear);
         // a goal or the buzzer, then the next faceoff (or the end, if it's been won)
         if (g.due()) {
-          if (g.over()) { state = 'done'; t = 0; sfx(g.score[0] > g.score[1] ? 'cup' : 'bump'); }
+          if (g.over()) { state = 'done'; t = 0; record = saveBest('hockey', g.score[0]); sfx(g.score[0] > g.score[1] ? 'cup' : 'bump'); }
           else startFade(g.faceoff, '#f8f8f8');
         }
       },
@@ -12043,7 +12149,8 @@
           lines.forEach((l, i) => ctext(l, 96 + (big ? 18 : 0) + i * 16));
         };
         if (state === 'done') {
-          doneBox([g.score[0] > g.score[1] ? 'You win!' : foe + ' wins!', 'YOU ' + g.score[0] + ' - ' + g.score[1] + ' ' + FOE, g.ot ? 'In overtime' : ''], t);
+          doneBox([g.score[0] > g.score[1] ? 'You win!' : foe + ' wins!', 'YOU ' + g.score[0] + ' - ' + g.score[1] + ' ' + FOE,
+            (g.ot ? 'In overtime. ' : '') + (record ? 'Most goals yet!' : 'Best ' + goals(getBest('hockey')))], t);
           return;
         }
         if (g.phase === 'ready' && g.ot) msg(['Overtime!', 'Next goal wins']);
@@ -12554,7 +12661,7 @@
     const h = hdScreen(), c = h.c, K = HD.K;
     // (you're only not P.free for a moment, coming out of the doors)
     const px = (P.free ? P.fx : P.x) * 16, py = (P.free ? P.fy : P.y) * 16;
-    const me = 'me:' + playerName + ':' + Art.lookCode(myLook), mySpec = hdLook(me, playerName || 'New Hire', myLook);
+    const mine = wornLook(myLook), me = 'me:' + playerName + ':' + Art.lookCode(mine), mySpec = hdLook(me, playerName || 'New Hire', mine);
     const npcSpec = (n) => { const { body, look } = lookFor(n.name); return hdPerson('npc:' + n.name, n.name, body, look, personOf(n.name).style); };
     // everyone out here: you, coworkers and other players (in a hockey game, you and
     // whoever you're playing are out on the ice instead)
@@ -12808,6 +12915,7 @@
       say(says(npc.lines[Math.floor(Math.random() * npc.lines.length)]));
       return;
     }
+    if (deskPumpkin && P.floor === deskPumpkin.floor && tx === deskPumpkin.x && ty === deskPumpkin.y) { deskPumpkinTalk(); return; }
     if (P.floor === cookies.floor && tx === cookies.x && ty === cookies.y) {
       sfx('select');
       say('There is a plate of cookies with a note: "Made with love by Jenn." You take one.\nAs you eat it, you think to yourself: Nik and Dmitriy could never make anything this good.');
@@ -13156,24 +13264,30 @@
     else edit.look[r.key] = v;
   }
   // Start on your look (called as the name screen closes), and ask the database for the
-  // one saved under your name, which takes over if there is one.
+  // one saved under your name, which takes over if there is one, and whether you're the
+  // Office Champion, which puts the crown on even if the answer's late. It holds on for both.
   function editStart() {
-    Object.assign(edit, { row: 0, btn: 1, look: Object.assign({}, myLook), wait: lookName(playerName) ? 240 : 0 });
-    const ask = edit.ask = {};
-    lookLoad(playerName).then((look) => {
+    Object.assign(edit, { row: 0, btn: 1, look: Object.assign({}, myLook), wait: 240 });
+    const ask = edit.ask = {}, name = playerName;
+    const saved = lookLoad(name).then((look) => {
       if (edit.ask !== ask || edit.wait <= 0) return; // (too late: you might have changed something by now)
       if (look) edit.look = look;
-      edit.wait = 0;
     });
+    const crown = crownCheck(name).then((on) => { if (playerName === name) setCrowned(on); });
+    Promise.all([saved, crown]).then(() => { if (edit.ask === ask) edit.wait = 0; });
   }
+  // how many choices a row has (the crown is the last head thing, and it's only ever the
+  // champion's, who can't change it: see crowned)
+  const editCount = (r) => r.n || LOOK_COUNT[r.key] - (r.key === 'hat' ? 1 : 0);
+  const editLocked = (r) => r && r.key === 'hat' && crowned;
   function editRandom() {
-    for (const r of EDIT_ROWS) if (r.key !== 'g') editSet(r, Math.floor(Math.random() * LOOK_COUNT[r.key]));
+    for (const r of EDIT_ROWS) if (r.key !== 'g') editSet(r, Math.floor(Math.random() * editCount(r)));
     if (Math.random() < 0.4) edit.look.hat = 0; // (most people don't wear anything on their head)
   }
   function editDone() {
     if (fade) return;
     myLook = Art.lookFix(edit.look);
-    sprites = lookSprites(myLook);
+    sprites = lookSprites(wornLook(myLook));
     store.set('avatar', Art.lookCode(myLook));
     lookSave(playerName, myLook);
     sfx('menu');
@@ -13184,8 +13298,9 @@
     const n = EDIT_ROWS.length, r = EDIT_ROWS[edit.row], d = pressed.has('left') ? -1 : pressed.has('right') ? 1 : 0;
     if (pressed.has('up')) { edit.row = (edit.row + n) % (n + 1); sfx('select'); }
     if (pressed.has('down')) { edit.row = (edit.row + 1) % (n + 1); sfx('select'); }
-    if (r && (d || pressed.has('a'))) {
-      const count = r.n || LOOK_COUNT[r.key];
+    if (r && (d || pressed.has('a')) && editLocked(r)) sfx('buzz');
+    else if (r && (d || pressed.has('a'))) {
+      const count = editCount(r);
       editSet(r, (editValue(r, edit.look) + (d || 1) + count) % count);
       sfx('select');
     } else if (d) { edit.btn ^= 1; sfx('select'); }
@@ -13200,16 +13315,17 @@
     const title = 'Make your character';
     text(title, (SW - title.length * 12) >> 1, 14, 2);
     // you, walking on the spot and turning round now and then
-    const look = edit.look, sp = lookSprites(look);
+    const look = edit.look, sp = lookSprites(wornLook(look));
     ctx.drawImage(sp[['down', 'left', 'up', 'right'][(tick >> 6) & 3]][[1, 0, 2, 0][(tick >> 3) & 3]], 20, 52, 80, 80);
     const who = playerName || 'New Hire';
     text(who, 60 - who.length * 3, 142);
-    // the parts, each with its choice between arrows
+    if (crowned) text('Office Champion', 15, 154, 1, GOLD);
+    // the parts, each with its choice between arrows (the champion's crown has none)
     EDIT_ROWS.forEach((r, i) => {
-      const y = 42 + i * 16, sel = edit.row === i, c = sel ? col.light : col.dark, v = editValue(r, look);
+      const y = 42 + i * 16, sel = edit.row === i, c = sel ? col.light : col.dark, lock = editLocked(r), v = lock ? Art.CROWN : editValue(r, look);
       if (sel) { ctx.fillStyle = col.dark; ctx.fillRect(112, y - 3, 198, 14); }
       text(r.label, 116, y, 1, c);
-      text('<', 198, y, 1, c); text('>', 300, y, 1, c);
+      if (!lock) { text('<', 198, y, 1, c); text('>', 300, y, 1, c); }
       const name = r.name ? r.name(v) : '', sw = r.swatch ? r.swatch(v) : null;
       let x = 252 - (((sw ? 9 : 0) + (sw && name ? 4 : 0) + (name ? name.length * 6 - 1 : 0)) >> 1);
       if (sw) {
@@ -13226,7 +13342,7 @@
       if (sel) ctx.fillRect(x, y - 4, 60, 15); else { ring(x, y - 4, 60, 15); ring(x + 1, y - 3, 58, 13); }
       text(label, x + 30 - label.length * 3, y, 1, sel ? col.light : col.dark);
     });
-    ctext('Arrows: choose   Space: change   Enter: done', SH - 22);
+    ctext(editLocked(EDIT_ROWS[edit.row]) ? 'The Office Champion always wears the crown!' : 'Arrows: choose   Space: change   Enter: done', SH - 22);
     if (edit.wait > 0) {
       box(60, 96, SW - 120, 40);
       ctext('Looking you up...', 112);
@@ -13311,6 +13427,7 @@
     if (eotm)
       for (const e of easels[P.floor]) drawEaselAt(e.x * 16 - cx, e.y * 16 - cy);
     if (cookies.floor === P.floor) drawCookiesAt(cookies.x * 16 - cx, cookies.y * 16 - cy);
+    if (deskPumpkin && deskPumpkin.floor === P.floor) drawPumpkinAt(deskPumpkin.x * 16 - cx + 3, deskPumpkin.y * 16 - cy + 1, true);
     if (!stapler.found && stapler.floor === P.floor) drawStaplerAt(stapler.x * 16 - cx, stapler.y * 16 - cy);
     for (const k of portals[P.floor]) {
       const x = k.x * 16 - cx, y = k.y * 16 - cy;
@@ -13521,7 +13638,9 @@
     // from the editor (its code, see js/art.js)
     if (q.has('char')) { const [g, i] = q.get('char').split(':'); myLook = oldPick(GENDERS.includes(g) ? g : 'male', i); }
     if (Art.lookFrom(q.get('look'))) myLook = Art.lookFrom(q.get('look'));
-    sprites = lookSprites(myLook);
+    // &crown=1 wears the Office Champion's crown, whoever you are
+    if (q.has('crown')) crowned = q.get('crown') !== '0';
+    sprites = lookSprites(wornLook(myLook));
     if (q.has('dir')) P.dir = q.get('dir');
     // &costume=vampire wears that costume (in October you wear your last one anyway);
     // &party=1 starts the boardroom party with you standing by a chair (or at &x=&y=)
@@ -13584,7 +13703,7 @@
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
       dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp, slots: SlotsGame,
       pokertable: () => PokerApp(null, true), pokerlive: LivePoker, bjtable: () => BlackjackApp(null, true),
-      hockey1: () => LiveHockey(2), hockey2: () => LiveHockey(4),
+      hockey: () => HockeyGame(gateKeeper || npcs.find((n) => !n.ghost && !n.extra)), hockey1: () => LiveHockey(2), hockey2: () => LiveHockey(4),
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       chop: ChopGame, mallow: MallowGame, spruce: SpruceGame, snowman: SnowmanGame, cocoa: CocoaGame, snowball: SnowballGame,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),

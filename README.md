@@ -622,6 +622,11 @@ All through October (by your device's date) the office does Halloween:
 - Then it's "Happy Haakon Halloween", and you're back by your chair with the office
   as it was. Sit down again to run the party again.
 
+The rest of the year a **jack-o'-lantern** sits on the left end of the reception desk.
+Press A on it to pick any of the five party games or the costume contest, without the
+party. For the contest you change into the costume you last picked (the Clown if you
+never picked one), and back again afterwards. The scores go on the same leaderboards.
+
 The costumes are drawn in `COSTUMES` in `js/art.js`. What people say about their
 costume is `COSTUME_LINES` at the bottom of `js/people.js`, and anyone in `PEOPLE` can
 have a `halloween:` line of their own.
@@ -659,23 +664,31 @@ From November 27 to December 31 (by your device's date) the office does Christma
   - **Chopping block** (the east end of the woodpile): split each log down the crack
     across its top in 60 seconds. Arrows slide the axe over the crack; hold A to heft it
     and let go to bring it down. The higher it goes the harder it lands, but the more it
-    sways, and it sinks again if you hold it up too long. Big logs need a big swing or the
-    axe sticks (mash A to work it free), a swing off the crack only opens the crack up a
-    little, and a knot bounces the axe off. The logs get bigger and your arms more tired
-    as you go.
+    sways, and it sinks again if you hold it up too long. Each log wants a swing between
+    the two gold marks on the power meter (higher for bigger logs; the bar goes green
+    there). Too soft and the axe sticks: mash A to work it free, then let go a moment
+    before the next swing (mashing never starts one, and nor does a quick tap). Too hard
+    (the bar goes red) and the log splinters and doesn't count. A swing off the crack
+    only opens the crack up a little, and a knot bounces the axe off. The logs get bigger
+    and your arms more tired as you go.
   - **Fire pit**: five marshmallows, 20 seconds each, each scored out of 100 for being
     golden brown all the way round. Up and down raise and lower the stick (lower is
     hotter), left and right give it a quarter turn, and A takes it off to eat. The side
     facing the fire toasts fastest, the two beside it a little, the top hardly at all;
     the circle on the right shows the marshmallow end on, with the bottom side facing the
-    fire. Now and then the fire crackles and flares up. Let a side go black and the
-    marshmallow catches fire: blow it out with A, quick, or it's charcoal.
+    fire. The fire never holds still: it keeps dying down and building up again (the heat
+    meter on the left follows it), and now and then it crackles and flares right up. Let
+    a side go black and the marshmallow catches fire: blow it out with A, quick, or it's
+    charcoal.
   - **Big spruce**: 45 seconds to hang everything the box hands you (baubles in five
     colours, candy canes and bows, with the next one shown in the box). Steer your hand
-    and press A to hang it on a branch. Each is worth 10, plus 5 if nothing the same is
-    near it and 5 if it has room to itself; hang one right up against another and it
-    slips off and breaks (-5). Then the star swings back and forth over the top: press A
-    to drop it, up to 50 more the straighter it lands.
+    and press A to hang it on a branch. A dotted circle round your hand shows what it's
+    worth there before you hang it, with the points beside it: green +20 with the circle
+    to itself, yellow +15 with something else in it, orange +10 with one the same in it
+    (whatever's in the circle is outlined, the same kind in red), and red where it's right
+    up against another and would slip off and break (-5). The end screen counts how many
+    of each you got. Then the star swings back and forth over the top: press A to drop
+    it, up to 50 more the straighter it lands.
   - **Snowman**: roll the bottom, then the middle, then the head, in 60 seconds. A ball
     picks up the fresh snow it rolls over, leaving bare ground behind, and slows down as
     it grows; A stands it where it is and starts the next one. Then they're stacked, and
@@ -717,7 +730,9 @@ From November 27 to December 31 (by your device's date) the office does Christma
   and you can give up from there. Tied at the buzzer, it goes to overtime, next goal
   wins. You're the yellow ring, they're the red, and whoever has the puck has theirs
   filled in. The ice is 14 by 30 metres. In 3D the camera drops low behind the rink's
-  near end, looking up the ice at the net you're shooting at.
+  near end, looking up the ice at the net you're shooting at. The most goals you've
+  scored in one game (played to the end, win or lose) go on the **HOCKEY GOALS**
+  leaderboard, on the Christmas page of the Hall of Fame.
 - **Live hockey**: with a game server, go up to the rink itself (its boards, a net, or
   the ice once you're out on it) and pick **1 ON 1** or **2 ON 2**. Whoever's minding the
   gate only plays you one on one. The first one there waits in the lobby, which
@@ -805,7 +820,8 @@ Add these to the end of the address (after `index.html`) and press Enter.
 - `index.html#play&halloween=1&game=contest`: skip straight to the costume contest.
 - Add `&costume=witch` (or `clown`, `vampire`, `skeleton`, `pumpkin`, `mummy`, `fan`,
   `sdg`) to a `#play` link to pick what you're wearing.
-- `#halloween=0` switches it off during October.
+- `#halloween=0` switches it off during October (and puts the jack-o'-lantern on the
+  reception desk).
 
 **Christmas outside its dates**
 
@@ -830,7 +846,7 @@ Add these to the end of the address (after `index.html`) and press Enter.
 | Kingston plant | `forklift`, `paint` (Even Coat) |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`), `fame` (the Hall of Fame) |
 | Halloween | `contest`, `bob`, `mummy`, `carve`, `treat`, `ghosts`, `hsplash` (the closing screen) |
-| Christmas | `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball` |
+| Christmas | `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `hockey` (against whoever's minding the gate; add `&yard` to see the rink) |
 
 Plain `index.html#play` skips the title screen and drops you at the entrance.
 
@@ -847,7 +863,7 @@ Best scores are saved in the browser, and sent to the online leaderboards when
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
 `forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `pokerlive`, `hockey1` and `hockey2` (live hockey, with `&yard=1` to be out at the rink; these three need `&server=`), `blackjack`, `build`, `forklift`, `paint`,
-`chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`) opens a game straight away.
+`chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `hockey`) opens a game straight away.
 `&dog=Bella` puts that dog right in front of you; `game=catch` plays catch with it
 and `game=dogs` shows the frisbee leaderboard.
 For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,

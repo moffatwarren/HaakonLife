@@ -139,9 +139,9 @@ window.HD = (function () {
   // freckles, and shoes and bare hands in place of boots and mitts.
   const SHIRTS = ['tie', 'blouse', 'tee', 'stripes', 'hoodie', 'suit', 'sweater', 'hivis'];
   const LEGS = ['trousers', 'shorts', 'skirt', 'overalls'];
-  const PLAYER_HATS = ['cap', 'toque', 'hardhat', 'cowboy'], WORN = ['glasses', 'shades', 'headphones', 'bow'];
+  const PLAYER_HATS = ['cap', 'toque', 'hardhat', 'cowboy', 'crown'], WORN = ['glasses', 'shades', 'headphones', 'bow'];
   // the head things' colours, as the editor draws them
-  const HAT_COLOURS = { cap: '#c03a30', toque: '#58a848', hardhat: '#f0b030', cowboy: '#9a6434', headphones: '#8890a0', bow: '#d23a40' };
+  const HAT_COLOURS = { cap: '#c03a30', toque: '#58a848', hardhat: '#f0b030', cowboy: '#9a6434', crown: '#f0b030', headphones: '#8890a0', bow: '#d23a40' };
   const HIVIS = '#f6a524';
   function person(name, body, look, style) {
     const h = hash(name || '?'), st = style || {}, female = body === 'female', g = female ? 'female' : 'male', player = !!st.player;
@@ -552,6 +552,21 @@ window.HD = (function () {
       part(c, t, (cc) => poly(cc, [[-4.2 + dx, -37.6], [-4.6 + dx, -43.6], [-2.4 + dx, -45], [dx, -44], [2.4 + dx, -45], [4.6 + dx, -43.6], [4.2 + dx, -37.6]]),
         (cc) => cc.rect(1.4 + dx, -46, 6, 9), (cc) => ell(cc, -2.4 + dx, -42.6, 0.8, 1.4));
       part(c, tone('#5c4c3a'), (cc) => rr(cc, -4.35 + dx, -39.8, 8.7, 1.7, 0.4));
+    } else if (p.hat === 'crown') {
+      // the Office Champion's crown: a red velvet cap inside a gold band with three points,
+      // a pearl on each point and jewels round the band
+      const t = p.hatC;
+      part(c, tone('#b83028'), (cc) => ell(cc, dx, -40.4, 4.2, 3.4), (cc) => cc.rect(1.4 + dx, -45, 4, 6), (cc) => ell(cc, -1.6 + dx, -42.4, 1.2, 0.6, -0.4));
+      part(c, t, (cc) => poly(cc, [[-4.8 + dx, -39.6], [-5.4 + dx, -44], [-2.6 + dx, -41.2], [dx, -45.2], [2.6 + dx, -41.2], [5.4 + dx, -44], [4.8 + dx, -39.6]]),
+        (cc) => cc.rect(1.6 + dx, -47, 5, 9), (cc) => poly(cc, [[-4.6 + dx, -40.2], [-5 + dx, -43], [-3.8 + dx, -41.8]]));
+      for (const [x, y] of [[-5.4, -44], [0, -45.2], [5.4, -44]]) part(c, tone('#efe6d2'), (cc) => ell(cc, x + dx, y, 1, 1));
+      part(c, t, (cc) => rr(cc, -5.1 + dx, -40.4, 10.2, 3.2, 0.7), (cc) => cc.rect(2.2 + dx, -41, 4, 5), (cc) => cc.rect(-4.6 + dx, -40, 3, 0.6));
+      if (view !== 'back') {
+        // (the jewels with no outline, or they'd be all outline at this size)
+        const jewel = (x, r, col) => { c.fillStyle = col; ell(c, x + dx, -38.8, r, r * 0.85); c.fill(); c.fillStyle = 'rgba(255, 255, 255, 0.7)'; ell(c, x + dx - r * 0.35, -39.1, r * 0.35, r * 0.25); c.fill(); };
+        jewel(side ? -2.6 : 0, 1.1, '#d0242c');
+        for (const x of side ? [1] : [-3.1, 3.1]) jewel(x, 0.8, '#3a6ad8');
+      }
     }
   }
   // what a player wears with their hair showing: glasses, shades, headphones or a bow

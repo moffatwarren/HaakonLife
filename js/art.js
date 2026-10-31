@@ -1003,7 +1003,14 @@ window.Art = (function () {
       up: ['.kk.kk..........', '.kRkRk..........', '.krrrk..........', '.kRkRk..........', '.kk.kk..........'],
       left: ['.......kk.kk....', '.......kRkRk....', '.......krrrk....', '.......kRkRk....'],
     },
+    // only ever worn by the Office Champion, and they can't wear anything else (see js/game.js)
+    {
+      name: 'Crown', hd: 'crown',
+      down: ['____k__kk__k____', '___kokkookkok___', '...koyooooook...', '...kqrqiiqrqk...'],
+    },
   ];
+  // where the crown is in HATS
+  const CROWN = HATS.findIndex((h) => h.hd === 'crown');
   // Shirts: rows 10-12 (or from row 9, when `from` says so), looking down, up (the same
   // as down unless it says), left standing and left mid-stride.
   const SHIRTS = [
@@ -2348,6 +2355,6 @@ window.Art = (function () {
   return {
     LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLookCostume,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLookCostume,
   };
 })();
