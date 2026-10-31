@@ -1156,7 +1156,7 @@ window.Art = (function () {
     return { h: HAIR_COLOURS[look.hairC][1], s: SKINS[look.skin], w: sc[1], u: sc[2], K: PANTS_COLOURS[look.pantsC][1] };
   }
   // how a look dresses in the parking lot's smoother style (js/hd.js): just as it is here
-  const lookStyle = (look) => ({ player: true, hair: HAIRS[look.hair].hd, hat: HATS[look.hat].hd, shirt: SHIRTS[look.shirt].hd, pants: PANTS[look.pants].hd });
+  const lookStyle = (look) => ({ hair: HAIRS[look.hair].hd, hat: HATS[look.hat].hd, shirt: SHIRTS[look.shirt].hd, pants: PANTS[look.pants].hd });
 
   // lay rows over a buffer from row y0: '.' (or past a row's end) leaves what's there, '_' rubs it out
   function lay(b, rows, y0) {

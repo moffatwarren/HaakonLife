@@ -12,6 +12,7 @@
 //   lot.setZoom(i, now)                                 // 0 far (the default), 1 mid, 2 close
 //   lot.draw({ t, alpha, focus: [px, py], people: [{ key, spec, px, py, dir, walk, skate }] })
 //   lot.toScreen(px, py, height)                        // -> [x, y] on the 320 x 240 screen
+//   lot.drawGame(kind, f)                               // a winter game instead (js/winter3d.js) -> its stage, or null
 //
 // px, py are game pixels as everywhere in js/game.js (16 to a tile, a tile's top-left
 // corner). t is the game's tick and alpha how far the screen is into the next one (0 to
@@ -29,8 +30,6 @@ window.LOT3D = (function () {
   const FACING = { down: 0, right: Math.PI / 2, up: Math.PI, left: -Math.PI / 2 };
   const BULBS = ['#ff4a4a', '#ffd23a', '#4ae06a', '#4aa8ff', '#ff7ad8', '#ff9a2a'];
   const CARS = ['#c8352f', '#2f6fc0', '#d4d8e0', '#2e7a52', '#f2f2f4', '#e0a030', '#6a4aa8', '#3a3f4a', '#2a9ab0'];
-  const STRIPES = ['#2e7a4a', '#d83a30', '#f0c030', '#283a80']; // the striped toque's bands, as in js/hd.js
-  const LEAF = [[0, 1], [0.15, 0.62], [0.38, 0.75], [0.3, 0.35], [0.62, 0.45], [0.52, 0.2], [0.82, 0.08], [0.45, -0.16], [0.52, -0.36], [0.08, -0.3], [0.05, -0.72], [-0.05, -0.72], [-0.08, -0.3], [-0.52, -0.36], [-0.45, -0.16], [-0.82, 0.08], [-0.52, 0.2], [-0.62, 0.45], [-0.3, 0.35], [-0.38, 0.75], [-0.15, 0.62]];
   // the light out here: always dusk, the sun low in the west, the lamps, windows and
   // strings of lights all on
   const DUSK = { bg: '#262a4c', sky: '#8890c8', gnd: '#262840', hemi: 0.44, sun: 0.34, sunC: '#ff9e6a', lamp: 1.2, halo: 0.85, win: 1, warm: 1 };
@@ -205,12 +204,7 @@ window.LOT3D = (function () {
       for (let i = 0; i < d.length; i += 4) { const n = (r() - 0.5) * amt; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
       g.putImageData(img, 0, 0);
     }
-    function leafPath(g, x, y, s) {
-      g.beginPath();
-      LEAF.forEach(([lx, ly], i) => (i ? g.lineTo : g.moveTo).call(g, x + lx * s, y - ly * s));
-      g.closePath();
-    }
-    // buffalo check, the same weave the flat art paints
+    // buffalo check (the snowman's scarf)
     const plaid = (base, dark, rx, ry) => {
       const t = tex('plaid' + base + dark + rx + ry, 32, 32, (g) => {
         g.fillStyle = base; g.fillRect(0, 0, 32, 32);
@@ -226,50 +220,7 @@ window.LOT3D = (function () {
       g.fillStyle = mixc(base, '#000000', 0.25);
       for (let x = 0; x < w; x += 4) g.fillRect(x, 0, 1.5, h);
     }, 6, 1);
-    const striped = (base) => tex('striped' + base, 16, 64, (g, w, h) => {
-      g.fillStyle = base; g.fillRect(0, 0, w, h);
-      STRIPES.forEach((c, i) => { g.fillStyle = c; g.fillRect(0, h * (0.3 + i * 0.12), w, h * 0.08); });
-    });
-    const quilt = (base, rows, zip) => tex('quilt' + base + rows + zip, 128, 128, (g, w, h) => {
-      g.fillStyle = base; g.fillRect(0, 0, w, h);
-      for (let i = 1; i < rows; i++) {
-        const y = i * h / rows;
-        g.fillStyle = mixc(base, '#000000', 0.45); g.fillRect(0, y - 1.5, w, 3);
-        g.fillStyle = mixc(base, '#ffffff', 0.18); g.fillRect(0, y + 2, w, 4);
-      }
-      if (zip) { g.fillStyle = '#1c1c22'; g.fillRect(w / 2 - 2, 0, 4, h); g.fillStyle = '#c9ced6'; for (let y = 2; y < h; y += 5) g.fillRect(w / 2 - 1, y, 2, 2); }
-    }, 1, 1, zip ? 0.5 : 0);
-    const denim = (base, front) => tex('denim' + base + front, 128, 128, (g, w, h) => {
-      g.fillStyle = base; g.fillRect(0, 0, w, h);
-      const r = rng(7);
-      g.globalAlpha = 0.07;
-      for (let i = 0; i < 260; i++) { g.fillStyle = r() < 0.5 ? '#ffffff' : '#0a1020'; g.fillRect(r() * w, r() * h, 10, 1); }
-      g.globalAlpha = 1;
-      // orange thread
-      g.strokeStyle = '#e8c87a'; g.lineWidth = 1.4; g.setLineDash([4, 3]);
-      if (front) {
-        g.beginPath(); g.moveTo(0, 24); g.lineTo(w, 24); g.moveTo(0, 29); g.lineTo(w, 29); g.stroke();
-        g.beginPath(); g.moveTo(w / 2 - 6, 0); g.lineTo(w / 2 - 6, h); g.moveTo(w / 2 + 6, 0); g.lineTo(w / 2 + 6, h); g.stroke();
-        g.setLineDash([]); g.fillStyle = '#e8dcc0';
-        for (let y = 40; y < h - 10; y += 22) { g.beginPath(); g.arc(w / 2, y, 3.2, 0, TAU); g.fill(); }
-      } else {
-        g.beginPath(); g.moveTo(w * 0.25, 0); g.lineTo(w * 0.25, h); g.moveTo(w * 0.75, 0); g.lineTo(w * 0.75, h); g.stroke();
-      }
-      g.setLineDash([]);
-    }, 1, 1, front ? 0.5 : 0);
-    // a hockey sweater: bands at the hem, a maple leaf on the front and the number on the back
-    // (the texture's middle is the front; its two edges meet at the back)
-    const jersey = (base, stripe, num) => tex('jersey' + base + stripe + num, 256, 256, (g, w, h) => {
-      g.fillStyle = base; g.fillRect(0, 0, w, h);
-      const band = (v0, v1, col) => { g.fillStyle = col; g.fillRect(0, (1 - v1) * h, w, (v1 - v0) * h); };
-      band(0.17, 0.29, '#f2f0ea'); band(0.2, 0.26, stripe); band(0.82, 0.86, '#f2f0ea');
-      g.fillStyle = '#f4f2ec'; g.beginPath(); g.arc(w / 2, h * 0.47, 26, 0, TAU); g.fill();
-      g.fillStyle = '#d0262c'; leafPath(g, w / 2, h * 0.47, 21); g.fill();
-      g.font = '900 54px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.lineWidth = 8; g.strokeStyle = '#16121c';
-      for (const x of [0, w]) { g.strokeText(String(num), x, h * 0.47); g.fillStyle = '#f4f2ec'; g.fillText(String(num), x, h * 0.47); }
-    }, 1, 1, 0.5);
-    // a player's shirts: stripes all the way round, a sweater's band of diamonds across the
+    // shirts: stripes all the way round, a sweater's band of diamonds across the
     // chest (and ribs at the hem), and a hi-vis vest's two silver stripes
     const bands = (base, stripe, n) => tex('bands' + base + stripe + n, 16, 64, (g, w, h) => {
       g.fillStyle = base; g.fillRect(0, 0, w, h);
@@ -369,44 +320,34 @@ window.LOT3D = (function () {
       grit(g, w, h, 16, 18);
     }, 3, 2);
 
-    const LEAF_GEO = new T.ShapeGeometry(new T.Shape(LEAF.map(([x, y]) => new T.Vector2(x, y))));
-
-    // a torso as a lathe, so fabric runs evenly from hem to collar; `gap` opens the front (a vest)
-    function torsoGeo(r, h, gap) {
+    // a torso as a lathe, so fabric runs evenly from hem to collar
+    function torsoGeo(r, h) {
       const prof = [[0.02, 0], [0.55, 0.015], [0.86, 0.06], [0.97, 0.14], [1, 0.26], [1, 0.42], [1.02, 0.58], [1.03, 0.72], [0.98, 0.84], [0.82, 0.93], [0.55, 0.985], [0.25, 1], [0.02, 1]];
-      gap = gap || 0;
-      return new T.LatheGeometry(prof.map(([a, b]) => new T.Vector2(a * r, b * h)), 24, gap, TAU - gap * 2);
+      return new T.LatheGeometry(prof.map(([a, b]) => new T.Vector2(a * r, b * h)), 24);
     }
 
     // ---------- people ----------
-    // Built from an HD.person spec: hair, hat, beard, outfit and collar, in the colours the
-    // flat art uses, or a player's look (their shirt, pants and head thing) from the
-    // character editor. Everyone's the same size. Legs bend at the knee and arms at the
-    // elbow; everything above the waist sits in `upper` so it can twist against the hips.
-    // Boots (shoes, on a player) and skates are both there; the skates show on ice, and turn
-    // at the ankle.
+    // Built from an HD.person spec, in the colours the flat art uses: the hair, head thing,
+    // shirt and pants the character editor has (a coworker's office clothes, or a player's
+    // look). Everyone's the same size. Legs bend at the knee and arms at the elbow;
+    // everything above the waist sits in `upper` so it can twist against the hips. Shoes
+    // and skates are both there; the skates show on ice, and turn at the ankle.
     const HIP_Y = 0.62, THIGH = 0.27, SHIN = 0.24, BLADE = 0.16; // hip height, hip to knee, knee to ankle, ankle to the ice
     function buildPerson(p) {
-      const female = p.female, parka = p.outfit === 'parka';
+      const female = p.female;
       const root = new T.Group(), body = new T.Group();
       root.add(body);
       const rig = new T.Group(), upper = new T.Group();
       body.add(rig); rig.add(upper);
-      const skinM = toon(p.skin.f), hairM = toon(p.hairC.f), gloveM = toon(p.glove.f), fleeceM = toon(p.fleece.f), creamM = toon(p.cream.f);
-      let coatM, sleeveM, pantsM = toon(p.pants.f);
-      if (p.outfit === 'jersey') { coatM = toon(null, jersey(p.coat.f, p.acc.f, p.number)); sleeveM = toon(p.coat.f); }
-      else if (parka) { coatM = toon(null, quilt(p.coat.f, 6, true)); sleeveM = toon(null, quilt(p.coat.f, 4, false)); }
-      else if (p.outfit === 'denim') { coatM = toon(null, denim(p.coat.f, true)); sleeveM = toon(null, denim(p.coat.f, false)); pantsM = toon(null, denim(p.pants.f, false)); }
-      else if (p.player) {
-        const shirt = { stripes: () => bands(p.coat.f, p.acc.f, 8), sweater: () => sweater(p.coat.f, p.acc.f), hivis: () => hivis(p.coat.f) }[p.outfit];
-        coatM = shirt ? toon(null, shirt()) : toon(p.coat.f);
-        sleeveM = p.outfit === 'stripes' ? toon(null, bands(p.coat.f, p.acc.f, 4)) : toon(p.arms.f);
-      } else coatM = sleeveM = toon(null, plaid(p.coat.f, p.checks));
+      const skinM = toon(p.skin.f), hairM = toon(p.hairC.f), pantsM = toon(p.pants.f);
+      const shirt = { stripes: () => bands(p.coat.f, p.acc.f, 8), sweater: () => sweater(p.coat.f, p.acc.f), hivis: () => hivis(p.coat.f) }[p.outfit];
+      const coatM = shirt ? toon(null, shirt()) : toon(p.coat.f);
+      const sleeveM = p.outfit === 'stripes' ? toon(null, bands(p.coat.f, p.acc.f, 4)) : toon(p.arms.f);
 
-      const r = 0.245 * (female ? 0.9 : 1) * (parka ? 1.1 : 1);
-      const tb = parka ? 0.47 : 0.58, th = parka ? 0.82 : 0.72, top = tb + th;
+      const r = 0.245 * (female ? 0.9 : 1);
+      const tb = 0.58, th = 0.72, top = tb + th;
 
-      // legs: thigh, knee, shin, and boots or skates (bare below shorts or a skirt)
+      // legs: thigh, knee, shin, and shoes or skates (bare below shorts or a skirt)
       const hips = {}, knees = {}, boots = [], skates = [];
       const bare = p.legs === 'shorts' || p.legs === 'skirt', shinM = bare ? skinM : pantsM, legR = bare ? 0.8 : 1;
       for (const s of [-1, 1]) {
@@ -418,7 +359,6 @@ window.LOT3D = (function () {
         knee.add(at(cyl(0.092 * legR, 0.086 * legR, 0.23, shinM, null, 10, true), 0, -0.115, 0));
         const bt = new T.Group(), sk = new T.Group();
         knee.add(bt); knee.add(sk); boots.push(bt); skates.push(sk);
-        if (!p.player) bt.add(at(cyl(0.1, 0.106, 0.08, toon('#efe6d2'), null, 10), 0, -0.16, 0));
         bt.add(ball(toon(p.boot.f), 0, -0.26, 0.045, 0.12, 0.1, 0.18));
         bt.add(at(box(0.22, 0.03, 0.34, toon(p.sole.f), { ol: false }), 0, -0.345, 0.045));
         sk.position.y = -SHIN;
@@ -430,7 +370,7 @@ window.LOT3D = (function () {
       }
       rig.add(ball(pantsM, 0, 0.64, 0, r * 0.88, 0.13, r * 0.7));
 
-      // torso, vest, and a player's skirt or overalls
+      // torso, and a skirt or overalls
       const torso = at(mesh(torsoGeo(r, th), coatM), 0, tb, 0);
       torso.scale.z = 0.8; upper.add(torso);
       if (p.legs === 'skirt') { const sk = at(cyl(r * 0.92, 0.3, 0.27, pantsM, null, 18), 0, 0.55, 0); sk.scale.z = 0.85; rig.add(sk); }
@@ -446,13 +386,9 @@ window.LOT3D = (function () {
         }
         for (const s of [-1, 1]) upper.add(rod(new V3(s * 0.1, top - 0.03, r * 0.55), new V3(s * 0.1, top - 0.03, -r * 0.55), 0.018, pantsM));
       }
-      if (p.outfit === 'vest') {
-        const v = at(mesh(torsoGeo(r * 1.07, th * 0.97, 0.36), toon(null, quilt(p.acc.f, 5, false), T.DoubleSide)), 0, tb + 0.02, 0);
-        v.scale.z = 0.86; upper.add(v);
-      }
 
-      // arms: upper arm, elbow, forearm, glove
-      const arms = {}, elbows = {}, sx = r + 0.06, sy = tb + th * 0.84, armR = parka ? 0.112 : 0.092;
+      // arms: upper arm, elbow, forearm, hand
+      const arms = {}, elbows = {}, sx = r + 0.06, sy = tb + th * 0.84, armR = 0.092;
       for (const s of [-1, 1]) {
         const sh = new T.Group(), el = new T.Group();
         sh.position.set(s * sx, sy, 0); sh.rotation.z = s * 0.12; upper.add(sh);
@@ -464,49 +400,30 @@ window.LOT3D = (function () {
         el.position.y = -0.22; sh.add(el);
         el.add(ball(lowM, 0, 0, 0, lowR * 0.96, lowR * 0.96, lowR * 0.96, { ol: false }));
         el.add(at(cyl(lowR * 0.95, lowR * 0.88, 0.2, lowM, null, 10, true), 0, -0.1, 0));
-        if (p.outfit === 'jersey') el.add(at(cyl(armR, armR, 0.07, toon(p.acc.f), { ol: false }, 10, true), 0, -0.06, 0));
-        if (parka) { const cuff = at(mesh(new T.TorusGeometry(armR * 0.9, 0.03, 6, 14), creamM), 0, -0.19, 0); cuff.rotation.x = Math.PI / 2; el.add(cuff); }
-        if (p.player) el.add(ball(gloveM, 0, -0.23, 0.01, 0.068, 0.08, 0.072)); // a bare hand
-        else el.add(ball(gloveM, 0, -0.25, 0.01, 0.085, 0.1, 0.09));
+        el.add(ball(skinM, 0, -0.23, 0.01, 0.068, 0.08, 0.072));
         arms[s] = sh; elbows[s] = el;
       }
 
-      // what's round the neck
-      if (p.collar === 'fleece') upper.add(ring(r * 0.62, 0.055, fleeceM, top - 0.03));
-      if (p.collar === 'ruff') upper.add(ring(r * 0.66, 0.08, creamM, top - 0.03));
-      if (p.collar === 'lace') {
-        upper.add(ring(r * 0.55, 0.035, toon('#f2f0ea'), top - 0.02));
-        const v = at(new T.Mesh(new T.CircleGeometry(0.07, 3), basic('#f2f0ea')), 0, top - 0.12, r * 0.8 + 0.01);
-        v.rotation.z = -Math.PI / 2; upper.add(v);
-      }
-      if (p.collar === 'scarf') {
-        const sm = toon(null, plaid(p.acc.f, p.accChecks, 5, 1));
-        upper.add(ring(r * 0.66, 0.075, sm, top - 0.02));
-        const tail = at(box(0.13, 0.34, 0.045, sm), 0.09, top - 0.2, r * 0.72);
-        tail.rotation.z = 0.12; upper.add(tail);
-      }
-      // a player's neckline: a tie (with a suit's white shirt behind it), a crew neck, a
+      // the shirt's neckline: a tie (with a suit's white shirt behind it), a crew neck, a
       // necklace, a hood, or the shirt under a hi-vis vest
       const vee = (rad, col, y) => { const v = at(new T.Mesh(new T.CircleGeometry(rad, 3), basic(col)), 0, y, r * 0.82 + 0.008); v.rotation.set(-0.12, 0, -Math.PI / 2); upper.add(v); };
-      if (p.player) {
-        if (p.outfit === 'suit') vee(0.15, '#f4f4f8', top - 0.1);
-        if (p.outfit === 'tie' || p.outfit === 'suit') {
-          const accM = toon(p.acc.f), len = p.outfit === 'suit' ? 0.2 : 0.46;
-          const tie = at(box(0.05, len, 0.015, accM, { ol: false }), 0, top - 0.05 - len / 2, r * 0.82 + 0.014);
-          tie.rotation.x = -0.08; upper.add(tie);
-          upper.add(ball(accM, 0, top - 0.045, r * 0.74, 0.034, 0.03, 0.022));
-          upper.add(ring(r * 0.58, 0.03, toon(p.outfit === 'suit' ? '#f4f4f8' : p.coat.f), top - 0.02));
-        }
-        if (['tee', 'stripes', 'sweater'].includes(p.outfit)) upper.add(ring(r * 0.56, 0.028, toon(p.outfit === 'tee' ? p.acc.f : mixc(p.coat.f, '#000000', 0.2)), top - 0.02));
-        if (p.outfit === 'blouse') { vee(0.08, p.skin.f, top - 0.06); upper.add(ball(toon(p.acc.f), 0, top - 0.13, r * 0.82 + 0.012, 0.02, 0.024, 0.012, { ol: false })); }
-        if (p.outfit === 'hivis') vee(0.1, p.arms.f, top - 0.07);
-        if (p.outfit === 'hoodie') {
-          const hood = ring(r * 0.66, 0.07, coatM, top - 0.02);
-          hood.position.z = -0.03; upper.add(hood);
-          upper.add(ball(coatM, 0, top - 0.15, -r * 0.74, 0.17, 0.13, 0.07));
-          upper.add(at(box(0.26, 0.11, 0.03, toon(mixc(p.coat.f, '#000000', 0.18))), 0, tb + 0.14, r * 0.8 + 0.01));
-          for (const s of [-1, 1]) upper.add(rod(new V3(s * 0.04, top - 0.03, r * 0.76), new V3(s * 0.045, top - 0.2, r * 0.84), 0.009, toon(p.acc.f), { ol: false }));
-        }
+      if (p.outfit === 'suit') vee(0.15, '#f4f4f8', top - 0.1);
+      if (p.outfit === 'tie' || p.outfit === 'suit') {
+        const accM = toon(p.acc.f), len = p.outfit === 'suit' ? 0.2 : 0.46;
+        const tie = at(box(0.05, len, 0.015, accM, { ol: false }), 0, top - 0.05 - len / 2, r * 0.82 + 0.014);
+        tie.rotation.x = -0.08; upper.add(tie);
+        upper.add(ball(accM, 0, top - 0.045, r * 0.74, 0.034, 0.03, 0.022));
+        upper.add(ring(r * 0.58, 0.03, toon(p.outfit === 'suit' ? '#f4f4f8' : p.coat.f), top - 0.02));
+      }
+      if (['tee', 'stripes', 'sweater'].includes(p.outfit)) upper.add(ring(r * 0.56, 0.028, toon(p.outfit === 'tee' ? p.acc.f : mixc(p.coat.f, '#000000', 0.2)), top - 0.02));
+      if (p.outfit === 'blouse') { vee(0.08, p.skin.f, top - 0.06); upper.add(ball(toon(p.acc.f), 0, top - 0.13, r * 0.82 + 0.012, 0.02, 0.024, 0.012, { ol: false })); }
+      if (p.outfit === 'hivis') vee(0.1, p.arms.f, top - 0.07);
+      if (p.outfit === 'hoodie') {
+        const hood = ring(r * 0.66, 0.07, coatM, top - 0.02);
+        hood.position.z = -0.03; upper.add(hood);
+        upper.add(ball(coatM, 0, top - 0.15, -r * 0.74, 0.17, 0.13, 0.07));
+        upper.add(at(box(0.26, 0.11, 0.03, toon(mixc(p.coat.f, '#000000', 0.18))), 0, tb + 0.14, r * 0.8 + 0.01));
+        for (const s of [-1, 1]) upper.add(rod(new V3(s * 0.04, top - 0.03, r * 0.76), new V3(s * 0.045, top - 0.2, r * 0.84), 0.009, toon(p.acc.f), { ol: false }));
       }
 
       // the head
@@ -523,21 +440,15 @@ window.LOT3D = (function () {
         brow.rotation.z = -s * 0.12; head.add(brow);
         // cheeks red from the cold
         head.add(ball(toon(mixc(p.skin.f, '#e0484a', 0.45)), s * 0.155, -0.07, 0.205, 0.055, 0.035, 0.02, face));
-        if (p.freckles) for (let i = 0; i < 3; i++) head.add(ball(basic(mixc(p.skin.f, '#6a3a20', 0.5)), s * (0.12 + i * 0.03), -0.035 - (i % 2) * 0.02, 0.228 - i * 0.012, 0.01, 0.01, 0.006, face));
       }
       head.add(ball(toon(mixc(p.skin.f, '#e0484a', 0.28)), 0, -0.045, 0.262, 0.05, 0.048, 0.045));
-      if (p.beard === 'stubble') head.add(ball(toon(p.stubble), 0, -0.15, 0.03, 0.255, 0.15, 0.245, face));
-      head.add(ball(basic('#5a2a2a'), 0, -0.135, p.beard === 'stubble' ? 0.279 : 0.226, 0.04, 0.014, 0.012, face));
+      head.add(ball(basic('#5a2a2a'), 0, -0.135, 0.226, 0.04, 0.014, 0.012, face));
 
       // hair
       const hat = p.hat !== 'none', hair = p.hair;
       if (hair === 'bald') head.add(ball(hairM, 0, -0.07, -0.05, 0.28, 0.17, 0.25));
       else head.add(ball(hairM, 0, 0.01, -0.035, 0.285, 0.29, 0.272));
-      if (!hat && !['bald', 'buzz', 'spiky', 'curly'].includes(hair)) {
-        const fringe = ball(hairM, hair === 'swept' ? 0.07 : 0, 0.17, 0.13, 0.22, 0.09, 0.12);
-        if (hair === 'swept') fringe.rotation.z = 0.35;
-        head.add(fringe);
-      }
+      if (!hat && !['bald', 'buzz', 'spiky', 'curly'].includes(hair)) head.add(ball(hairM, 0, 0.17, 0.13, 0.22, 0.09, 0.12));
       if (hair === 'spiky' && !hat) for (let i = 0; i < 7; i++) {
         const a = (i / 7) * TAU, sp = at(mesh(new T.ConeGeometry(0.06, 0.18, 6), hairM), Math.cos(a) * 0.13, 0.27, Math.sin(a) * 0.13 + 0.02);
         sp.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5); head.add(sp);
@@ -546,52 +457,22 @@ window.LOT3D = (function () {
         const a = (i / 10) * TAU;
         head.add(ball(hairM, Math.cos(a) * 0.22, 0.12 + (hat ? -0.05 : 0.06) * (i % 2), Math.sin(a) * 0.2 - 0.03, 0.09, 0.09, 0.09));
       }
-      if (hair === 'shaggy' || hair === 'messy') for (const s of [-1, 1]) head.add(ball(hairM, s * 0.245, -0.11, -0.03, 0.08, 0.14, 0.11));
-      if (hair === 'messy') for (let i = 0; i < 4; i++) head.add(ball(hairM, (R() - 0.5) * 0.4, 0.05 + R() * 0.15, -0.15 - R() * 0.1, 0.07, 0.07, 0.07));
-      if (hair === 'mullet') head.add(ball(hairM, 0, -0.22, -0.16, 0.21, 0.2, 0.13));
       if (hair === 'long') { head.add(ball(hairM, 0, -0.26, -0.11, 0.27, 0.32, 0.17)); for (const s of [-1, 1]) head.add(ball(hairM, s * 0.22, -0.2, 0, 0.08, 0.2, 0.12)); }
       if (hair === 'bob') { head.add(ball(hairM, 0, -0.13, -0.1, 0.28, 0.19, 0.18)); for (const s of [-1, 1]) head.add(ball(hairM, s * 0.22, -0.12, 0.02, 0.1, 0.17, 0.15)); }
-      if (hair === 'braids') for (const s of [-1, 1]) {
-        for (let i = 0; i < 4; i++) head.add(ball(hairM, s * (0.2 - i * 0.008), -0.22 - i * 0.095, 0.04 + i * 0.03, 0.055, 0.06, 0.055));
-        head.add(ball(toon(p.acc.f), s * 0.17, -0.58, 0.16, 0.035, 0.025, 0.035));
-      }
       if (hair === 'ponytail') {
         for (let i = 0; i < 4; i++) head.add(ball(hairM, 0, -0.02 - i * 0.11, -0.29 - i * 0.03, 0.09 - i * 0.008, 0.08, 0.08 - i * 0.006));
         head.add(ball(toon(p.acc.f), 0, 0.02, -0.27, 0.05, 0.05, 0.03));
       }
       if (hair === 'bun') head.add(ball(hairM, 0, 0.27, -0.12, 0.12, 0.11, 0.12));
 
-      // beards
-      const stache = (w) => { for (const s of [-1, 1]) { const m = ball(hairM, s * 0.055 * w, -0.1, 0.24, 0.07 * w, 0.035, 0.04); m.rotation.z = s * 0.28; head.add(m); } };
-      if (p.beard === 'huge') { head.add(ball(hairM, 0, -0.2, 0.1, 0.255, 0.27, 0.19)); stache(1.1); }
-      if (p.beard === 'full') { head.add(ball(hairM, 0, -0.17, 0.1, 0.24, 0.17, 0.17)); stache(1); }
-      if (p.beard === 'goatee') { head.add(ball(hairM, 0, -0.205, 0.18, 0.08, 0.09, 0.07)); stache(0.9); }
-      if (p.beard === 'stache') stache(1.25);
-      if (p.beard === 'chops') { for (const s of [-1, 1]) head.add(ball(hairM, s * 0.205, -0.1, 0.1, 0.07, 0.14, 0.09)); stache(1.05); }
-
-      // hats
-      if (p.hat === 'toque' || p.hat === 'stripes' || p.hat === 'leaf') {
-        // the striped one is cream with green, red, yellow and navy bands; the leaf one is red
-        const wool = p.hat === 'stripes' ? p.cream.f : p.hat === 'leaf' ? '#c8282e' : p.hatC.f;
-        head.add(at(mesh(HEMI, toon(null, p.hat === 'stripes' ? striped(wool) : knit(wool))), 0, 0.085, 0, 0.29, 0.31, 0.285));
-        head.add(at(cyl(0.296, 0.3, 0.1, toon(mixc(wool, '#000000', 0.12)), null, 22), 0, 0.11, 0));
-        if (p.pom || p.hat === 'stripes') head.add(ball(toon(p.hat === 'stripes' ? '#d83a30' : p.pomT.f), 0, 0.43, 0, 0.085, 0.085, 0.085));
-        if (p.hat === 'leaf') head.add(at(new T.Mesh(LEAF_GEO, basic('#ffffff')), 0, 0.112, 0.302, 0.042));
-      }
-      if (p.hat === 'trapper') {
-        const pm = toon(null, plaid(p.acc.f, p.accChecks, 6, 2));
-        head.add(at(mesh(HEMI, pm), 0, 0.075, 0, 0.3, 0.31, 0.295));
-        const brim = at(mesh(new T.TorusGeometry(0.29, 0.045, 8, 24), fleeceM), 0, 0.08, 0);
-        brim.rotation.x = Math.PI / 2; head.add(brim);
-        head.add(ball(fleeceM, 0, 0.15, 0.24, 0.17, 0.075, 0.06));
-        for (const s of [-1, 1]) {
-          head.add(ball(pm, s * 0.275, -0.04, -0.01, 0.06, 0.15, 0.13));
-          head.add(ball(fleeceM, s * 0.28, -0.17, -0.01, 0.065, 0.045, 0.12));
-        }
-      }
-      // a player's head thing: a cap, a hard hat or a cowboy hat, or glasses, shades,
-      // headphones or a bow with the hair showing
+      // the head thing: a toque, a cap, a hard hat, a cowboy hat or the crown, or glasses,
+      // shades, headphones or a bow with the hair showing
       const hatM = toon(p.hatC.f);
+      if (p.hat === 'toque') {
+        head.add(at(mesh(HEMI, toon(null, knit(p.hatC.f))), 0, 0.085, 0, 0.29, 0.31, 0.285));
+        head.add(at(cyl(0.296, 0.3, 0.1, toon(mixc(p.hatC.f, '#000000', 0.12)), null, 22), 0, 0.11, 0));
+        head.add(ball(toon(p.pomT.f), 0, 0.43, 0, 0.085, 0.085, 0.085));
+      }
       if (p.hat === 'cap') {
         head.add(at(mesh(HEMI, hatM), 0, 0.06, -0.005, 0.292, 0.27, 0.285));
         const peak = at(cyl(0.2, 0.2, 0.024, hatM, null, 18), 0, 0.075, 0.2);
@@ -1645,7 +1526,32 @@ window.LOT3D = (function () {
       return [(v.x * 0.5 + 0.5) * SW, (-v.y * 0.5 + 0.5) * SH];
     }
 
-    return { canvas: renderer.domElement, resize, draw, toScreen, setZoom };
+    // ---------- the winter games ----------
+    // The games played at the lot's props are drawn by js/winter3d.js, each on a little stage
+    // of its own (a scene and a camera), built the first time it's played from the same kit
+    // as the lot and drawn with the same renderer.
+    const kit = {
+      T, V3, TAU, SW, SH, R, rng, clamp, ease, mixc, GRAD, OL_MAT, olGeo, toon, basic, mesh, at, ball, box, cyl, rod, ring, mtx, tex, grit,
+      plaid, knit, planks, bark, needles, snowTex, snowM, rock, shingles, haloTex, flakeTex, SPH, HEMI, DUSK, FACING, BULBS, CARS, buildPerson, pose,
+    };
+    const stages = {};
+    let gameLast = 0;
+    function drawGame(kind, f) {
+      const make = window.WINTER3D && window.WINTER3D[kind];
+      if (!make) return null;
+      const st = stages[kind] || (stages[kind] = make(kit));
+      const now = performance.now(), dt = gameLast ? Math.min((now - gameLast) / 1000, 0.05) : 0.016;
+      gameLast = now;
+      const cam = st.camera, el = renderer.domElement, aspect = el.width && el.height ? el.width / el.height : SW / SH;
+      if (Math.abs(cam.aspect - aspect) > 1e-3) { cam.aspect = aspect; cam.updateProjectionMatrix(); }
+      st.draw(f, dt, now / 1000);
+      // outlines about a pixel and a half wide where the stage is looking
+      if (cssH) OL_MAT.uniforms.t.value = clamp((1.5 * 2 * st.dist * Math.tan((cam.fov * Math.PI) / 360)) / cssH, 0.002, 0.035);
+      renderer.render(st.scene, cam);
+      return st;
+    }
+
+    return { canvas: renderer.domElement, resize, draw, toScreen, setZoom, drawGame };
   }
 
   return { create };

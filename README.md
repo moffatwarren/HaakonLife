@@ -681,9 +681,10 @@ From November 27 to December 31 (by your device's date) the office does Christma
     a side go black and the marshmallow catches fire: blow it out with A, quick, or it's
     charcoal.
   - **Big spruce**: 45 seconds to hang everything the box hands you (baubles in five
-    colours, candy canes and bows, with the next one shown in the box). Steer your hand
-    and press A to hang it on a branch. A dotted circle round your hand shows what it's
-    worth there before you hang it, with the points beside it: green +20 with the circle
+    colours, candy canes and bows, with the next one shown in the box), all the way round
+    the tree. Left and right turn the tree, up and down move your hand up and down the
+    front of it, and A hangs the decoration there. A dotted circle round your hand shows
+    what it's worth there before you hang it, with the points beside it: green +20 with the circle
     to itself, yellow +15 with something else in it, orange +10 with one the same in it
     (whatever's in the circle is outlined, the same kind in red), and red where it's right
     up against another and would slip off and break (-5). The end screen counts how many
@@ -713,7 +714,10 @@ From November 27 to December 31 (by your device's date) the office does Christma
     they throw faster and straighter, as it goes on.
 
   They're in `js/game.js` after `yardTalk` (ChopGame, MallowGame, SpruceGame, SnowmanGame,
-  CocoaGame and SnowballGame), and `YARD_GAMES` says which prop starts which.
+  CocoaGame and SnowballGame), and `YARD_GAMES` says which prop starts which. When the
+  lot is in 3D, so are they: `js/winter3d.js` builds each one a little stage in the lot's
+  own look (its renderer, light, outlines and people come from `js/lot3d.js`), with the
+  scores, meters and words drawn over it as usual. Otherwise they draw themselves flat.
 - **Hockey**: talk to whoever is minding the rink's gate and they'll take you on, one
   on one, three minutes, no goalies. Arrows skate (diagonals too, and you carry on
   coasting when you let go); a thumbstick (on a phone's screen or a controller) skates
@@ -783,12 +787,11 @@ until it's restarted), the lot is drawn flat by
 `js/hd.js`, on a canvas four times the size of the game screen that sits under it (the
 game screen goes see-through outside, so menus and dialogs still draw on top as usual).
 In 3D that canvas only carries other players' names and speech bubbles. Everyone in it
-is the same size. Coworkers are drawn from the colours they
-already have (`js/people.js`), dressed for a Canadian winter:
-flannel, denim on denim, hockey sweaters, parkas or puffer vests, toques and trapper
-hats, and beards from stubble to mountain man. All of
-that is picked from their name; set `style: { hair, hat, beard, outfit }` on someone in `PEOPLE` to choose
-(the options are listed at the top of `js/people.js`). Players wear just what they made
+is the same size. Coworkers look just as they do in the office, in the colours they
+already have (`js/people.js`): short hair with a shirt and tie, or long hair with a
+blouse and necklace, over trousers. Set `style: { hair, hat, shirt, pants }` on someone
+in `PEOPLE` to dress them in anything else from the character editor (the options are
+listed at the top of `js/people.js`). Players wear just what they made
 in the character editor: the same hair, head thing, shirt and pants, in the same
 colours (each part's `hd` in `js/art.js` names its match in `js/hd.js` and `js/lot3d.js`). What they say out there is
 `CHRISTMAS_LINES` at the bottom of `js/people.js`, and anyone in `PEOPLE` can have a

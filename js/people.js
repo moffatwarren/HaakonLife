@@ -8,12 +8,14 @@
 //   christmas: (optional) something extra they might say if they're out in the parking
 //          lot at Christmas
 //   style: (optional) how they look out in the parking lot at Christmas, which is drawn
-//          in a cartoon style. Anything left out is picked from their name:
-//            hair:   'short', 'spiky', 'swept', 'curly', 'mullet', 'shaggy' or 'bald' (male),
-//                    'long', 'ponytail', 'bob', 'bun', 'braids' or 'messy' (female)
-//            hat:    'toque', 'stripes', 'leaf' (a maple leaf toque), 'trapper' or 'none'
-//            beard:  'huge', 'full', 'chops', 'stache', 'goatee' or 'stubble' (or false)
-//            outfit: 'flannel', 'denim', 'jersey', 'parka' or 'vest'
+//          in a cartoon style. They dress as they do in the office, in the colours above:
+//          short hair with a shirt and tie (male) or long hair with a blouse and necklace
+//          (female), over trousers. Pick anything else from the character editor's list:
+//            hair:  'short', 'long', 'buzz', 'spiky', 'curly', 'bob', 'ponytail', 'bun' or 'bald'
+//            hat:   'cap', 'toque', 'hardhat', 'cowboy', 'headphones', 'glasses', 'shades',
+//                   'bow' or 'none'
+//            shirt: 'tie', 'blouse', 'tee', 'stripes', 'hoodie', 'suit', 'sweater' or 'hivis'
+//            pants: 'trousers', 'shorts', 'skirt' or 'overalls'
 //          (everyone out there is the same size)
 // Body types are a best guess from each name; colours are random placeholders.
 // Office 182 is the visitor office: people from out of town take turns in it,

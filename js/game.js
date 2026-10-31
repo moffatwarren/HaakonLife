@@ -10931,6 +10931,9 @@
   // the fire pit (MallowGame), the big spruce (SpruceGame), the snowman (SnowmanGame), the
   // hot chocolate stand (CocoaGame) and the snowbanks (SnowballGame). They fill the screen
   // like the games indoors (cover tells draw it needn't draw the lot underneath them).
+  // When the lot is in 3D they are too (js/winter3d.js draws them, in the lot's own look),
+  // with their words and meters drawn over them as usual; otherwise they draw themselves
+  // flat.
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   function disc(x, y, r, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
   function oval(x, y, rx, ry, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); }
@@ -10975,6 +10978,43 @@
   function lotCrew(n) {
     const ok = (p) => !p.ghost && !p.extra && !p.guest;
     return shuffled(npcs.filter((p) => ok(p) && p.floor === YARD)).concat(shuffled(npcs.filter((p) => ok(p) && p.floor !== YARD))).slice(0, n);
+  }
+  // A game drawn in 3D, when the lot is: f() says where everything is for its stage. Hands
+  // back the stage (to put the game's words and meters on), or null for the game to draw
+  // itself flat. Like the flat game, it covers whatever's under it: the game screen is
+  // cleared for its words, and the lot's flat canvas (names and speech bubbles) too. A
+  // stage that ever goes wrong is left for the flat game from then on.
+  const broken3D = {};
+  function draw3D(kind, f) {
+    if (!hd || !hd.shown || !window.WINTER3D || broken3D[kind]) return null;
+    const gl = hdGL();
+    if (!gl || !gl.drawGame) return null;
+    // (as in the lot, drawn once every 9 ms at most)
+    const ms = performance.now();
+    if (!hd.game || hd.game.kind !== kind || ms - (hd.drawn || 0) >= 9) {
+      hd.drawn = ms;
+      let st = null;
+      try { st = gl.drawGame(kind, f()); } catch (e) { broken3D[kind] = true; console.error(e); }
+      hd.game = st && { kind, st };
+      hd.c.setTransform(1, 0, 0, 1, 0, 0);
+      hd.c.clearRect(0, 0, hd.cv.width, hd.cv.height);
+    }
+    if (!hd.game) return null;
+    ctx.clearRect(0, 0, SW, SH);
+    return hd.game.st;
+  }
+  // a dark band across the screen, so words read over a game drawn in 3D
+  function shade(y, h) { ctx.fillStyle = 'rgba(12, 14, 32, 0.55)'; ctx.fillRect(0, y, SW, h); }
+  // the small words by a game's meters: colour c (dark grey if none) on the flat game, or
+  // white with a shadow over one drawn in 3D
+  function label(st, str, x, y, c) {
+    if (st) text(str, x + 1, y + 1, 1, '#181820');
+    text(str, x, y, 1, st ? '#f8f8f8' : c || '#40485a');
+  }
+  // the controls along the bottom, in colour c on the flat game (on a dark band, over one in 3D)
+  function hint(st, str, x, y, c) {
+    if (st) shade(y - 4, SH - y + 4);
+    text(str, x, y, 1, st ? '#c8ccd8' : c);
   }
 
   // Wood chopping: split each log down the crack across its top. Slide the axe over the
@@ -11029,8 +11069,8 @@
       logs++;
       sfx('hit', 90); shake = 4; msg = 'Clean split!'; msgT = 35;
       const mid = BLOCK - LOG_H / 2, lw = log.crack + half, rw = half - log.crack;
-      pieces.push({ x: CX - half + lw / 2, y: mid, w: lw, vx: -2 - Math.random() * 1.5, vy: -4 - Math.random() * 2, a: 0, va: -0.1 - Math.random() * 0.08 },
-        { x: CX + log.crack + rw / 2, y: mid, w: rw, vx: 2 + Math.random() * 1.5, vy: -4 - Math.random() * 2, a: 0, va: 0.1 + Math.random() * 0.08 });
+      pieces.push({ x: CX - half + lw / 2, y: mid, w: lw, r: half, vx: -2 - Math.random() * 1.5, vy: -4 - Math.random() * 2, a: 0, va: -0.1 - Math.random() * 0.08 },
+        { x: CX + log.crack + rw / 2, y: mid, w: rw, r: half, vx: 2 + Math.random() * 1.5, vy: -4 - Math.random() * 2, a: 0, va: 0.1 + Math.random() * 0.08 });
       log = null; next = 30;
     }
     function drawAxe(x, y) {
@@ -11095,43 +11135,7 @@
         }
       },
       draw() {
-        duskSky(0, 128);
-        ctx.fillStyle = '#e8eef8'; ctx.fillRect(0, 128, SW, SH - 128);
-        ctx.fillStyle = '#c8d4e8'; ctx.fillRect(0, 128, SW, 3);
-        snowfall(t, 30);
-        winterHud('Wood chopping', 'Logs ' + logs, 'Best ' + getBest('chop'), left);
-        ctx.save();
-        if (shake > 0.5) ctx.translate(Math.round((Math.random() - 0.5) * shake), Math.round((Math.random() - 0.5) * shake));
-        // the woodpile, growing as you go
-        for (let i = 0; i < Math.min(40, 8 + logs * 2); i++) {
-          const row = Math.floor(i / 5), x = 256 + (i % 5) * 11 + (row & 1) * 5, y = 210 - row * 9;
-          disc(x, y, 5.5, '#4a2c14'); disc(x, y, 4.5, '#d8b070'); disc(x, y, 2, '#a87840');
-        }
-        // the chopping block
-        ctx.fillStyle = '#4a2c14'; ctx.fillRect(CX - 41, BLOCK, 82, 36);
-        ctx.fillStyle = '#5e3a20'; ctx.fillRect(CX - 40, BLOCK, 80, 36);
-        ctx.fillStyle = '#6e4628'; for (let x = CX - 36; x < CX + 38; x += 9) ctx.fillRect(x, BLOCK + 5, 2, 31);
-        oval(CX, BLOCK, 40, 7, '#c89860'); oval(CX, BLOCK, 28, 5, '#b08048'); oval(CX, BLOCK, 14, 3, '#c89860');
-        const top = BLOCK - LOG_H;
-        if (log) {
-          const half = log.w / 2, ty = top - drop * drop * 0.6, x0 = CX - half;
-          ctx.fillStyle = '#3a2410'; ctx.fillRect(x0 - 1, ty, log.w + 2, BLOCK - ty + 1);
-          ctx.fillStyle = '#6a4224'; ctx.fillRect(x0, ty, log.w, BLOCK - ty);
-          ctx.fillStyle = '#7e5432'; for (let x = x0 + 3; x < x0 + log.w - 2; x += 7) ctx.fillRect(x, ty + 4, 2, BLOCK - ty - 7);
-          // its top: the rings, the crack (wider as it opens up) and any knot
-          oval(CX, ty, half + 1, 6, '#3a2410'); oval(CX, ty, half, 5, '#e0b878'); oval(CX, ty, half * 0.66, 3.4, '#c89858'); oval(CX, ty, half * 0.33, 1.7, '#e0b878');
-          const cw = Math.max(1, Math.round((log.tol - 3) / 2)), cx = Math.round(CX + log.crack - cw / 2);
-          ctx.fillStyle = '#2a180c'; ctx.fillRect(cx, Math.round(ty - 4), cw, 9); ctx.fillRect(cx, Math.round(ty + 5), Math.max(1, cw - 1), 4 + (log.tol - 5) * 2);
-          if (log.knot !== null) { oval(CX + log.knot, ty, 3.5, 2.2, '#5a3418'); oval(CX + log.knot, ty, 1.5, 1, '#2a180c'); }
-        }
-        for (const p of pieces) {
-          ctx.save(); ctx.translate(Math.round(p.x), Math.round(p.y)); ctx.rotate(p.a);
-          const ph = p.h || LOG_H;
-          ctx.fillStyle = '#3a2410'; ctx.fillRect(-p.w / 2 - 1, -ph / 2 - 1, p.w + 2, ph + 2);
-          ctx.fillStyle = p.chip ? '#c89858' : '#6a4224'; ctx.fillRect(-p.w / 2, -ph / 2, p.w, ph);
-          if (!p.chip) { ctx.fillStyle = '#e0b878'; ctx.fillRect(p.vx < 0 ? p.w / 2 - 4 : -p.w / 2, -ph / 2, 4, ph); } // the fresh split face
-          ctx.restore();
-        }
+        const top = BLOCK - LOG_H, pile = Math.min(40, 8 + logs * 2);
         // the axe: over the log, lifted while you heft it, coming down when you let go
         let ax = aim + sway(), ay = top - 22 - power * 62;
         if (hit) {
@@ -11139,8 +11143,47 @@
           const up = top - 22 - hit.power * 62, down = !log || Math.abs(hit.x - CX) > log.w / 2 + 2 ? BLOCK + 2 : top + 3;
           ax = hit.x; ay = swing && swing < 6 ? up + (down - up) * swing / 6 : down;
         }
-        drawAxe(ax, ay);
-        ctx.restore();
+        const st = draw3D('chop', () => ({ log, drop, ax, ay, sway: hit ? 0 : sway(), power: winding ? power : 0, pile, pieces, shake }));
+        if (!st) {
+          duskSky(0, 128);
+          ctx.fillStyle = '#e8eef8'; ctx.fillRect(0, 128, SW, SH - 128);
+          ctx.fillStyle = '#c8d4e8'; ctx.fillRect(0, 128, SW, 3);
+          snowfall(t, 30);
+          ctx.save();
+          if (shake > 0.5) ctx.translate(Math.round((Math.random() - 0.5) * shake), Math.round((Math.random() - 0.5) * shake));
+          // the woodpile, growing as you go
+          for (let i = 0; i < pile; i++) {
+            const row = Math.floor(i / 5), x = 256 + (i % 5) * 11 + (row & 1) * 5, y = 210 - row * 9;
+            disc(x, y, 5.5, '#4a2c14'); disc(x, y, 4.5, '#d8b070'); disc(x, y, 2, '#a87840');
+          }
+          // the chopping block
+          ctx.fillStyle = '#4a2c14'; ctx.fillRect(CX - 41, BLOCK, 82, 36);
+          ctx.fillStyle = '#5e3a20'; ctx.fillRect(CX - 40, BLOCK, 80, 36);
+          ctx.fillStyle = '#6e4628'; for (let x = CX - 36; x < CX + 38; x += 9) ctx.fillRect(x, BLOCK + 5, 2, 31);
+          oval(CX, BLOCK, 40, 7, '#c89860'); oval(CX, BLOCK, 28, 5, '#b08048'); oval(CX, BLOCK, 14, 3, '#c89860');
+          if (log) {
+            const half = log.w / 2, ty = top - drop * drop * 0.6, x0 = CX - half;
+            ctx.fillStyle = '#3a2410'; ctx.fillRect(x0 - 1, ty, log.w + 2, BLOCK - ty + 1);
+            ctx.fillStyle = '#6a4224'; ctx.fillRect(x0, ty, log.w, BLOCK - ty);
+            ctx.fillStyle = '#7e5432'; for (let x = x0 + 3; x < x0 + log.w - 2; x += 7) ctx.fillRect(x, ty + 4, 2, BLOCK - ty - 7);
+            // its top: the rings, the crack (wider as it opens up) and any knot
+            oval(CX, ty, half + 1, 6, '#3a2410'); oval(CX, ty, half, 5, '#e0b878'); oval(CX, ty, half * 0.66, 3.4, '#c89858'); oval(CX, ty, half * 0.33, 1.7, '#e0b878');
+            const cw = Math.max(1, Math.round((log.tol - 3) / 2)), cx = Math.round(CX + log.crack - cw / 2);
+            ctx.fillStyle = '#2a180c'; ctx.fillRect(cx, Math.round(ty - 4), cw, 9); ctx.fillRect(cx, Math.round(ty + 5), Math.max(1, cw - 1), 4 + (log.tol - 5) * 2);
+            if (log.knot !== null) { oval(CX + log.knot, ty, 3.5, 2.2, '#5a3418'); oval(CX + log.knot, ty, 1.5, 1, '#2a180c'); }
+          }
+          for (const p of pieces) {
+            ctx.save(); ctx.translate(Math.round(p.x), Math.round(p.y)); ctx.rotate(p.a);
+            const ph = p.h || LOG_H;
+            ctx.fillStyle = '#3a2410'; ctx.fillRect(-p.w / 2 - 1, -ph / 2 - 1, p.w + 2, ph + 2);
+            ctx.fillStyle = p.chip ? '#c89858' : '#6a4224'; ctx.fillRect(-p.w / 2, -ph / 2, p.w, ph);
+            if (!p.chip) { ctx.fillStyle = '#e0b878'; ctx.fillRect(p.vx < 0 ? p.w / 2 - 4 : -p.w / 2, -ph / 2, 4, ph); } // the fresh split face
+            ctx.restore();
+          }
+          drawAxe(ax, ay);
+          ctx.restore();
+        } else shade(0, 36);
+        winterHud('Wood chopping', 'Logs ' + logs, 'Best ' + getBest('chop'), left);
         // how hard it'll come down, and (between the gold marks) how hard this log wants it:
         // orange is too soft, green just right, red too hard
         const MX = 18, MY = 60, MH = 110, pw = winding ? power : hit ? hit.power : 0, my = (v) => MY + MH - Math.round(v * MH);
@@ -11150,12 +11193,12 @@
         ctx.fillStyle = !log || pw < log.lo ? '#f09030' : pw > log.hi ? '#e83828' : '#58c848';
         ctx.fillRect(MX, my(pw), 8, Math.round(pw * MH));
         if (log) { ctx.fillStyle = '#f8e040'; ctx.fillRect(MX - 4, my(log.hi) - 1, 16, 2); ctx.fillRect(MX - 4, my(log.lo) - 1, 16, 2); }
-        text('Power', MX - 8, MY + MH + 6, 1, '#40485a');
+        label(st, 'Power', MX - 8, MY + MH + 6);
         if (stuck) ctext('Stuck! Mash Space to work it free', 44, '#f05040');
         else if (msgT > 0) ctext(msg, 44, '#f8e040');
         if (state === 'ready') readyBox(t, 'Let go between the gold marks');
         else if (state === 'done') doneBox(['Time!', 'Logs split: ' + logs, record ? 'New record!' : 'Best ' + getBest('chop')], t);
-        else text('Arrows: aim   Hold Space: heft   Esc: give up', 12, SH - 14, 1, '#40485a');
+        else hint(st, 'Arrows: aim   Hold Space: heft   Esc: give up', 12, SH - 14, '#40485a');
       },
     };
     return self;
@@ -11248,37 +11291,40 @@
         if (--left <= 0) serve();
       },
       draw() {
-        duskSky(0, 150);
-        ctx.fillStyle = '#dfe6f2'; ctx.fillRect(0, 150, SW, SH - 150);
-        ctx.fillStyle = '#c4cfe2'; ctx.fillRect(0, 150, SW, 3);
-        // the glow of the fire on the snow
-        oval(MX, 208, 130, 36, 'rgba(248, 160, 60, ' + (0.08 + fire * 0.1 + Math.sin(t * 0.3) * 0.03) + ')');
-        snowfall(t, 24);
+        const st = draw3D('mallow', () => ({ t, fire, warn: surge && retarget < 24, embers, y, roll, sides, turn, burning }));
+        if (!st) {
+          duskSky(0, 150);
+          ctx.fillStyle = '#dfe6f2'; ctx.fillRect(0, 150, SW, SH - 150);
+          ctx.fillStyle = '#c4cfe2'; ctx.fillRect(0, 150, SW, 3);
+          // the glow of the fire on the snow
+          oval(MX, 208, 130, 36, 'rgba(248, 160, 60, ' + (0.08 + fire * 0.1 + Math.sin(t * 0.3) * 0.03) + ')');
+          snowfall(t, 24);
+          // the fire pit: stones round the back, logs, the flames (as big as the fire is), then the stones in front
+          const stone = (a) => { const x = MX + Math.cos(a) * 54, sy = 206 + Math.sin(a) * 13; oval(x, sy, 9, 6, '#383c48'); oval(x - 1, sy - 1, 7, 4, '#7a808e'); };
+          for (let i = 0; i < 9; i++) stone(Math.PI + i * Math.PI / 8);
+          ctx.fillStyle = '#3a2410'; ctx.fillRect(MX - 34, 198, 68, 8);
+          ctx.fillStyle = '#5a3820'; ctx.fillRect(MX - 32, 199, 64, 6);
+          const fh = 8 + fire * 26 + (surge && retarget < 24 ? 6 : 0);
+          for (let i = 0; i < 7; i++) {
+            const fx = MX - 36 + i * 12, hh = fh * (0.55 + 0.45 * Math.abs(Math.sin(t * 0.17 + i * 1.7))) * (i === 0 || i === 6 ? 0.6 : 1);
+            tongue(fx, 202, 9, hh, '#d84818'); tongue(fx, 202, 6, hh * 0.7, '#f89828'); tongue(fx, 202, 3, hh * 0.4, '#f8e870');
+          }
+          for (const e of embers) { ctx.fillStyle = e.life > 30 ? '#f8c048' : '#c05020'; ctx.fillRect(Math.round(e.x), Math.round(e.y), 1, 1); }
+          for (let i = 1; i < 8; i++) stone(i * Math.PI / 8);
+          // the stick, then the marshmallow on the end of it: the top, the side facing you, and the side facing the fire
+          const my = Math.round(y);
+          ctx.strokeStyle = '#3a2410'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(MX - 20, my); ctx.lineTo(SW + 10, my + 46); ctx.stroke();
+          ctx.strokeStyle = '#8a6038'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(MX - 20, my); ctx.lineTo(SW + 10, my + 46); ctx.stroke();
+          ctx.fillStyle = '#2a201a'; ctx.fillRect(MX - 16, my - 13, 32, 26); ctx.fillRect(MX - 15, my - 14, 30, 28);
+          const band = (by, bh, v) => { ctx.fillStyle = toast(v); ctx.fillRect(MX - 15, by, 30, bh); };
+          band(my - 13, 6, sides[(turn + 2) % 4]); band(my - 7, 14, sides[(turn + 1) % 4]); band(my + 7, 6, sides[turn]);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; ctx.fillRect(MX - 12, my - 5, 3, 9);
+          if (burning) for (let i = 0; i < 4; i++) {
+            const fx = MX - 12 + i * 8, hh = 10 + Math.abs(Math.sin(t * 0.3 + i * 2)) * 10;
+            tongue(fx, my - 8, 5, hh, '#e05018'); tongue(fx, my - 8, 3, hh * 0.6, '#f8c040');
+          }
+        } else shade(0, 36);
         winterHud('Marshmallow ' + Math.max(1, Math.min(n, N)) + '/' + N, 'Score ' + total, 'Best ' + getBest('mallow'), left);
-        // the fire pit: stones round the back, logs, the flames (as big as the fire is), then the stones in front
-        const stone = (a) => { const x = MX + Math.cos(a) * 54, sy = 206 + Math.sin(a) * 13; oval(x, sy, 9, 6, '#383c48'); oval(x - 1, sy - 1, 7, 4, '#7a808e'); };
-        for (let i = 0; i < 9; i++) stone(Math.PI + i * Math.PI / 8);
-        ctx.fillStyle = '#3a2410'; ctx.fillRect(MX - 34, 198, 68, 8);
-        ctx.fillStyle = '#5a3820'; ctx.fillRect(MX - 32, 199, 64, 6);
-        const fh = 8 + fire * 26 + (surge && retarget < 24 ? 6 : 0);
-        for (let i = 0; i < 7; i++) {
-          const fx = MX - 36 + i * 12, hh = fh * (0.55 + 0.45 * Math.abs(Math.sin(t * 0.17 + i * 1.7))) * (i === 0 || i === 6 ? 0.6 : 1);
-          tongue(fx, 202, 9, hh, '#d84818'); tongue(fx, 202, 6, hh * 0.7, '#f89828'); tongue(fx, 202, 3, hh * 0.4, '#f8e870');
-        }
-        for (const e of embers) { ctx.fillStyle = e.life > 30 ? '#f8c048' : '#c05020'; ctx.fillRect(Math.round(e.x), Math.round(e.y), 1, 1); }
-        for (let i = 1; i < 8; i++) stone(i * Math.PI / 8);
-        // the stick, then the marshmallow on the end of it: the top, the side facing you, and the side facing the fire
-        const my = Math.round(y);
-        ctx.strokeStyle = '#3a2410'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(MX - 20, my); ctx.lineTo(SW + 10, my + 46); ctx.stroke();
-        ctx.strokeStyle = '#8a6038'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(MX - 20, my); ctx.lineTo(SW + 10, my + 46); ctx.stroke();
-        ctx.fillStyle = '#2a201a'; ctx.fillRect(MX - 16, my - 13, 32, 26); ctx.fillRect(MX - 15, my - 14, 30, 28);
-        const band = (by, bh, v) => { ctx.fillStyle = toast(v); ctx.fillRect(MX - 15, by, 30, bh); };
-        band(my - 13, 6, sides[(turn + 2) % 4]); band(my - 7, 14, sides[(turn + 1) % 4]); band(my + 7, 6, sides[turn]);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; ctx.fillRect(MX - 12, my - 5, 3, 9);
-        if (burning) for (let i = 0; i < 4; i++) {
-          const fx = MX - 12 + i * 8, hh = 10 + Math.abs(Math.sin(t * 0.3 + i * 2)) * 10;
-          tongue(fx, my - 8, 5, hh, '#e05018'); tongue(fx, my - 8, 3, hh * 0.6, '#f8c040');
-        }
         // the marshmallow seen end on: its four sides, the bottom one facing the fire
         const IX = 284, IY = 84, rot = -roll / 8 * Math.PI / 2;
         disc(IX, IY, 17, '#181820');
@@ -11287,7 +11333,7 @@
           ctx.fillStyle = toast(sides[(turn + k) % 4]); ctx.beginPath(); ctx.moveTo(IX, IY);
           ctx.arc(IX, IY, 15, a - Math.PI / 4 + 0.06, a + Math.PI / 4 - 0.06); ctx.fill();
         }
-        text('Sides', IX - 15, IY - 30, 1, '#f8f8f8');
+        label(st, 'Sides', IX - 15, IY - 30, '#f8f8f8');
         tongue(IX, IY + 30, 4, 8, '#f89828');
         // how hot it is where you're holding it
         const HX = 18, HY = 60, HH = 110, hv = Math.min(1, heat() / 1.6);
@@ -11295,59 +11341,62 @@
         ctx.fillStyle = '#404858'; ctx.fillRect(HX, HY, 8, HH);
         ctx.fillStyle = hv > 0.55 ? '#e84828' : hv > 0.25 ? '#f0a030' : '#f0d860';
         ctx.fillRect(HX, HY + HH - Math.round(hv * HH), 8, Math.round(hv * HH));
-        text('Heat', HX - 5, HY + HH + 6, 1, '#40485a');
+        label(st, 'Heat', HX - 5, HY + HH + 6);
         if (burning) ctext('ON FIRE! Space: blow it out', 44, '#f05040');
         else if (state === 'eat') ctext(last.line + '  +' + last.s, 44, last.s >= 70 ? '#58e048' : '#f8e040');
         else if (flaring()) ctext('The fire flares up!', 44, '#f8a040');
         if (state === 'ready') readyBox(t, 'Golden brown on every side');
         else if (state === 'done') doneBox(['All eaten!', 'Score: ' + total + ' / ' + N * 100, record ? 'New record!' : 'Best ' + getBest('mallow')], t);
-        else text('Up/Down: height  Left/Right: turn  Space: eat', 12, SH - 12, 1, '#40485a');
+        else hint(st, 'Up/Down: height  Left/Right: turn  Space: eat', 12, SH - 12, '#40485a');
       },
     };
     return self;
   }
 
-  // Decorating the big spruce: 45 seconds to hang everything the box hands you. Steer your
-  // hand with the arrows and hang the next decoration with A. A circle round your hand shows
-  // what it's worth there before you hang it: 20 with the circle to itself, 15 with something
-  // else in it, 10 with one the same in it (those are outlined), and right up against another
-  // it slips off and breaks (-5). Then the star goes back on: drop it as it swings over the top.
+  // Decorating the big spruce: 45 seconds to hang everything the box hands you, all the way
+  // round it. Left and right turn the tree, up and down move your hand up and down the front
+  // of it, and A hangs the next decoration there. A circle round your hand shows what it's
+  // worth there before you hang it: 20 with the circle to itself, 15 with something else in
+  // it, 10 with one the same in it (those are outlined), and right up against another it
+  // slips off and breaks (-5). Then the star goes back on: drop it as it swings over the top.
   function SpruceGame() {
-    const TIME = 45 * 60, CX = 160, APEX = 34, ROOM = 28;
+    const TIME = 45 * 60, CX = 160, APEX = 34, ROOM = 28, TOP = 42, FOOT = 202;
     const WORTH = { 20: '#58e048', 15: '#f8e040', 10: '#f09030', '-5': '#f04040' };
     // the three tiers of branches: [top, bottom, half the width at the bottom]
     const TIERS = [[APEX, 96, 44], [70, 150, 72], [118, 204, 102]];
     const BALLS = { red: '#e03838', gold: '#f0c030', blue: '#3c7ce8', purple: '#a050d8', silver: '#d8e0e8' };
     const KINDS = Object.keys(BALLS).concat(['cane', 'bow']);
-    const inTree = (x, y) => TIERS.some(([y0, y1, hw]) => y >= y0 + 8 && y <= y1 - 2 && Math.abs(x - CX) <= hw * (y - y0) / (y1 - y0) - 4);
+    // how far out the branches reach at y (the tier that reaches furthest there)
+    const rAt = (y) => TIERS.reduce((r, [y0, y1, hw]) => (y >= y0 && y <= y1 ? Math.max(r, hw * (y - y0) / (y1 - y0)) : r), 0);
+    // a spot on the branches: a ways round the tree (a, the front before it's turned is 0)
+    // and y down the screen, and where that is in the tree's own terms (x across and z
+    // toward you, in pixels, as y is)
+    const spot = (a, y) => { const r = rAt(y); return { a, y, x: r * Math.sin(a), z: r * Math.cos(a) }; };
     const bulbs = [];
-    for (let i = 0; bulbs.length < 44 && i < 999; i++) {
-      const x = CX - 100 + Math.random() * 200, y = APEX + Math.random() * 170;
-      if (inTree(x, y)) bulbs.push({ x: Math.round(x), y: Math.round(y) });
-    }
+    for (let i = 0; i < 90; i++) bulbs.push(spot(Math.random() * Math.PI * 2, TOP + Math.random() * (FOOT - TOP)));
     const pick = () => KINDS[Math.floor(Math.random() * KINDS.length)];
-    let state = 'ready', t = 0, left = TIME, hx = CX, hy = 140, cur = pick(), nxt = pick(), hung = [], falling = [], pops = [], score = 0,
+    // rot: how far round the tree's been turned; hy: how far down it your hand is
+    let state = 'ready', t = 0, left = TIME, rot = 0, hy = 140, cur = pick(), nxt = pick(), hung = [], falling = [], pops = [], score = 0,
       star = null, record = false, msg = '', msgT = 0;
     const tally = { 20: 0, 15: 0, 10: 0, '-5': 0 };
-    // what hanging kind k at (x, y) would be worth (null off the tree), and what's in its circle
-    function worth(x, y, k) {
-      if (!inTree(x, y)) return { pts: null, inside: [] };
+    // what hanging kind k at the front of the tree at y would be worth, and what's in its circle
+    function worth(y, k) {
+      const p = spot(-rot, y);
       let near = Infinity;
-      const inside = hung.filter((o) => { const d = Math.hypot(o.x - x, o.y - y); near = Math.min(near, d); return d < ROOM; });
+      const inside = hung.filter((o) => { const d = Math.hypot(o.x - p.x, o.y - p.y, o.z - p.z); near = Math.min(near, d); return d < ROOM; });
       const pts = near < 10 ? -5 : inside.some((o) => o.k === k) ? 10 : inside.length ? 15 : 20;
       return { pts, inside };
     }
     function hang() {
-      const { pts } = worth(hx, hy, cur);
-      if (pts === null) { sfx('bump'); msg = 'Nothing to hang it on there.'; msgT = 40; return; }
+      const { pts } = worth(hy, cur);
       score += pts; tally[pts]++;
       if (pts < 0) {
         sfx('buzz'); msg = 'Too close! It slipped off.'; msgT = 40;
-        falling.push({ x: hx, y: hy, vy: 0, k: cur });
+        falling.push({ a: -rot, y: hy, y0: hy, vy: 0, k: cur });
       } else {
         sfx(pts === 20 ? 'cup' : 'blip', true);
-        hung.push({ x: hx, y: hy, k: cur });
-        pops.push({ x: hx, y: hy - 12, s: '+' + pts, t: 0 });
+        hung.push(Object.assign(spot(-rot, hy), { k: cur }));
+        pops.push({ y: hy - 12, s: '+' + pts, t: 0 });
         if (pts < 20) { msg = pts === 10 ? 'One the same in its circle: mix them up!' : 'Something else in its circle: spread out!'; msgT = 50; }
       }
       cur = nxt; nxt = pick();
@@ -11414,59 +11463,69 @@
           if ((star.done || star.off) && star.t > 70) { state = 'done'; t = 0; score = Math.max(0, score); record = saveBest('spruce', score); sfx('ding'); }
           return;
         }
-        // (any way at all with a thumbstick)
-        const s = steer(), m = Math.max(1, Math.hypot(s.x, s.y));
-        hx = clamp(hx + s.x / m * 2.2, 40, SW - 40); hy = clamp(hy + s.y / m * 2.2, 40, 206);
+        // (a thumbstick turns it, and moves your hand, as far as it's pushed)
+        const s = steer();
+        rot += s.x * 0.03;
+        hy = clamp(hy + s.y * 2.2, TOP, FOOT);
         if (pressed.has('a')) hang();
         if (--left <= 0) { left = 0; state = 'star'; star = { x: CX, y: 10, vy: 0, t: 0, drop: false }; msg = 'Now the star! Space: drop it'; msgT = 999; }
       },
       draw() {
-        duskSky(0, 176);
-        ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 176, SW, SH - 176);
-        ctx.fillStyle = '#c8d2e4'; ctx.fillRect(0, 176, SW, 3);
-        snowfall(t, 30);
+        const st = draw3D('spruce', () => ({ t, tiers: TIERS, rAt, bulbs, rot, hy, hung, falling, cur, star, state }));
+        // where something on the tree is on the screen now, and whether it's round the front
+        const at = st ? (o) => st.at(o.a, o.y) : (o) => [CX + rAt(o.y) * Math.sin(o.a + rot), o.y, Math.cos(o.a + rot) > 0];
+        if (!st) {
+          duskSky(0, 176);
+          ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 176, SW, SH - 176);
+          ctx.fillStyle = '#c8d2e4'; ctx.fillRect(0, 176, SW, 3);
+          snowfall(t, 30);
+          // the trunk, the branches (with snow on the tips) and the lights on the front of it
+          ctx.fillStyle = '#3a2410'; ctx.fillRect(CX - 9, 196, 18, 18);
+          ctx.fillStyle = '#5a3820'; ctx.fillRect(CX - 8, 196, 16, 17);
+          for (const [y0, y1, hw] of TIERS) {
+            tier(y0, y1, hw, '#10301c'); tier(y0 + 3, y1 - 2, hw - 3, '#24603a'); tier(y0 + 6, y1 - 6, (hw - 3) * 0.45, '#2e7444');
+            ctx.fillStyle = '#f0f4fa';
+            for (let x = hw - 10; x > -hw + 4; x -= 20) ctx.fillRect(CX + x - 2, y1 - 3, 5, 2);
+          }
+          const BULB = ['#f8f040', '#f05050', '#60e070', '#60b0f8'];
+          bulbs.forEach((b, i) => {
+            const [x, y, front] = at(b);
+            if (front) { ctx.fillStyle = ((t >> 4) + i) % 5 ? BULB[i % 4] : '#183a20'; ctx.fillRect(Math.round(x), Math.round(y), 2, 2); }
+          });
+          // what's hung round the front, nearest last
+          const front = hung.concat(falling).filter((o) => Math.cos(o.a + rot) > 0).sort((a, b) => Math.cos(a.a + rot) - Math.cos(b.a + rot));
+          for (const o of front) deco(CX + rAt(o.y0 || o.y) * Math.sin(o.a + rot), o.y, o.k);
+          if (star) {
+            starShape(star.x, star.y, 11, '#181820'); starShape(star.x, star.y, 9, '#f8d840'); starShape(star.x - 1, star.y - 1, 4, '#fff8c0');
+            if (!star.drop) { ctx.fillStyle = 'rgba(248, 216, 64, 0.5)'; ctx.fillRect(Math.round(star.x), Math.round(star.y) + 12, 1, APEX - 18 - Math.round(star.y)); }
+          } else starShape(CX, APEX - 6, 5, '#686048'); // where it goes
+        } else shade(0, 36);
         winterHud('Deck the spruce', 'Score ' + score, 'Best ' + getBest('spruce'), left);
-        // the trunk, the branches (with snow on the tips) and the lights already on it
-        ctx.fillStyle = '#3a2410'; ctx.fillRect(CX - 9, 196, 18, 18);
-        ctx.fillStyle = '#5a3820'; ctx.fillRect(CX - 8, 196, 16, 17);
-        for (const [y0, y1, hw] of TIERS) {
-          tier(y0, y1, hw, '#10301c'); tier(y0 + 3, y1 - 2, hw - 3, '#24603a'); tier(y0 + 6, y1 - 6, (hw - 3) * 0.45, '#2e7444');
-          ctx.fillStyle = '#f0f4fa';
-          for (let x = hw - 10; x > -hw + 4; x -= 20) ctx.fillRect(CX + x - 2, y1 - 3, 5, 2);
-        }
-        const BULB = ['#f8f040', '#f05050', '#60e070', '#60b0f8'];
-        bulbs.forEach((b, i) => { ctx.fillStyle = ((t >> 4) + i) % 5 ? BULB[i % 4] : '#183a20'; ctx.fillRect(b.x, b.y, 2, 2); });
-        for (const o of hung) deco(o.x, o.y, o.k);
-        for (const f of falling) deco(f.x, f.y, f.k);
-        if (star) {
-          starShape(star.x, star.y, 11, '#181820'); starShape(star.x, star.y, 9, '#f8d840'); starShape(star.x - 1, star.y - 1, 4, '#fff8c0');
-          if (!star.drop) { ctx.fillStyle = 'rgba(248, 216, 64, 0.5)'; ctx.fillRect(Math.round(star.x), Math.round(star.y) + 12, 1, APEX - 18 - Math.round(star.y)); }
-        } else starShape(CX, APEX - 6, 5, '#686048'); // where it goes
-        for (const p of pops) text(p.s, Math.round(p.x - p.s.length * 3), Math.round(p.y), 1, p.s === '+20' ? '#f8e040' : '#f8f8f8');
+        const hand = (y) => (st ? st.hand(y) : [CX, y]);
+        for (const p of pops) { const [x, y] = hand(p.y); text(p.s, Math.round(x - p.s.length * 3), Math.round(y), 1, p.s === '+20' ? '#f8e040' : '#f8f8f8'); }
         if (state === 'play') {
-          // your hand with the next decoration (faint where it can't go), in its circle coloured
-          // by what it'd be worth, with whatever's in the circle outlined (red if it's the same)
-          const { pts, inside } = worth(hx, hy, cur);
-          if (pts !== null) {
-            ctx.lineWidth = 1;
-            for (const o of inside) {
-              ctx.strokeStyle = o.k === cur ? '#f04040' : '#f8f8f8';
-              ctx.beginPath(); ctx.arc(o.x + 0.5, o.y, 8, 0, Math.PI * 2); ctx.stroke();
-            }
-            ctx.strokeStyle = WORTH[pts]; ctx.setLineDash([3, 3]);
-            ctx.beginPath(); ctx.arc(hx, hy, ROOM, 0, Math.PI * 2); ctx.stroke();
-            ctx.setLineDash([]);
+          // your hand with the next decoration, in its circle coloured by what it'd be worth,
+          // with whatever's in the circle outlined (red if it's the same)
+          const { pts, inside } = worth(hy, cur), [hx, sy] = hand(hy), k = st ? st.scale(hy) : 1;
+          ctx.lineWidth = 1;
+          for (const o of inside) {
+            const [x, y, front] = at(o);
+            if (!front) continue;
+            ctx.strokeStyle = o.k === cur ? '#f04040' : '#f8f8f8';
+            ctx.beginPath(); ctx.arc(x + 0.5, y, 8 * k, 0, Math.PI * 2); ctx.stroke();
           }
-          ctx.globalAlpha = pts !== null ? 1 : 0.45;
-          deco(hx, hy, cur);
-          ctx.globalAlpha = 1;
-          if (pts !== null) {
-            const label = pts < 0 ? 'slips!' : '+' + pts, lx = Math.round(hx) + 10, ly = Math.round(hy) - 26;
-            text(label, lx + 1, ly + 1, 1, '#181820'); text(label, lx, ly, 1, WORTH[pts]);
+          ctx.strokeStyle = WORTH[pts]; ctx.setLineDash([3, 3]);
+          ctx.beginPath(); ctx.arc(hx, sy, ROOM * k, 0, Math.PI * 2); ctx.stroke();
+          ctx.setLineDash([]);
+          const tag = pts < 0 ? 'slips!' : '+' + pts, lx = Math.round(hx + ROOM * k * 0.36), ly = Math.round(sy - ROOM * k * 0.93);
+          text(tag, lx + 1, ly + 1, 1, '#181820'); text(tag, lx, ly, 1, WORTH[pts]);
+          if (!st) {
+            // (in 3D the mitten is out there, holding it up)
+            deco(CX, hy, cur);
+            const my = Math.round(hy) - 12;
+            ctx.fillStyle = '#181820'; ctx.fillRect(CX - 5, my - 9, 11, 10);
+            ctx.fillStyle = '#c84030'; ctx.fillRect(CX - 4, my - 8, 9, 8); ctx.fillRect(CX + 4, my - 6, 3, 3);
           }
-          const mx = Math.round(hx), my = Math.round(hy) - 12;
-          ctx.fillStyle = '#181820'; ctx.fillRect(mx - 5, my - 9, 11, 10);
-          ctx.fillStyle = '#c84030'; ctx.fillRect(mx - 4, my - 8, 9, 8); ctx.fillRect(mx + 4, my - 6, 3, 3);
           // what the box hands you after this one
           ctx.fillStyle = '#181820'; ctx.fillRect(270, 146, 42, 40);
           ctx.fillStyle = '#7a4a28'; ctx.fillRect(271, 147, 40, 38);
@@ -11477,7 +11536,7 @@
         if (state === 'ready') readyBox(t, 'Aim for the green circle');
         else if (state === 'done') doneBox(['All decorated! Score: ' + score, '+20 x' + tally[20] + '  +15 x' + tally[15] + '  +10 x' + tally[10] + '  Slipped ' + tally[-5],
           record ? 'New record!' : 'Best ' + getBest('spruce')], t);
-        else if (state === 'play') text('Arrows: move   Space: hang it   Esc: give up', 12, SH - 12, 1, '#40485a');
+        else if (state === 'play') hint(st, 'Left/Right: turn  Up/Down: move  Space: hang it', 12, SH - 12, '#40485a');
       },
     };
     return self;
@@ -11598,34 +11657,42 @@
       },
       draw() {
         if (state === 'build' || (state === 'done' && made.length)) { drawBuilt(); return; }
-        ctx.fillStyle = '#1c2448'; ctx.fillRect(0, 0, SW, SH);
-        // the snow, and the ground where it's been rolled up
-        ctx.fillStyle = '#181820'; ctx.fillRect(X0 - 2, Y0 - 2, GW * CELL + 4, GH * CELL + 4);
-        ctx.fillStyle = '#7d8c6a'; ctx.fillRect(X0, Y0, GW * CELL, GH * CELL);
-        for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
-          const x = X0 + gx * CELL, y = Y0 + gy * CELL;
-          if (snow[gy * GW + gx]) { ctx.fillStyle = '#f2f6fc'; ctx.fillRect(x, y, CELL, CELL); }
-          else { ctx.fillStyle = '#6a7858'; ctx.fillRect(x + (gx * 3 + gy * 5) % 7, y + (gx * 5 + gy) % 7, 1, 1); }
-        }
-        for (const o of trees) {
-          disc(o.x + 3, o.y + 3, o.r, 'rgba(40, 50, 80, 0.35)'); disc(o.x, o.y, o.r + 1, '#10301c'); disc(o.x, o.y, o.r - 1, '#24603a'); disc(o.x - 2, o.y - 2, o.r * 0.5, '#2e7444');
-          ctx.fillStyle = '#f0f4fa'; ctx.fillRect(o.x - 6, o.y - 3, 3, 2); ctx.fillRect(o.x + 3, o.y + 2, 3, 2); ctx.fillRect(o.x - 1, o.y - 8, 2, 2);
-        }
-        made.forEach((b, i) => { snowball(b.x, b.y, b.r); text(String(i + 1), Math.round(b.x) - 2, Math.round(b.y) - 3, 1, '#8890a0'); });
         // you, pushing from behind it
         const r = rOf(ball.v), [dx, dy] = DIRS[dir], px = ball.x - dx * (r + 6), py = ball.y - dy * (r + 6);
-        const you = () => ctx.drawImage(sprites[dir][moving ? 1 + ((t >> 3) & 1) : 0], Math.round(px) - 12, Math.round(py) - 16, 24, 24);
-        if (py < ball.y) you();
-        if (state === 'play' || state === 'ready') {
-          snowball(ball.x, ball.y, r);
-          // a couple of flecks going round as it rolls
-          for (let k = 0; k < 2; k++) {
-            const a = ball.spin + k * Math.PI;
-            ctx.fillStyle = '#b8c4d8'; ctx.fillRect(Math.round(ball.x + Math.cos(a) * r * 0.55 * Math.abs(dy || 1)), Math.round(ball.y + Math.sin(a) * r * 0.55 * Math.abs(dx || 1)), 2, 2);
+        const st = draw3D('snowman', () => ({ phase: 'field', GW, GH, CELL, X0, Y0, snow, trees, ball, r, rolling: state === 'play' || state === 'ready', made,
+          me: meSpec(), you: { x: px, y: py, dir } }));
+        if (!st) {
+          ctx.fillStyle = '#1c2448'; ctx.fillRect(0, 0, SW, SH);
+          // the snow, and the ground where it's been rolled up
+          ctx.fillStyle = '#181820'; ctx.fillRect(X0 - 2, Y0 - 2, GW * CELL + 4, GH * CELL + 4);
+          ctx.fillStyle = '#7d8c6a'; ctx.fillRect(X0, Y0, GW * CELL, GH * CELL);
+          for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
+            const x = X0 + gx * CELL, y = Y0 + gy * CELL;
+            if (snow[gy * GW + gx]) { ctx.fillStyle = '#f2f6fc'; ctx.fillRect(x, y, CELL, CELL); }
+            else { ctx.fillStyle = '#6a7858'; ctx.fillRect(x + (gx * 3 + gy * 5) % 7, y + (gx * 5 + gy) % 7, 1, 1); }
           }
+          for (const o of trees) {
+            disc(o.x + 3, o.y + 3, o.r, 'rgba(40, 50, 80, 0.35)'); disc(o.x, o.y, o.r + 1, '#10301c'); disc(o.x, o.y, o.r - 1, '#24603a'); disc(o.x - 2, o.y - 2, o.r * 0.5, '#2e7444');
+            ctx.fillStyle = '#f0f4fa'; ctx.fillRect(o.x - 6, o.y - 3, 3, 2); ctx.fillRect(o.x + 3, o.y + 2, 3, 2); ctx.fillRect(o.x - 1, o.y - 8, 2, 2);
+          }
+          made.forEach((b, i) => { snowball(b.x, b.y, b.r); text(String(i + 1), Math.round(b.x) - 2, Math.round(b.y) - 3, 1, '#8890a0'); });
+          const you = () => ctx.drawImage(sprites[dir][moving ? 1 + ((t >> 3) & 1) : 0], Math.round(px) - 12, Math.round(py) - 16, 24, 24);
+          if (py < ball.y) you();
+          if (state === 'play' || state === 'ready') {
+            snowball(ball.x, ball.y, r);
+            // a couple of flecks going round as it rolls
+            for (let k = 0; k < 2; k++) {
+              const a = ball.spin + k * Math.PI;
+              ctx.fillStyle = '#b8c4d8'; ctx.fillRect(Math.round(ball.x + Math.cos(a) * r * 0.55 * Math.abs(dy || 1)), Math.round(ball.y + Math.sin(a) * r * 0.55 * Math.abs(dx || 1)), 2, 2);
+            }
+          }
+          if (py >= ball.y) you();
+          ctx.fillStyle = '#1c2448'; ctx.fillRect(0, 0, SW, Y0 - 2);
+        } else {
+          // which ball is which, over each one stood up
+          made.forEach((b, i) => { const [x, y] = st.at(b.x, b.y, b.r * 2); label(st, String(i + 1), Math.round(x) - 2, Math.round(y) - 10); });
+          shade(0, Y0 - 2);
         }
-        if (py >= ball.y) you();
-        ctx.fillStyle = '#1c2448'; ctx.fillRect(0, 0, SW, Y0 - 2);
         const under = made.length ? topR() : 0, now = NAMES[Math.min(2, made.length)] + ' ' + cm(r) + ' cm';
         text('Snowman', 12, 10, 1, '#f8e8a0');
         text(now, 12, 24, 1, under && r >= under ? '#f05040' : '#f8f8f8');
@@ -11633,8 +11700,11 @@
         const tm = 'Time ' + Math.ceil(left / 60), bs = 'Best ' + getBest('snowman') + ' cm';
         text(tm, SW - 12 - tm.length * 6, 10, 1, left < 300 ? '#f05040' : '#f8f8f8');
         text(bs, SW - 12 - bs.length * 6, 24, 1, '#c8ccd8');
-        if (msgT > 0) ctext(msg, Y0 + 6, '#2a3450');
-        text('Arrows: roll   Space: stand it up   Esc: give up', 12, SH - 10, 1, '#c8ccd8');
+        if (msgT > 0) {
+          if (st) shade(Y0 + 2, 13);
+          ctext(msg, Y0 + 6, st ? '#f8e040' : '#2a3450');
+        }
+        hint(st, 'Arrows: roll   Space: stand it up   Esc: give up', 12, SH - 10, '#c8ccd8');
         if (state === 'ready') readyBox(t, 'Bottom, middle, then the head');
         else if (state === 'done') doneBox(['Time!', 'Not enough for a snowman.', 'Best ' + getBest('snowman') + ' cm'], t);
       },
@@ -11643,49 +11713,56 @@
     // how you did on the right (where it doesn't hide the snowman)
     function drawBuilt() {
       const tt = state === 'build' ? t : 999, SX = 110;
-      duskSky(0, 176);
-      ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 176, SW, SH - 176);
-      ctx.fillStyle = '#c8d2e4'; ctx.fillRect(0, 176, SW, 3);
-      snowfall(state === 'build' ? t : tick, 30);
-      // the measuring stick, every 50 cm
-      ctx.fillStyle = '#181820'; ctx.fillRect(37, 40, 6, 165);
-      ctx.fillStyle = '#f0d860'; ctx.fillRect(38, 41, 4, 163);
-      for (let c = 50; 204 - c / CM > 40; c += 50) {
-        const y = Math.round(204 - c / CM);
-        ctx.fillStyle = '#181820'; ctx.fillRect(34, y, 12, 1);
-        text(String(c), 31 - String(c).length * 6, y - 3, 1, '#f8f8f8');
-      }
-      let off = 0;
-      made.forEach((b, i) => {
-        const at = i * 40;
-        if (tt < at) return;
-        let x = SX, y = b.ty - (1 - Math.min(1, (tt - at) / 10)) * 60;
-        if (!b.stand && tt > at + 10) {
-          // too big for the one under it: it rolls off and lands beside the snowman
-          const k = Math.min(1, (tt - at - 10) / 20);
-          x += k * (made[0].r + b.r + 16 + off); y += k * (204 - b.r - y);
-          off += b.r * 2 + 6;
+      const st = draw3D('snowman', () => ({ phase: 'built', made, tower, height, tt }));
+      if (st) {
+        // the marks on the measuring stick, and how tall it stands once it's finished
+        for (let c = 50; c < 262; c += 50) { const [x, y] = st.mark(c); label(st, String(c), Math.round(x) - String(c).length * 6 - 2, Math.round(y) - 3); }
+        if (tt > made.length * 40) { const [x, y] = st.mark(height); label(st, height + ' cm', Math.round(x) + 12, Math.round(y) - 11); }
+      } else {
+        duskSky(0, 176);
+        ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 176, SW, SH - 176);
+        ctx.fillStyle = '#c8d2e4'; ctx.fillRect(0, 176, SW, 3);
+        snowfall(state === 'build' ? t : tick, 30);
+        // the measuring stick, every 50 cm
+        ctx.fillStyle = '#181820'; ctx.fillRect(37, 40, 6, 165);
+        ctx.fillStyle = '#f0d860'; ctx.fillRect(38, 41, 4, 163);
+        for (let c = 50; 204 - c / CM > 40; c += 50) {
+          const y = Math.round(204 - c / CM);
+          ctx.fillStyle = '#181820'; ctx.fillRect(34, y, 12, 1);
+          text(String(c), 31 - String(c).length * 6, y - 3, 1, '#f8f8f8');
         }
-        snowball(x, y, b.r);
-      });
-      if (tt > made.length * 40) {
-        // a face, buttons, arms and a hat on whatever is still standing
-        const head = tower[tower.length - 1], hy = head.ty, hr = head.r;
-        disc(SX - hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1), '#181820'); disc(SX + hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1), '#181820');
-        ctx.fillStyle = '#f07820'; ctx.beginPath(); ctx.moveTo(SX, hy - 1); ctx.lineTo(SX + hr * 0.7, hy + 2); ctx.lineTo(SX, hy + 4); ctx.fill();
-        ctx.fillStyle = '#181820'; ctx.fillRect(SX - hr * 0.7, hy - hr - 3, hr * 1.4, 4); ctx.fillRect(SX - hr * 0.45, hy - hr * 1.9, hr * 0.9, hr * 0.95);
-        ctx.fillStyle = '#c02828'; ctx.fillRect(SX - hr * 0.45, hy - hr - 6, hr * 0.9, 3);
-        if (tower.length >= 2) {
-          const body = tower[tower.length - 2], by = body.ty, br = body.r;
-          for (let k = -1; k <= 1; k++) disc(SX, by + k * br * 0.35, Math.max(1.5, br * 0.07), '#181820');
-          ctx.strokeStyle = '#4a2c14'; ctx.lineWidth = 2; ctx.beginPath();
-          ctx.moveTo(SX - br * 0.8, by - br * 0.2); ctx.lineTo(SX - br * 1.6, by - br * 0.8);
-          ctx.moveTo(SX + br * 0.8, by - br * 0.2); ctx.lineTo(SX + br * 1.6, by - br * 0.9); ctx.stroke();
-          ctx.fillStyle = '#c02828'; ctx.fillRect(SX - br * 0.6, by - br - 2, br * 1.2, 4);
+        let off = 0;
+        made.forEach((b, i) => {
+          const at = i * 40;
+          if (tt < at) return;
+          let x = SX, y = b.ty - (1 - Math.min(1, (tt - at) / 10)) * 60;
+          if (!b.stand && tt > at + 10) {
+            // too big for the one under it: it rolls off and lands beside the snowman
+            const k = Math.min(1, (tt - at - 10) / 20);
+            x += k * (made[0].r + b.r + 16 + off); y += k * (204 - b.r - y);
+            off += b.r * 2 + 6;
+          }
+          snowball(x, y, b.r);
+        });
+        if (tt > made.length * 40) {
+          // a face, buttons, arms and a hat on whatever is still standing
+          const head = tower[tower.length - 1], hy = head.ty, hr = head.r;
+          disc(SX - hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1), '#181820'); disc(SX + hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1), '#181820');
+          ctx.fillStyle = '#f07820'; ctx.beginPath(); ctx.moveTo(SX, hy - 1); ctx.lineTo(SX + hr * 0.7, hy + 2); ctx.lineTo(SX, hy + 4); ctx.fill();
+          ctx.fillStyle = '#181820'; ctx.fillRect(SX - hr * 0.7, hy - hr - 3, hr * 1.4, 4); ctx.fillRect(SX - hr * 0.45, hy - hr * 1.9, hr * 0.9, hr * 0.95);
+          ctx.fillStyle = '#c02828'; ctx.fillRect(SX - hr * 0.45, hy - hr - 6, hr * 0.9, 3);
+          if (tower.length >= 2) {
+            const body = tower[tower.length - 2], by = body.ty, br = body.r;
+            for (let k = -1; k <= 1; k++) disc(SX, by + k * br * 0.35, Math.max(1.5, br * 0.07), '#181820');
+            ctx.strokeStyle = '#4a2c14'; ctx.lineWidth = 2; ctx.beginPath();
+            ctx.moveTo(SX - br * 0.8, by - br * 0.2); ctx.lineTo(SX - br * 1.6, by - br * 0.8);
+            ctx.moveTo(SX + br * 0.8, by - br * 0.2); ctx.lineTo(SX + br * 1.6, by - br * 0.9); ctx.stroke();
+            ctx.fillStyle = '#c02828'; ctx.fillRect(SX - br * 0.6, by - br - 2, br * 1.2, 4);
+          }
+          const top = Math.round(204 - height / CM);
+          ctx.fillStyle = '#f8e040'; for (let x = 46; x < SX; x += 4) ctx.fillRect(x, top, 2, 1);
+          text(height + ' cm', 48, top - 10, 1, '#f8e040');
         }
-        const top = Math.round(204 - height / CM);
-        ctx.fillStyle = '#f8e040'; for (let x = 46; x < SX; x += 4) ctx.fillRect(x, top, 2, 1);
-        text(height + ' cm', 48, top - 10, 1, '#f8e040');
       }
       if (state === 'done') {
         const lines = [tower.length < made.length ? 'Some rolled off!' : 'Snowman built!', 'Height ' + height + ' cm', record ? 'New record!' : 'Best ' + getBest('snowman') + ' cm'];
@@ -11797,51 +11874,63 @@
         if (pressed.has('down')) { if (poured) serve(); else { sfx('bump'); msg = 'It\'s empty!'; msgT = 40; } }
       },
       draw() {
-        duskSky(0, 150);
-        ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 150, SW, SH - 150);
-        snowfall(t, 24);
-        // the stand's awning
-        for (let x = 0; x < SW; x += 20) { ctx.fillStyle = (x / 20) & 1 ? '#f8f8f8' : '#d02828'; ctx.fillRect(x, 34, 20, 12); }
-        ctx.fillStyle = '#181820'; ctx.fillRect(0, 46, SW, 2);
-        for (let x = 0; x < SW; x += 20) { ctx.fillStyle = (x / 20) & 1 ? '#f8f8f8' : '#d02828'; ctx.beginPath(); ctx.arc(x + 10, 48, 10, 0, Math.PI); ctx.fill(); }
-        winterHud('Hot chocolate stand', 'Stars ' + stars + '   Walk-offs ' + walked, 'Best ' + getBest('cocoa'), left);
-        // the line, the one at the front biggest, with their order (or what they think of it) over them
-        for (let i = Math.min(line.length, 3) - 1; i >= 1; i--) ctx.drawImage(line[i].sprites.down[0], 76 + i * 24, 132, 32, 32);
         const c = line[0];
+        const st = draw3D('cocoa', () => ({ line: line.slice(0, 3), who: npcSpec, mug, order: c && !verdict ? c.order : null, pouring, drip, verdict }));
+        if (!st) {
+          duskSky(0, 150);
+          ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 150, SW, SH - 150);
+          snowfall(t, 24);
+          // the stand's awning
+          for (let x = 0; x < SW; x += 20) { ctx.fillStyle = (x / 20) & 1 ? '#f8f8f8' : '#d02828'; ctx.fillRect(x, 34, 20, 12); }
+          ctx.fillStyle = '#181820'; ctx.fillRect(0, 46, SW, 2);
+          for (let x = 0; x < SW; x += 20) { ctx.fillStyle = (x / 20) & 1 ? '#f8f8f8' : '#d02828'; ctx.beginPath(); ctx.arc(x + 10, 48, 10, 0, Math.PI); ctx.fill(); }
+          // the line, the one at the front biggest
+          for (let i = Math.min(line.length, 3) - 1; i >= 1; i--) ctx.drawImage(line[i].sprites.down[0], 76 + i * 24, 132, 32, 32);
+          if (c) ctx.drawImage(c.sprites.down[verdict && !verdict.s ? 0 : (t >> 5) & 1 ? 1 : 0], 30, 118, 48, 48);
+          // the urn and its tap
+          ctx.fillStyle = '#20242c'; ctx.fillRect(189, 54, 50, 56); ctx.fillRect(193, 50, 42, 6);
+          ctx.fillStyle = '#b8c0cc'; ctx.fillRect(190, 56, 48, 53); ctx.fillStyle = '#e0e6ee'; ctx.fillRect(194, 58, 6, 49);
+          ctx.fillStyle = '#7a3a1c'; ctx.fillRect(196, 72, 36, 12); text('COCOA', 199, 74, 1, '#f8e8c8');
+          ctx.fillStyle = '#20242c'; ctx.fillRect(210, 109, 8, 10); ctx.fillRect(204, 108, 20, 3);
+          if (pouring || drip > 0) { ctx.fillStyle = '#6a3a1c'; ctx.fillRect(212, 119, pouring ? 4 : 2, Math.max(0, Math.round(MUG.bottom - mug.level * MUG.h) - 119)); }
+          // the counter and the toppings
+          ctx.fillStyle = '#5a3418'; ctx.fillRect(0, 168, SW, 72);
+          ctx.fillStyle = '#c89060'; ctx.fillRect(0, 166, SW, 6);
+          ctx.fillStyle = '#4a2c14'; for (let x = 0; x < SW; x += 40) ctx.fillRect(x, 172, 2, 68);
+          if (mug && !mug.spilled) drawMug(c && !verdict ? c.order : null);
+          else if (mug) { oval(MUG.x, 168, 26, 4, '#6a3a1c'); }
+          ctx.fillStyle = '#181820'; ctx.fillRect(254, 132, 20, 34); ctx.fillStyle = '#f0e8e0'; ctx.fillRect(255, 133, 18, 32);
+          ctx.fillStyle = '#f8f8f8'; for (let i = 0; i < 4; i++) ctx.fillRect(257 + (i & 1) * 8, 140 + (i >> 1) * 8, 6, 5);
+          ctx.fillStyle = '#181820'; ctx.fillRect(278, 128, 12, 38); ctx.fillStyle = '#d8dce4'; ctx.fillRect(279, 136, 10, 29);
+          ctx.fillStyle = '#d02828'; ctx.fillRect(281, 129, 6, 7);
+          ctx.fillStyle = '#181820'; ctx.fillRect(294, 140, 20, 26); ctx.fillStyle = '#a8d0e8'; ctx.fillRect(295, 141, 18, 24);
+          for (let i = 0; i < 3; i++) { ctx.fillStyle = '#f8f8f8'; ctx.fillRect(298 + i * 5, 130, 2, 14); ctx.fillStyle = '#e03030'; ctx.fillRect(298 + i * 5, 132, 2, 2); ctx.fillRect(298 + i * 5, 137, 2, 2); }
+          text('L', 261, 156, 1, '#181820'); text('U', 282, 156, 1, '#181820'); text('R', 302, 156, 1, '#181820');
+        }
+        // (in 3D: which button each topping is, under it on the counter, and where the one at the front's head is)
+        const pts = st && st.pts();
+        if (st) {
+          [['L', pts.bag], ['U', pts.can], ['R', pts.jar]].forEach(([k, [x, y]]) => label(st, k, Math.round(x) - 2, Math.round(y) + 2));
+          shade(0, 36);
+        }
+        winterHud('Hot chocolate stand', 'Stars ' + stars + '   Walk-offs ' + walked, 'Best ' + getBest('cocoa'), left);
+        // the order of whoever's at the front (or what they think of it), in a bubble over
+        // them (under their face, in 3D, pointing up at it)
         if (c) {
-          ctx.drawImage(c.sprites.down[verdict && !verdict.s ? 0 : (t >> 5) & 1 ? 1 : 0], 30, 118, 48, 48);
-          ctx.fillStyle = '#181820'; ctx.fillRect(8, 56, 152, 54); ctx.fillRect(48, 110, 8, 6);
-          ctx.fillStyle = '#f8f8f8'; ctx.fillRect(9, 57, 150, 52); ctx.fillRect(49, 109, 6, 6);
-          text(c.name, 14, 61, 1, '#2858a8');
+          const by = st ? 116 : 56, tx = st && pts.head ? Math.round(clamp(pts.head[0], 20, 148)) - 4 : 48, ty = st ? by - 6 : by + 54;
+          ctx.fillStyle = '#181820'; ctx.fillRect(8, by, 152, 54); ctx.fillRect(tx, ty, 8, 6);
+          ctx.fillStyle = '#f8f8f8'; ctx.fillRect(9, by + 1, 150, 52); ctx.fillRect(tx + 1, st ? ty + 1 : ty - 1, 6, 6);
+          text(c.name, 14, by + 5, 1, '#2858a8');
           if (verdict) {
-            wrap(verdict.line, 23).forEach((l, i) => text(l, 14, 75 + i * 11, 1, '#181820'));
-            for (let i = 0; i < 3; i++) star5(98 + i * 16, 98, i < verdict.s);
+            wrap(verdict.line, 23).forEach((l, i) => text(l, 14, by + 19 + i * 11, 1, '#181820'));
+            for (let i = 0; i < 3; i++) star5(98 + i * 16, by + 42, i < verdict.s);
           } else {
             const o = c.order;
-            text(o.mallows ? o.mallows + ' marshmallow' + (o.mallows > 1 ? 's' : '') : 'No marshmallows', 14, 73, 1, '#181820');
-            text(o.cream ? 'Whipped cream' : 'No cream', 14, 84, 1, '#181820');
-            text(o.cane ? 'A candy cane' : 'No candy cane', 14, 95, 1, '#181820');
+            text(o.mallows ? o.mallows + ' marshmallow' + (o.mallows > 1 ? 's' : '') : 'No marshmallows', 14, by + 17, 1, '#181820');
+            text(o.cream ? 'Whipped cream' : 'No cream', 14, by + 28, 1, '#181820');
+            text(o.cane ? 'A candy cane' : 'No candy cane', 14, by + 39, 1, '#181820');
           }
         }
-        // the urn and its tap
-        ctx.fillStyle = '#20242c'; ctx.fillRect(189, 54, 50, 56); ctx.fillRect(193, 50, 42, 6);
-        ctx.fillStyle = '#b8c0cc'; ctx.fillRect(190, 56, 48, 53); ctx.fillStyle = '#e0e6ee'; ctx.fillRect(194, 58, 6, 49);
-        ctx.fillStyle = '#7a3a1c'; ctx.fillRect(196, 72, 36, 12); text('COCOA', 199, 74, 1, '#f8e8c8');
-        ctx.fillStyle = '#20242c'; ctx.fillRect(210, 109, 8, 10); ctx.fillRect(204, 108, 20, 3);
-        if (pouring || drip > 0) { ctx.fillStyle = '#6a3a1c'; ctx.fillRect(212, 119, pouring ? 4 : 2, Math.max(0, Math.round(MUG.bottom - mug.level * MUG.h) - 119)); }
-        // the counter and the toppings
-        ctx.fillStyle = '#5a3418'; ctx.fillRect(0, 168, SW, 72);
-        ctx.fillStyle = '#c89060'; ctx.fillRect(0, 166, SW, 6);
-        ctx.fillStyle = '#4a2c14'; for (let x = 0; x < SW; x += 40) ctx.fillRect(x, 172, 2, 68);
-        if (mug && !mug.spilled) drawMug(c && !verdict ? c.order : null);
-        else if (mug) { oval(MUG.x, 168, 26, 4, '#6a3a1c'); }
-        ctx.fillStyle = '#181820'; ctx.fillRect(254, 132, 20, 34); ctx.fillStyle = '#f0e8e0'; ctx.fillRect(255, 133, 18, 32);
-        ctx.fillStyle = '#f8f8f8'; for (let i = 0; i < 4; i++) ctx.fillRect(257 + (i & 1) * 8, 140 + (i >> 1) * 8, 6, 5);
-        ctx.fillStyle = '#181820'; ctx.fillRect(278, 128, 12, 38); ctx.fillStyle = '#d8dce4'; ctx.fillRect(279, 136, 10, 29);
-        ctx.fillStyle = '#d02828'; ctx.fillRect(281, 129, 6, 7);
-        ctx.fillStyle = '#181820'; ctx.fillRect(294, 140, 20, 26); ctx.fillStyle = '#a8d0e8'; ctx.fillRect(295, 141, 18, 24);
-        for (let i = 0; i < 3; i++) { ctx.fillStyle = '#f8f8f8'; ctx.fillRect(298 + i * 5, 130, 2, 14); ctx.fillStyle = '#e03030'; ctx.fillRect(298 + i * 5, 132, 2, 2); ctx.fillRect(298 + i * 5, 137, 2, 2); }
-        text('L', 261, 156, 1, '#181820'); text('U', 282, 156, 1, '#181820'); text('R', 302, 156, 1, '#181820');
         // how long they'll wait
         if (c && !verdict) {
           const p = c.patience / c.max;
@@ -11852,9 +11941,9 @@
         if (state === 'ready') readyBox(t, 'Pour to the red line');
         else if (state === 'done') doneBox([why, 'Stars: ' + stars, record ? 'New record!' : 'Best ' + getBest('cocoa')], t);
         else {
-          text('Hold Space: pour   Down: hand it over', 12, 204, 1, '#f0d8b8');
-          text('Left: marshmallow  Up: cream  Right: cane', 12, 216, 1, '#f0d8b8');
-          text('Esc: give up', 12, 228, 1, '#f0d8b8');
+          hint(st, 'Hold Space: pour   Down: hand it over', 12, 204, '#f0d8b8');
+          text('Left: marshmallow  Up: cream  Right: cane', 12, 216, 1, st ? '#c8ccd8' : '#f0d8b8');
+          text('Esc: give up', 12, 228, 1, st ? '#c8ccd8' : '#f0d8b8');
         }
       },
     };
@@ -11950,7 +12039,7 @@
             if (b.dead || !(was > f.y && b.y <= f.y)) continue;
             if ((f.state === 'wind' || f.state === 'after') && f.up > 0.6 && Math.abs(b.x - (f.x + f.dx)) < (f.far ? 8 : 10)) {
               b.dead = true; hits++; f.state = 'hit'; f.st = 0; sfx('splat');
-              pops.push({ x: f.x + f.dx, y: f.y - 40, s: 'Got ' + f.name + '!', t: 0 });
+              pops.push({ x: f.x + f.dx, y: f.y - 40, z: f.y, s: 'Got ' + f.name + '!', t: 0 });
             } else if (Math.abs(b.x - f.x) < f.hw) { b.dead = true; sfx('tap'); }
           }
           if (b.y < 50) b.dead = true;
@@ -11968,51 +12057,57 @@
         theirs = theirs.filter((b) => !b.dead);
       },
       draw() {
-        duskSky(0, 62);
-        ctx.fillStyle = '#e6ecf6'; ctx.fillRect(0, 62, SW, SH - 62);
-        ctx.fillStyle = '#d4dcec'; for (let y = 70; y < SH; y += 18) ctx.fillRect(0, y, SW, 1);
-        // a couple of cars under the snow at the back
-        for (const [x, c] of [[40, '#8a2a2a'], [270, '#2a4a8a']]) {
-          ctx.fillStyle = '#181820'; ctx.fillRect(x - 21, 57, 42, 12);
-          ctx.fillStyle = c; ctx.fillRect(x - 20, 60, 40, 8);
-          ctx.fillStyle = '#f4f8fc'; ctx.fillRect(x - 20, 56, 40, 5); ctx.fillRect(x - 12, 52, 24, 5);
+        const st = draw3D('snowball', () => ({ forts, who: npcSpec, me: meSpec(), px, duck, cool, pack, mine, theirs }));
+        if (!st) {
+          duskSky(0, 62);
+          ctx.fillStyle = '#e6ecf6'; ctx.fillRect(0, 62, SW, SH - 62);
+          ctx.fillStyle = '#d4dcec'; for (let y = 70; y < SH; y += 18) ctx.fillRect(0, y, SW, 1);
+          // a couple of cars under the snow at the back
+          for (const [x, c] of [[40, '#8a2a2a'], [270, '#2a4a8a']]) {
+            ctx.fillStyle = '#181820'; ctx.fillRect(x - 21, 57, 42, 12);
+            ctx.fillStyle = c; ctx.fillRect(x - 20, 60, 40, 8);
+            ctx.fillStyle = '#f4f8fc'; ctx.fillRect(x - 20, 56, 40, 5); ctx.fillRect(x - 12, 52, 24, 5);
+          }
+          snowfall(t, 24);
+          // the forts, back to front, with whoever is behind each one
+          for (const f of forts.slice().sort((a, b) => a.y - b.y)) {
+            const size = f.far ? 24 : 32, fh = f.far ? 10 : 14, top = f.y - fh, ex = Math.round(f.x + f.dx - size / 2);
+            if (f.up > 0) {
+              ctx.save(); ctx.beginPath(); ctx.rect(0, 0, SW, top + 2); ctx.clip();
+              const ey = Math.round(top + 2 - f.up * size * 0.75);
+              ctx.drawImage(f.sprites.down[0], ex, ey, size, size);
+              if (f.state === 'wind') ball(ex + size * 0.85, ey + size * 0.15 + Math.sin(f.st / 3), f.far ? 2.5 : 3.5);
+              if (f.state === 'hit') { disc(ex + size / 2, ey + size * 0.3, size * 0.22, '#f8fbff'); disc(ex + size * 0.4, ey + size * 0.25, size * 0.12, '#ffffff'); }
+              ctx.restore();
+            }
+            ctx.fillStyle = '#5a6478'; ctx.fillRect(f.x - f.hw - 1, top - 1, f.hw * 2 + 2, fh + 6);
+            ctx.fillStyle = '#f4f8fc'; ctx.fillRect(f.x - f.hw, top, f.hw * 2, fh + 4);
+            ctx.fillStyle = '#c8d4e6'; ctx.fillRect(f.x - f.hw, top + fh, f.hw * 2, 4);
+            for (let x = f.x - f.hw + 8; x < f.x + f.hw - 2; x += 10) ctx.fillRect(x, top + 2, 1, fh - 3);
+            ctx.fillRect(f.x - f.hw, top + Math.round(fh / 2), f.hw * 2, 1);
+          }
+          for (const b of mine) {
+            const p = (b.y0 - b.y) / (b.y0 - 50), y = b.y - Math.sin(Math.min(1, p) * Math.PI) * 14;
+            ball(b.x, y, 4 - p * 2);
+          }
+          // you, behind your wall
+          const yt = WALL - 46 + (duck ? 26 : 0);
+          ctx.drawImage(sprites.up[!duck && (held.left || held.right) ? 1 + ((t >> 3) & 1) : 0], Math.round(px) - 20, yt, 40, 40);
+          if (!duck && cool > 6) ball(px + 14, yt + 8, 3.5);
+          ctx.fillStyle = '#5a6478'; ctx.fillRect(0, WALL - 11, SW, 24);
+          ctx.fillStyle = '#f4f8fc'; ctx.fillRect(0, WALL - 10, SW, 18);
+          ctx.fillStyle = '#c8d4e6'; ctx.fillRect(0, WALL + 4, SW, 4); for (let x = 6; x < SW; x += 16) ctx.fillRect(x, WALL - 8, 1, 12);
+          ctx.fillStyle = '#4a5468'; ctx.fillRect(0, WALL + 8, SW, SH - WALL - 8);
+        } else {
+          shade(0, 36);
+          shade(WALL + 6, SH - WALL - 6);
         }
-        snowfall(t, 24);
         winterHud('Snowball fight', 'Hits ' + hits, 'Best ' + getBest('snowball'), left);
         for (let i = 0; i < 3; i++) {
           const hx = SW - 18 - i * 12, hy = 38;
           ctx.fillStyle = i < hearts ? '#e03040' : '#585868';
           ctx.fillRect(hx, hy + 1, 3, 3); ctx.fillRect(hx + 4, hy + 1, 3, 3); ctx.fillRect(hx, hy + 2, 7, 3); ctx.fillRect(hx + 1, hy + 5, 5, 1); ctx.fillRect(hx + 2, hy + 6, 3, 1);
         }
-        // the forts, back to front, with whoever is behind each one
-        for (const f of forts.slice().sort((a, b) => a.y - b.y)) {
-          const size = f.far ? 24 : 32, fh = f.far ? 10 : 14, top = f.y - fh, ex = Math.round(f.x + f.dx - size / 2);
-          if (f.up > 0) {
-            ctx.save(); ctx.beginPath(); ctx.rect(0, 0, SW, top + 2); ctx.clip();
-            const ey = Math.round(top + 2 - f.up * size * 0.75);
-            ctx.drawImage(f.sprites.down[0], ex, ey, size, size);
-            if (f.state === 'wind') ball(ex + size * 0.85, ey + size * 0.15 + Math.sin(f.st / 3), f.far ? 2.5 : 3.5);
-            if (f.state === 'hit') { disc(ex + size / 2, ey + size * 0.3, size * 0.22, '#f8fbff'); disc(ex + size * 0.4, ey + size * 0.25, size * 0.12, '#ffffff'); }
-            ctx.restore();
-          }
-          ctx.fillStyle = '#5a6478'; ctx.fillRect(f.x - f.hw - 1, top - 1, f.hw * 2 + 2, fh + 6);
-          ctx.fillStyle = '#f4f8fc'; ctx.fillRect(f.x - f.hw, top, f.hw * 2, fh + 4);
-          ctx.fillStyle = '#c8d4e6'; ctx.fillRect(f.x - f.hw, top + fh, f.hw * 2, 4);
-          for (let x = f.x - f.hw + 8; x < f.x + f.hw - 2; x += 10) ctx.fillRect(x, top + 2, 1, fh - 3);
-          ctx.fillRect(f.x - f.hw, top + Math.round(fh / 2), f.hw * 2, 1);
-        }
-        for (const b of mine) {
-          const p = (b.y0 - b.y) / (b.y0 - 50), y = b.y - Math.sin(Math.min(1, p) * Math.PI) * 14;
-          ball(b.x, y, 4 - p * 2);
-        }
-        // you, behind your wall
-        const yt = WALL - 46 + (duck ? 26 : 0);
-        ctx.drawImage(sprites.up[!duck && (held.left || held.right) ? 1 + ((t >> 3) & 1) : 0], Math.round(px) - 20, yt, 40, 40);
-        if (!duck && cool > 6) ball(px + 14, yt + 8, 3.5);
-        ctx.fillStyle = '#5a6478'; ctx.fillRect(0, WALL - 11, SW, 24);
-        ctx.fillStyle = '#f4f8fc'; ctx.fillRect(0, WALL - 10, SW, 18);
-        ctx.fillStyle = '#c8d4e6'; ctx.fillRect(0, WALL + 4, SW, 4); for (let x = 6; x < SW; x += 16) ctx.fillRect(x, WALL - 8, 1, 12);
-        ctx.fillStyle = '#4a5468'; ctx.fillRect(0, WALL + 8, SW, SH - WALL - 8);
         // your snowballs, and the next one as you pack it
         for (let i = 0; i < AMMO; i++) {
           if (i < ammo) disc(16 + i * 12, WALL + 14, 4, '#f8fbff');
@@ -12021,12 +12116,16 @@
         }
         // theirs on the way (coming at you, so in front of everything), each with a mark on
         // your wall where it will land
-        for (const b of theirs) {
+        if (!st) for (const b of theirs) {
           const p = b.t / b.dur, x = b.x0 + (b.tx - b.x0) * p, y = b.y0 + (WALL - 26 - b.y0) * p - Math.sin(p * Math.PI) * 34;
           oval(b.tx, WALL - 10, 4 + p * 7, 1.5 + p * 1.5, p > 0.6 ? 'rgba(210, 50, 50, 0.75)' : 'rgba(60, 70, 100, 0.45)');
           ball(x, y, 2 + p * 4);
         }
-        for (const p of pops) text(p.s, Math.round(clamp(p.x - p.s.length * 3, 4, SW - 4 - p.s.length * 6)), Math.round(p.y), 1, '#f8e040');
+        for (const p of pops) {
+          // (over the head of whoever got it, in 3D)
+          const [x, y] = st ? st.over(p.x, p.z) : [p.x, p.y + p.t * 0.4], w = p.s.length * 6;
+          text(p.s, Math.round(clamp(x - w / 2, 4, SW - 4 - w)), Math.round(y - p.t * 0.4 - (st ? 12 : 0)), 1, '#f8e040');
+        }
         for (const b of blobs) { ctx.globalAlpha = Math.min(1, b.life / 40); disc(b.x, b.y, b.r, '#f8fbff'); disc(b.x + b.r * 0.6, b.y + b.r * 0.5, b.r * 0.45, '#f8fbff'); ctx.globalAlpha = 1; }
         if (msgT > 0 && state === 'play') ctext(msg, 46, '#f8e040');
         if (state === 'ready') readyBox(t, 'Space: throw  Down: duck');
@@ -12653,6 +12752,12 @@
   const hdPerson = (key, name, body, look, style) => hd.people[key] || (hd.people[key] = HD.person(name, body, look, style));
   // a player, dressed just as they made themselves in the character editor
   const hdLook = (key, name, look) => hdPerson(key, name, look.g, Art.lookColours(look), Art.lookStyle(look));
+  // you as you're dressed now, and a coworker
+  function meSpec() {
+    const mine = wornLook(myLook), key = 'me:' + playerName + ':' + Art.lookCode(mine);
+    return { key, spec: hdLook(key, playerName || 'New Hire', mine) };
+  }
+  const npcSpec = (name) => { const { body, look } = lookFor(name); return hdPerson('npc:' + name, name, body, look, personOf(name).style); };
   const iceAt = (px, py) => tileAt(YARD, Math.round(px / 16), Math.round(py / 16)) === '~';
   // how far through a stride someone is (two steps to a stride), or -1 standing still
   const stride = (moving, step, prog) => (moving ? ((step ? 1 : 0) + prog / 16) / 2 : -1);
@@ -12661,8 +12766,7 @@
     const h = hdScreen(), c = h.c, K = HD.K;
     // (you're only not P.free for a moment, coming out of the doors)
     const px = (P.free ? P.fx : P.x) * 16, py = (P.free ? P.fy : P.y) * 16;
-    const mine = wornLook(myLook), me = 'me:' + playerName + ':' + Art.lookCode(mine), mySpec = hdLook(me, playerName || 'New Hire', mine);
-    const npcSpec = (n) => { const { body, look } = lookFor(n.name); return hdPerson('npc:' + n.name, n.name, body, look, personOf(n.name).style); };
+    const { key: me, spec: mySpec } = meSpec();
     // everyone out here: you, coworkers and other players (in a hockey game, you and
     // whoever you're playing are out on the ice instead)
     const sc = hockey && hockey.scene();
@@ -12671,7 +12775,7 @@
     for (const n of npcs) {
       if (n.floor !== YARD || (sc && (n === hockey.npc || (hockey.npcs && hockey.npcs.includes(n))))) continue;
       const nx = n.x * 16 + (n.moving ? n.mdx * n.prog : 0), ny = n.y * 16 + (n.moving ? n.mdy * n.prog : 0);
-      people.push({ key: 'npc:' + n.name, spec: npcSpec(n), px: nx, py: ny, dir: n.dir, walk: stride(n.moving, n.step, n.prog), skate: iceAt(nx, ny) });
+      people.push({ key: 'npc:' + n.name, spec: npcSpec(n.name), px: nx, py: ny, dir: n.dir, walk: stride(n.moving, n.step, n.prog), skate: iceAt(nx, ny) });
     }
     const others = mpHere().filter((o) => o.f === YARD && !(sc && hockey.ids && hockey.ids.includes(o.id)));
     for (const o of others) {
@@ -12687,7 +12791,7 @@
       const at = (x, y) => [x * 16 - 8, y * 16 - 8];
       sc.skaters.forEach((p, i) => {
         const lk = p.look, key = p.me ? me : p.npc ? 'npc:' + p.npc.name : 'mp:' + lk.n + ':' + Art.lookCode(lk.look);
-        const spec = p.me ? mySpec : p.npc ? npcSpec(p.npc) : hdLook(key, lk.n, lk.look);
+        const spec = p.me ? mySpec : p.npc ? npcSpec(p.npc.name) : hdLook(key, lk.n, lk.look);
         // (another player on the ice gets a figure of their own, apart from the one out in the lot)
         people.push({ key: p.look ? 'ice:' + i + ':' + key : key, spec, px: p.x * 16 - 8, py: p.y * 16 - 8,
           dir: ['down', 'right', 'up', 'left'][(Math.round(p.ang / (Math.PI / 2)) + 4) % 4], face: p.ang, walk: p.push ? (tick / 40) % 1 : -1, skate: true,
