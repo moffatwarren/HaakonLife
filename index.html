@@ -46,6 +46,8 @@
   /* ---------- touch controls ---------- */
   body.touch #keys { display: none; }
   body.touch #dpad, body.touch #meta, body.touch #ab { display: flex; }
+  /* put away while you're playing with a controller (a touch brings them back) */
+  body.touch.controller #dpad, body.touch.controller #meta, body.touch.controller #ab { display: none; }
   body.touch.portrait #app {
     grid-template-areas: "screen screen" "dpad ab" "meta meta";
     grid-template-columns: 1fr 1fr; align-content: space-evenly; gap: 10px 0;
@@ -54,6 +56,7 @@
     grid-template-areas: "dpad screen ab" "dpad meta ab";
     grid-template-columns: 1fr auto 1fr; gap: 6px 10px;
   }
+  body.touch.controller #app { grid-template-areas: "screen"; grid-template-columns: auto; align-content: center; }
   #dpad {
     grid-area: dpad; position: relative; width: 168px; height: 168px; touch-action: none;
   }
@@ -70,6 +73,15 @@
   #dpad[data-dir="down"] .shade { display: block; left: 56px; top: 112px; }
   #dpad[data-dir="left"] .shade { display: block; left: 0; top: 56px; }
   #dpad[data-dir="right"] .shade { display: block; left: 112px; top: 56px; }
+  /* out in the parking lot it's a thumbstick instead (body.stick): the knob follows your
+     thumb, and the base slides after it a little way if you drag on past the edge */
+  #dpad .base, #dpad .knob { position: absolute; border-radius: 50%; display: none; transition: transform .12s ease-out; }
+  #dpad .base { left: 10px; top: 10px; width: 148px; height: 148px; background: #262630; box-shadow: inset 0 0 0 2px #30303c, inset 0 6px 14px rgba(0,0,0,.45); }
+  #dpad .knob { left: 52px; top: 52px; width: 64px; height: 64px; background: var(--btn); box-shadow: 0 4px 0 #15151c, inset 0 0 0 7px #44445a; }
+  #dpad.held .base, #dpad.held .knob { transition: none; }
+  #dpad.held .knob { background: #4a4a5c; }
+  body.stick #dpad .arm, body.stick #dpad .hub, body.stick #dpad .shade { display: none; }
+  body.stick #dpad .base, body.stick #dpad .knob { display: block; }
   #ab { grid-area: ab; gap: 18px; align-items: center; transform: rotate(-20deg); touch-action: none; }
   #ab button { margin-top: 0; }
   #ab button:first-child { margin-top: 40px; }
@@ -94,6 +106,7 @@
 
   <div id="dpad" aria-label="Direction pad">
     <div class="arm h"></div><div class="arm v"></div><div class="shade"></div><div class="hub"></div>
+    <div class="base"></div><div class="knob"></div>
   </div>
   <div id="ab">
     <button data-btn="b" aria-label="B">B</button>

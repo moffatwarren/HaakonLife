@@ -9,8 +9,9 @@
   canvas.width = SW; canvas.height = SH;
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
-  // Touch screens get the on-screen D-pad and A/B/START buttons (see layout), and the
-  // control hints drawn in the game name those buttons instead of keyboard keys.
+  // Touch screens get the on-screen D-pad (a thumbstick out in the parking lot) and A/B/START
+  // buttons (see layout), and the control hints drawn in the game name those buttons
+  // instead of keyboard keys.
   const isTouch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 || /[#&]touch/.test(location.hash);
 
   // ---------- settings ----------
@@ -641,7 +642,29 @@
     if (!e.repeat) press(k);
   });
   addEventListener('keyup', (e) => { const k = e.code === 'Escape' ? escAs : KEYS[e.code]; if (k) release(k); });
-  addEventListener('blur', () => { for (const k in held) release(k); });
+  addEventListener('blur', () => { for (const k in held) release(k); ctlHeld.clear(); });
+
+  // A thumbstick, on screen or on a controller, pushed x, y (a share of how far it goes):
+  // how hard that is, -1 to 1 each way (nothing inside dead, all the way from full on), and
+  // which of the four ways it's pushed, for walking and menus (from on, until it's back
+  // inside off), kept the way it was (cur) a little past the diagonal so it doesn't flicker.
+  const wayOf = (x, y) => (Math.abs(x) > Math.abs(y) ? (x < 0 ? 'left' : 'right') : (y < 0 ? 'up' : 'down'));
+  function stickPush(x, y, dead, full) {
+    const d = Math.hypot(x, y), push = Math.max(0, Math.min(1, (d - dead) / (full - dead)));
+    return push ? { x: (x / d) * push, y: (y / d) * push } : { x: 0, y: 0 };
+  }
+  function stickWay(x, y, cur, on, off) {
+    const d = Math.hypot(x, y);
+    if (d < (cur ? off : on)) return null;
+    return cur && (x * DIRS[cur][0] + y * DIRS[cur][1]) / d >= 0.55 ? cur : wayOf(x, y);
+  }
+  // how hard the on-screen stick and a controller's left stick are pushed, -1 to 1 each way
+  const stick = { x: 0, y: 0 }, ctlStick = { x: 0, y: 0 };
+  // which way (and how hard) you're steering: a thumbstick, or the arrows (or a D-pad)
+  const steer = () => {
+    for (const s of [stick, ctlStick]) if (s.x || s.y) return { x: s.x, y: s.y };
+    return { x: (held.right ? 1 : 0) - (held.left ? 1 : 0), y: (held.down ? 1 : 0) - (held.up ? 1 : 0) };
+  };
 
   // Touch / mouse controls
   document.querySelectorAll('[data-btn]').forEach((el) => {
@@ -652,9 +675,19 @@
     el.addEventListener('pointercancel', up);
     el.addEventListener('lostpointercapture', up);
   });
+  // The direction control is a D-pad indoors and a thumbstick out in the parking lot
+  // (setPadMode). The stick still holds one of the four directions down, for walking and
+  // menus, and also says which way it's pushed and how far (stick), for skating in hockey.
+  // It's the same element either way, so a thumb held down through the door carries on.
+  let padMode = 'dpad', setPadMode = () => {};
   const dpad = document.getElementById('dpad');
   if (dpad) {
-    let cur = null;
+    // how far (px) the knob goes, and the base can be dragged after it; and how far over (a
+    // share of the knob's travel) the stick does nothing yet, and is pushed all the way
+    const REACH = 56, FOLLOW = 40, DEAD = 0.18, FULL = 0.8;
+    const base = dpad.querySelector('.base'), knob = dpad.querySelector('.knob');
+    // the pointer holding it and where it is, the direction held, and how far the base has been dragged
+    let id = null, at = null, cur = null, ox = 0, oy = 0;
     const setDir = (d) => {
       if (d === cur) return;
       if (cur) release(cur);
@@ -662,19 +695,98 @@
       if (d) press(d);
       dpad.dataset.dir = d || '';
     };
-    const fromEvent = (e) => {
+    const feel = () => {
       const r = dpad.getBoundingClientRect();
-      const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-      if (Math.hypot(dx, dy) < r.width * 0.06) return cur; // a small dead spot in the middle
-      return Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+      const dx = at.x - (r.left + r.width / 2), dy = at.y - (r.top + r.height / 2);
+      if (padMode === 'dpad') {
+        if (Math.hypot(dx, dy) >= r.width * 0.06) setDir(wayOf(dx, dy)); // a small dead spot in the middle
+        return;
+      }
+      let vx = dx - ox, vy = dy - oy, d = Math.hypot(vx, vy);
+      if (d > REACH) {
+        // dragged on past the edge, the base comes after it, so turning back isn't as far
+        ox += vx * (1 - REACH / d); oy += vy * (1 - REACH / d);
+        const o = Math.hypot(ox, oy);
+        if (o > FOLLOW) { ox *= FOLLOW / o; oy *= FOLLOW / o; }
+        vx = dx - ox; vy = dy - oy; d = Math.hypot(vx, vy);
+      }
+      Object.assign(stick, stickPush(vx / REACH, vy / REACH, DEAD, FULL));
+      setDir(stickWay(vx / REACH, vy / REACH, cur, 0.35, 0.25));
+      const s = Math.min(1, REACH / d);
+      base.style.transform = `translate(${ox}px, ${oy}px)`;
+      knob.style.transform = `translate(${ox + vx * s}px, ${oy + vy * s}px)`;
     };
-    dpad.addEventListener('pointerdown', (e) => { e.preventDefault(); dpad.setPointerCapture(e.pointerId); setDir(fromEvent(e)); });
-    dpad.addEventListener('pointermove', (e) => { if (cur) setDir(fromEvent(e)); });
-    const end = () => setDir(null);
+    // a second thumb on it takes over from the first
+    dpad.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); dpad.setPointerCapture(e.pointerId);
+      id = e.pointerId; at = { x: e.clientX, y: e.clientY };
+      dpad.classList.add('held');
+      feel();
+    });
+    dpad.addEventListener('pointermove', (e) => {
+      if (e.pointerId === id) { at = { x: e.clientX, y: e.clientY }; feel(); }
+    });
+    const end = (e) => {
+      if (e.pointerId !== id) return;
+      id = at = null; ox = oy = 0; stick.x = stick.y = 0;
+      setDir(null);
+      dpad.classList.remove('held');
+      base.style.transform = knob.style.transform = '';
+    };
     dpad.addEventListener('pointerup', end);
     dpad.addEventListener('pointercancel', end);
     dpad.addEventListener('lostpointercapture', end);
+    setPadMode = (m) => {
+      if (m === padMode) return;
+      padMode = m;
+      document.body.classList.toggle('stick', m === 'stick');
+      dpad.setAttribute('aria-label', m === 'stick' ? 'Thumbstick' : 'Direction pad');
+      ox = oy = 0; stick.x = stick.y = 0;
+      base.style.transform = knob.style.transform = '';
+      if (at) feel();
+    };
   }
+
+  // Controllers: Xbox and PlayStation ones (and most others), by Bluetooth or cable, in the
+  // browser's standard layout. The bottom face button (A, or ✕ on a PlayStation) is A, the
+  // right and left ones (B and X, ○ and □) are B, the top one (Y, △) and View/Share open
+  // the map, and Menu/Options is START. The D-pad and the left stick both move you, and the
+  // stick also steers in hockey, the way it's pushed and as hard (ctlStick). Read every
+  // update (pollControllers). A browser only lets the page see a controller once a button's
+  // been pressed on it, and only on a secure (https) page.
+  const CTL_BUTTONS = [[0, 'a'], [1, 'b'], [2, 'b'], [3, 'map'], [8, 'map'], [9, 'start'], [12, 'up'], [13, 'down'], [14, 'left'], [15, 'right']];
+  let ctlHeld = new Set(), ctlWay = null, usingController = false;
+  function pollControllers() {
+    let pads = [];
+    try { pads = navigator.getGamepads ? navigator.getGamepads() : []; } catch (e) { /* not allowed here */ }
+    const want = new Set();
+    let x = 0, y = 0; // the left stick (whichever's pushed furthest, with more than one)
+    for (const gp of pads) {
+      if (!gp || !gp.connected) continue;
+      for (const [i, k] of CTL_BUTTONS) if (gp.buttons[i] && gp.buttons[i].pressed) want.add(k);
+      const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+      if (Math.hypot(ax, ay) > Math.hypot(x, y)) { x = ax; y = ay; }
+    }
+    Object.assign(ctlStick, stickPush(x, y, 0.2, 0.9));
+    ctlWay = stickWay(x, y, ctlWay, 0.5, 0.35);
+    if (ctlWay) want.add(ctlWay);
+    for (const k of want) if (!ctlHeld.has(k)) press(k);
+    for (const k of ctlHeld) if (!want.has(k)) release(k);
+    ctlHeld = want;
+    if (want.size) useController(true);
+  }
+  // With a controller in hand the hints name its buttons, as on a touch screen, and a phone
+  // puts its on-screen buttons away for a bigger screen. A key (or a touch) brings them back.
+  function useController(on) {
+    if (usingController === on) return;
+    usingController = on;
+    document.body.classList.toggle('controller', on);
+    layout();
+  }
+  addEventListener('keydown', () => useController(false));
+  addEventListener('pointerdown', () => { if (isTouch) useController(false); });
+  // a browser won't let a controller start the sound, so a click or a tap anywhere does
+  addEventListener('pointerup', unlockAudio);
   document.addEventListener('contextmenu', (e) => e.preventDefault());
   // iOS Safari ignores user-scalable=no and touch-action on the page, so a quick double tap
   // (say on the d-pad) zooms in and there's no way back out. The controls all run on pointer
@@ -685,8 +797,9 @@
 
   // ---------- drawing helpers ----------
   // Keyboard hints -> touch button hints ("Space: punch" -> "A: punch", "Esc: give up" ->
-  // "B: give up", "Arrows: steer" -> "D-pad: steer"). Only hint-shaped text is touched,
-  // so an SDG "Space" component or a printout stays as it is.
+  // "B: give up", "Arrows: steer" -> "D-pad: steer", or "Stick: steer" out in the parking
+  // lot), on a touch screen or with a controller in hand (buttonHints). Only hint-shaped
+  // text is touched, so an SDG "Space" component or a printout stays as it is.
   const TOUCH_HINTS = [
     // (no lookbehind for "Hold Space": Safari before iOS 16.4 can't parse one, and the
     // whole game would fail to load)
@@ -695,12 +808,13 @@
     [/\bEsc(?=:)/g, 'B'],
     [/\bX(?=:)/g, 'B'],
     [/\bEnter(?=:)/g, 'START'],
-    [/\bArrows(?=:| \+)/g, 'D-pad'],
+    [/\bArrows(?=:| \+)/g, () => (padMode === 'stick' ? 'Stick' : 'D-pad')],
     [/PRESS ENTER/g, 'PRESS START'],
   ];
   const touchHint = (str) => TOUCH_HINTS.reduce((s, [re, to]) => s.replace(re, to), str);
+  const buttonHints = () => isTouch || usingController;
   function text(str, x, y, scale, color) {
-    if (isTouch) str = touchHint(str);
+    if (buttonHints()) str = touchHint(str);
     scale = scale || 1;
     ctx.fillStyle = color || col.dark;
     let cx = x;
@@ -2420,7 +2534,7 @@
 
   // ---------- shared bits for the arcade mini-games ----------
   const ctext = (str, y, color) => {
-    if (isTouch) str = touchHint(str);
+    if (buttonHints()) str = touchHint(str);
     text(str, (SW - str.length * 6) >> 1, y, 1, color);
   };
   // Save a high score; returns true if it's a new record.
@@ -9867,7 +9981,7 @@
     if ((tick >> 4) & 1) { ctx.fillStyle = col.dark; ctx.fillRect(92 + playerName.length * 12, 58, 2, 16); }
     // letters to pick with the arrows (for touch screens)
     nameKeys.draw(102, 18);
-    if (isTouch) {
+    if (buttonHints()) {
       text('Pick letters with the D-pad + A,', (SW - 32 * 6) >> 1, SH - 34);
       text('then choose OK (or press START)', (SW - 31 * 6) >> 1, SH - 22);
     } else {
@@ -9878,7 +9992,7 @@
       box(20, 78, SW - 40, 84);
       ['There is only ONE true Bob', 'in this company.', '', 'Name yourself something else.'].forEach((line, i) =>
         text(line, (SW - line.length * 6) >> 1, 92 + i * 12));
-      if (bobNote > 20 && (tick >> 4) & 1) text(isTouch ? 'Press A' : 'Press any key', (SW - (isTouch ? 7 : 13) * 6) >> 1, 144);
+      if (bobNote > 20 && (tick >> 4) & 1) text(buttonHints() ? 'Press A' : 'Press any key', (SW - (buttonHints() ? 7 : 13) * 6) >> 1, 144);
     }
   }
 
@@ -10443,7 +10557,7 @@
         text(str, 12, Y + 23);
         if ((tick >> 4) & 1) { ctx.fillStyle = col.dark; ctx.fillRect(12 + str.length * 6, Y + 22, 1, 9); }
         keys.draw(Y + 42, 15);
-        text(isTouch ? 'A: pick  B: rub out  START: say it' : 'Type, then Enter   Esc: cancel', 10, SH - 14, 1, '#686878');
+        text(buttonHints() ? 'A: pick  B: rub out  START: say it' : 'Type, then Enter   Esc: cancel', 10, SH - 14, 1, '#686878');
       },
     };
     return self;
@@ -10727,7 +10841,7 @@
           ui.push(Choice(['KEEP PLAYING', 'GIVE UP'], -1, 24, (i) => { if (i === 1) finish(true); }, { startCloses: true }));
           return;
         }
-        g.step([{ x: (held.right ? 1 : 0) - (held.left ? 1 : 0), y: (held.down ? 1 : 0) - (held.up ? 1 : 0), shoot: held.a, pass: pressed.has('b') }]);
+        g.step([{ ...steer(), shoot: held.a, pass: pressed.has('b') }]);
         g.events.forEach(hear);
         // a goal or the buzzer, then the next faceoff (or the end, if it's been won)
         if ((g.phase === 'goal' && g.t >= 150) || (g.phase === 'buzzer' && g.t >= 120)) {
@@ -10756,7 +10870,7 @@
         if (g.phase === 'ready' && g.ot) msg(['Overtime!', 'Next goal wins']);
         else if (g.phase === 'ready' && g.clock === HOCKEY.LENGTH) {
           // the controls, off to one side so the puck and both players show at the drop
-          const hints = ['Arrows: skate', 'Space: shoot', 'Hold Space: slapshot', 'X: body check'].map((l) => (isTouch ? touchHint(l) : l));
+          const hints = ['Arrows: skate', 'Space: shoot', 'Hold Space: slapshot', 'X: body check'].map((l) => (buttonHints() ? touchHint(l) : l));
           box(4, 84, 136, 16 + hints.length * 16);
           hints.forEach((l, i) => text(l, 4 + ((136 - l.length * 6) >> 1), 96 + i * 16));
         }
@@ -11276,6 +11390,7 @@
 
   function update() {
     tick++;
+    pollControllers();
     if (fade) {
       fade.t++;
       if (fade.t === 16) fade.cb();
@@ -11578,6 +11693,7 @@
     // outside, the screen is see-through over the parking lot's own canvas
     const outside = !['title', 'select', 'name', 'costume'].includes(mode) && P.floor === YARD;
     hdShow(outside);
+    setPadMode(outside ? 'stick' : 'dpad');
     if (outside) ctx.clearRect(0, 0, SW, SH);
     else { ctx.fillStyle = col.dark; ctx.fillRect(0, 0, SW, SH); }
     if (mode === 'title') drawTitle();
@@ -11611,6 +11727,7 @@
     document.body.classList.toggle('landscape', !portrait);
     let aw, ah;
     if (!isTouch) { aw = vw - 48; ah = vh - 90; }
+    else if (usingController) { aw = vw - 32; ah = vh - 32; } // the on-screen buttons are put away
     else if (portrait) { aw = vw - 40; ah = vh * 0.56; }
     else { aw = vw - 380; ah = vh - 70; }
     let s = Math.min(aw / SW, ah / SH);

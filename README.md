@@ -19,14 +19,20 @@ or `assets/` uploads those files to the Namecheap hosting by FTP
 `FTP_PASSWORD` repository secrets). The Actions tab has a **Run workflow** button to
 upload again without a push.
 
-| Action | Keyboard | Touch |
-| --- | --- | --- |
-| Move | Arrows / WASD | D-pad |
-| A: interact, confirm | E / Space | A |
-| B: back, cancel | Esc / X / Shift | B |
-| Start menu (map, sound, music) | Enter (or Esc while walking) | START |
-| Map | M | (Start → Map) |
+| Action | Keyboard | Touch | Controller (Xbox / PlayStation) |
+| --- | --- | --- | --- |
+| Move | Arrows / WASD | D-pad (a thumbstick in the parking lot) | Left stick or D-pad |
+| A: interact, confirm | E / Space | A | A / ✕ |
+| B: back, cancel | Esc / X / Shift | B | B or X / ○ or □ |
+| Start menu (map, sound, music) | Enter (or Esc while walking) | START | Menu / Options |
+| Map | M | (Start → Map) | Y or View / △ or Share (Create on a PS5) |
 
+- Controllers: pair an Xbox or PlayStation controller with your phone or computer over
+  Bluetooth (or plug it in), then press a button on it: browsers keep a controller hidden
+  from a page until then (and from any page that isn't https). While you play with one,
+  the hints in the game name its buttons, and a phone tucks its on-screen buttons away
+  for a bigger screen (touch the screen to bring them back). Browsers won't let a
+  controller start the sound, so it starts with your first click, tap or key.
 - Walk onto a staircase to change floors, or face the elevator doors and press A.
 - After the title screen, pick a male or female character (four looks each),
   then type your name. The game remembers your last pick and name. Don't try
@@ -580,7 +586,8 @@ From November 27 to December 31 (by your device's date) the office does Christma
   stand pours as many as you like.
 - **Hockey**: talk to whoever is minding the rink's gate and they'll take you on, one
   on one, three minutes, no goalies. Arrows skate (diagonals too, and you carry on
-  coasting when you let go). With the puck, tap A to shoot, or hold A to wind up a
+  coasting when you let go); a thumbstick (on a phone's screen or a controller) skates
+  whichever way you push it, faster the further you push. With the puck, tap A to shoot, or hold A to wind up a
   slapshot (harder, but wilder); B sends it the way you're steering (straight ahead if
   you aren't), to bank it off the boards or get it past them. Without it, A is a poke
   check and B a body check, a burst of speed the way you're steering that wears off over
