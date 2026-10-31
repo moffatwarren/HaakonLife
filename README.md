@@ -21,7 +21,7 @@ upload again without a push.
 
 | Action | Keyboard | Touch | Controller (Xbox / PlayStation) |
 | --- | --- | --- | --- |
-| Move | Arrows / WASD | D-pad (a thumbstick in the parking lot) | Left stick or D-pad |
+| Move | Arrows / WASD | D-pad (a thumbstick in the parking lot, but not in its winter games) | Left stick or D-pad |
 | A: interact, confirm | E / Space | A | A / ✕ |
 | B: back, cancel | Esc / X / Shift | B | B or X / ○ or □ |
 | Start menu (map, sound, music) | Enter (or Esc while walking) | START | Menu / Options |
@@ -705,7 +705,8 @@ From November 27 to December 31 (by your device's date) the office does Christma
     start a new mug. Keep anyone waiting too long and they walk off; three walk-offs and
     the stand shuts.
   - **Snowbanks**: a snowball fight against five coworkers, behind three forts across the
-    lot and two further back, for 90 seconds or until you've been hit three times. Left
+    lot and two further back, for 90 seconds or until you've been hit three times (the
+    hearts beside your hits are what you've got left: one goes each time). Left
     and right move you along your wall; A throws straight up the lot, hitting whoever is
     standing up at a fort as it passes (the near forts stop it). Holding Down ducks
     behind your wall, where nothing can hit you, and packs another snowball (you hold

@@ -688,8 +688,9 @@
     el.addEventListener('lostpointercapture', up);
   });
   // The direction control is a D-pad indoors and a thumbstick out in the parking lot
-  // (setPadMode). The stick still holds one of the four directions down, for walking and
-  // menus, and also says which way it's pushed and how far (stick), for skating in hockey.
+  // (setPadMode), except in the lot's winter games, which are easier with the D-pad. The
+  // stick still holds one of the four directions down, for walking and menus, and also
+  // says which way it's pushed and how far (stick), for skating in hockey.
   // It's the same element either way, so a thumb held down through the door carries on.
   let padMode = 'dpad', setPadMode = () => {};
   const dpad = document.getElementById('dpad');
@@ -10930,7 +10931,8 @@
   // Six games at the lot's props: the chopping block at the end of the woodpile (ChopGame),
   // the fire pit (MallowGame), the big spruce (SpruceGame), the snowman (SnowmanGame), the
   // hot chocolate stand (CocoaGame) and the snowbanks (SnowballGame). They fill the screen
-  // like the games indoors (cover tells draw it needn't draw the lot underneath them).
+  // like the games indoors (cover tells draw it needn't draw the lot underneath them, and
+  // to give a phone the D-pad back instead of the lot's thumbstick).
   // When the lot is in 3D they are too (js/winter3d.js draws them, in the lot's own look),
   // with their words and meters drawn over them as usual; otherwise they draw themselves
   // flat.
@@ -11963,10 +11965,20 @@
     const crew = lotCrew(forts.length);
     forts.forEach((f, i) => Object.assign(f, { name: crew[i] ? crew[i].name : 'Somebody', sprites: crew[i] ? crew[i].sprites : sprites,
       state: 'hide', wait: 60 + Math.random() * 160, up: 0, st: 0, dx: 0 }));
-    let state = 'ready', t = 0, left = TIME, px = 160, duck = false, ammo = AMMO, pack = 0, cool = 0, hearts = 3, hits = 0,
+    // hurt: how long since a heart went (it flashes as it goes)
+    let state = 'ready', t = 0, left = TIME, px = 160, duck = false, ammo = AMMO, pack = 0, cool = 0, hearts = 3, hurt = 0, hits = 0,
       mine = [], theirs = [], blobs = [], pops = [], record = false, msg = '', msgT = 0;
     const gone = () => (TIME - left) / 60; // seconds in
     function out(how) { state = 'done'; t = 0; msg = how; record = saveBest('snowball', hits); sfx('ding'); }
+    // a heart, outlined, its top left corner at (x, y)
+    const HEART = ['.##.##.', '#######', '#######', '.#####.', '..###..', '...#...'];
+    function heart(x, y, color) {
+      for (const [dx, dy, c] of [[-1, 0, '#181820'], [1, 0, '#181820'], [0, -1, '#181820'], [0, 1, '#181820'], [0, 0, color]]) {
+        ctx.fillStyle = c;
+        HEART.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] === '#') ctx.fillRect(x + dx + i * 2, y + dy + j * 2, 2, 2); });
+      }
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'; ctx.fillRect(x + 2, y + 2, 2, 2);
+    }
     // a snowball, outlined so it shows up against the snow
     const ball = (x, y, r) => { disc(x, y, r + 1, '#3a4458'); disc(x, y, r, '#ffffff'); disc(x + r * 0.3, y + r * 0.3, r * 0.5, '#c8d4e6'); };
     function splat() {
@@ -12001,6 +12013,7 @@
         t++;
         for (const b of blobs) b.life--;
         blobs = blobs.filter((b) => b.life > 0);
+        if (hurt > 0) hurt--;
         for (const p of pops) { p.t++; p.y -= 0.4; }
         pops = pops.filter((p) => p.t < 50);
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -12051,7 +12064,7 @@
           b.dead = true;
           if (Math.abs(b.tx - px) >= 13) continue;
           if (duck) { sfx('tap'); continue; }
-          hearts--; sfx('splat'); splat();
+          hearts--; hurt = 40; sfx('splat'); splat();
           if (hearts <= 0) { out('Snowed under!'); return; }
         }
         theirs = theirs.filter((b) => !b.dead);
@@ -12103,11 +12116,10 @@
           shade(WALL + 6, SH - WALL - 6);
         }
         winterHud('Snowball fight', 'Hits ' + hits, 'Best ' + getBest('snowball'), left);
-        for (let i = 0; i < 3; i++) {
-          const hx = SW - 18 - i * 12, hy = 38;
-          ctx.fillStyle = i < hearts ? '#e03040' : '#585868';
-          ctx.fillRect(hx, hy + 1, 3, 3); ctx.fillRect(hx + 4, hy + 1, 3, 3); ctx.fillRect(hx, hy + 2, 7, 3); ctx.fillRect(hx + 1, hy + 5, 5, 1); ctx.fillRect(hx + 2, hy + 6, 3, 1);
-        }
+        // what you've got left, after your hits: a heart goes each time you're hit, flashing
+        // white and shaking as it goes
+        for (let i = 0; i < hearts; i++) heart(70 + i * 18, 22, '#e03040');
+        if (hurt > 0 && (hurt >> 2) & 1) heart(70 + hearts * 18 + Math.round((Math.random() - 0.5) * 3), 22, '#f8f8f8');
         // your snowballs, and the next one as you pack it
         for (let i = 0; i < AMMO; i++) {
           if (i < ammo) disc(16 + i * 12, WALL + 14, 4, '#f8fbff');
@@ -13684,8 +13696,9 @@
   function draw() {
     // outside, the screen is see-through over the parking lot's own canvas
     const outside = !['title', 'edit', 'name', 'costume'].includes(mode) && P.floor === YARD;
+    const covered = outside && ui.some((el) => el.cover);
     hdShow(outside);
-    setPadMode(outside ? 'stick' : 'dpad');
+    setPadMode(outside && !covered ? 'stick' : 'dpad');
     if (outside) ctx.clearRect(0, 0, SW, SH);
     else { ctx.fillStyle = col.dark; ctx.fillRect(0, 0, SW, SH); }
     if (mode === 'title') drawTitle();
@@ -13698,7 +13711,7 @@
       ctx.save();
       if (shake) ctx.translate(Math.round((Math.random() - 0.5) * 2 * shake), Math.round((Math.random() - 0.5) * 2 * shake));
       // (outside, a game that fills the screen saves drawing the lot under it)
-      if (outside) { if (!ui.some((el) => el.cover)) drawYard(); } else drawWorld();
+      if (outside) { if (!covered) drawYard(); } else drawWorld();
       ctx.restore();
       drawBanner();
       ui.forEach((el) => el.draw());
