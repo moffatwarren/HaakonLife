@@ -10817,7 +10817,7 @@
   const HOCKEY_RINGS = ['#f8d040', '#e84848']; // round your skates and theirs, to tell you apart
   const HOCKEY_SFX = { go: 'whistle', lunge: 'dash', pass: 'tap', steal: 'tap', block: 'tap', post: 'post', net: 'mesh', goal: 'horn', buzzer: 'buzz', bump: 'bump' };
   // While a game's on: { scene(), npc (the coworker you're playing), ids (the other
-  // players in it, live) }. scene() is what drawYard draws: { skaters, puck, you } (see
+  // players in it, live), npcs (coworkers the computer's playing, live) }. scene() is what drawYard draws: { skaters, puck, you } (see
   // HockeyGame's), with places in tiles from the map's corner.
   let hockey = null;
   function hockeyTalk(npc, says) {
@@ -10902,7 +10902,7 @@
         g.step([{ ...steer(), shoot: held.a, pass: pressed.has('b') }]);
         g.events.forEach(hear);
         // a goal or the buzzer, then the next faceoff (or the end, if it's been won)
-        if ((g.phase === 'goal' && g.t >= 150) || (g.phase === 'buzzer' && g.t >= 120)) {
+        if (g.due()) {
           if (g.over()) { state = 'done'; t = 0; sfx(g.score[0] > g.score[1] ? 'cup' : 'bump'); }
           else startFade(g.faceoff, '#f8f8f8');
         }
@@ -10945,44 +10945,145 @@
   // The game server runs it (server/tables/hockey.js, with js/hockey.js) and this shows what
   // it says (mp.table.view, see view() there). First the lobby: whoever's first waits there
   // for everyone else, anyone can move over to the other team, and once every spot is taken
-  // and everyone's pressed start, the puck drops. Then the game, out on the rink just like
-  // one against a coworker. Everyone shoots up the ice on their own screen: for the team
-  // attacking the bottom net, the rink is turned end for end, and so is the way they steer
-  // before it's sent. The server sends where everyone is 30 times a second, and they're
-  // drawn LIVE_LAG behind the newest, between the views either side, so they glide.
+  // and everyone's pressed start, the puck drops (or in two on two, once the two or three
+  // there have all pressed start and waited a few seconds, with the computer in the empty
+  // spots, playing them as coworkers, the same ones on every screen). Then the game, out on
+  // the rink just like one against a coworker. Everyone shoots up the ice on their own
+  // screen: for the team attacking the bottom net, the rink is turned end for end, and so is
+  // the way they steer before it's sent. The server sends where everyone is 30 times a
+  // second, and they're drawn a little behind the newest, between the views either side, so
+  // they glide: LIVE_LAG behind on a steady connection, and up to LIVE_LAG_MAX on one where
+  // views come in late now and then (a phone on Wi-Fi), so there's still a view either side.
   const HOCKEY_TEAMS = ['YELLOW', 'RED']; // after their rings, team 0 then team 1
-  const LIVE_LAG = 4; // game ticks (60ths of a second)
+  const LIVE_LAG = 4, LIVE_LAG_MAX = 12; // game ticks (60ths of a second)
   function LiveHockey(size, npc) {
     const tb = mp.table = { t: size === 2 ? 'hockey1' : 'hockey2', view: null, out: null, asked: false, feed: (v) => got(v) };
     const R = HOCKEY.rink(MAPS.floors[YARD]), says = (line) => (npc ? npc.name + ': ' : '') + line;
     // snaps: the game's views so far, oldest first. est: the game tick the newest is
-    // probably at by now. heard: the newest view whose sounds have played. gn: which game
-    const live = { npc: null, ids: [], scene: () => scene };
-    let snaps = [], est = -1, heard = -1, gn = -1, me = -1, scene = null;
+    // probably at by now. lag: how far behind est they're drawn. late: the furthest est has
+    // lately run past the newest view (fading slowly). heard: the newest view whose sounds
+    // have played. gn: which game
+    const live = { npc: null, ids: [], npcs: [], scene: () => scene };
+    // mates: for each place, the coworker the computer's playing there from the start (or null)
+    let snaps = [], est = -1, lag = LIVE_LAG, late = 0, heard = -1, gn = -1, me = -1, scene = null, mates = [];
     // rink: showing the game (rather than the lobby); menu: the option picked on the menu
     // (-1 while it's shut); go: ticks since the puck dropped; scored: the latest goal; left:
     // who's just left the game, and when
     let t = 0, rink = false, menu = -1, go = 99, scored = null, won = null, left = null, ais = '', lobby = null;
-    // what you're doing on the ice, as last sent: A and B presses are counted (ap, bp)
+    // what you're doing on the ice, as last sent to a server from before it took it a tick at
+    // a time: A and B presses are counted (ap, bp)
     let ap = 0, bp = 0, sent = '', sentBtn = '', sendT = 0;
+    // Running ahead of the server, when the views carry the whole game (st) from the same
+    // js/hockey.js as this one: this screen has a game of its own (pg), loaded from the newest
+    // view and played on with the ticks of what you've done that the server hadn't got to yet
+    // (pend: { q (numbered from 1 each game), e ([x, y, a, b], as sent) }), so your skater does
+    // what you say straight away. Everyone else is taken to carry on doing what they were (the
+    // computer's players think for themselves). When a view shows it went otherwise, whoever's
+    // out of place is drawn sliding over to where they are (off, for each skater and then the
+    // puck), rather than jumping. loaded: the view pg was last loaded from; ended: pg's game
+    // is over; q: your newest tick; out: ticks not sent yet.
+    let pg = null, loaded = -1, ended = false, pend = [], q = 0, out = [], off = [];
+    const MINE = ['shot', 'pass', 'lunge', 'poke', 'stride']; // things you do, heard as you do them when running ahead
+    const runs = (v) => Array.isArray(v.st) && v.hv === HOCKEY.VERSION && typeof v.aq === 'number';
 
     function got(v) {
       if (!v || v.ph === 'lobby' || !Array.isArray(v.pl) || !Array.isArray(v.who) || !Array.isArray(v.pk) || !Array.isArray(v.sc)) return;
-      if (v.gn !== gn) { gn = v.gn; snaps = []; est = -1; heard = v.n - 1; ap = bp = 0; sent = sentBtn = ''; won = null; ais = ''; }
+      if (v.gn !== gn) {
+        gn = v.gn; snaps = []; est = -1; heard = v.n - 1; ap = bp = 0; sent = sentBtn = ''; won = null; ais = ''; pickMates(v.who);
+        pg = null; loaded = -1; pend = []; q = 0; out = []; off = [];
+      }
       if (snaps.length && v.n <= snaps[snaps.length - 1].n) return;
       me = v.me;
       snaps.push(v);
       if (snaps.length > 60) snaps.shift();
     }
+    // A coworker for each of the computer's spots, by the number the server picked for it, out
+    // of everyone in the office in the order they're placed, so every screen has the same ones.
+    function pickMates(who) {
+      const pool = npcs.filter((n) => !n.ghost && !n.extra && !n.guest && !(visit && n === visit.npc)), taken = new Set();
+      mates = who.map((w) => {
+        if (!w || w.id || !Number.isInteger(w.c) || !pool.length) return null;
+        let k = w.c % pool.length;
+        while (taken.has(k) && taken.size < pool.length) k = (k + 1) % pool.length;
+        taken.add(k);
+        return pool[k];
+      });
+      live.npcs = mates.filter(Boolean);
+    }
     const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-    // Where everything is on this screen now: between the two views either side of a moment
-    // just behind the newest (or carried on a little from the newest, if the next is late).
+    // a place on the rink as it's drawn on this screen, turned end for end for the team
+    // attacking the bottom net
+    const spot = (x, y) => (me % 2 === 1 ? [R.x0 + R.x1 - x, R.y0 + R.y1 - y] : [x, y]);
+    // who's in place j (w, from the view), for drawing: you, a coworker the computer's
+    // playing, or another player (their look, and their name to put over them)
+    function face(j, w) {
+      const o = mp.others[w.id], mate = mates[j];
+      return { me: j === me, npc: mate || null,
+        look: j === me || mate ? null : o ? { n: o.n, look: o.look } : { n: String(w.n || '?'), look: oldPick('male', 0) },
+        tag: j === me ? '' : mate ? mate.name : String(w.n || '?') + (w.ai ? ' (CPU)' : '') };
+    }
+    // What's on the ice now, running ahead if this game can, otherwise as the views have it.
+    // e: what you're doing this tick (null if nothing: before the puck drops, or after the end)
+    function show(e) {
+      const last = snaps[snaps.length - 1];
+      if (last && runs(last)) run(e, last); else place();
+    }
+    // one tick of pg: you doing e, everyone else carrying on as they were
+    function tickPg(e) {
+      if (ended) return;
+      pg.step(pg.players.map((p, j) => (j === me ? { x: e[0], y: e[1], shoot: !!e[2], pass: !!e[3] } : p.ai ? null : { x: p.in.x, y: p.in.y, shoot: p.wasA })));
+      if (pg.due()) { if (pg.over()) ended = true; else pg.faceoff(); }
+    }
+    function run(e, last) {
+      if (!pg) pg = HOCKEY.create(MAPS.floors[YARD], { players: last.who.map((w, j) => ({ name: String(w.n), team: j % 2 })) });
+      // the views' sounds as they come in, but for what you did, heard when you did it
+      for (const s of snaps) if (s.n > heard) { s.ev.forEach((ev) => { if (ev.p !== me || !MINE.includes(ev.e)) hear(ev); }); heard = s.n; }
+      const where = () => pg.players.map((p) => [p.x, p.y]).concat([[pg.puck.x, pg.puck.y]]);
+      for (const o of off) { o[0] *= 0.85; o[1] *= 0.85; }
+      if (e) {
+        tickPg(e);
+        for (const ev of pg.events) if (ev.p && ev.p.i === me && MINE.includes(ev.e)) hockeySfx(ev, true);
+      }
+      if (last.n > loaded) {
+        // a new view: from there again, with what the server hasn't had of yours
+        const was = loaded >= 0 ? where() : null;
+        pend = pend.filter((p) => p.q > last.aq);
+        pg.load(last.st); ended = false; loaded = last.n;
+        for (const p of pend) tickPg(p.e);
+        if (was) {
+          off = where().map((s, j) => {
+            const o = off[j] || [0, 0], x = o[0] + was[j][0] - s[0], y = o[1] + was[j][1] - s[1];
+            return Math.hypot(x, y) > 2.5 ? [0, 0] : [x, y]; // (a long way: straight there, like at a faceoff)
+          });
+        }
+      }
+      // the puck goes with whoever has it
+      const own = pg.puck.owner, n = pg.players.length;
+      if (own && off[own.i]) off[n] = off[own.i].slice();
+      const skaters = pg.players.map((p, j) => {
+        const o = off[j] || [0, 0], [x, y] = spot(p.x + o[0], p.y + o[1]);
+        return Object.assign({ x, y, ang: wrapA(p.ang + (me % 2 === 1 ? Math.PI : 0)), push: p.push, down: pg.down(p), fall: p.fall,
+          stick: pg.stick(p), ring: HOCKEY_RINGS[j % 2], full: own === p }, face(j, last.who[j] || {}));
+      });
+      const po = off[n] || [0, 0], [px, py] = spot(pg.puck.x + po[0], pg.puck.y + po[1]);
+      scene = { skaters, puck: { x: px, y: py }, you: skaters[me] || { x: px, y: py },
+        sc: last.sc, clk: last.clk, ot: last.ot, gp: last.gp, gt: last.gt, fo: last.fo, me, who: last.who,
+        fade: [pg.phase, pg.t, pg.ot, pg.score[0] === pg.score[1], pg.clock < HOCKEY.LENGTH] };
+    }
+    // Where everything is on this screen now, as the views have it: between the two views
+    // either side of a moment just behind the newest (or carried on a little from the newest,
+    // if the next is late).
     function place() {
       const last = snaps[snaps.length - 1];
       if (!last) return;
       est += 1 + (last.n - est) * 0.05;
       if (est < 0 || Math.abs(last.n - est) > 30) est = last.n;
-      const at = est - LIVE_LAG;
+      // drawn far enough behind to have covered the latest a view's been lately: further back
+      // as soon as one's late (slowing down a little, rather than jumping back), and closer
+      // again only gradually (speeding up too little to see) once they've been on time a while
+      late = Math.max(est - last.n, late - 0.005);
+      lag += Math.max(-0.02, Math.min(0.3, Math.max(LIVE_LAG, Math.min(LIVE_LAG_MAX, late + 2)) - lag));
+      const at = est - lag;
       let i = snaps.length - 1;
       while (i > 0 && snaps[i].n > at) i--;
       // (the sounds of every view up to now, unless it's so far behind they'd all go off at once)
@@ -10992,20 +11093,19 @@
       const f = b ? Math.max(0, Math.min(1, (at - a.n) / (b.n - a.n))) : 0;
       const ahead = !b && last.ph === 'play' && a.gp === 'play' ? Math.max(0, Math.min(6, at - a.n)) / 60 : 0;
       const k = b && f >= 0.5 ? b : a; // the nearer, for anything that can't be in between
-      const flip = a.me % 2 === 1;
-      const spot = (x, y) => (flip ? [R.x0 + R.x1 - x, R.y0 + R.y1 - y] : [x, y]);
+      const flip = me % 2 === 1;
       const mid = (p, q, j) => (q ? p[j] + (q[j] - p[j]) * f : p[j] + (j < 2 ? p[j + 2] * ahead : 0));
       const skaters = a.pl.map((p, j) => {
-        const q = b && b.pl[j], n = k.pl[j], w = a.who[j] || {}, o = mp.others[w.id];
+        const q = b && b.pl[j], n = k.pl[j];
         const [x, y] = spot(mid(p, q, 0), mid(p, q, 1)), ang = q ? p[4] + wrapA(q[4] - p[4]) * f : p[4];
-        return { x, y, ang: wrapA(ang + (flip ? Math.PI : 0)), push: !!n[5], down: +n[6] || 0, fall: n[7] || 1,
-          stick: { k: n[8], a: +n[9] || 0, p: +n[10] || 0, hand: 1 }, ring: HOCKEY_RINGS[j % 2], full: k.pk[4] === j,
-          me: j === a.me, look: j === a.me ? null : o ? { n: o.n, look: o.look } : { n: String(w.n || '?'), look: oldPick('male', 0) },
-          tag: j === a.me ? '' : String(w.n || '?') + (w.ai ? ' (CPU)' : '') };
+        return Object.assign({ x, y, ang: wrapA(ang + (flip ? Math.PI : 0)), push: !!n[5], down: +n[6] || 0, fall: n[7] || 1,
+          stick: { k: n[8], a: +n[9] || 0, p: +n[10] || 0, hand: 1 }, ring: HOCKEY_RINGS[j % 2], full: k.pk[4] === j }, face(j, a.who[j] || {}));
       });
       const [px, py] = spot(mid(a.pk, b && b.pk, 0), mid(a.pk, b && b.pk, 1));
-      scene = { skaters, puck: { x: px, y: py }, you: skaters[a.me] || { x: px, y: py },
-        sc: k.sc, clk: k.clk, ot: k.ot, gp: k.gp, gt: k.gt, fo: k.fo, me: a.me, who: k.who };
+      // (fade: the phase and how far into it, for the white over the ice at a faceoff, with
+      // whether it's overtime, whether it's tied, and whether there's been a faceoff yet)
+      scene = { skaters, puck: { x: px, y: py }, you: skaters[me] || { x: px, y: py },
+        sc: k.sc, clk: k.clk, ot: k.ot, gp: k.gp, gt: k.gt, fo: k.fo, me, who: k.who, fade: [k.gp, k.gt, k.ot, k.sc[0] === k.sc[1], k.fo > 0] };
     }
     function hear(e) {
       if (e.e === 'go') go = 0;
@@ -11016,10 +11116,39 @@
     // Switching to another tab or app stops the game here, so let go of everything first,
     // rather than skating on into the boards while you're away.
     const hidden = () => {
-      if (document.visibilityState !== 'hidden' || !tb.view || tb.view.ph !== 'play') return;
+      if (document.visibilityState !== 'hidden' || !tb.view || tb.view.ph !== 'play' || !snaps.length) return;
+      if (typeof snaps[snaps.length - 1].aq === 'number') { queue([0, 0, 0, 0], true); return; }
       wsSend({ k: 'tin', t: tb.t, d: { x: 0, y: 0, a: 0, ap, bp } });
       sent = '';
     };
+    // A tick of what you're doing (e) for a server that takes them a tick at a time: kept
+    // until it's had it, and sent two at a time, or straight away for a press (or if now).
+    function queue(e, now) {
+      pend.push({ q: ++q, e }); out.push(e);
+      if (pend.length > 90) pend.shift(); // (the server's not getting them: don't run ahead forever)
+      const before = pend[pend.length - 2];
+      if (now || out.length >= 2 || e[3] || e[2] !== (before ? before.e[2] : 0)) {
+        wsSend({ k: 'tin', t: tb.t, d: { q: q - out.length + 1, i: out } });
+        out = [];
+      }
+    }
+    // What you're doing this tick (nothing while the menu's open), the way the server has it
+    // (turned end for end, like the rink, for the team attacking the bottom net), sent on its
+    // way: every tick, to a server that takes them a tick at a time, or to an older one, what
+    // you're holding whenever it changes (steering at most 30 times a second), with presses
+    // counted.
+    function act() {
+      const on = menu < 0, s = on ? steer() : { x: 0, y: 0 }, k = me % 2 === 1 ? -100 : 100;
+      const e = [Math.round(s.x * k) / 100, Math.round(s.y * k) / 100, on && held.a ? 1 : 0, on && pressed.has('b') ? 1 : 0];
+      if (typeof snaps[snaps.length - 1].aq === 'number') { queue(e); return e; }
+      if (on && pressed.has('a')) ap++;
+      if (on && pressed.has('b')) bp++;
+      const d = { x: e[0], y: e[1], a: e[2], ap, bp };
+      const key = d.x + ',' + d.y + ',' + d.a + ',' + ap + ',' + bp, btn = d.a + ',' + ap + ',' + bp;
+      sendT++;
+      if (key !== sent && (btn !== sentBtn || sendT >= 2)) { wsSend({ k: 'tin', t: tb.t, d }); sent = key; sentBtn = btn; sendT = 0; }
+      return e;
+    }
     document.addEventListener('visibilitychange', hidden);
 
     // Away from the rink (or the lobby), with a word from whoever's minding the gate.
@@ -11038,7 +11167,7 @@
     }
     const name = (j) => {
       const w = scene && scene.who[j];
-      return j === me ? 'YOU' : String(w ? w.n : '?').toUpperCase();
+      return j === me ? 'YOU' : String(mates[j] ? mates[j].name : w ? w.n : '?').toUpperCase();
     };
 
     const self = {
@@ -11072,16 +11201,17 @@
           const mine = v.slots[v.me];
           if (pressed.has('b')) { leave(); return; }
           for (const d of ['left', 'right', 'up', 'down']) if (pressed.has(d)) { wsSend({ k: 'tin', t: tb.t, d: { mv: d } }); sfx('select'); }
-          if ((pressed.has('a') || pressed.has('start')) && mine && !mine.r) { wsSend({ k: 'tin', t: tb.t, d: { go: true } }); sfx('menu'); }
+          // start, or pressed again, taking it back (to wait for more players)
+          if ((pressed.has('a') || pressed.has('start')) && mine) { wsSend({ k: 'tin', t: tb.t, d: { go: !mine.r } }); sfx(mine.r ? 'select' : 'menu'); }
           return;
         }
-        place();
-        if (!scene) return;
+        const last = snaps[snaps.length - 1];
+        if (!last) return;
         // the puck's about to drop: out onto the ice
-        if (!rink) { startFade(() => { rink = true; hockey = live; }, '#f8f8f8'); return; }
-        live.ids = scene.who.filter((w) => !w.ai).map((w) => w.id);
+        if (!rink) { show(null); startFade(() => { rink = true; hockey = live; }, '#f8f8f8'); return; }
+        live.ids = last.who.filter((w) => !w.ai).map((w) => w.id);
         // someone's left, and the computer's playing them
-        const now = scene.who.map((w) => (w.ai ? 1 : 0)).join('');
+        const now = last.who.map((w) => (w.ai ? 1 : 0)).join('');
         if (ais && now !== ais) { const j = [...now].findIndex((c, i) => c === '1' && ais[i] === '0'); if (j >= 0) left = { j, t: 0 }; }
         ais = now;
         if (left) left.t++;
@@ -11096,15 +11226,7 @@
           if (pressed.has('a') && menu === 1) { leave(); return; }
           if (pressed.has('a') || pressed.has('b') || pressed.has('start')) { menu = -1; sfx('select'); }
         } else if (pressed.has('start')) { menu = 0; sfx('menu'); }
-        // what you're doing, sent whenever it changes (steering at most 30 times a second)
-        if (v.ph !== 'play') return;
-        const on = menu < 0, s = on ? steer() : { x: 0, y: 0 }, k = v.me % 2 === 1 ? -100 : 100;
-        if (on && pressed.has('a')) ap++;
-        if (on && pressed.has('b')) bp++;
-        const d = { x: Math.round(s.x * k) / 100, y: Math.round(s.y * k) / 100, a: on && held.a ? 1 : 0, ap, bp };
-        const key = d.x + ',' + d.y + ',' + d.a + ',' + ap + ',' + bp, btn = d.a + ',' + ap + ',' + bp;
-        sendT++;
-        if (key !== sent && (btn !== sentBtn || sendT >= 2)) { wsSend({ k: 'tin', t: tb.t, d }); sent = key; sentBtn = btn; sendT = 0; }
+        show(v.ph === 'play' ? act() : null);
       },
       draw() {
         const v = tb.view;
@@ -11114,9 +11236,10 @@
         // white over the ice as the players go back for a faceoff
         let lvl = 0;
         if (v.ph === 'play') {
-          if (sc.gp === 'goal' && !sc.ot && sc.gt > 134) lvl = (sc.gt - 134) / 16;
-          else if (sc.gp === 'buzzer' && sc.sc[0] === sc.sc[1] && sc.gt > 104) lvl = (sc.gt - 104) / 16;
-          else if (sc.gp === 'ready' && sc.fo > 0 && sc.gt < 16) lvl = (16 - sc.gt) / 16;
+          const [fp, ft, ot, tied, again] = sc.fade;
+          if (fp === 'goal' && !ot && ft > 134) lvl = (ft - 134) / 16;
+          else if (fp === 'buzzer' && tied && ft > 104) lvl = (ft - 104) / 16;
+          else if (fp === 'ready' && again && ft < 16) lvl = (16 - ft) / 16;
         }
         if (lvl > 0) {
           ctx.globalAlpha = Math.min(1, Math.ceil(lvl * 4) / 4);
@@ -11194,13 +11317,15 @@
       const lbl = mine && mine.r ? 'READY!' : 'START';
       text(lbl, 160 - lbl.length * 6, by + 6, 2);
       if (!(mine && mine.r) && (tick >> 4) & 1) text('>', 100, by + 9);
-      const slow = v.slots.filter((q) => q && !q.r);
-      const note = waiting ? 'Waiting for ' + waiting + ' more player' + (waiting > 1 ? 's' : '') + dots
-        : !(mine && mine.r) ? 'Get the teams right, then press start'
-          : slow.length === 1 ? 'Waiting for ' + slow[0].n + ' to press start' : 'Waiting for ' + slow.length + ' players to press start';
+      // (two or three in a two on two can start without the rest, and have the computer)
+      const slow = v.slots.filter((q) => q && !q.r), who = slow.length === 1 ? slow[0].n : slow.length + ' players', ready = mine && mine.r;
+      const note = v.cd ? 'The computer takes the empty spot' + (waiting > 1 ? 's' : '') + ' in ' + v.cd
+        : waiting && size - waiting < 2 ? 'Waiting for ' + waiting + ' more player' + (waiting > 1 ? 's' : '') + dots
+          : waiting ? 'Waiting for ' + waiting + ' more, or ' + (ready ? 'for ' + who + ' to start' : 'start with the computer')
+            : !ready ? 'Get the teams right, then press start' : 'Waiting for ' + who + ' to press start';
       ctext(note, by + 30);
       if (v.last && Array.isArray(v.last.sc)) ctext('Last game: ' + HOCKEY_TEAMS[0] + ' ' + v.last.sc[0] + ' - ' + v.last.sc[1] + ' ' + HOCKEY_TEAMS[1] + (v.last.ot ? ' (OT)' : ''), by + 44);
-      const hint = 'Arrows: ' + (four ? 'move' : 'switch team') + '  Space: start  Esc: leave';
+      const hint = 'Arrows: ' + (four ? 'move' : 'switch team') + '  Space: ' + (ready ? 'not yet' : 'start') + '  Esc: leave';
       text(hint, (SW - hint.length * 6) >> 1, SH - 16);
     }
     // one spot in the lobby: who's in it (their face, name, and whether they've pressed
@@ -11211,7 +11336,7 @@
       ctx.fillStyle = HOCKEY_RINGS[i % 2]; ctx.fillRect(x + 8, y + 8, 5, 5);
       text('PLAYER ' + (i + 1), x + 16, y + 8);
       const big = h > 60, tx = x + (big ? 46 : 30);
-      if (!q) { text('Waiting' + '.'.repeat(1 + ((tick >> 4) % 3)), tx, y + (big ? 36 : 24), 1, col.mid); return; }
+      if (!q) { text(v.cd ? 'The computer' : 'Waiting' + '.'.repeat(1 + ((tick >> 4) % 3)), tx, y + (big ? 36 : 24), 1, col.mid); return; }
       const o = mp.others[q.id], sheet = i === v.me ? sprites : o ? mpSprites(o) : charSprites.male[0];
       ctx.drawImage(sheet.down[0], x + 8, y + (big ? 26 : 22), big ? 32 : 16, big ? 32 : 16);
       text(q.n, tx, y + (big ? 26 : 22));
@@ -11309,7 +11434,7 @@
     const people = sc ? [] : [{ key: me, spec: mySpec, px, py, dir: P.dir, face: P.free ? P.face : undefined,
       walk: P.glide || !(P.vx || P.vy) ? -1 : (P.dist / 32) % 1, skate: iceAt(px, py) }];
     for (const n of npcs) {
-      if (n.floor !== YARD || (sc && n === hockey.npc)) continue;
+      if (n.floor !== YARD || (sc && (n === hockey.npc || (hockey.npcs && hockey.npcs.includes(n))))) continue;
       const nx = n.x * 16 + (n.moving ? n.mdx * n.prog : 0), ny = n.y * 16 + (n.moving ? n.mdy * n.prog : 0);
       people.push({ key: 'npc:' + n.name, spec: npcSpec(n), px: nx, py: ny, dir: n.dir, walk: stride(n.moving, n.step, n.prog), skate: iceAt(nx, ny) });
     }

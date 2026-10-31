@@ -24,7 +24,18 @@ export class Table {
   constructor({ id, game, send, left }) {
     Object.assign(this, { id, game, send, left, sent: new Map(), away: new Map() });
     this.state = game.create({ rng: Math.random });
-    this.timer = setInterval(() => this.step(), 1000 / (game.hz || 10));
+    // Ticking on a clock of its own, not setInterval, which runs a little slow (and slower
+    // still when the server's busy): a late tick is made up straight away, so a game's as
+    // many ticks a second as it says (a live game's browsers count on it).
+    const ms = 1000 / (game.hz || 10);
+    let next = performance.now() + ms;
+    const run = () => {
+      for (let k = 0; k < 4 && !this.closed && performance.now() >= next; k++) { this.step(); next += ms; }
+      if (this.closed) return; // (put away by that tick)
+      if (performance.now() >= next) next = performance.now() + ms; // too far behind to catch up
+      this.timer = setTimeout(run, next - performance.now());
+    };
+    this.timer = setTimeout(run, ms);
   }
 
   seated() { return this.game.seated(this.state); }
@@ -92,7 +103,8 @@ export class Table {
   }
 
   close() {
-    clearInterval(this.timer);
+    this.closed = true;
+    clearTimeout(this.timer);
     for (const t of this.away.values()) clearTimeout(t);
     this.away.clear();
   }

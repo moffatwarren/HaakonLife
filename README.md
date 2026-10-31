@@ -494,14 +494,25 @@ up whenever they like. `server/tables.js` describes what a table game exports, a
 
 Live hockey is two tables of this kind, `hockey1` (one on one) and `hockey2` (two on
 two), both `server/tables/hockey.js`: a lobby, then `js/hockey.js`'s game played 60 ticks
-a second, with where everyone is sent out 30 times a second. The server reads
+a second, with the game sent out 30 times a second. (Tables tick on a clock of their own
+that makes up late ticks, so a game really is 60 ticks a second.) The server reads
 `js/hockey.js` and `js/maps.js` (for the rink) from the site's files, so it needs the
 whole repository there, not just `server/`. If it can't find them, it says so in its log,
-live hockey is off (players are told so) and everything else carries on. On Render with
-`server` as the root directory, a change to just `js/hockey.js` doesn't redeploy the
-server on its own, so deploy it by hand then (or change something in `server/` too). To
-try it, open `tools/test.html#play&yard=1&christmas=1&game=hockey1&server=ws://localhost:8080`
-(or `hockey2`) in two tabs (four for two on two).
+live hockey is off (players are told so) and everything else carries on.
+
+Each browser runs live hockey a little ahead of the server, so your own skater answers
+your keys at once. It sends what you're doing every tick (two ticks to a message), the
+server takes them one a tick, in order, and each view it sends back carries the whole
+game (`save()` from `js/hockey.js`) and the last of your ticks it had taken. The browser
+loads that into a game of its own and plays your later ticks on top, with everyone else
+carrying on as they were. It only does this when the server's `js/hockey.js` is exactly
+the same file as its own (`HOCKEY.VERSION`, a fingerprint of the file); otherwise it
+falls back to drawing the server's views a little behind, as before. So on Render with
+`server` as the root directory, where a change to just `js/hockey.js` doesn't redeploy
+the server on its own, deploy it by hand then (or change something in `server/` too):
+until you do, players get the slower fallback. To try it, open
+`tools/test.html#play&yard=1&christmas=1&game=hockey1&server=ws://localhost:8080`
+(or `hockey2`) in two tabs (four for two on two, or two and wait for the computer).
 
 ## Coworker games
 
@@ -659,10 +670,17 @@ From November 27 to December 31 (by your device's date) the office does Christma
   3 and 4 sit behind 1 and 2, who take the faceoffs) and START underneath. Left and
   right move you to the other team, swapping places with whoever's level with you if
   it's full (up and down swap rows with your teammate). Once every spot is taken and
-  everyone has pressed start (moving means pressing it again), the puck drops. It's
+  everyone has pressed start (moving means pressing it again), the puck drops. In two
+  on two, two or three of you needn't wait for the rest: once everyone there has pressed
+  start, the computer takes the empty spots five seconds later (unless someone else turns
+  up first), playing them as coworkers, the same ones on everyone's screen. Press start
+  again to take it back and wait for more players. It's
   the same game as against a coworker, played on the game server: you always shoot up
   the ice on your own screen (the red team's view is turned end for end), your team is
   on the left of the scoreboard, and everyone else has their name over their head.
+  Your skater does what you say straight away, even on a slow connection: your screen
+  runs the game a little ahead of the server, and if it turns out someone else did
+  something different, they slide over to where they really are rather than jumping.
   B with the puck passes to a teammate if there's one the way you're steering. Enter
   (or Esc) brings up a menu but doesn't pause, since the others are still playing.
   Leave partway through (or drop out for more than about 12 seconds) and the computer
@@ -711,7 +729,8 @@ The hockey game's rules, skating, puck and the coworker you play against are in
 plays the sounds and puts up the score, and `js/lot3d.js` or `js/hd.js` draws it). It's
 the same every time from the same seed and never reads keys or draws, so the game server
 runs it as it is for live hockey (`server/tables/hockey.js`, drawn by `LiveHockey` in
-`js/game.js`). The
+`js/game.js`), and a game saved part way through (`save()`, `load()`) carries on exactly
+the same, which is how each browser runs a live game ahead of the server. The
 coworker reads the play a few ticks late, skates a little slower than you, goes round you
 rather than shooting into you, and sees a check coming about half the time.
 

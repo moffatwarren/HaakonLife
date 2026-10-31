@@ -8,8 +8,13 @@
 //   g.step(inputs)   // one tick (a 60th of a second). inputs[i] is what player i is doing,
 //                    // if they aren't ai: { x, y } which way they're skating (-1 to 1
 //                    // each), shoot (A held down) and pass (B pressed this tick)
+//   g.due()          // whether it's time for the next faceoff (a while after a goal or the
+//                    // buzzer): then g.faceoff(), unless g.over()
 //   g.faceoff()      // everyone back to the middle and the puck dropped (after a goal)
 //   g.over()         // whether it's been won
+//   g.save()         // everything the game is, as plain arrays and numbers (for JSON), and
+//   g.load(saved)    // back again into a game with the same players: a live game's server
+//                    // sends it, so a browser can carry on from there a little ahead
 //   g.stick(p)       // what player p is doing with their stick, for drawing it
 //   g.down(p)        // how far over they've been knocked (0 to 1), for drawing it
 //   g.players, g.puck, g.score, g.clock (ticks of play left), g.ot (in overtime), g.phase
@@ -29,7 +34,9 @@
 //   HOCKEY.LENGTH    // ticks in a game, before any overtime
 //   HOCKEY.rink(floor) // the rink: its boards (x0, y0, x1, y1, r for the corners), middle
 //                      // (cx, cy) and nets ({ x, y, dir })
-window.HOCKEY = (function () {
+//   HOCKEY.VERSION   // a fingerprint of this file: a browser only runs a live game ahead of
+//                    // the server when the server has the very same copy
+window.HOCKEY = (function engine() {
   const DT = 1 / 60;
   const LENGTH = 3 * 60 * 60; // three minutes of play
   const READY = 90, DOWN = 60; // ticks before the puck drops, and lying on the ice after a check
@@ -46,10 +53,10 @@ window.HOCKEY = (function () {
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-  function rng(seed) {
-    let s = seed >>> 0 || 1;
+  // seeded random numbers, carrying on from o.s (which a saved game keeps)
+  function rng(o) {
     return () => {
-      s = (s + 0x6d2b79f5) >>> 0;
+      const s = o.s = (o.s + 0x6d2b79f5) >>> 0;
       let t = Math.imul(s ^ (s >>> 15), 1 | s);
       t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -103,7 +110,7 @@ window.HOCKEY = (function () {
   }
 
   function create(floor, opts) {
-    const R = rinkOf(floor), r = rng(opts.seed || 1);
+    const R = rinkOf(floor), seed = { s: (opts.seed || 1) >>> 0 || 1 }, r = rng(seed);
     const gauss = () => (r() + r() + r() - 1.5) * 1.41; // about a normal spread
     const g = { rink: R, players: [], puck: null, score: [0, 0], clock: LENGTH, ot: false, phase: 'ready', t: 0, events: [], touch: null };
     const ev = (e, o) => g.events.push(Object.assign({ e }, o));
@@ -543,7 +550,43 @@ window.HOCKEY = (function () {
         ev('buzzer');
       }
     };
+    g.due = () => (g.phase === 'goal' && g.t >= 150) || (g.phase === 'buzzer' && g.t >= 120);
     g.over = () => g.clock <= 0 && g.score[0] !== g.score[1];
+    // Saved: [the game, the puck, each player], players and nets by their place in the list.
+    // (A player's AI memory goes only for the players the computer's playing; what it's
+    // looking out for, saw, is the check of whoever's making it.)
+    const at = (i) => (i >= 0 ? g.players[i] : null), ix = (p) => (p ? p.i : -1);
+    g.save = function () {
+      const pk = g.puck;
+      return [
+        [g.score[0], g.score[1], g.clock, g.ot ? 1 : 0, g.phase, g.t, ix(g.touch), seed.s],
+        [pk.x, pk.y, pk.vx, pk.vy, ix(pk.owner), R.nets.indexOf(pk.inNet), ix(pk.from), pk.past.map(ix)],
+        g.players.map((p) => {
+          const a = p.act, w = p.swing, m = p.mem, saw = m.saw ? g.players.findIndex((q) => q.act === m.saw) : -1;
+          return [p.x, p.y, p.vx, p.vy, p.ang, p.in.x, p.in.y, p.push ? 1 : 0,
+            a ? [a.k, a.t, a.ang || 0, a.done ? 1 : 0] : 0, w ? [w.k, w.t, w.p || 0] : 0,
+            p.wind, p.wasA ? 1 : 0, p.down, p.fall, p.guard, p.recover, p.cheer ? 1 : 0,
+            p.cool.grab, p.cool.poke, p.cool.check, p.drib, p.stride, p.ai ? 1 : 0, p.hand,
+            p.ai ? [m.next, m.hold, m.lane, m.range, m.wait, m.gx, m.gy, saw] : 0];
+        }),
+      ];
+    };
+    g.load = function ([gs, ks, ps]) {
+      [g.score[0], g.score[1], g.clock] = gs;
+      g.ot = !!gs[3]; g.phase = gs[4]; g.t = gs[5]; g.touch = at(gs[6]); seed.s = gs[7] >>> 0;
+      Object.assign(g.puck, { x: ks[0], y: ks[1], vx: ks[2], vy: ks[3], owner: at(ks[4]), inNet: R.nets[ks[5]] || null, from: at(ks[6]), past: ks[7].map(at).filter(Boolean) });
+      ps.forEach((s, i) => {
+        const p = g.players[i], a = s[8], w = s[9];
+        Object.assign(p, { x: s[0], y: s[1], vx: s[2], vy: s[3], ang: s[4], in: { x: s[5], y: s[6] }, push: !!s[7],
+          act: a ? { k: a[0], t: a[1], ang: a[2], done: !!a[3] } : null, swing: w ? { k: w[0], t: w[1], p: w[2] } : null,
+          wind: s[10], wasA: !!s[11], down: s[12], fall: s[13], guard: s[14], recover: s[15], cheer: !!s[16],
+          cool: { grab: s[17], poke: s[18], check: s[19] }, drib: s[20], stride: s[21], ai: !!s[22], hand: s[23] });
+      });
+      ps.forEach((s, i) => {
+        const m = s[24];
+        if (m) Object.assign(g.players[i].mem, { next: m[0], hold: m[1], lane: m[2], range: m[3], wait: m[4], gx: m[5], gy: m[6], saw: m[7] >= 0 ? at(m[7]).act : null });
+      });
+    };
     g.stick = function (p) {
       const hand = p.hand;
       if (p.down) return { k: 'down', a: 0, hand };
@@ -559,5 +602,10 @@ window.HOCKEY = (function () {
     return g;
   }
 
-  return { create, LENGTH, rink: rinkOf };
+  // (a hash of this whole function's source, line endings aside)
+  let VERSION = 2166136261;
+  for (const ch of String(engine).replace(/\r/g, '')) VERSION = Math.imul(VERSION ^ ch.charCodeAt(0), 16777619);
+  VERSION = (VERSION >>> 0).toString(36);
+
+  return { create, LENGTH, rink: rinkOf, VERSION };
 })();
