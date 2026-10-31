@@ -185,6 +185,7 @@
     return npcs.find(at) || dogs.find(at) || null;
   }
   function playerAt(x, y) {
+    if (P.free) return Math.abs(P.fx - x) < 0.5 + FREE_R && Math.abs(P.fy - y) < 0.5 + FREE_R; // any tile you're partly on
     return (P.x === x && P.y === y) || (P.moving && P.x + P.mdx === x && P.y + P.mdy === y);
   }
   (function spawnNpcs() {
@@ -10112,6 +10113,8 @@
   }
   const mpLive = (o) => !!o && Date.now() - o.seen < MP_LIVE;
   const mpHere = () => Object.values(mp.others).filter(mpLive);
+  // where someone is, in pixels: out in the parking lot exactly (from a copy that says), or the tile they're on
+  const mpTarget = (o) => (o.f === YARD && typeof o.fx === 'number' && typeof o.fy === 'number' ? [o.fx, o.fy] : [o.x * 16, o.y * 16]);
   function mpAt(fi, x, y) {
     return mpHere().find((o) => o.f === fi && ((o.x === x && o.y === y) || (Math.round(o.px / 16) === x && Math.round(o.py / 16) === y))) || null;
   }
@@ -10237,12 +10240,14 @@
         f: MAPS.floors[r.f] ? r.f : 0, x: +r.x || 0, y: +r.y || 0, d: DIRS[r.d] ? r.d : 'down', b: !!r.b,
         s: MP_LINES[r.s] ? r.s : -1, w: mpClean((typeof r.w0 === 'string' ? r.w0 : '') + (typeof r.w1 === 'string' ? r.w1 : '')),
         sn: +r.sn || 0, v: +r.v || 0, t: +r.t || 0, tc: !!r.tc,
+        fx: Number.isFinite(r.fx) ? r.fx : null, fy: Number.isFinite(r.fy) ? r.fy : null, fa: Number.isFinite(r.fa) ? r.fa : null,
       };
       let o = mp.others[id];
       if (!o) {
         // someone already here when you arrive counts if their record is recent (by this
         // device's clock); otherwise they show up as soon as their next update arrives
-        o = mp.others[id] = { id, px: rec.x * 16, py: rec.y * 16, dir: rec.d, dist: 0, seen: now - rec.t < 30000 ? now : 0, said: 0 };
+        const [px, py] = mpTarget(rec);
+        o = mp.others[id] = { id, px, py, dir: rec.d, dist: 0, seen: now - rec.t < 30000 ? now : 0, said: 0 };
         Object.assign(o, rec);
         o.sn0 = rec.sn; // what they'd said before you got here stays unsaid
         continue;
@@ -10307,6 +10312,9 @@
       s: mp.say, sn: mp.sayN, v: MP_VER, p: MP_PROTO, tc: isTouch ? 1 : 0,
     };
     if (mp.sayText) { rec.w0 = mp.sayText.slice(0, 16); if (mp.sayText.length > 16) rec.w1 = mp.sayText.slice(16); }
+    // out in the parking lot, exactly where you are (pixels) and which way you face, so
+    // everyone else sees you go any way there (a copy from before only goes by x, y)
+    if (P.free) { rec.fx = Math.round(P.fx * 16); rec.fy = Math.round(P.fy * 16); rec.fa = Math.round(P.face * 20) / 20; }
     return rec;
   }
   function mpPut() {
@@ -10439,15 +10447,18 @@
     }
     if (mp.bubble && ++mp.bubble.t > mpSayFor(mp.bubble.str)) mp.bubble = null;
     for (const o of Object.values(mp.others)) {
-      const tx = o.x * 16, ty = o.y * 16, dx = tx - o.px, dy = ty - o.py;
+      const [tx, ty] = mpTarget(o), dx = tx - o.px, dy = ty - o.py, free = o.f === YARD && o.fa !== null;
+      // (which way they face, out in the lot)
+      o.face = free ? o.fa : undefined;
       // a floor change, or falling more than a few tiles behind, jumps straight there
       if (o.f !== o.drawnF || Math.abs(dx) + Math.abs(dy) > 64) { o.px = tx; o.py = ty; o.drawnF = o.f; o.dir = o.d; continue; }
       if (!dx && !dy) { o.dir = o.d; o.dist = 0; continue; }
       // walk at your pace, a little quicker when lagging (a lot quicker when they're
-      // skating), one axis at a time like the player
+      // skating), one axis at a time like the player, or out in the lot straight there
       const far = Math.abs(dx) + Math.abs(dy);
       const sp = far <= 16 ? 2 : o.f === YARD ? Math.min(5, far / 8) : 3;
-      if (dx) { o.px += Math.sign(dx) * Math.min(sp, Math.abs(dx)); o.dir = dx < 0 ? 'left' : 'right'; }
+      if (free) { const k = Math.min(1, sp / Math.hypot(dx, dy)); o.px += dx * k; o.py += dy * k; o.dir = o.d; }
+      else if (dx) { o.px += Math.sign(dx) * Math.min(sp, Math.abs(dx)); o.dir = dx < 0 ? 'left' : 'right'; }
       else { o.py += Math.sign(dy) * Math.min(sp, Math.abs(dy)); o.dir = dy < 0 ? 'up' : 'down'; }
       o.dist += sp;
     }
@@ -10708,7 +10719,6 @@
     sfx('stairs');
     startFade(() => {
       placePlayer(...to);
-      P.skate = 0; P.coast = 0;
       if (curRoom) showBanner(curRoom.name);
     }, '#f8f8f8');
     return true;
@@ -10959,12 +10969,14 @@
 
   function drawYard() {
     const h = hdScreen(), c = h.c, K = HD.K;
-    const px = P.x * 16 + (P.moving ? P.mdx * P.prog : 0), py = P.y * 16 + (P.moving ? P.mdy * P.prog : 0);
+    // (you're only not P.free for a moment, coming out of the doors)
+    const px = (P.free ? P.fx : P.x) * 16, py = (P.free ? P.fy : P.y) * 16;
     const me = 'me:' + playerName + ':' + pick.gender + pick.index, mySpec = hdPerson(me, playerName || 'New Hire', pick.gender, Art.LOOKS[pick.gender][pick.index]);
     const npcSpec = (n) => { const { body, look } = lookFor(n.name); return hdPerson('npc:' + n.name, n.name, body, look, personOf(n.name).style); };
     // everyone out here: you, coworkers and other players (in a hockey game, you and
     // whoever you're playing are out on the ice instead)
-    const people = hockey ? [] : [{ key: me, spec: mySpec, px, py, dir: P.dir, walk: P.glide ? -1 : stride(P.moving, P.step, P.prog), skate: iceAt(px, py) }];
+    const people = hockey ? [] : [{ key: me, spec: mySpec, px, py, dir: P.dir, face: P.free ? P.face : undefined,
+      walk: P.glide || !(P.vx || P.vy) ? -1 : (P.dist / 32) % 1, skate: iceAt(px, py) }];
     for (const n of npcs) {
       if (n.floor !== YARD || (hockey && n === hockey.npc)) continue;
       const nx = n.x * 16 + (n.moving ? n.mdx * n.prog : 0), ny = n.y * 16 + (n.moving ? n.mdy * n.prog : 0);
@@ -10972,8 +10984,9 @@
     }
     const others = mpHere().filter((o) => o.f === YARD);
     for (const o of others) {
-      const mv = o.px !== o.x * 16 || o.py !== o.y * 16, key = 'mp:' + o.n + ':' + o.g + o.l;
-      people.push({ key, spec: hdPerson(key, o.n, o.g, Art.LOOKS[o.g][o.l]), px: o.px, py: o.py, dir: o.dir, walk: mv ? (o.dist / 32) % 1 : -1, skate: iceAt(o.px, o.py) });
+      const [tx, ty] = mpTarget(o), mv = o.px !== tx || o.py !== ty, key = 'mp:' + o.n + ':' + o.g + o.l;
+      people.push({ key, spec: hdPerson(key, o.n, o.g, Art.LOOKS[o.g][o.l]), px: o.px, py: o.py, dir: o.dir, face: o.face,
+        walk: mv ? (o.dist / 32) % 1 : -1, skate: iceAt(o.px, o.py) });
     }
     // the view follows you, or in a hockey game the play (mostly the puck, and leaning a
     // little toward the net you're shooting at); hockey's places are in tiles from the map's
@@ -11050,12 +11063,10 @@
 
   // ---------- player / world ----------
   const S0 = MAPS.start;
-  // skate: how much speed you've built up on the ice (0 to 8); glide: coasting on it, at
-  // coast pixels a tick
-  const P = { floor: S0.floor, x: S0.x, y: S0.y, dir: S0.dir, moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, turnWait: 0, walked: false, bump: 0, skate: 0, glide: false, coast: 0 };
-  // coasting slows you this much every tick (from full speed that's about 10 tiles); below
-  // GLIDE_STOP you come to a halt at the next tile, and you never crawl slower than GLIDE_MIN
-  const GLIDE_DRAG = 0.05, GLIDE_STOP = 0.6, GLIDE_MIN = 0.45;
+  // free, fx, fy, vx, vy, face, dist, stride, glide: going any way out in the parking lot
+  // (see updateFree)
+  const P = { floor: S0.floor, x: S0.x, y: S0.y, dir: S0.dir, moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, turnWait: 0, walked: false, bump: 0,
+    free: false, fx: 0, fy: 0, vx: 0, vy: 0, face: 0, dist: 0, stride: 0, glide: false };
   let mode = 'title', tick = 0, roomName = null, curRoom = null, banner = null;
   let fade = null; // {t, cb, color}
 
@@ -11073,7 +11084,7 @@
 
   function startFade(cb, color) { fade = { t: 0, cb, color }; }
   function placePlayer(fi, x, y, dir) {
-    Object.assign(P, { floor: fi, x, y, dir, moving: false, walked: false, bump: 0 });
+    Object.assign(P, { floor: fi, x, y, dir, moving: false, walked: false, bump: 0, free: false });
     curRoom = roomAt(fi, x, y);
     roomName = curRoom ? curRoom.name : null;
   }
@@ -11135,9 +11146,18 @@
     }
   }
 
+  // The tile you're facing: the next one the way you face, or out in the parking lot (where
+  // you face any way) the one just in front of you, or someone just to one side of it.
+  function facingTile() {
+    if (!P.free) return [P.x + DIRS[P.dir][0], P.y + DIRS[P.dir][1]];
+    const s = Math.sin(P.face), c = Math.cos(P.face);
+    const at = (side) => [Math.round(P.fx + s + c * side), Math.round(P.fy + c - s * side)]; // a tile ahead
+    const spots = [at(0), at(-FREE_R), at(FREE_R)];
+    return spots.find(([x, y]) => npcAt(P.floor, x, y) || mpAt(P.floor, x, y)) || spots[0];
+  }
+
   function interact() {
-    const [dx, dy] = DIRS[P.dir];
-    const tx = P.x + dx, ty = P.y + dy, t = tileAt(P.floor, tx, ty);
+    const [tx, ty] = facingTile(), t = tileAt(P.floor, tx, ty);
     const other = mpAt(P.floor, tx, ty);
     if (other) { mpTalk(other); return; }
     let npc = npcAt(P.floor, tx, ty);
@@ -11346,11 +11366,97 @@
     if (msgs) { sfx('select'); say(msgs[(tx * 3 + ty * 5) % msgs.length]); }
   }
 
+  // ---------- out in the parking lot: going any way ----------
+  // Out in the lot you aren't kept to the tiles. You walk whichever way you push, diagonals
+  // and all (as fast as you push a thumbstick), and on the ice you skate the way you do in
+  // hockey: push to pick up speed (up to twice walking pace), turn and you lose some, let
+  // go and you glide on, slowing down little by little until you stop (about 10 tiles from
+  // full speed). You're a small square (FREE_R either side of your middle) that stops
+  // against whatever you can't walk through and slips round a corner it only just catches.
+  // P.x, P.y stay the tile you're on and P.dir the way you face nearest, so everything that
+  // goes by tiles still works; P.fx, P.fy are exactly where you are (in tiles), P.vx, P.vy
+  // how fast you're going (pixels a tick), P.face which way you face (an angle, as in
+  // js/lot3d.js: 0 down the map, π/2 to the right), P.dist how far you've gone (pixels, for
+  // your legs) and P.glide whether you're coasting on your skates.
+  const FREE_R = 0.3, SLIP = 0.35; // and how far round a corner you can be and still slip past it
+  const WALK = 2, ICE = 4; // top speeds, pixels a tick: your running pace, and flat out on skates
+  // on skates, how quickly you get going, how much quicker you can stop than start, and how
+  // much speed you lose every tick coasting
+  const ICE_ACC = 0.12, ICE_BRAKE = 1.4, ICE_DRAG = 0.05;
+  const FACE = { down: 0, right: Math.PI / 2, up: Math.PI, left: -Math.PI / 2 };
+  // Go d tiles along one axis ('x' or 'y'): 0 if nothing's in the way, 1 slipping round a
+  // corner, 2 stopped against something (or through the office doors).
+  function freeStep(ax, d) {
+    if (!d) return 0;
+    const k = ax === 'x' ? 'fx' : 'fy', o = ax === 'x' ? 'fy' : 'fx', s = Math.sign(d);
+    const at = (line, c) => (ax === 'x' ? [line, c] : [c, line]);
+    const lead = P[k] + s * FREE_R, to = Math.round(lead + d - s * 1e-6);
+    if (to === Math.round(lead - s * 1e-6)) { P[k] += d; return 0; } // not into the next row of tiles yet
+    // the tiles across your width, in the row you're going into
+    const a = Math.round(P[o] - FREE_R + 1e-6), b = Math.round(P[o] + FREE_R - 1e-6);
+    for (let c = a; c <= b; c++) if (sideDoor(P.floor, ...at(to, c))) return 2;
+    const stop = (c) => !walkable(P.floor, ...at(to, c)) || !!npcAt(P.floor, ...at(to, c));
+    const hitA = stop(a), hitB = b !== a && stop(b);
+    if (!hitA && !hitB) { P[k] += d; return 0; }
+    P[k] = s > 0 ? to - 0.5 - FREE_R : to + 0.5 + FREE_R; // up against it
+    // only just catching a corner: edge over toward the open side
+    if (b !== a && hitA !== hitB) {
+      const want = hitA ? b - 0.5 + FREE_R : a + 0.5 - FREE_R, off = want - P[o];
+      if (Math.abs(off) <= SLIP) { P[o] += Math.sign(off) * Math.min(Math.abs(off), Math.abs(d)); return 1; }
+    }
+    return 2;
+  }
+  function updateFree() {
+    // just come out here (or been put somewhere new): from the middle of the tile, standing still
+    if (!P.free || Math.round(P.fx) !== P.x || Math.round(P.fy) !== P.y) {
+      Object.assign(P, { free: true, fx: P.x, fy: P.y, vx: 0, vy: 0, face: FACE[P.dir], stride: 0, bump: 0, glide: false });
+    }
+    // stopping to do something
+    const act = pressed.has('start') ? openStartMenu : pressed.has('map') ? () => { sfx('menu'); ui.push(MapView()); } : pressed.has('a') ? interact : null;
+    if (act) { P.vx = P.vy = 0; P.glide = false; act(); return; }
+    let { x: ix, y: iy } = steer();
+    const push = Math.hypot(ix, iy);
+    if (push > 1) { ix /= push; iy /= push; }
+    const pushing = push > 0.05, ice = tileAt(P.floor, P.x, P.y) === '~', s = Math.hypot(P.vx, P.vy);
+    if (pushing) { P.face = Math.atan2(ix, iy); P.dir = wayOf(ix, iy); }
+    if (!ice) {
+      // on foot you get going, and stop, almost at once
+      P.vx += (ix * WALK - P.vx) * 0.35; P.vy += (iy * WALK - P.vy) * 0.35;
+      if (!pushing && Math.hypot(P.vx, P.vy) < 0.05) P.vx = P.vy = 0;
+    } else if (pushing) {
+      // pushing toward where you want to go, quicker to stop than to start
+      const cos = s > 0.3 ? (P.vx * ix + P.vy * iy) / (s * Math.min(1, push)) : 1;
+      const acc = ICE_ACC * (1 + ICE_BRAKE * Math.max(0, -cos));
+      const dvx = ix * ICE - P.vx, dvy = iy * ICE - P.vy, dv = Math.hypot(dvx, dvy);
+      if (dv > 1e-6) { const f = Math.min(1, acc / dv); P.vx += dvx * f; P.vy += dvy * f; }
+    } else if (s > 0) {
+      const ns = Math.max(0, s - ICE_DRAG);
+      P.vx *= ns / s; P.vy *= ns / s;
+    }
+    const fx = P.fx, fy = P.fy;
+    let hit = 0;
+    for (const [ax, v] of [['x', 'vx'], ['y', 'vy']]) {
+      const r = freeStep(ax, P[v] / 16);
+      if (fade) return; // through the doors
+      if (r === 2) { hit = Math.max(hit, Math.abs(P[v]) || 0.01); P[v] = 0; }
+    }
+    // into the boards at speed, or walking into a wall
+    if (hit > 2.5 && ice) sfx('boards');
+    else if (hit && pushing) { if (P.bump % 24 === 0) sfx('bump'); P.bump++; }
+    else if (!hit) P.bump = 0;
+    const moved = Math.hypot(P.fx - fx, P.fy - fy) * 16;
+    P.dist += moved;
+    P.glide = ice && !pushing && moved > 0;
+    if (ice && pushing && (P.stride += moved) > 32) { P.stride = 0; sfx('skate'); }
+    const tx = Math.round(P.fx), ty = Math.round(P.fy);
+    if (tx !== P.x || ty !== P.y) { P.x = tx; P.y = ty; onArrive(); }
+  }
+
   function updatePlayer() {
+    if (P.floor === YARD) { updateFree(); return; }
+    P.free = false;
     if (P.moving) {
-      // always at running pace, and faster still on skates; coasting, a little slower every tick
-      if (P.glide) P.coast = Math.max(GLIDE_MIN, P.coast - GLIDE_DRAG);
-      P.prog = Math.min(16, P.prog + (P.glide ? P.coast : 2 + P.skate / 4));
+      P.prog = Math.min(16, P.prog + 2); // always at running pace
       if (P.prog < 16) return;
       P.moving = false; P.prog = 0;
       P.x += P.mdx; P.y += P.mdy;
@@ -11359,23 +11465,6 @@
       if (fade) return;
     }
     const d = heldDir();
-    // On the ice you skate: keep pushing one way to pick up speed, turn and you lose some,
-    // let go and you glide on, slowing down little by little until you come to a stop
-    // (about 10 tiles from full speed). The boards stop you dead.
-    if (tileAt(P.floor, P.x, P.y) !== '~') { P.skate = 0; P.coast = 0; }
-    else if (P.walked && !pressed.has('start') && !pressed.has('map') && !pressed.has('a') && (d || P.coast > GLIDE_STOP)) {
-      if (d) {
-        P.skate = d === P.dir ? Math.min(8, P.skate + 2) : Math.max(0, P.skate - 3);
-        P.coast = 2 + P.skate / 4;
-      } else P.skate = Math.max(0, Math.min(8, (P.coast - 2) * 4)); // push again and you carry on from here
-      P.glide = !d;
-      if (d) P.dir = d;
-      tryMove(P.dir);
-      if (!P.moving) { P.skate = 0; P.coast = 0; }
-      else if (d && P.step) sfx('skate');
-      return;
-    }
-    P.glide = false;
     if (pressed.has('start')) { openStartMenu(); return; }
     if (pressed.has('map')) { sfx('menu'); ui.push(MapView()); return; }
     if (pressed.has('a')) { interact(); return; }

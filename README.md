@@ -571,11 +571,15 @@ From November 27 to December 31 (by your device's date) the office does Christma
   of its own drawn in a rough, cel-shaded cartoon style instead of pixels (thick black
   outlines, flat colour, a hard shadow and highlight): snow falling, lights strung over
   the lot, the office's brick front along the top, a rink running down the middle, and
-  room to spare all round. Walk back into the doors to go inside again.
-- **Skating**: step onto the ice and you're on skates. Keep pushing one way to pick
-  up speed (up to twice walking pace), turn and you lose some, let go and you glide
-  on, slowing down little by little until you come to a stop (about 10 tiles from full
-  speed). The boards stop you dead. In 3D you crouch and push off one skate then the
+  room to spare all round. Walk back into the doors to go inside again. Out here you
+  aren't kept to the tiles: you go whichever way you push, diagonals too (two arrows at
+  once, or a thumbstick, as fast as you push it), and slip round a corner you only just
+  catch, so the gaps between the cars and the rink's gate are easy to get through.
+- **Skating**: step onto the ice and you're on skates, and skate the way you do in
+  hockey. Push to pick up speed (up to twice walking pace), turn and you lose some (turn
+  right round and you brake first), let go and you glide on, slowing down little by
+  little until you come to a stop (about 10 tiles from full speed). The boards stop you
+  dead. In 3D you crouch and push off one skate then the
   other, toe turned out, swaying over the one you're gliding on with your arms swinging
   across, and coast with both skates side by side.
 - Eleven coworkers, picked at random each time the game loads, have gone out there and
