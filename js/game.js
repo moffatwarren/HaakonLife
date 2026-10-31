@@ -1604,7 +1604,7 @@
 
     startHand();
     const self = {
-      music: 'poker',
+      music: 'poker', doing: 'poker',
       update() {
         t++;
         rolls.update();
@@ -1803,6 +1803,9 @@
 
     const self = {
       music: 'poker',
+      // over your head for everyone else: waiting for someone to play with, or how many are playing
+      get doing() { return tb.view && tb.view.ph !== 'wait' ? 'pokerlive' : 'pokerwait'; },
+      get seated() { return tb.view ? tb.view.seats.filter(Boolean).length : 0; },
       update() {
         t++;
         rolls.update();
@@ -2082,7 +2085,7 @@
     const askLeave = () => ask('Leave the table with ' + stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
 
     const self = {
-      music: 'poker',
+      music: 'poker', doing: 'blackjack',
       update() {
         t++;
         rolls.update();
@@ -2268,7 +2271,7 @@
     const askLeave = () => ask('Cash out with ' + stack + ' spring rolls?', ['CASH OUT', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
 
     const self = {
-      music: 'poker',
+      music: 'poker', doing: 'slots',
       update() {
         t++;
         rolls.update();
@@ -2407,7 +2410,7 @@
     const rnd = vs ? vs.rng : Math.random, ghost = ghostTrack();
     const race = vs && scoreRace(vs, { what: 'the coffee machine', fmt: String, hear: (m) => ghost.add(m) });
     const self = {
-      music: 'coffee',
+      music: 'coffee', doing: 'coffee',
       update() {
         t++;
         if (race) {
@@ -3088,7 +3091,7 @@
     };
     function finish(text) { msg = text; state = 'result'; t = 0; }
     const self = {
-      music: 'run',
+      music: 'run', doing: 'catch',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'aim'; t = 0; newWind(); } return; }
@@ -3255,7 +3258,7 @@
     const PUNCHES = 5;
     let state = 'ready', t = 0, p = 0, dir = 1, n = 0, total = 0, last = null, swing = 0, shake = 0, record = false;
     const self = {
-      music: 'punch',
+      music: 'punch', doing: 'punch',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -3413,7 +3416,7 @@
       else pen.drawImage(who.img, PX, FLOOR - 32 - who.h, 32, 32);
     }
     const self = {
-      music: 'run',
+      music: 'run', doing: 'run',
       update() {
         t++;
         if (race) {
@@ -3588,7 +3591,7 @@
       if (ball.y > BOT - BS) { ball.y = BOT - BS; ball.vy = -ball.vy; }
     }
     const self = {
-      music: 'pong',
+      music: 'pong', doing: 'pong',
       update() {
         if (vs) { versusUpdate(); return; }
         t++;
@@ -3672,7 +3675,7 @@
       state = 'result'; t = 0;
     };
     const self = {
-      music: 'toss',
+      music: 'toss', doing: 'toss',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { nextPaper(); t = 0; } return; }
@@ -3784,7 +3787,7 @@
       cur = { x: dir > 0 ? L : R - top.w, w: top.w };
     }
     const self = {
-      music: 'stack',
+      music: 'stack', doing: 'stack',
       update() {
         t++;
         for (const f of falling) { f.vy += 0.3; f.y += f.vy; }
@@ -3884,7 +3887,7 @@
     // you, but never while it could give them the answer)
     const flash = (i, d) => { if (race && race.theirsDone) vs.send({ e: 'p', s: cleared(), l: i, d, r: seq.length }); };
     const self = {
-      music: 'simon',
+      music: 'simon', doing: 'simon',
       update() {
         t++;
         if (litT) litT--;
@@ -3977,7 +3980,7 @@
     }
     const at = (slot) => conts.find((c) => c.slot === slot);
     const self = {
-      music: 'lunch',
+      music: 'lunch', doing: 'lunch',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) startRound(); return; }
@@ -4076,7 +4079,7 @@
       wdur = w === 'away' ? 60 + Math.random() * 140 : w === 'turn' ? turnTime() : w === 'look' ? 50 + Math.random() * 70 : 12;
     }
     const self = {
-      music: 'candy',
+      music: 'candy', doing: 'candy',
       update() {
         t++;
         if (grab) { grab.t++; if (grab.t > 20) grab = null; }
@@ -4147,7 +4150,7 @@
     const FLOOR = 196, START = 135, STEP = 20, TIME = 480;
     let state = 'ready', t = 0, weight = START, h = 0, left = TIME, best = 0, record = false;
     const self = {
-      music: 'squat',
+      music: 'squat', doing: 'squat',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -4271,7 +4274,7 @@
     const parSoFar = () => HOLES.slice(0, cards.length).reduce((a, h) => a + h.par, 0);
     const best = () => +store.get('best.golf') || 0; // fewest strokes, 0 = never finished
     const self = {
-      music: 'golf',
+      music: 'golf', doing: 'golf',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) startHole(); return; }
@@ -4444,7 +4447,7 @@
       return Math.abs(a) < CONE + 6 / Math.max(d, 1);
     }
     const self = {
-      music: 'dark',
+      music: 'dark', doing: 'dark',
       update() {
         t++;
         if (state === 'intro') { if (t > 150) { state = 'ready'; t = 0; } return; }
@@ -4692,7 +4695,7 @@
     }
 
     const self = {
-      music: 'battle',
+      music: 'battle', doing: 'duel',
       update() {
         if (vs) {
           for (let m; (m = vs.take());) {
@@ -4825,7 +4828,7 @@
     }
     newBand();
     const self = {
-      music: 'plant',
+      music: 'plant', doing: 'fan',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -4924,7 +4927,7 @@
     let state = 'ready', t = 0, sh = 50, vel = 0, valve = 0, load = 0, secs = 0, record = false;
     let level = 1, best = 1, levelUp = 0;
     const self = {
-      music: 'plant',
+      music: 'plant', doing: 'coil',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -5043,7 +5046,7 @@
     }
     newPuzzle();
     const self = {
-      music: 'plant',
+      music: 'plant', doing: 'damper',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -5146,7 +5149,7 @@
     }
     deal();
     const self = {
-      music: 'stack',
+      music: 'stack', doing: 'filter',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -5264,7 +5267,7 @@
     }
     const race = vs && scoreRace(vs, { what: 'Snake', fmt: String, hear });
     const self = {
-      music: 'pong',
+      music: 'pong', doing: 'snake',
       update() {
         t++;
         if (race) {
@@ -5358,7 +5361,7 @@
     const BELT_Y = 150, GATE = 96, LIVES = 3;
     let state = 'ready', t = 0, items = [], spawn = 0, sorted = 0, lives = LIVES, flash = null, record = false;
     const self = {
-      music: 'stack',
+      music: 'stack', doing: 'parts',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -5450,7 +5453,7 @@
     }
     deal();
     const self = {
-      music: 'simon',
+      music: 'simon', doing: 'cable',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -5535,7 +5538,7 @@
     const CX = 150, CY = 118;
     let state = 'ready', t = 0, beat = 0, n = 0, perfect = 0, good = 0, last = null, push = 0, record = false;
     const self = {
-      music: 'cpr',
+      music: 'cpr', doing: 'cpr',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; beat = 0; } return; }
@@ -5616,7 +5619,7 @@
       return MID + Math.sin(u * 6.1 + seed) * AMP * 0.6 + Math.sin(u * 13.7 + seed * 2) * AMP * 0.4;
     };
     const self = {
-      music: 'golf',
+      music: 'golf', doing: 'engrave',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -5687,7 +5690,7 @@
     const markerAt = () => (sweep & 1 ? 1 - beat / SWEEP : beat / SWEEP);
     function finish() { state = 'done'; t = 0; record = saveBest('pulldown', clean); sfx('ding'); }
     const self = {
-      music: 'squat',
+      music: 'squat', doing: 'pulldown',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; beat = 0; } return; }
@@ -5774,7 +5777,7 @@
     let state = 'ready', t = 0, px = 0, py = 0, vx = 0, vy = 0, secs = 0, record = false;
     let level = 1, levelUp = 0, gust = 0, puff = null, best = 1;
     const self = {
-      music: 'run',
+      music: 'run', doing: 'ball',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -5903,7 +5906,7 @@
     }
     nextVisitor();
     const self = {
-      music: 'candy',
+      music: 'candy', doing: 'desk',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -6020,7 +6023,7 @@
     }
     newSheet();
     const self = {
-      music: 'stack',
+      music: 'stack', doing: 'jam',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -6171,7 +6174,7 @@
     let state = 'ready', t = 0, bx = 134, items = [], spawn = 0, load = 0, caught = 0, lives = LIVES;
     let swap = 0, record = false;
     const self = {
-      music: 'coffee',
+      music: 'coffee', doing: 'laundry',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -6274,7 +6277,7 @@
     }
     nextBit();
     const self = {
-      music: 'office',
+      music: 'office', doing: 'elevator',
       update() {
         t++;
         if (state === 'done') {
@@ -6362,7 +6365,7 @@
     // start part-way down the page, so there is something to read straight away
     for (let i = 0; i < 4; i++) lines.push(newLine(150 + i * 42));
     const self = {
-      music: 'lunch',
+      music: 'lunch', doing: 'forms',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -6460,7 +6463,7 @@
     deal();
     const slotAt = (x) => Math.max(0, Math.min(SLOTS - 1, Math.floor((x - X0) / SLOT_W)));
     const self = {
-      music: 'punch',
+      music: 'punch', doing: 'trophy',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -6569,7 +6572,7 @@
     }
     function sunk(b) { return Math.hypot(b.x - cup.x, b.y - cup.y) < CUP; }
     const self = {
-      music: 'golf',
+      music: 'golf', doing: 'golf',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -6927,7 +6930,7 @@
 
     mine.forEach(spawn);
     const self = {
-      music: 'lego',
+      music: 'lego', doing: solo ? 'lego' : 'bricks',
       update() {
         t++;
         if (vs) {
@@ -7091,7 +7094,7 @@
     newDish();
     const endDish = (s, good) => { msg = { t: 0, s }; sfx(good ? 'cup' : 'buzz'); };
     const self = {
-      music: 'kitchen',
+      music: 'kitchen', doing: 'wok',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -7228,7 +7231,7 @@
       if (label) pop = { s: label, t: 0 };
     }
     const self = {
-      music: 'kitchen',
+      music: 'kitchen', doing: 'carrot',
       update() {
         t++;
         if (pop && ++pop.t > 30) pop = null;
@@ -7361,7 +7364,7 @@
     const pct = () => Math.round(100 * pts / (notes.length * 2));
     function rate(word, color, lane) { judge = { word, color, t: 0 }; if (lane >= 0) flash[lane] = 10; }
     const self = {
-      music: 'rave',
+      music: 'rave', doing: 'dance',
       update() {
         t++;
         if (vs) {
@@ -7574,7 +7577,7 @@
     }
     newJar();
     const self = {
-      music: 'candy',
+      music: 'candy', doing: 'jar',
       update() {
         t++;
         if (vs) {
@@ -7898,7 +7901,7 @@
     const things = [0, 1, 2, 3, 4, 5].map(float);
     let state = 'ready', t = 0, left = TIME, x = 160, dunk = 0, score = 0, record = false, msg = '', msgT = 0;
     const self = {
-      music: 'halloween',
+      music: 'halloween', doing: 'bob',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -8005,7 +8008,7 @@
       if (rows >= 20) { ctx.fillStyle = '#181820'; ctx.fillRect(x + 26, 76 + 30, 6, 4); ctx.fillRect(x + 48, 76 + 30, 6, 4); }
     }
     const self = {
-      music: 'halloween',
+      music: 'halloween', doing: 'mummy',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -8099,7 +8102,7 @@
       else if (m === 3) { ctx.fillRect(cx - 22, cy + 18, 44, 6); ctx.fillRect(cx - 30, cy + 24, 10, 6); ctx.fillRect(cx + 20, cy + 24, 10, 6); }
     }
     const self = {
-      music: 'halloween',
+      music: 'halloween', doing: 'carve',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) newFace(); return; }
@@ -8163,7 +8166,7 @@
       if (strikes >= 3) { state = 'done'; t = 0; record = saveBest('treat', score); }
     }
     const self = {
-      music: 'halloween',
+      music: 'halloween', doing: 'treat',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -8246,7 +8249,7 @@
       if (strikes >= 3) { state = 'done'; t = 0; record = saveBest('ghosts', score); }
     }
     const self = {
-      music: 'halloween',
+      music: 'halloween', doing: 'ghosts',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -8358,7 +8361,7 @@
       state = 'judged'; t = 0;
     }
     const self = {
-      music: 'halloween',
+      music: 'halloween', doing: 'costume',
       update() {
         t++;
         const a = acts[ai];
@@ -8981,7 +8984,7 @@
       if (state === 'play' && lift.v < -0.1 && --beepT <= 0) { sfx('beep'); beepT = 22; }
     }
     const self = {
-      music: 'run',
+      music: 'run', doing: 'forklift',
       update() {
         t++;
         if (msg && ++msg.t > 70) msg = null;
@@ -9282,7 +9285,7 @@
       sfx('ding');
     }
     const self = {
-      music: 'plant',
+      music: 'plant', doing: 'paint',
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -10082,6 +10085,30 @@
   const MP_TYPE_MAX = 32;
   const MP_TYPE_OK = /[A-Za-z0-9 .,!?'"\-:\/&#()+%]/;
   const mpClean = (str) => [...String(str)].filter((ch) => MP_TYPE_OK.test(ch)).join('').replace(/\s+/g, ' ').trim().slice(0, MP_TYPE_MAX);
+  // What someone's playing, over their head in place of "...": the game they've got open
+  // (under any menu on top of it) names one of these as its doing, which goes in their
+  // record as do. At a live table it's a function of dn, how many are at it. A copy that
+  // doesn't have the name shows "...", so names can be added but not changed.
+  const MP_DOING = {
+    poker: 'Playing poker', blackjack: 'Playing blackjack', slots: 'Playing the slots',
+    pokerlive: (n) => 'Playing live poker (' + n + ' players)', pokerwait: 'Waiting for poker players',
+    hockey: 'Playing hockey', hockey1v1: 'Playing live hockey (1 on 1)', hockey2v2: 'Playing live hockey (2 on 2)',
+    hockeywait: 'Waiting for hockey players',
+    coffee: 'Playing Coffee Machine', catch: 'Playing Frisbee Catch', punch: 'Playing Punching Bag', run: 'Playing Treadmill',
+    pong: 'Playing Pong', toss: 'Playing Paper Toss', stack: 'Playing Photocopier', simon: 'Playing Control Panel',
+    lunch: 'Playing Find My Lunch', candy: 'Playing Candy Table', squat: 'Playing Squat Rack', golf: 'Playing mini golf',
+    dark: 'Playing Damir\'s Lights', duel: 'Playing Air Duel', fan: 'Playing Fan Balancing', coil: 'Playing Cooling Coil',
+    damper: 'Playing Dampers', filter: 'Playing Filter Change', snake: 'Playing Snake', parts: 'Playing Parts Sorting',
+    cable: 'Playing Cable Tidy', cpr: 'Playing CPR', engrave: 'Playing Engraver', pulldown: 'Playing Lat Pulldown',
+    ball: 'Playing Exercise Ball', desk: 'Playing Front Desk', jam: 'Playing Paper Jam', laundry: 'Playing Laundry',
+    elevator: 'Riding the elevator', forms: 'Playing Jhonna\'s Forms', trophy: 'Playing Nathan\'s Trophies',
+    lego: 'Playing Lego Building', bricks: 'Playing Brick Battle', wok: 'Playing Nik\'s Wok', carrot: 'Playing Dmitriy\'s Carrots',
+    dance: 'Playing Dance-Off', jar: 'Playing Candy Jar', bob: 'Playing Bobbing for Apples', mummy: 'Playing Mummy Wrap',
+    carve: 'Playing Pumpkin Carving', treat: 'Playing Trick-or-Treat', ghosts: 'Playing Ghost in the Cupboard',
+    costume: 'Playing Costume Contest', forklift: 'Playing Forklift Rush', paint: 'Playing Even Coat',
+  };
+  // the game you've got open, for over your head (or null)
+  const mpDoing = () => { for (let i = ui.length - 1; i >= 0; i--) if (ui[i].doing) return ui[i]; return null; };
   const mp = {
     id: Math.random().toString(36).slice(2, 12), on: false, heard: false, others: {}, mail: [],
     sending: false, sentKey: '', lastSend: 0, tickAt: Date.now(), say: -1, sayText: '', sayN: 0, bubble: null, newer: false, nudged: false,
@@ -10253,6 +10280,7 @@
       const rec = {
         n: String(r.n || '?').slice(0, NAME_MAX), look, a: Art.lookCode(look), c: Art.COSTUMES[r.c] ? r.c : '',
         f: MAPS.floors[r.f] ? r.f : 0, x: +r.x || 0, y: +r.y || 0, d: DIRS[r.d] ? r.d : 'down', b: !!r.b,
+        do: typeof r.do === 'string' && Object.prototype.hasOwnProperty.call(MP_DOING, r.do) ? r.do : '', dn: Math.max(0, Math.min(9, Math.round(+r.dn) || 0)),
         s: MP_LINES[r.s] ? r.s : -1, w: mpClean((typeof r.w0 === 'string' ? r.w0 : '') + (typeof r.w1 === 'string' ? r.w1 : '')),
         sn: +r.sn || 0, v: +r.v || 0, t: +r.t || 0, tc: !!r.tc,
         fx: Number.isFinite(r.fx) ? r.fx : null, fy: Number.isFinite(r.fy) ? r.fy : null, fa: Number.isFinite(r.fa) ? r.fa : null,
@@ -10329,6 +10357,9 @@
       s: mp.say, sn: mp.sayN, v: MP_VER, p: MP_PROTO, tc: isTouch ? 1 : 0,
     };
     if (mp.sayText) { rec.w0 = mp.sayText.slice(0, 16); if (mp.sayText.length > 16) rec.w1 = mp.sayText.slice(16); }
+    // what you're playing (see MP_DOING), and at a live table how many are at it
+    const game = rec.b && mpDoing();
+    if (game) { rec.do = game.doing; if (game.seated) rec.dn = game.seated; }
     // out in the parking lot, exactly where you are (pixels) and which way you face, so
     // everyone else sees you go any way there (a copy from before only goes by x, y)
     if (P.free) { rec.fx = Math.round(P.fx * 16); rec.fy = Math.round(P.fy * 16); rec.fa = Math.round(P.face * 20) / 20; }
@@ -10492,11 +10523,14 @@
     ctx.fillStyle = col.dark; ctx.fillRect(x + (w >> 1) - 1, y + 13, 3, 2);
     text(str, x + 4, y + 3);
   }
-  // what someone has just said, or "..." while they're in a menu or a game
+  // what someone has just said, or while they're in a game what they're playing (from a copy
+  // that says), or "..." while they're in a menu
   function mpSaying(o, now) {
     const said = o.s >= 0 ? MP_LINES[o.s] : o.w;
     if (o.said && o.sn !== o.sn0 && said && now - o.said < mpSayFor(said) * 1000 / 60) return said;
-    return o.b ? '.'.repeat(1 + ((tick >> 4) % 3)).padEnd(3) : null;
+    if (!o.b) return null;
+    const doing = MP_DOING[o.do];
+    return typeof doing === 'function' ? doing(o.dn) : doing || '.'.repeat(1 + ((tick >> 4) % 3)).padEnd(3);
   }
   function mpDrawTags(cx, cy, px, py) {
     const now = Date.now();
@@ -10803,6 +10837,7 @@
       });
       return;
     }
+    if (MP_WS && 'B~n'.includes(t)) { rinkTalk(); return; } // the boards, the ice, a net
     const msgs = YARD_INFO[t];
     if (msgs) { sfx('select'); say(msgs[(tx * 3 + ty * 5) % msgs.length]); }
   }
@@ -10811,8 +10846,8 @@
   // The game itself (the rules, the skating, the puck and how your coworker plays) is
   // js/hockey.js. This feeds it your keys, plays its sounds and puts the score and the
   // clock up, while drawYard draws the two of you out on the ice (hockey) with the camera
-  // down low at the end of the rink. With a game server, whoever's minding the gate can
-  // also put you in a live game against other players (LiveHockey, below).
+  // down low at the end of the rink. With a game server, the rink itself (its boards, its
+  // ice or a net) puts you in a live game against other players (LiveHockey, below).
   const HOCKEY_VIEW = { dist: 17, pitch: 0.55 };
   const HOCKEY_RINGS = ['#f8d040', '#e84848']; // round your skates and theirs, to tell you apart
   const HOCKEY_SFX = { go: 'whistle', lunge: 'dash', pass: 'tap', steal: 'tap', block: 'tap', post: 'post', net: 'mesh', goal: 'horn', buzzer: 'buzz', bump: 'bump' };
@@ -10821,22 +10856,18 @@
   // HockeyGame's), with places in tiles from the map's corner.
   let hockey = null;
   function hockeyTalk(npc, says) {
-    const solo = () => { sfx('menu'); startFade(() => ui.push(HockeyGame(npc)), '#f8f8f8'); };
-    if (!MP_WS) {
-      ask(says('Fancy a game? One on one, three minutes, most goals wins. I\'ve got a spare stick.'), ['LET\'S PLAY', 'NOT NOW'], (i) => {
-        if (i !== 0) say(says('The ice isn\'t going anywhere.')); else solo();
-      });
-      return;
-    }
-    ask(says('Fancy a three-minute game? One on one with me, or live against other players.'), ['PLAY SOLO', 'PLAY LIVE', 'NOT NOW'], (i) => {
-      if (i === 0) solo();
-      else if (i === 1) {
-        ask(says('One on one, or two on two?'), ['1 ON 1', '2 ON 2'], (j) => {
-          if (j < 0) { say(says('The ice isn\'t going anywhere.')); return; }
-          sfx('menu');
-          startFade(() => ui.push(LiveHockey(j ? 4 : 2, npc)), '#f8f8f8');
-        });
-      } else say(says('The ice isn\'t going anywhere.'));
+    ask(says('Fancy a game? One on one, three minutes, most goals wins. I\'ve got a spare stick.'), ['LET\'S PLAY', 'NOT NOW'], (i) => {
+      if (i !== 0) { say(says('The ice isn\'t going anywhere.')); return; }
+      sfx('menu');
+      startFade(() => ui.push(HockeyGame(npc)), '#f8f8f8');
+    });
+  }
+  function rinkTalk() {
+    sfx('select');
+    ask('The rink. Play a live game against other players?', ['1 ON 1', '2 ON 2', 'NOT NOW'], (i) => {
+      if (i < 0 || i > 1) return;
+      sfx('menu');
+      startFade(() => ui.push(LiveHockey(i ? 4 : 2)), '#f8f8f8');
     });
   }
   // a hockey game's sound for one of js/hockey.js's events; mine: a stride is yours
@@ -10886,7 +10917,7 @@
       }, '#f8f8f8');
     }
     const self = {
-      music: 'hockey', escStart: true, // Esc pauses (B is a check)
+      music: 'hockey', doing: 'hockey', escStart: true, // Esc pauses (B is a check)
       update() {
         t++; go++;
         updateNpcs(); // everyone else carries on round the lot
@@ -10956,9 +10987,11 @@
   // views come in late now and then (a phone on Wi-Fi), so there's still a view either side.
   const HOCKEY_TEAMS = ['YELLOW', 'RED']; // after their rings, team 0 then team 1
   const LIVE_LAG = 4, LIVE_LAG_MAX = 12; // game ticks (60ths of a second)
-  function LiveHockey(size, npc) {
+  function LiveHockey(size) {
     const tb = mp.table = { t: size === 2 ? 'hockey1' : 'hockey2', view: null, out: null, asked: false, feed: (v) => got(v) };
-    const R = HOCKEY.rink(MAPS.floors[YARD]), says = (line) => (npc ? npc.name + ': ' : '') + line;
+    const R = HOCKEY.rink(MAPS.floors[YARD]);
+    // ", or play <whoever's minding the gate> one on one", for when there's no live game for you
+    const orSolo = () => (gateKeeper ? ', or play ' + gateKeeper.name + ' one on one' : '');
     // snaps: the game's views so far, oldest first. est: the game tick the newest is
     // probably at by now. lag: how far behind est they're drawn. late: the furthest est has
     // lately run past the newest view (fading slowly). heard: the newest view whose sounds
@@ -11162,8 +11195,8 @@
     function leave() {
       wsSend({ k: 'stand', t: tb.t });
       sfx('select');
-      gone(says(rink && tb.view && tb.view.ph === 'play' ? 'Off already? The computer can have your spot, then.'
-        : gn >= 0 ? 'Good games out there! The ice will be here.' : 'No worries. The ice isn\'t going anywhere.'));
+      gone(rink && tb.view && tb.view.ph === 'play' ? 'You head off the ice. The computer takes your spot.'
+        : gn >= 0 ? 'Good games out there! The ice will be here.' : '');
     }
     const name = (j) => {
       const w = scene && scene.who[j];
@@ -11173,15 +11206,20 @@
     const self = {
       music: 'hockey',
       get escStart() { return rink; }, // Esc opens the menu in a game (B is a check), and leaves the lobby
+      // over your head for everyone else: waiting in the lobby for more players, or the game
+      get doing() {
+        const v = tb.view;
+        return !v || (v.ph === 'lobby' && v.slots.includes(null)) ? 'hockeywait' : size === 2 ? 'hockey1v1' : 'hockey2v2';
+      },
       update() {
         t++; go++;
         updateNpcs(); // everyone else carries on round the lot
         if (tb.out) {
-          gone(says({
-            busy: 'There\'s a live game on the ice already. Try again once it\'s over, or play me!',
-            full: 'Both teams are full right now. Try again in a bit, or play me!',
-            off: 'Live hockey isn\'t set up on the game server yet. Play me instead!',
-          }[tb.out] || 'You lost your spot. The connection to the game server dropped.'));
+          gone({
+            busy: 'There\'s a live game on the ice already. Try again once it\'s over' + orSolo() + '.',
+            full: 'Both teams are full right now. Try again in a bit' + orSolo() + '.',
+            off: 'Live hockey isn\'t set up on the game server yet.' + (gateKeeper ? ' ' + gateKeeper.name + ' will play you one on one, though.' : ''),
+          }[tb.out] || 'You lost your spot. The connection to the game server dropped.');
           return;
         }
         const v = tb.view;
@@ -11190,7 +11228,7 @@
           if (!tb.asked && ws.sock && ws.sock.readyState === 1 && mp.sentKey) { tb.asked = true; wsSend({ k: 'sit', t: tb.t }); }
           if (pressed.has('b') || t > 600) {
             if (tb.asked) wsSend({ k: 'stand', t: tb.t });
-            gone(t > 600 ? says('Nobody\'s answering about the live game right now. Try again in a bit, or play me!') : '');
+            gone(t > 600 ? 'Nobody\'s answering about the live game right now. Try again in a bit' + orSolo() + '.' : '');
             if (t <= 600) sfx('select');
           }
           return;
@@ -12455,7 +12493,7 @@
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
       dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp, slots: SlotsGame,
       pokertable: () => PokerApp(null, true), pokerlive: LivePoker, bjtable: () => BlackjackApp(null, true),
-      hockey1: () => LiveHockey(2, gateKeeper), hockey2: () => LiveHockey(4, gateKeeper),
+      hockey1: () => LiveHockey(2), hockey2: () => LiveHockey(4),
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
       fame: HallOfFame, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];

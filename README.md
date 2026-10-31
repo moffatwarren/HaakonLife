@@ -388,8 +388,10 @@ players don't block your way, so nobody can stand in a doorway and trap you.
 
   The treadmill, Snake and the control panel carry on until you're both out.
 
-  They get 30 seconds to accept. Someone who's in a menu or a game has "..." over
-  their head and can't be challenged until they're done. Walking away from a match
+  They get 30 seconds to accept. Someone who's in a game has what they're playing
+  over their head ("Playing Paper Toss", "Playing live poker (3 players)", "Waiting for
+  hockey players" in the live hockey lobby), someone in a menu has "...", and neither
+  can be challenged until they're done. Walking away from a match
   (or closing the page) ends it for both of you, and so does putting your phone away
   or switching apps for more than about 12 seconds. Matches against players don't go
   on the leaderboards or count towards Linda's or Kiki's lists.
@@ -664,8 +666,9 @@ From November 27 to December 31 (by your device's date) the office does Christma
   wins. You're the yellow ring, they're the red, and whoever has the puck has theirs
   filled in. The ice is 14 by 30 metres. In 3D the camera drops low behind the rink's
   near end, looking up the ice at the net you're shooting at.
-- **Live hockey**: with a game server, whoever's minding the gate also offers **PLAY
-  LIVE**: pick **1 ON 1** or **2 ON 2**. The first one there waits in the lobby, which
+- **Live hockey**: with a game server, go up to the rink itself (its boards, a net, or
+  the ice once you're out on it) and pick **1 ON 1** or **2 ON 2**. Whoever's minding the
+  gate only plays you one on one. The first one there waits in the lobby, which
   shows each team's spots (YELLOW on the left, RED on the right; in two on two, players
   3 and 4 sit behind 1 and 2, who take the faceoffs) and START underneath. Left and
   right move you to the other team, swapping places with whoever's level with you if
