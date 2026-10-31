@@ -119,6 +119,11 @@ window.LOT3D = (function () {
     const at = (m, x, y, z, sx, sy, sz) => { m.position.set(x, y, z); if (sx !== undefined) m.scale.set(sx, sy === undefined ? sx : sy, sz === undefined ? sx : sz); return m; };
     const SPH = new T.SphereGeometry(1, 20, 14);
     const HEMI = new T.SphereGeometry(1, 20, 8, 0, TAU, 0, Math.PI / 2);
+    const CURL = new T.SphereGeometry(1, 10, 7); // (a curly head has sixty of them)
+    const SPIKE = new T.CylinderGeometry(0, 0.1, 1, 4).rotateY(Math.PI / 4); // a square spike, a metre long
+    // where spiky hair's spikes grow: [degrees round from the front, degrees up], a ring over
+    // the forehead and round the sides, a smaller one on top, and three at the back
+    const SPIKY = [[0, 88], [0, 62], [72, 62], [-72, 62], [144, 62], [-144, 62], [30, 32], [-30, 32], [90, 30], [-90, 30], [150, 30], [-150, 30], [180, 0], [135, -5], [-135, -5]];
     const ball = (mat, x, y, z, sx, sy, sz, o) => at(mesh(SPH, mat, o), x, y, z, sx, sy, sz);
     const box = (w, h, d, mat, o) => mesh(new T.BoxGeometry(w, h, d), mat, o);
     const cyl = (r0, r1, h, mat, o, seg, open) => mesh(new T.CylinderGeometry(r0, r1, h, seg || 12, 1, !!open), mat, o);
@@ -444,19 +449,50 @@ window.LOT3D = (function () {
       head.add(ball(toon(mixc(p.skin.f, '#e0484a', 0.28)), 0, -0.045, 0.262, 0.05, 0.048, 0.045));
       head.add(ball(basic('#5a2a2a'), 0, -0.135, 0.226, 0.04, 0.014, 0.012, face));
 
-      // hair
+      // hair: a shell over the skull, from a hairline across the top of the forehead, over the
+      // tops of the ears and down to the nape, so no scalp shows (bald is bald). It's the head
+      // grown a little and nudged up and back, by just enough that the two cross along that
+      // hairline: in the head's own units (radius 1), grown th on the crown, it covers every
+      // way out from the middle within HAIRLINE of CROWN (up, tipped 35° back)
       const hat = p.hat !== 'none', hair = p.hair;
-      if (hair === 'bald') head.add(ball(hairM, 0, -0.07, -0.05, 0.28, 0.17, 0.25));
-      else head.add(ball(hairM, 0, 0.01, -0.035, 0.285, 0.29, 0.272));
+      const HR = [0.27, 0.285, 0.26], CROWN = new V3(0, Math.cos(0.61), -Math.sin(0.61)), HAIRLINE = Math.cos(1.66);
+      const onHead = (n, out) => new V3(n.x * HR[0] * out, n.y * HR[1] * out, n.z * HR[2] * out); // out times as far out as the skin
+      const outward = (n) => new V3(n.x / HR[0], n.y / HR[1], n.z / HR[2]).normalize(); // the way the skin faces there
+      // count ways out spread evenly round the head, the ones at least inset inside the hairline
+      const scalp = (count, inset) => {
+        const out = [];
+        for (let i = 0; i < count; i++) {
+          const y = 1 - (2 * i + 1) / count, r = Math.sqrt(1 - y * y), a = i * 2.39996, n = new V3(Math.sin(a) * r, y, Math.cos(a) * r);
+          if (n.dot(CROWN) > HAIRLINE + inset) out.push(n);
+        }
+        return out;
+      };
+      if (hair !== 'bald') {
+        const th = hair === 'buzz' ? 0.05 : 0.12, d = (th * (th + 2)) / (2 * (1 + th - HAIRLINE)), sc = 1 + th - d;
+        head.add(ball(hairM, 0, CROWN.y * d * HR[1], CROWN.z * d * HR[2], sc * HR[0], sc * HR[1], sc * HR[2]));
+      }
       if (!hat && !['bald', 'buzz', 'spiky', 'curly'].includes(hair)) head.add(ball(hairM, 0, 0.17, 0.13, 0.22, 0.09, 0.12));
-      if (hair === 'spiky' && !hat) for (let i = 0; i < 7; i++) {
-        const a = (i / 7) * TAU, sp = at(mesh(new T.ConeGeometry(0.06, 0.18, 6), hairM), Math.cos(a) * 0.13, 0.27, Math.sin(a) * 0.13 + 0.02);
-        sp.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5); head.add(sp);
+      // (headphones part the spikes or curls over the top, and a bow keeps a spot clear)
+      const BOW = new V3(0.17 / HR[0], 0.26 / HR[1], 0).normalize();
+      const clear = (n) => !(p.wear === 'headphones' && Math.abs(n.z) < 0.3) && !(p.wear === 'bow' && n.dot(BOW) > 0.93);
+      // spiky: fat square spikes coming to a point, leaning up (flattened under a hat)
+      if (hair === 'spiky' && !hat) for (const [az, el] of SPIKY) {
+        const a = (az * Math.PI) / 180, e = (el * Math.PI) / 180, n = new V3(Math.sin(a) * Math.cos(e), Math.sin(e), Math.cos(a) * Math.cos(e));
+        if (!clear(n)) continue;
+        const dir = outward(n).add(new V3(0, 0.6, 0)).normalize(), len = 0.13 + 0.1 * Math.max(0, n.y);
+        const sp = mesh(SPIKE, hairM);
+        sp.position.copy(onHead(n, 1)).addScaledVector(dir, len / 2 - 0.03);
+        sp.quaternion.setFromUnitVectors(new V3(0, 1, 0), dir);
+        sp.scale.y = len; head.add(sp);
       }
-      if (hair === 'curly') for (let i = 0; i < 10; i++) {
-        const a = (i / 10) * TAU;
-        head.add(ball(hairM, Math.cos(a) * 0.22, 0.12 + (hat ? -0.05 : 0.06) * (i % 2), Math.sin(a) * 0.2 - 0.03, 0.09, 0.09, 0.09));
-      }
+      // curly: small curls all over, or just the ones that show below a hat (where the hat's
+      // bottom edge is, before it's tipped back)
+      const TILT = { cap: 0.3, hardhat: 0.25, cowboy: 0.3 }[p.hat] || 0, X = new V3(1, 0, 0);
+      const under = { cap: 0.06, toque: 0.085, hardhat: 0.07, cowboy: 0.09, crown: 0.13 }[p.hat];
+      if (hair === 'curly') scalp(120, 0.1).forEach((n, i) => {
+        const c = onHead(n, 1.1 + 0.03 * Math.sin(i * 12.9898));
+        if ((!hat || c.clone().applyAxisAngle(X, TILT).y + 0.03 < under) && clear(n)) head.add(at(mesh(CURL, hairM), c.x, c.y, c.z, 0.055));
+      });
       if (hair === 'long') { head.add(ball(hairM, 0, -0.26, -0.11, 0.27, 0.32, 0.17)); for (const s of [-1, 1]) head.add(ball(hairM, s * 0.22, -0.2, 0, 0.08, 0.2, 0.12)); }
       if (hair === 'bob') { head.add(ball(hairM, 0, -0.13, -0.1, 0.28, 0.19, 0.18)); for (const s of [-1, 1]) head.add(ball(hairM, s * 0.22, -0.12, 0.02, 0.1, 0.17, 0.15)); }
       if (hair === 'ponytail') {
@@ -466,32 +502,37 @@ window.LOT3D = (function () {
       if (hair === 'bun') head.add(ball(hairM, 0, 0.27, -0.12, 0.12, 0.11, 0.12));
 
       // the head thing: a toque, a cap, a hard hat, a cowboy hat or the crown, or glasses,
-      // shades, headphones or a bow with the hair showing
-      const hatM = toon(p.hatC.f);
+      // shades, headphones or a bow with the hair showing. A cap, hard hat or cowboy hat sits
+      // pushed back (TILT) with its brim lifted, so the face shows from up where the camera is:
+      // it's built level in hg, which is tipped back, and then moved onto the head
+      const hatM = toon(p.hatC.f), hg = new T.Group();
+      hg.rotation.x = -TILT; head.add(hg);
       if (p.hat === 'toque') {
         head.add(at(mesh(HEMI, toon(null, knit(p.hatC.f))), 0, 0.085, 0, 0.29, 0.31, 0.285));
         head.add(at(cyl(0.296, 0.3, 0.1, toon(mixc(p.hatC.f, '#000000', 0.12)), null, 22), 0, 0.11, 0));
         head.add(ball(toon(p.pomT.f), 0, 0.43, 0, 0.085, 0.085, 0.085));
       }
       if (p.hat === 'cap') {
-        head.add(at(mesh(HEMI, hatM), 0, 0.06, -0.005, 0.292, 0.27, 0.285));
+        hg.add(at(mesh(HEMI, hatM), 0, 0.06, -0.005, 0.292, 0.27, 0.285));
         const peak = at(cyl(0.2, 0.2, 0.024, hatM, null, 18), 0, 0.075, 0.2);
-        peak.scale.z = 0.9; peak.rotation.x = 0.1; head.add(peak);
-        head.add(ball(hatM, 0, 0.33, 0, 0.03, 0.02, 0.03));
+        peak.scale.z = 1.2; peak.rotation.x = 0.1; hg.add(peak);
+        hg.add(ball(hatM, 0, 0.33, 0, 0.03, 0.02, 0.03));
       }
       if (p.hat === 'hardhat') {
-        head.add(at(mesh(HEMI, hatM), 0, 0.07, 0, 0.31, 0.33, 0.305));
-        head.add(at(mesh(HEMI, hatM), 0, 0.07, 0, 0.055, 0.35, 0.33)); // the ridge over the top
-        const brim = at(cyl(0.36, 0.36, 0.022, hatM, null, 22), 0, 0.075, 0.025);
-        brim.scale.z = 1.08; head.add(brim);
+        hg.add(at(mesh(HEMI, hatM), 0, 0.07, 0, 0.31, 0.33, 0.305));
+        hg.add(at(mesh(HEMI, hatM), 0, 0.07, 0, 0.055, 0.35, 0.33)); // the ridge over the top
+        const brim = at(cyl(0.335, 0.335, 0.022, hatM, null, 22), 0, 0.075, 0.015);
+        brim.scale.z = 1.05; hg.add(brim);
       }
       if (p.hat === 'cowboy') {
-        const brim = at(cyl(0.5, 0.5, 0.025, hatM, null, 24), 0, 0.09, 0);
-        brim.scale.z = 0.88; head.add(brim);
-        head.add(at(cyl(0.21, 0.25, 0.24, hatM, null, 18), 0, 0.22, 0));
-        head.add(at(cyl(0.255, 0.26, 0.05, toon('#5c4c3a'), { ol: false }, 18), 0, 0.13, 0));
-        head.add(ball(toon(mixc(p.hatC.f, '#000000', 0.25)), 0, 0.335, 0, 0.15, 0.03, 0.11, { ol: false })); // the crease
+        const brim = at(cyl(0.42, 0.42, 0.025, hatM, null, 24), 0, 0.09, 0);
+        brim.scale.z = 0.86; hg.add(brim);
+        hg.add(at(cyl(0.21, 0.25, 0.24, hatM, null, 18), 0, 0.22, 0));
+        hg.add(at(cyl(0.255, 0.26, 0.05, toon('#5c4c3a'), { ol: false }, 18), 0, 0.13, 0));
+        hg.add(ball(toon(mixc(p.hatC.f, '#000000', 0.25)), 0, 0.335, 0, 0.15, 0.03, 0.11, { ol: false })); // the crease
       }
+      for (const m of [...hg.children]) head.attach(m);
+      hg.removeFromParent();
       if (p.hat === 'crown') {
         // the Office Champion's: a gold band round a red velvet cap, five points with a pearl on
         // each, and a ruby out front between two sapphires
@@ -505,23 +546,48 @@ window.LOT3D = (function () {
         head.add(ball(toon('#c8282e'), 0, 0.19, 0.25, 0.035, 0.035, 0.02, { ol: false }));
         for (const s of [-1, 1]) head.add(ball(toon('#3a6ad8'), Math.sin(s * 0.6) * 0.245, 0.19, Math.cos(s * 0.6) * 0.245, 0.022, 0.022, 0.022, { ol: false }));
       }
-      if (p.wear === 'glasses' || p.wear === 'shades') {
+      if (p.wear === 'shades') {
+        // aviators: big teardrop lenses, flat along the top and dipping lowest towards the nose,
+        // in a thin gold frame with a bar across the brow, angled back round the face
+        const gold = toon('#d8b04a'), dark = toon('#2a2838'), thin = { ol: false, cast: false };
+        const drop = (s, k) => { // a lens (k 1) or its frame (k a little bigger), inner edge at x 0
+          const sh = new T.Shape(), P = (x, y) => [s * (0.07 + (x - 0.07) * k), -0.02 + (y + 0.02) * k];
+          sh.moveTo(...P(0, 0.035)); sh.lineTo(...P(0.105, 0.042));
+          sh.quadraticCurveTo(...P(0.14, 0.04), ...P(0.135, 0));
+          sh.bezierCurveTo(...P(0.13, -0.05), ...P(0.075, -0.085), ...P(0.04, -0.075));
+          sh.quadraticCurveTo(...P(0.005, -0.06), ...P(0, 0.035));
+          return new T.ExtrudeGeometry(sh, { depth: 0.008, bevelEnabled: false, curveSegments: 6 });
+        };
+        for (const s of [-1, 1]) {
+          const g = new T.Group();
+          g.position.set(s * 0.02, 0.006, 0.29); g.rotation.y = s * 0.2; head.add(g);
+          g.add(at(mesh(drop(s, 1.13), gold, thin), 0, 0, -0.004));
+          g.add(mesh(drop(s, 1), dark, thin));
+          const glint = at(box(0.04, 0.007, 0.002, basic('#c8cce8'), thin), s * 0.1, 0.012, 0.0095);
+          glint.rotation.z = -s * 0.7; g.add(glint);
+          // the arms, from the top corner back over the ear
+          head.add(rod(new V3(s * 0.166, 0.05, 0.26), new V3(s * 0.25, 0.035, 0.15), 0.007, gold, thin));
+          head.add(rod(new V3(s * 0.25, 0.035, 0.15), new V3(s * 0.28, 0, 0.03), 0.007, gold, thin));
+        }
+        head.add(rod(new V3(-0.024, 0.047, 0.294), new V3(0.024, 0.047, 0.294), 0.006, gold, thin)); // the brow bar
+        head.add(rod(new V3(-0.022, 0.018, 0.29), new V3(0.022, 0.018, 0.29), 0.006, gold, thin)); // the bridge
+      }
+      if (p.wear === 'glasses') {
         const fm = basic('#16121c'), thin = { ol: false, cast: false };
         for (const s of [-1, 1]) {
           head.add(at(mesh(new T.TorusGeometry(0.048, 0.009, 6, 16), fm, thin), s * 0.092, -0.005, 0.27));
-          if (p.wear === 'shades') head.add(at(new T.Mesh(new T.CircleGeometry(0.046, 16), basic('#1c1a26')), s * 0.092, -0.005, 0.271));
           head.add(rod(new V3(s * 0.14, 0, 0.262), new V3(s * 0.24, 0.005, 0.17), 0.008, fm, thin));
           head.add(rod(new V3(s * 0.24, 0.005, 0.17), new V3(s * 0.274, 0, 0.03), 0.008, fm, thin));
         }
         head.add(rod(new V3(-0.044, 0, 0.272), new V3(0.044, 0, 0.272), 0.008, fm, thin));
       }
       if (p.wear === 'headphones') {
-        head.add(mesh(new T.TorusGeometry(0.315, 0.022, 6, 20, Math.PI), hatM));
+        head.add(mesh(new T.TorusGeometry(0.322, 0.022, 6, 20, Math.PI), hatM));
         for (const s of [-1, 1]) { const cup = at(cyl(0.08, 0.08, 0.06, toon('#c8352f'), null, 14), s * 0.3, -0.02, 0); cup.rotation.z = Math.PI / 2; head.add(cup); }
       }
       if (p.wear === 'bow') {
         const bow = new T.Group();
-        bow.position.set(0.17, 0.26, 0); bow.rotation.z = -0.5; head.add(bow);
+        bow.position.set(0.17, 0.26, 0).multiplyScalar(hair === 'curly' || hair === 'spiky' ? 1.15 : 1); bow.rotation.z = -0.5; head.add(bow);
         for (const s of [-1, 1]) { const loop = ball(hatM, s * 0.06, 0, 0, 0.065, 0.045, 0.03); loop.rotation.z = s * 0.3; bow.add(loop); }
         bow.add(ball(hatM, 0, 0, 0, 0.025, 0.03, 0.03));
       }
