@@ -11569,6 +11569,14 @@
       height = 0, record = false, msg = '', msgT = 0;
     const inField = (x, y, r) => x >= X0 + r && x <= X0 + GW * CELL - r && y >= Y0 + r && y <= Y0 + GH * CELL - r;
     const clear = (x, y, r) => trees.concat(made).every((o) => Math.hypot(o.x - x, o.y - y) >= o.r + r);
+    // Rolling, the ball slides along the fence (held to the field, and back off the fence as
+    // it grows) rather than stopping at it. A tree or a ball stood up only stops it going
+    // further into one, so having grown into one it can still roll away.
+    const fence = (v, lo, hi, r) => Math.min(hi - r, Math.max(lo + r, v));
+    const free = (x, y, r) => trees.concat(made).every((o) => {
+      const d = Math.hypot(o.x - x, o.y - y);
+      return d >= o.r + r || d >= Math.hypot(o.x - ball.x, o.y - ball.y);
+    });
     // somewhere near (x, y) with room for a new ball
     function roomNear(x, y) {
       for (let k = 0; k < 600; k++) {
@@ -11638,9 +11646,11 @@
           // (gentler on a thumbstick pushed only part way)
           const r = rOf(ball.v), sp = Math.max(0.55, 2.3 - r * 0.055) * Math.min(1, len), dx = s.x / len * sp, dy = s.y / len * sp;
           dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
-          const ox = ball.x, oy = ball.y;
-          if (inField(ball.x + dx, ball.y, r) && clear(ball.x + dx, ball.y, r)) ball.x += dx;
-          if (inField(ball.x, ball.y + dy, r) && clear(ball.x, ball.y + dy, r)) ball.y += dy;
+          const ox = ball.x, oy = ball.y, X1 = X0 + GW * CELL, Y1 = Y0 + GH * CELL;
+          ball.x = fence(ball.x, X0, X1, r); ball.y = fence(ball.y, Y0, Y1, r);
+          const nx = fence(ball.x + dx, X0, X1, r), ny = fence(ball.y + dy, Y0, Y1, r);
+          if (free(nx, ball.y, r)) ball.x = nx;
+          if (free(ball.x, ny, r)) ball.y = ny;
           ball.spin += Math.hypot(ball.x - ox, ball.y - oy) / r;
           // it picks up the fresh snow under it
           const reach = Math.max(6, r * 0.75);
