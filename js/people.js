@@ -13,8 +13,8 @@
 //                    'long', 'ponytail', 'bob', 'bun', 'braids' or 'messy' (female)
 //            hat:    'toque', 'stripes', 'leaf' (a maple leaf toque), 'trapper' or 'none'
 //            beard:  'huge', 'full', 'chops', 'stache', 'goatee' or 'stubble' (or false)
-//            build:  'average', 'burly', 'lanky', 'stocky' or 'big'
 //            outfit: 'flannel', 'denim', 'jersey', 'parka' or 'vest'
+//          (everyone out there is the same size)
 // Body types are a best guess from each name; colours are random placeholders.
 // Office 182 is the visitor office: people from out of town take turns in it,
 // coming and going through the portal in the corner (in a new order every time

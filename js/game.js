@@ -10175,11 +10175,12 @@
 
   // The game server: one WebSocket, which picks up again on its own if it drops. Your id
   // stays the same across a reconnect, and mpKey proves to the server that it's still you.
-  // What comes down: 'all' (everyone here, when you connect), 'p' (one record changed,
-  // or null when they've gone), 'm' (a message for you), 'st' and 'end' (a server-run
-  // game's state and result), and 'tb' (what you see at the live poker table or in live
-  // hockey, or null once you're not there; mp.table.feed, if it's set, hears every one).
-  // See server/world.js.
+  // What comes down: 'all' (everyone here, when you connect), 'ps' (everyone whose record
+  // changed lately, bundled up 30 times a second, or null for anyone who's gone; &b=1
+  // asks for those, and a server from before them sends a 'p' for each instead), 'm' (a
+  // message for you), 'st' and 'end' (a server-run game's state and result), and 'tb'
+  // (what you see at the live poker table or in live hockey, or null once you're not
+  // there; mp.table.feed, if it's set, hears every one). See server/world.js.
   const mpKey = Math.random().toString(36).slice(2, 12);
   const ws = { sock: null, tree: {}, skew: 0, retry: 0 };
   const wsSend = (d) => { if (ws.sock && ws.sock.readyState === 1) ws.sock.send(JSON.stringify(d)); };
@@ -10187,7 +10188,7 @@
   const wsRec = (r) => Object.assign({}, r, { t: (+r.t || 0) + ws.skew });
   function wsOpen() {
     if (ws.sock) { ws.sock.onclose = null; ws.sock.close(); }
-    const sock = ws.sock = new WebSocket(MP_WS + '/?' + new URLSearchParams({ w: MP_WORLD, id: mp.id, key: mpKey }));
+    const sock = ws.sock = new WebSocket(MP_WS + '/?' + new URLSearchParams({ w: MP_WORLD, id: mp.id, key: mpKey, b: 1 }));
     sock.onopen = () => { ws.retry = 0; mp.sentKey = ''; mp.lastSend = 0; };
     sock.onmessage = (e) => {
       let d; try { d = JSON.parse(e.data); } catch (err) { return; }
@@ -10222,6 +10223,10 @@
       }
     } else if (d.k === 'p' && typeof d.id === 'string') {
       if (d.r && typeof d.r === 'object') ws.tree[d.id] = wsRec(d.r); else delete ws.tree[d.id];
+      mpPlayers(ws.tree);
+    } else if (d.k === 'ps' && d.ps && typeof d.ps === 'object') {
+      // (your own record comes in these too; mpPlayers skips it)
+      for (const id in d.ps) if (d.ps[id] && typeof d.ps[id] === 'object') ws.tree[id] = wsRec(d.ps[id]); else delete ws.tree[id];
       mpPlayers(ws.tree);
     } else if (d.k === 'm' && d.m && typeof d.m === 'object') {
       mp.mail.push(d.m);
@@ -11286,7 +11291,7 @@
   }
   // someone's look in the smoother style, made once
   const hdPerson = (key, name, body, look, style) => hd.people[key] || (hd.people[key] = HD.person(name, body, look, style));
-  // a player, from the look they made: the same colours, hair and (if it can) head thing
+  // a player, dressed just as they made themselves in the character editor
   const hdLook = (key, name, look) => hdPerson(key, name, look.g, Art.lookColours(look), Art.lookStyle(look));
   const iceAt = (px, py) => tileAt(YARD, Math.round(px / 16), Math.round(py / 16)) === '~';
   // how far through a stride someone is (two steps to a stride), or -1 standing still

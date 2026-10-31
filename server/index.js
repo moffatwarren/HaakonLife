@@ -1,6 +1,7 @@
 // The Haakon Life game server. A browser connects with a WebSocket to
-//   wss://<host>/?w=<live or test>&id=<its player id>&key=<its secret>
-// and from then on it's JSON messages both ways (see world.js). A plain web request
+//   wss://<host>/?w=<live or test>&id=<its player id>&key=<its secret>&b=1
+// and from then on it's JSON messages both ways (see world.js). &b=1 says it takes
+// everyone's moves bundled up (copies from before that leave it off). A plain web request
 // gets "ok" and how many people are on, for the host's health check.
 //
 // Settings, from the environment:
@@ -11,7 +12,7 @@
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { World } from './world.js';
+import { World, BUNDLE_MS } from './world.js';
 import defaultGames from './games/index.js';
 import defaultTables from './tables/index.js';
 
@@ -33,7 +34,7 @@ export function start({ port = 8080, origins = [], games = defaultGames, tables 
       return;
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
-      if (!world.join(id, key, ws)) { ws.close(4001, 'taken'); return; }
+      if (!world.join(id, key, ws, q.get('b') === '1')) { ws.close(4001, 'taken'); return; }
       ws.alive = true;
       ws.on('pong', () => { ws.alive = true; });
       ws.on('message', (buf) => {
@@ -55,6 +56,7 @@ export function start({ port = 8080, origins = [], games = defaultGames, tables 
     }
   }, 15000);
   const tidy = setInterval(() => Object.values(worlds).forEach((w) => w.tidy()), 30000);
+  const bundle = setInterval(() => Object.values(worlds).forEach((w) => w.flush()), BUNDLE_MS);
 
   server.listen(port);
   return {
@@ -62,7 +64,7 @@ export function start({ port = 8080, origins = [], games = defaultGames, tables 
     // Closing tells every browser the server is restarting (1012), so they reconnect
     // straight away to the new one.
     close() {
-      clearInterval(ping); clearInterval(tidy);
+      clearInterval(ping); clearInterval(tidy); clearInterval(bundle);
       Object.values(worlds).forEach((w) => w.close());
       for (const ws of wss.clients) ws.close(1012, 'restarting');
       return new Promise((done) => server.close(done));

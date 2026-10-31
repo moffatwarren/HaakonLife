@@ -695,12 +695,14 @@ until it's restarted), the lot is drawn flat by
 `js/hd.js`, on a canvas four times the size of the game screen that sits under it (the
 game screen goes see-through outside, so menus and dialogs still draw on top as usual).
 In 3D that canvas only carries other players' names and speech bubbles. Everyone in it
-is drawn from the colours they
-already have (`js/people.js`, or a player's look), dressed for a Canadian winter:
+is the same size. Coworkers are drawn from the colours they
+already have (`js/people.js`), dressed for a Canadian winter:
 flannel, denim on denim, hockey sweaters, parkas or puffer vests, toques and trapper
-hats, beards from stubble to mountain man, and five builds from lanky to big. All of
-that is picked from their name; set `style: { hair, hat, beard, build, outfit }` on someone in `PEOPLE` to choose
-(the options are listed at the top of `js/people.js`). What they say out there is
+hats, and beards from stubble to mountain man. All of
+that is picked from their name; set `style: { hair, hat, beard, outfit }` on someone in `PEOPLE` to choose
+(the options are listed at the top of `js/people.js`). Players wear just what they made
+in the character editor: the same hair, head thing, shirt and pants, in the same
+colours (each part's `hd` in `js/art.js` names its match in `js/hd.js` and `js/lot3d.js`). What they say out there is
 `CHRISTMAS_LINES` at the bottom of `js/people.js`, and anyone in `PEOPLE` can have a
 `christmas:` line of their own. The rink's layout is in `tools/build_maps.py`.
 

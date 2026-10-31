@@ -125,37 +125,45 @@ window.HD = (function () {
 
   // ---------- people ----------
   // Anyone can be drawn from the colours the rest of the game already has for them
-  // (js/people.js, or a player's look), dressed for a Canadian winter. Everything about
-  // how they look is picked from their name, unless their `style` says otherwise (see
-  // js/people.js).
+  // (js/people.js), dressed for a Canadian winter. Everything about how they look is
+  // picked from their name, unless their `style` says otherwise (see js/people.js).
+  // Everyone is the same size.
   const HAIRS = { male: ['short', 'spiky', 'swept', 'curly', 'mullet', 'shaggy', 'bald'], female: ['long', 'ponytail', 'bob', 'bun', 'braids', 'messy'] };
   const HATS = ['toque', 'stripes', 'trapper', 'none', 'leaf', 'toque', 'trapper', 'none'];
   const BEARDS = ['huge', 'full', 'chops', 'stache', 'goatee', 'stubble', 'huge', 'full', 'stubble'];
-  // build: overall size, width, belly
-  const BUILDS = { average: [1, 1, 0], burly: [1.06, 1.24, 0.5], lanky: [1.1, 0.84, 0], stocky: [0.92, 1.18, 0.45], big: [1.13, 1.4, 1] };
-  const BUILD_LIST = { male: ['average', 'burly', 'lanky', 'stocky', 'big', 'average', 'burly'], female: ['average', 'lanky', 'stocky', 'burly', 'average'] };
   const OUTFITS = ['flannel', 'flannel', 'jersey', 'parka', 'vest', 'denim', 'flannel'];
   const DENIM = '#4a6c9e';
+  // A player wears just what they picked in the character editor (js/art.js), which their
+  // style names with `player` set: their hair, a shirt (the outfit), pants (the legs) and
+  // a head thing, either a hat or something worn with the hair showing. No beard, no
+  // freckles, and shoes and bare hands in place of boots and mitts.
+  const SHIRTS = ['tie', 'blouse', 'tee', 'stripes', 'hoodie', 'suit', 'sweater', 'hivis'];
+  const LEGS = ['trousers', 'shorts', 'skirt', 'overalls'];
+  const PLAYER_HATS = ['cap', 'toque', 'hardhat', 'cowboy'], WORN = ['glasses', 'shades', 'headphones', 'bow'];
+  // the head things' colours, as the editor draws them
+  const HAT_COLOURS = { cap: '#c03a30', toque: '#58a848', hardhat: '#f0b030', cowboy: '#9a6434', headphones: '#8890a0', bow: '#d23a40' };
+  const HIVIS = '#f6a524';
   function person(name, body, look, style) {
-    const h = hash(name || '?'), st = style || {}, female = body === 'female', g = female ? 'female' : 'male';
+    const h = hash(name || '?'), st = style || {}, female = body === 'female', g = female ? 'female' : 'male', player = !!st.player;
     const pickOf = (list, key, bits) => (list.includes(st[key]) ? st[key] : list[(h >>> bits) % list.length]);
-    // (a hairdo someone asks for can be from either list: a player's look from the character editor)
-    const hair = HAIRS.male.concat(HAIRS.female).includes(st.hair) ? st.hair : pickOf(HAIRS[g], 'hair', 0);
-    let hat = st.hat === 'earmuffs' ? 'trapper' : pickOf(HATS, 'hat', 5);
-    if (!st.hat && hair === 'bun') hat = 'none';
-    const beard = female ? '' : st.beard === false ? 'stubble' : pickOf(BEARDS, 'beard', 9);
-    const build = BUILDS[pickOf(BUILD_LIST[g], 'build', 13)];
-    const outfit = pickOf(OUTFITS, 'outfit', 17);
-    const coat = outfit === 'denim' ? DENIM : look.w;
+    // (a player's hairdo can be from either list, or a buzz cut)
+    const hair = HAIRS.male.concat(HAIRS.female, ['buzz']).includes(st.hair) ? st.hair : pickOf(HAIRS[g], 'hair', 0);
+    let hat = player ? (PLAYER_HATS.includes(st.hat) ? st.hat : 'none') : st.hat === 'earmuffs' ? 'trapper' : pickOf(HATS, 'hat', 5);
+    if (!player && !st.hat && hair === 'bun') hat = 'none';
+    const beard = female ? '' : player ? 'none' : st.beard === false ? 'stubble' : pickOf(BEARDS, 'beard', 9);
+    const outfit = player ? (SHIRTS.includes(st.shirt) ? st.shirt : 'tee') : pickOf(OUTFITS, 'outfit', 17);
+    // (a hi-vis vest is the coat, over a shirt that shows at the neck and down the arms)
+    const coat = outfit === 'denim' ? DENIM : outfit === 'hivis' ? HIVIS : look.w;
     return {
-      female, hair, hat, beard, outfit, seed: (h % 1000) / 37,
-      H: build[0], W: build[1], belly: build[2],
-      pom: (h >>> 14) % 2 === 0, freckles: female && (h >>> 16) % 2 === 0, number: 2 + (h >>> 3) % 97,
-      collar: outfit === 'parka' ? 'ruff' : outfit === 'jersey' ? 'lace' : outfit === 'flannel' && (h >>> 11) % 3 === 0 ? 'scarf' : 'fleece',
-      skin: tone(look.s), hairC: tone(look.h), coat: tone(coat), acc: tone(look.u), pants: tone(outfit === 'denim' ? mix(DENIM, '#1a2440', 0.25) : look.K),
+      female, player, hair, hat, beard, outfit, seed: (h % 1000) / 37,
+      wear: player && WORN.includes(st.hat) ? st.hat : '', legs: player && LEGS.includes(st.pants) ? st.pants : 'trousers',
+      pom: player || (h >>> 14) % 2 === 0, freckles: !player && female && (h >>> 16) % 2 === 0, number: 2 + (h >>> 3) % 97,
+      collar: player ? 'none' : outfit === 'parka' ? 'ruff' : outfit === 'jersey' ? 'lace' : outfit === 'flannel' && (h >>> 11) % 3 === 0 ? 'scarf' : 'fleece',
+      skin: tone(look.s), hairC: tone(look.h), coat: tone(coat), arms: tone(outfit === 'hivis' ? look.w : coat), acc: tone(look.u),
+      hatC: tone((player && HAT_COLOURS[st.hat]) || look.u), pants: tone(outfit === 'denim' ? mix(DENIM, '#1a2440', 0.25) : look.K),
       checks: mix(coat, '#120a18', 0.62), accChecks: mix(look.u, '#120a18', 0.62),
-      boot: tone('#8a5a32'), sole: tone('#3a2a20'), skate: tone('#2a2a34'), blade: tone('#cfd6e2'),
-      glove: tone('#a8743a'), fleece: tone('#ece0c4'), cream: tone('#efe6d2'), pomT: tone('#f0ece4'),
+      boot: tone(player ? '#3c3440' : '#8a5a32'), sole: tone(player ? '#1e1a22' : '#3a2a20'), skate: tone('#2a2a34'), blade: tone('#cfd6e2'),
+      glove: tone(player ? look.s : '#a8743a'), fleece: tone('#ece0c4'), cream: tone('#efe6d2'), pomT: tone('#f0ece4'),
       brow: mix(look.h, OUT, 0.5), stubble: mix(look.h, look.s, 0.45),
     };
   }
@@ -223,8 +231,8 @@ window.HD = (function () {
         part(c, t, (cc) => poly(cc, [[-1.6, -30], [1.6, -30], [1.8, -28.8], [0.8, -27.4], [0, -27.8], [-0.8, -27.4], [-1.8, -28.8]]), sh);
         mouthGap(c, 0, -30.8, 2);
         break;
-      default:
-        stubble(c, p, false);
+      default: // stubble, or clean-shaven ('none')
+        if (p.beard !== 'none') stubble(c, p, false);
         c.strokeStyle = OUT; c.lineWidth = 0.6;
         c.beginPath(); c.moveTo(-1.3, -30.6); c.quadraticCurveTo(0, -30.9, 1.4, -31.1); c.stroke();
     }
@@ -251,7 +259,7 @@ window.HD = (function () {
         break;
     }
     if (p.beard !== 'huge' && p.beard !== 'full') {
-      if (p.beard !== 'chops') stubble(c, p, true);
+      if (p.beard !== 'chops' && p.beard !== 'none') stubble(c, p, true);
       c.strokeStyle = OUT; c.lineWidth = 0.6; c.beginPath(); c.moveTo(-4.7, -30.9); c.lineTo(-3.4, -31.1); c.stroke();
     }
   }
@@ -380,6 +388,14 @@ window.HD = (function () {
         for (const s of [-1, 1]) part(c, t, (cc) => poly(cc, [[s * 4.2, -37], [s * 5.6, -36], [s * 5.8, -31.4], [s * 5.2, -30], [s * 4.8, -31.2], [s * 4.2, -29.8], [s * 4.1, -33]]), (cc) => cc.rect(s > 0 ? 4.6 : -3, -40, 4, 12));
         if (!hidden) strays(c, p, [[-4.8, -40.4, -2.6, 1.8], [4.6, -40.6, -0.5, 1.8], [-1, -42, -1.9, 1.5], [2, -42, -1.2, 1.5]]);
         break;
+      case 'buzz': // cropped close, with a straight hairline
+        part(c, t, (cc) => {
+          cc.beginPath(); cc.moveTo(-4.7, -34.6);
+          cc.bezierCurveTo(-5.1, -42, 5.1, -42, 4.7, -34.6);
+          cc.lineTo(4.3, -36.8); cc.quadraticCurveTo(0, -38.2, -4.3, -36.8);
+          cc.closePath();
+        }, capShadow, capLight);
+        break;
       case 'bald':
         // the horseshoe that's left, round the sides
         for (const s of [-1, 1]) part(c, t, (cc) => poly(cc, [[s * 4.3, -37.4], [s * 5.1, -36.6], [s * 5, -33.4], [s * 4.4, -32.8], [s * 4.3, -35]]));
@@ -412,7 +428,7 @@ window.HD = (function () {
         strays(c, p, [[-4.3, -35.4, 1.9, 1.8], [4.3, -35.4, 1.3, 1.8]]);
         break;
     }
-    if (hidden && !['curly', 'bald', 'shaggy', 'messy'].includes(p.hair)) strays(c, p, [[-4.6, -36.4, 2.2, 1.6], [4.6, -36.4, 0.9, 1.6], [-4.9, -35.2, 2.6, 1.3]]);
+    if (hidden && !['curly', 'bald', 'buzz', 'shaggy', 'messy'].includes(p.hair)) strays(c, p, [[-4.6, -36.4, 2.2, 1.6], [4.6, -36.4, 0.9, 1.6], [-4.9, -35.2, 2.6, 1.3]]);
   }
   function hairBack(c, p) {
     const t = p.hairC;
@@ -465,13 +481,14 @@ window.HD = (function () {
       cc.lineTo(3, long ? -30.6 : -31.6); cc.lineTo(2.2, long ? -30 : -32.2);
       cc.quadraticCurveTo(2.6, -35.6, 1.4, -36.6);
       if (p.hair === 'swept') cc.quadraticCurveTo(-1.4, -38.6, -5.2, -38.2);
+      else if (p.hair === 'buzz') cc.quadraticCurveTo(-1.6, -37.8, -4.6, -37.2);
       else if (p.hair === 'shaggy' || p.hair === 'messy') { cc.lineTo(-0.6, -35.2); cc.lineTo(-1.6, -36.4); cc.lineTo(-2.8, -35); cc.lineTo(-3.6, -36.6); cc.lineTo(-5, -36); }
       else { cc.lineTo(-0.4, -37); cc.lineTo(-1.4, -36.4); cc.lineTo(-2.4, -37.4); cc.lineTo(-3.6, -36.8); }
       cc.closePath();
     }, (cc) => cc.rect(1.4, -46, 8, 20), (cc) => ell(cc, -1.6, -40.4, 1.6, 0.6, -0.2));
     if (p.hair === 'braids') braid(c, p, 3, -31, -22);
-    if (!hidden && !['spiky', 'braids'].includes(p.hair)) strays(c, p, [[4.8, -38.4, -0.3, 1.5]]);
-    if (hidden) strays(c, p, [[4.2, -35.4, 0.9, 1.7], [3.4, -34.8, 1.6, 1.3]]);
+    if (!hidden && !['spiky', 'braids', 'buzz'].includes(p.hair)) strays(c, p, [[4.8, -38.4, -0.3, 1.5]]);
+    if (hidden && p.hair !== 'buzz') strays(c, p, [[4.2, -35.4, 0.9, 1.7], [3.4, -34.8, 1.6, 1.3]]);
   }
 
   // ---------- hats ----------
@@ -480,7 +497,7 @@ window.HD = (function () {
     const side = view === 'side', dx = side ? 0.5 : 0;
     if (p.hat === 'toque' || p.hat === 'stripes' || p.hat === 'leaf') {
       // the striped one is cream with green, red, yellow and navy bands; the leaf one is red
-      const wool = p.hat === 'stripes' ? p.cream : p.hat === 'leaf' ? tone('#c8282e') : p.acc;
+      const wool = p.hat === 'stripes' ? p.cream : p.hat === 'leaf' ? tone('#c8282e') : p.hatC;
       part(c, wool, (cc) => {
         cc.beginPath(); cc.moveTo(-5 + dx, -37.4);
         cc.bezierCurveTo(-5.2 + dx, -44.6, 5.2 + dx, -44.8, 5 + dx, -37.4);
@@ -505,6 +522,69 @@ window.HD = (function () {
       if (side) part(c, p.fleece, (cc) => rr(cc, -0.2, -37.6, 3.4, 7.6, 1.4), (cc) => cc.rect(1.8, -40, 3, 10));
       if (view === 'front') tufts(c, [[-4.2, -37.2], [-2.4, -37.6], [-0.6, -37.8], [1.2, -37.8], [3, -37.6], [4.6, -37.2]], p.fleece, 1.2);
       if (side) tufts(c, [[-4.4, -37.6], [-2.8, -38], [-1.2, -38.2]], p.fleece, 1.2);
+    } else if (p.hat === 'cap') {
+      // a ball cap: a round crown with a button on top, and the peak out front
+      const t = p.hatC;
+      part(c, t, (cc) => { cc.beginPath(); cc.moveTo(-5 + dx, -37); cc.bezierCurveTo(-5.2 + dx, -43.8, 5.2 + dx, -43.8, 5 + dx, -37); cc.closePath(); },
+        (cc) => cc.rect(1.6 + dx, -46, 8, 10), (cc) => ell(cc, -2 + dx, -41.4, 1.5, 0.6, -0.4));
+      c.fillStyle = t.s; ell(c, dx, -42.1, 0.8, 0.45); c.fill();
+      if (view === 'front') {
+        c.strokeStyle = t.s; c.lineWidth = 0.45; c.beginPath(); c.moveTo(0, -41.8); c.lineTo(0, -37.8); c.stroke();
+        part(c, t, (cc) => {
+          cc.beginPath(); cc.moveTo(-5.2, -37.4); cc.quadraticCurveTo(0, -38.6, 5.2, -37.4);
+          cc.quadraticCurveTo(5.4, -35.8, 0, -35.7); cc.quadraticCurveTo(-5.4, -35.8, -5.2, -37.4); cc.closePath();
+        }, (cc) => cc.rect(-6, -36.8, 12, 2));
+      } else if (side) part(c, t, (cc) => poly(cc, [[-3.6, -37.8], [-8.8, -37.2], [-8.6, -36.2], [-3.4, -36.6]]), (cc) => cc.rect(-9, -36.8, 6, 1));
+      else { c.strokeStyle = OUT; c.lineWidth = 0.55; c.beginPath(); c.moveTo(-1.6, -37.1); c.quadraticCurveTo(0, -39, 1.6, -37.1); c.stroke(); } // the strap
+    } else if (p.hat === 'hardhat') {
+      // a hard hat: a tall dome with a ridge over the top, and a brim all round
+      const t = p.hatC;
+      part(c, t, (cc) => { cc.beginPath(); cc.moveTo(-5.4 + dx, -37.4); cc.bezierCurveTo(-5.8 + dx, -46, 5.8 + dx, -46, 5.4 + dx, -37.4); cc.closePath(); },
+        (cc) => cc.rect(1.8 + dx, -47, 8, 11), (cc) => ell(cc, -2.2 + dx, -42.6, 1.6, 0.8, -0.4));
+      if (side) { c.strokeStyle = t.s; c.lineWidth = 1; c.beginPath(); c.moveTo(-4 + dx, -41.6); c.quadraticCurveTo(dx, -45.4, 4 + dx, -41.6); c.stroke(); }
+      else part(c, t, (cc) => rr(cc, -1, -44.4, 2, 7, 1), (cc) => cc.rect(0, -45, 2, 8));
+      part(c, t, (cc) => (side ? rr(cc, -7.8, -38.4, 14, 1.4, 0.7) : ell(cc, 0, -37.4, 7, 1.3)), (cc) => cc.rect(-8, -37.3, 16, 2));
+    } else if (p.hat === 'cowboy') {
+      // a cowboy hat: a creased crown with a band round it, on a wide brim curled up at the sides
+      const t = p.hatC;
+      part(c, t, (cc) => poly(cc, side ? [[-9.8, -39.2], [-6.6, -37.8], [5.6, -37.8], [8.8, -39.2], [8.6, -37.6], [5.4, -36.6], [-6.4, -36.6], [-9.6, -37.8]]
+        : [[-9.6, -39.6], [-6.2, -37.6], [6.2, -37.6], [9.6, -39.6], [9.4, -37.8], [6.4, -35.9], [-6.4, -35.9], [-9.4, -37.8]]), (cc) => cc.rect(-10, -37.1, 20, 2));
+      part(c, t, (cc) => poly(cc, [[-4.2 + dx, -37.6], [-4.6 + dx, -43.6], [-2.4 + dx, -45], [dx, -44], [2.4 + dx, -45], [4.6 + dx, -43.6], [4.2 + dx, -37.6]]),
+        (cc) => cc.rect(1.4 + dx, -46, 6, 9), (cc) => ell(cc, -2.4 + dx, -42.6, 0.8, 1.4));
+      part(c, tone('#5c4c3a'), (cc) => rr(cc, -4.35 + dx, -39.8, 8.7, 1.7, 0.4));
+    }
+  }
+  // what a player wears with their hair showing: glasses, shades, headphones or a bow
+  function worn(c, p, view) {
+    const side = view === 'side', t = p.hatC;
+    if (p.wear === 'glasses' || p.wear === 'shades') {
+      const lens = p.wear === 'shades' ? '#1c1a26' : 'rgba(188, 224, 248, 0.4)';
+      c.strokeStyle = OUT; c.lineWidth = 0.6;
+      if (view === 'front') {
+        for (const s of [-1, 1]) { rr(c, s * 1.95 - 1.6, -35.6, 3.2, 2.6, 0.9); c.fillStyle = lens; c.fill(); c.stroke(); }
+        c.beginPath(); c.moveTo(-0.35, -34.9); c.lineTo(0.35, -34.9); c.moveTo(-3.55, -35); c.lineTo(-4.5, -35.2); c.moveTo(3.55, -35); c.lineTo(4.5, -35.2); c.stroke();
+      } else if (side) {
+        rr(c, -4.3, -35.6, 2.2, 2.6, 0.8); c.fillStyle = lens; c.fill(); c.stroke();
+        c.beginPath(); c.moveTo(-2.1, -35); c.lineTo(1.2, -34.8); c.stroke();
+      }
+      if (p.wear === 'shades' && view !== 'back') { // a glint
+        c.strokeStyle = 'rgba(255, 255, 255, 0.7)'; c.lineWidth = 0.4;
+        for (const x of side ? [-3.2] : [-1.95, 1.95]) { c.beginPath(); c.moveTo(x - 0.8, -34.1); c.lineTo(x, -35); c.stroke(); }
+      }
+    } else if (p.wear === 'headphones') {
+      const band = () => {
+        c.beginPath();
+        if (side) { c.moveTo(1.2, -35.2); c.quadraticCurveTo(1.8, -41.8, 0, -42.6); } else { c.moveTo(-5.2, -34.6); c.bezierCurveTo(-6, -45, 6, -45, 5.2, -34.6); }
+      };
+      band(); c.strokeStyle = OUT; c.lineWidth = 2.1; c.stroke();
+      band(); c.strokeStyle = t.f; c.lineWidth = 1; c.stroke();
+      const cup = tone('#c8352f');
+      if (side) { part(c, cup, (cc) => ell(cc, 1.2, -33.8, 2.1, 2.6), (cc) => cc.rect(1.8, -37, 3, 6)); part(c, tone('#3a3440'), (cc) => ell(cc, 1, -33.8, 0.9, 1.3)); }
+      else for (const s of [-1, 1]) part(c, cup, (cc) => rr(cc, s * 5.3 - 1.3, -36, 2.6, 4.4, 1.1), (cc) => cc.rect(s * 5.3 + 0.2, -37, 2, 6));
+    } else if (p.wear === 'bow') {
+      const x = side ? 1.4 : view === 'back' ? -3.2 : 3.2, y = side ? -41.4 : -40.4;
+      for (const s of [-1, 1]) part(c, t, (cc) => poly(cc, [[x, y], [x + s * 2.6, y - 1.6], [x + s * 2.8, y + 1.4]]), (cc) => cc.rect(x + (s > 0 ? 0.6 : -3), y + 0.2, 2.4, 2));
+      part(c, t, (cc) => ell(cc, x, y, 0.9, 1));
     }
   }
 
@@ -523,22 +603,23 @@ window.HD = (function () {
   }
   // the coat: flannel (buffalo checks), denim (with stitching), a hockey sweater (stripes,
   // a maple leaf on the front, a number on the back), a long quilted parka, or a puffer
-  // vest over flannel. Wider for bigger builds, with a belly if they've got one.
+  // vest over flannel. Or a player's shirt: with a tie, a blouse, a T-shirt, stripes, a
+  // hoodie, a suit, a sweater or a hi-vis vest.
   function torso(c, p, view, by) {
-    const side = view === 'side', W = p.W, b = p.belly;
-    const sw = side ? 4.4 * W : (p.female ? 6.6 : 7.8) * W, ww = side ? 4.2 * W : (p.female ? 5.4 : 6.4) * W, hw = side ? 4.2 * W : (p.female ? 5.8 : 6.2) * W;
+    const side = view === 'side';
+    const sw = side ? 4.4 : p.female ? 6.6 : 7.8, ww = side ? 4.2 : p.female ? 5.4 : 6.4, hw = side ? 4.2 : p.female ? 5.8 : 6.2;
     const top = -28.6 + by, hem = (p.outfit === 'parka' ? -10.4 : -13.4) + by;
     const shape = (cc) => {
       cc.beginPath();
       cc.moveTo(-sw, top + 1.8); cc.quadraticCurveTo(-sw + 0.4, top, -sw + 2.2, top);
       cc.lineTo(sw - 2.2, top); cc.quadraticCurveTo(sw - 0.4, top, sw, top + 1.8);
-      if (side) cc.lineTo(ww + 0.3, -19 + by); else cc.quadraticCurveTo(ww + b * 3.2, -19 + by, hw + 0.4 + b * 0.8, hem);
-      cc.lineTo(-hw - 0.4 - (side ? b * 2.6 : b * 0.8), hem);
-      cc.quadraticCurveTo(-ww - b * (side ? 5 : 3.2), -19 + by, -sw, top + 1.8);
+      if (side) cc.lineTo(ww + 0.3, -19 + by); else cc.quadraticCurveTo(ww, -19 + by, hw + 0.4, hem);
+      cc.lineTo(-hw - 0.4, hem);
+      cc.quadraticCurveTo(-ww, -19 + by, -sw, top + 1.8);
       cc.closePath();
     };
     const pattern = { flannel: (cc) => plaid(cc, p.checks, 1.8), vest: (cc) => plaid(cc, p.checks, 1.8) }[p.outfit];
-    part(c, p.coat, shape, (cc) => { cc.moveTo(side ? 0.8 : 2.4 * W, top - 1); cc.lineTo(20, top - 1); cc.lineTo(20, hem + 2); cc.lineTo(side ? 1.4 : 1.6 * W, hem + 2); cc.closePath(); },
+    part(c, p.coat, shape, (cc) => { cc.moveTo(side ? 0.8 : 2.4, top - 1); cc.lineTo(20, top - 1); cc.lineTo(20, hem + 2); cc.lineTo(side ? 1.4 : 1.6, hem + 2); cc.closePath(); },
       (cc) => { cc.moveTo(-sw + 0.6, top + 1); cc.lineTo(-sw + 1.6, top + 0.6); cc.lineTo(-ww + 0.6, -19 + by); cc.lineTo(-ww - 0.2, -19 + by); cc.closePath(); },
       pattern && ((cc) => { cc.save(); cc.translate(side ? -0.4 : -0.9, top - 0.4); pattern(cc); cc.restore(); }));
     c.save(); shape(c); c.clip();
@@ -560,6 +641,40 @@ window.HD = (function () {
       c.beginPath(); c.moveTo(-20, -24.6 + by); c.lineTo(20, -24.6 + by); c.stroke();
       if (view === 'front') { c.beginPath(); c.moveTo(1.2, top + 1); c.lineTo(1.2, hem); c.moveTo(-1.2, top + 1); c.lineTo(-1.2, hem); c.stroke(); }
       c.setLineDash([]);
+    } else if (p.outfit === 'stripes') {
+      c.fillStyle = p.acc.f;
+      for (let y = top + 2.2; y < hem - 0.6; y += 2.8) c.fillRect(-20, y, 40, 1.3);
+    } else if (p.outfit === 'sweater') {
+      // a knitted band of diamonds across the chest
+      c.fillStyle = p.acc.f;
+      c.fillRect(-20, -24.6 + by, 40, 0.7); c.fillRect(-20, -20.2 + by, 40, 0.7);
+      for (let x = -9.1; x <= 9.1; x += 2.6) { poly(c, [[x, -23.6 + by], [x + 1.1, -22.4 + by], [x, -21.2 + by], [x - 1.1, -22.4 + by]]); c.fill(); }
+    } else if (p.outfit === 'hivis') {
+      // two silver stripes round the vest, and the shirt showing at the neck
+      c.lineWidth = 0.35;
+      for (const y of [-21.8, -17.4]) {
+        c.fillStyle = '#e8ecf2'; c.fillRect(-20, y + by, 40, 1.4);
+        c.beginPath(); c.moveTo(-20, y + by); c.lineTo(20, y + by); c.moveTo(-20, y + 1.4 + by); c.lineTo(20, y + 1.4 + by); c.stroke();
+      }
+      c.lineWidth = 0.55;
+      if (view === 'front') {
+        poly(c, [[-2.4, top - 1], [2.4, top - 1], [0, top + 3.6]]); c.fillStyle = p.arms.f; c.fill(); c.stroke();
+        c.beginPath(); c.moveTo(0, top + 3.6); c.lineTo(0, hem); c.stroke();
+      }
+    } else if (p.outfit === 'suit' || p.outfit === 'tie') {
+      if (view === 'front') {
+        // a suit's lapels open on a white shirt; either way, a tie down the front
+        const end = (p.outfit === 'suit' ? -21.6 : -18.2) + by;
+        if (p.outfit === 'suit') { poly(c, [[-2.6, top - 1], [2.6, top - 1], [0, -19.4 + by]]); c.fillStyle = '#f4f4f8'; c.fill(); c.stroke(); }
+        c.fillStyle = p.acc.f;
+        poly(c, [[-0.7, top + 1], [0.7, top + 1], [1.1, end], [0, end + 1.4], [-1.1, end]]); c.fill(); c.stroke();
+        rr(c, -0.9, top - 0.2, 1.8, 1.5, 0.4); c.fill(); c.stroke();
+        if (p.outfit === 'suit') for (const y of [-17.6, -15.4]) { ell(c, 0, y + by, 0.5, 0.5); c.fillStyle = p.coat.s; c.fill(); c.stroke(); }
+      } else if (view === 'back' && p.outfit === 'suit') { c.beginPath(); c.moveTo(0, -17 + by); c.lineTo(0, hem); c.stroke(); }
+    } else if (p.outfit === 'blouse') {
+      if (view === 'front') { poly(c, [[-2.2, top - 1], [2.2, top - 1], [0, top + 2.8]]); c.fillStyle = p.skin.f; c.fill(); c.stroke(); }
+    } else if (p.outfit === 'hoodie') {
+      if (view === 'front') { rr(c, -3.8, -18.8 + by, 7.6, 4.2, 1.4); c.fillStyle = p.coat.s; c.fill(); c.stroke(); } // the pocket
     }
     if (view === 'front' && (p.outfit === 'flannel' || p.outfit === 'denim')) {
       c.strokeStyle = OUT; c.lineWidth = 0.55;
@@ -573,9 +688,9 @@ window.HD = (function () {
     if (p.outfit === 'vest') {
       for (const s of side ? [1] : [-1, 1]) {
         part(c, p.acc, (cc) => {
-          if (side) poly(cc, [[-sw + 0.6, top], [sw, top + 0.6], [ww + 0.6, -19 + by], [hw + 0.6, hem + 0.6], [-hw + 0.8 - b * 2.6, hem + 0.6], [-ww + 0.6 - b * 4, -19 + by]]);
-          else poly(cc, [[s * 1.2, top - 0.2], [s * (sw - 2.4), top - 0.2], [s * (sw + 0.2), top + 3], [s * (ww + 0.5 + b * 2.4), -19 + by], [s * (hw + 0.6 + b * 0.8), hem + 0.6], [s * 1.2, hem + 0.6]]);
-        }, (cc) => cc.rect(side ? 1 : s > 0 ? 3.4 * W : 20, -40, 20, 40), null, (cc) => {
+          if (side) poly(cc, [[-sw + 0.6, top], [sw, top + 0.6], [ww + 0.6, -19 + by], [hw + 0.6, hem + 0.6], [-hw + 0.8, hem + 0.6], [-ww + 0.6, -19 + by]]);
+          else poly(cc, [[s * 1.2, top - 0.2], [s * (sw - 2.4), top - 0.2], [s * (sw + 0.2), top + 3], [s * (ww + 0.5), -19 + by], [s * (hw + 0.6), hem + 0.6], [s * 1.2, hem + 0.6]]);
+        }, (cc) => cc.rect(side ? 1 : s > 0 ? 3.4 : 20, -40, 20, 40), null, (cc) => {
           cc.strokeStyle = p.acc.s; cc.lineWidth = 0.5;
           for (const y of [-24.4, -20.6, -16.8]) { cc.beginPath(); cc.moveTo(-20, y + by); cc.quadraticCurveTo(0, y + 1 + by, 20, y + by); cc.stroke(); }
         });
@@ -583,12 +698,35 @@ window.HD = (function () {
     }
     // a band at the hem
     c.strokeStyle = OUT; c.lineWidth = 0.55;
-    if (p.outfit !== 'jersey') { c.beginPath(); c.moveTo(-hw - b * 0.8, hem - 1.4); c.lineTo(hw + b * 0.8, hem - 1.4); c.stroke(); }
+    if (p.outfit !== 'jersey') { c.beginPath(); c.moveTo(-hw, hem - 1.4); c.lineTo(hw, hem - 1.4); c.stroke(); }
+  }
+  // Below the waist, a player can have a skirt (drawn over the tops of the legs, under the
+  // shirt) or overalls (a bib and straps, over the shirt).
+  function skirt(c, p, view, by) {
+    const w = view === 'side' ? 3.6 : p.female ? 5.4 : 5.8;
+    part(c, p.pants, (cc) => poly(cc, [[-w, -15.6 + by], [w, -15.6 + by], [w + 2, -8.6 + by * 0.5], [-w - 2, -8.6 + by * 0.5]]), (cc) => cc.rect(view === 'side' ? 1 : 2.2, -17 + by, 10, 10));
+  }
+  function bib(c, p, view, by) {
+    const hw = view === 'side' ? 4.2 : p.female ? 5.8 : 6.2, sw = p.female ? 6.6 : 7.8, top = -28.6 + by;
+    // the seat of them, up to the waist
+    part(c, p.pants, (cc) => rr(cc, -hw - 0.4, -16.2 + by, hw * 2 + 0.8, 2.8 + 0.4, 0.6), (cc) => cc.rect(view === 'side' ? 1 : 2.2, -18 + by, 10, 6));
+    if (view === 'front') {
+      for (const s of [-1, 1]) limb(c, [[s * 2.5, -22 + by], [s * (sw - 3.4), top + 0.4]], 1.3, p.pants);
+      part(c, p.pants, (cc) => rr(cc, -3.4, -22.6 + by, 6.8, 7, 0.8), (cc) => cc.rect(1.6, -24 + by, 3, 10));
+      c.strokeStyle = p.pants.s; c.lineWidth = 0.45; rr(c, -1.7, -21.4 + by, 3.4, 2.4, 0.4); c.stroke(); // a pocket
+      for (const s of [-1, 1]) { ell(c, s * 2.4, -21.8 + by, 0.55, 0.55); c.fillStyle = '#e8c87a'; c.fill(); c.strokeStyle = OUT; c.lineWidth = 0.4; c.stroke(); }
+    } else if (view === 'back') {
+      for (const s of [-1, 1]) limb(c, [[s * (sw - 3.4), top + 0.4], [-s * 1.6, -16 + by]], 1.3, p.pants);
+    } else {
+      part(c, p.pants, (cc) => rr(cc, -3.6, -22.6 + by, 2.6, 7, 0.6));
+      limb(c, [[-2.4, -22 + by], [0, top + 0.4], [2.6, -18 + by]], 1.3, p.pants);
+    }
   }
   // what's round the neck: a fleece collar turned up, a plaid scarf, a parka's fur ruff,
   // or a hockey sweater's laced collar
   function collar(c, p, view, by, k) {
     const side = view === 'side';
+    if (p.player) { neckline(c, p, view, by); return; }
     if (p.collar === 'fleece' || p.collar === 'ruff') {
       const big = p.collar === 'ruff' ? 1.45 : 1;
       const pts = side ? [[-2.6, -29.4], [-0.8, -30], [1, -30], [2.8, -29.4], [3.6, -28]]
@@ -615,35 +753,91 @@ window.HD = (function () {
       limb(c, [[3.2, -29.2 + by], [6 + fly, -27 + by - Math.abs(fly)], [7.4 + fly * 1.4, -25.4 + by]], 2.4, p.acc);
     }
   }
+  // a player's neckline: a shirt collar, a crew neck, a necklace or a hood
+  function neckline(c, p, view, by) {
+    const side = view === 'side';
+    switch (p.outfit) {
+      case 'tie': case 'suit': {
+        const t = p.outfit === 'suit' ? tone('#f4f4f8') : p.coat;
+        if (view === 'front') for (const s of [-1, 1]) part(c, t, (cc) => poly(cc, [[s * 0.8, -28.8 + by], [s * 3.2, -29.2 + by], [s * 1.6, -26.4 + by]]));
+        else part(c, t, (cc) => rr(cc, side ? -3 : -3.4, -29.6 + by, side ? 6 : 6.8, 1.6, 0.6));
+        break;
+      }
+      case 'tee': case 'stripes': case 'sweater': {
+        if (view === 'back') break;
+        const arc = () => {
+          c.beginPath();
+          if (side) { c.moveTo(-3, -28.6 + by); c.quadraticCurveTo(-2.4, -27.2 + by, -1, -27.4 + by); } else { c.moveTo(-2.8, -28.7 + by); c.quadraticCurveTo(0, -26.4 + by, 2.8, -28.7 + by); }
+        };
+        arc(); c.strokeStyle = OUT; c.lineWidth = 1.9; c.stroke();
+        arc(); c.strokeStyle = p.outfit === 'tee' ? p.acc.f : p.coat.s; c.lineWidth = 0.9; c.stroke();
+        break;
+      }
+      case 'blouse':
+        if (view !== 'front') break;
+        c.strokeStyle = p.acc.f; c.lineWidth = 0.4; c.beginPath(); c.moveTo(-2, -28.8 + by); c.quadraticCurveTo(0, -25.8 + by, 2, -28.8 + by); c.stroke();
+        part(c, p.acc, (cc) => ell(cc, 0, -26.2 + by, 0.7, 0.8));
+        break;
+      case 'hoodie':
+        // the hood, bunched behind the neck (or hanging down the back), and its strings
+        if (view === 'front') {
+          part(c, p.coat, (cc) => rr(cc, -5.2, -31.4 + by, 10.4, 3.8, 1.8), (cc) => cc.rect(2, -33 + by, 5, 6));
+          for (const s of [-1, 1]) {
+            const str = () => { c.beginPath(); c.moveTo(s * 1.2, -27.8 + by); c.lineTo(s * 1.4, -23.4 + by); };
+            str(); c.strokeStyle = OUT; c.lineWidth = 1.1; c.stroke();
+            str(); c.strokeStyle = p.acc.f; c.lineWidth = 0.5; c.stroke();
+          }
+        } else if (view === 'back') part(c, p.coat, (cc) => poly(cc, [[-4.6, -30.4 + by], [4.6, -30.4 + by], [3.8, -24.6 + by], [0, -23.2 + by], [-3.8, -24.6 + by]]), (cc) => cc.rect(1, -32 + by, 6, 10));
+        else part(c, p.coat, (cc) => ell(cc, 3, -28.4 + by, 2.6, 2.4), (cc) => cc.rect(3.4, -32 + by, 4, 8));
+        break;
+    }
+  }
   // the pattern down a sleeve
   const sleeve = (p) => (p.outfit === 'jersey' ? { on: [1.2, 1.6, 1.2, 9], col: p.acc.f, a: 1 }
-    : p.outfit === 'flannel' || p.outfit === 'vest' ? { on: [1.7, 1.7], col: p.checks, a: 0.5 } : null);
+    : p.outfit === 'flannel' || p.outfit === 'vest' ? { on: [1.7, 1.7], col: p.checks, a: 0.5 }
+    : p.outfit === 'stripes' ? { on: [1.3, 1.5], col: p.acc.f, a: 1 } : null);
+  const along = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  // an arm in its sleeve (a T-shirt's stops short of the elbow), and its glove or hand
+  function arm(c, p, a, w, t, skin) {
+    if (p.outfit === 'tee') { limb(c, a, w * 0.85, skin); limb(c, [a[0], along(a[0], a[1], 0.7)], w * 1.05, t); }
+    else limb(c, a, w, t, sleeve(p));
+    glove(c, p, ...a[2]);
+  }
+  // a leg in its trousers, or bare below shorts (or a skirt)
+  function leg(c, p, pts, w, t, skin) {
+    if (p.legs !== 'shorts' && p.legs !== 'skirt') { limb(c, pts, w, t); return; }
+    limb(c, pts, w * 0.82, skin);
+    if (p.legs === 'shorts') limb(c, [pts[0], along(pts[0], pts[1], 0.8)], w * 1.08, t);
+  }
   function glove(c, p, x, y) {
-    part(c, p.glove, (cc) => ell(cc, x, y, 2.2, 2.3), (cc) => cc.rect(x + 0.4, y - 3, 3, 6), (cc) => ell(cc, x - 1, y - 1, 0.6, 0.5));
+    if (p.player) { part(c, p.skin, (cc) => ell(cc, x, y, 1.8, 2), (cc) => cc.rect(x + 0.4, y - 3, 3, 6)); return; } // a bare hand
+    part(c, p.glove,(cc) => ell(cc, x, y, 2.2, 2.3), (cc) => cc.rect(x + 0.4, y - 3, 3, 6), (cc) => ell(cc, x - 1, y - 1, 0.6, 0.5));
     c.strokeStyle = OUT; c.lineWidth = 0.4; c.beginPath(); c.moveTo(x - 1.6, y - 1.4); c.lineTo(x + 1.6, y - 1.4); c.stroke();
   }
   // heads are drawn a size up, grown from the neck
   function bigHead(c) { c.translate(0, -29.4); c.scale(1.16, 1.16); c.translate(0, 29.4); }
 
   function front(c, p, k, back) {
-    const by = -k.bob - (k.sk ? 1.2 : 0), W = p.W, lw = 0.82 + 0.18 * W;
+    const by = -k.bob - (k.sk ? 1.2 : 0), view = back ? 'back' : 'front';
     if (!back) { c.save(); c.translate(0, by); bigHead(c); hairBehind(c, p, 'front'); c.restore(); }
     for (const s of [-1, 1]) {
       const push = Math.max(0, s * k.sw), lift = k.mv ? push * (k.sk ? 1 : 1.8) : 0;
       const out = k.sk ? push * 3 : 0;
-      const ax = s * (2.9 * W + out), ay = -lift;
-      limb(c, [[s * 2.8 * W, -14.4 + by], [s * (3.1 * W + out * 0.5) + (k.sk ? s * 0.6 : 0), -8.4 + by * 0.5 - lift * 0.4], [ax, -2.4 + ay]], 4.6 * lw, p.pants);
+      const ax = s * (2.9 + out), ay = -lift;
+      leg(c, p, [[s * 2.8, -14.4 + by], [s * (3.1 + out * 0.5) + (k.sk ? s * 0.6 : 0), -8.4 + by * 0.5 - lift * 0.4], [ax, -2.4 + ay]], 4.6, p.pants, p.skin);
       feet(c, p, ax, ay, k.sk, false);
     }
-    const sw = (p.female ? 6.6 : 7.8) * W + p.belly * 0.6;
+    if (p.legs === 'skirt') skirt(c, p, view, by);
+    const sw = p.female ? 6.6 : 7.8;
     const arms = [-1, 1].map((s) => {
       const swing = k.mv ? -s * k.sw * 1.4 : 0;
       return k.sk ? [[s * (sw - 1), -26.6 + by], [s * (sw + 2.6), -22.4 + by + swing * 0.5], [s * (sw + 4.6), -19.2 + by + swing]]
         : [[s * (sw - 1), -26.6 + by], [s * (sw + 0.5), -21.2 + by + swing * 0.4], [s * (sw + 0.1), -16.4 + by + swing]];
     });
-    torso(c, p, back ? 'back' : 'front', by);
-    arms.forEach((a) => { limb(c, a, 4.4 * lw, p.coat, sleeve(p)); glove(c, p, ...a[2]); });
-    collar(c, p, back ? 'back' : 'front', by, k);
+    torso(c, p, view, by);
+    if (p.legs === 'overalls') bib(c, p, view, by);
+    arms.forEach((a) => arm(c, p, a, 4.4, p.arms, p.skin));
+    collar(c, p, view, by, k);
     c.save(); c.translate(0, by); bigHead(c);
     for (const s of [-1, 1]) part(c, p.skin, (cc) => ell(cc, s * 4.6, -33.8, 0.95, 1.5));
     if (back) hairBack(c, p);
@@ -652,11 +846,12 @@ window.HD = (function () {
       face(c, p, k);
       hairFront(c, p);
     }
-    hat(c, p, back ? 'back' : 'front');
+    worn(c, p, view);
+    hat(c, p, view);
     c.restore();
   }
   function side(c, p, k) {
-    const by = -k.bob - (k.sk ? 1.4 : 0), lw = 0.82 + 0.18 * p.W;
+    const by = -k.bob - (k.sk ? 1.4 : 0);
     const legs = [1, -1].map((s) => { // far leg first; forward is -x
       const push = Math.max(0, s * k.sw);
       if (k.sk) return { hip: [0, -15 + by], knee: [-2.6 + push * 3.4, -8.4 + by * 0.5], foot: [-1 + push * 6.4, -push * 1.8] };
@@ -667,25 +862,25 @@ window.HD = (function () {
     const pivot = (fn) => { c.save(); c.translate(0, -15 + by); c.rotate(lean); c.translate(0, 15 - by); fn(); c.restore(); };
     const armAt = (s) => {
       const sw = k.mv ? (k.sk ? s * k.sw * 5 : -s * k.sw * 3) : 0;
-      return [[0.2, -26.4 + by], [0.4 + sw * 0.5 - p.belly, -21.4 + by], [0.2 + sw - p.belly * 1.6, -16.6 + by + Math.abs(sw) * 0.25]];
+      return [[0.2, -26.4 + by], [0.4 + sw * 0.5, -21.4 + by], [0.2 + sw, -16.6 + by + Math.abs(sw) * 0.25]];
     };
-    const far = flat(p.coat.s);
-    pivot(() => { const a = armAt(1); limb(c, a, 4.2 * lw, far, sleeve(p)); glove(c, p, ...a[2]); });
+    pivot(() => arm(c, p, armAt(1), 4.2, flat(p.arms.s), flat(p.skin.s)));
     legs.forEach((l, i) => {
-      limb(c, [l.hip, l.knee, [l.foot[0], l.foot[1] - 2.4]], 4.4 * lw, i ? p.pants : flat(p.pants.s));
+      leg(c, p, [l.hip, l.knee, [l.foot[0], l.foot[1] - 2.4]], 4.4, i ? p.pants : flat(p.pants.s), i ? p.skin : flat(p.skin.s));
       feet(c, p, l.foot[0], l.foot[1], k.sk, true);
     });
+    if (p.legs === 'skirt') skirt(c, p, 'side', by);
     pivot(() => {
       c.save(); c.translate(0, by); bigHead(c); hairBehind(c, p, 'side'); c.restore();
       torso(c, p, 'side', by);
-      const a = armAt(-1);
-      limb(c, a, 4.4 * lw, p.coat, sleeve(p));
-      glove(c, p, ...a[2]);
+      if (p.legs === 'overalls') bib(c, p, 'side', by);
+      arm(c, p, armAt(-1), 4.4, p.arms, p.skin);
       collar(c, p, 'side', by, k);
       c.save(); c.translate(0, by); bigHead(c);
       part(c, p.skin, (cc) => headSide(cc, p), (cc) => { cc.moveTo(0.6, -44); cc.lineTo(8, -44); cc.lineTo(8, -26); cc.lineTo(0, -26); cc.closePath(); }, (cc) => ell(cc, -3, -38.6, 1.4, 0.7, -0.2));
       faceSide(c, p, k);
       hairSide(c, p);
+      worn(c, p, 'side');
       hat(c, p, 'side');
       c.restore();
     });
@@ -698,8 +893,8 @@ window.HD = (function () {
     const mv = o.walk >= 0, a = mv ? o.walk * TAU : 0;
     const k = { mv, a, sw: Math.sin(a), sk: !!o.skate, t: o.walk * 24, bob: mv ? Math.abs(Math.cos(a)) * (o.skate ? 0.6 : 1) : 0, blink: o.blink };
     c.save();
-    c.fillStyle = 'rgba(40, 50, 90, 0.28)'; ell(c, 0, 0, 7.4 * p.W, 2.3); c.fill();
-    c.scale((o.dir === 'right' ? -SIZE : SIZE) * p.H, SIZE * p.H);
+    c.fillStyle = 'rgba(40, 50, 90, 0.28)'; ell(c, 0, 0, 7.4, 2.3); c.fill();
+    c.scale(o.dir === 'right' ? -SIZE : SIZE, SIZE);
     c.lineJoin = 'round'; c.lineCap = 'round';
     if (k.sk && o.dir !== 'left' && o.dir !== 'right') c.rotate(k.sw * 0.06);
     if (o.dir === 'left' || o.dir === 'right') side(c, p, k);

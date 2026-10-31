@@ -269,6 +269,22 @@ window.LOT3D = (function () {
       g.lineWidth = 8; g.strokeStyle = '#16121c';
       for (const x of [0, w]) { g.strokeText(String(num), x, h * 0.47); g.fillStyle = '#f4f2ec'; g.fillText(String(num), x, h * 0.47); }
     }, 1, 1, 0.5);
+    // a player's shirts: stripes all the way round, a sweater's band of diamonds across the
+    // chest (and ribs at the hem), and a hi-vis vest's two silver stripes
+    const bands = (base, stripe, n) => tex('bands' + base + stripe + n, 16, 64, (g, w, h) => {
+      g.fillStyle = base; g.fillRect(0, 0, w, h);
+      g.fillStyle = stripe; for (let i = 0; i < n; i++) g.fillRect(0, (i + 0.25) * h / n, w, h / n / 2);
+    });
+    const sweater = (base, acc) => tex('sweater' + base + acc, 128, 64, (g, w, h) => {
+      g.fillStyle = base; g.fillRect(0, 0, w, h);
+      g.fillStyle = acc; g.fillRect(0, 24, w, 2); g.fillRect(0, 36, w, 2);
+      for (let x = 4; x < w; x += 8) { g.beginPath(); g.moveTo(x, 27); g.lineTo(x + 3.5, 31); g.lineTo(x, 35); g.lineTo(x - 3.5, 31); g.closePath(); g.fill(); }
+      g.fillStyle = mixc(base, '#000000', 0.22); for (let x = 0; x < w; x += 4) g.fillRect(x, h - 7, 1.5, 7);
+    });
+    const hivis = (base) => tex('hivis' + base, 16, 64, (g, w, h) => {
+      g.fillStyle = base; g.fillRect(0, 0, w, h);
+      for (const y of [30, 41]) { g.fillStyle = '#3a3440'; g.fillRect(0, y - 1, w, 6); g.fillStyle = '#e8ecf2'; g.fillRect(0, y, w, 4); }
+    });
     // wood: planks with a gap between them, grain running along them, a knot or two and nail heads
     const planks = (base, n, across, rx, ry) => tex('planks' + base + n + across + rx + ry, 256, 128, (g, w, h) => {
       const r = rng(n * 31 + w);
@@ -363,15 +379,17 @@ window.LOT3D = (function () {
     }
 
     // ---------- people ----------
-    // Built from an HD.person spec: hair, hat, beard, build, outfit and collar, in the
-    // colours the flat art uses. Legs bend at the knee and arms at the elbow; everything
-    // above the waist sits in `upper` so it can twist against the hips. Boots and skates
-    // are both there; the skates show on ice, and turn at the ankle.
+    // Built from an HD.person spec: hair, hat, beard, outfit and collar, in the colours the
+    // flat art uses, or a player's look (their shirt, pants and head thing) from the
+    // character editor. Everyone's the same size. Legs bend at the knee and arms at the
+    // elbow; everything above the waist sits in `upper` so it can twist against the hips.
+    // Boots (shoes, on a player) and skates are both there; the skates show on ice, and turn
+    // at the ankle.
     const HIP_Y = 0.62, THIGH = 0.27, SHIN = 0.24, BLADE = 0.16; // hip height, hip to knee, knee to ankle, ankle to the ice
     function buildPerson(p) {
-      const W = p.W, belly = p.belly, female = p.female, parka = p.outfit === 'parka';
+      const female = p.female, parka = p.outfit === 'parka';
       const root = new T.Group(), body = new T.Group();
-      body.scale.setScalar(p.H); root.add(body);
+      root.add(body);
       const rig = new T.Group(), upper = new T.Group();
       body.add(rig); rig.add(upper);
       const skinM = toon(p.skin.f), hairM = toon(p.hairC.f), gloveM = toon(p.glove.f), fleeceM = toon(p.fleece.f), creamM = toon(p.cream.f);
@@ -379,23 +397,28 @@ window.LOT3D = (function () {
       if (p.outfit === 'jersey') { coatM = toon(null, jersey(p.coat.f, p.acc.f, p.number)); sleeveM = toon(p.coat.f); }
       else if (parka) { coatM = toon(null, quilt(p.coat.f, 6, true)); sleeveM = toon(null, quilt(p.coat.f, 4, false)); }
       else if (p.outfit === 'denim') { coatM = toon(null, denim(p.coat.f, true)); sleeveM = toon(null, denim(p.coat.f, false)); pantsM = toon(null, denim(p.pants.f, false)); }
-      else coatM = sleeveM = toon(null, plaid(p.coat.f, p.checks));
+      else if (p.player) {
+        const shirt = { stripes: () => bands(p.coat.f, p.acc.f, 8), sweater: () => sweater(p.coat.f, p.acc.f), hivis: () => hivis(p.coat.f) }[p.outfit];
+        coatM = shirt ? toon(null, shirt()) : toon(p.coat.f);
+        sleeveM = p.outfit === 'stripes' ? toon(null, bands(p.coat.f, p.acc.f, 4)) : toon(p.arms.f);
+      } else coatM = sleeveM = toon(null, plaid(p.coat.f, p.checks));
 
-      const r = 0.245 * W * (female ? 0.9 : 1) * (parka ? 1.1 : 1);
+      const r = 0.245 * (female ? 0.9 : 1) * (parka ? 1.1 : 1);
       const tb = parka ? 0.47 : 0.58, th = parka ? 0.82 : 0.72, top = tb + th;
 
-      // legs: thigh, knee, shin, and boots or skates
+      // legs: thigh, knee, shin, and boots or skates (bare below shorts or a skirt)
       const hips = {}, knees = {}, boots = [], skates = [];
+      const bare = p.legs === 'shorts' || p.legs === 'skirt', shinM = bare ? skinM : pantsM, legR = bare ? 0.8 : 1;
       for (const s of [-1, 1]) {
         const hip = new T.Group(), knee = new T.Group();
-        hip.position.set(s * 0.115 * W * (female ? 0.9 : 1), HIP_Y, 0); rig.add(hip);
-        hip.add(at(cyl(0.1, 0.092, THIGH, pantsM, null, 10, true), 0, -THIGH / 2, 0));
+        hip.position.set(s * 0.115 * (female ? 0.9 : 1), HIP_Y, 0); rig.add(hip);
+        hip.add(at(cyl(0.1, 0.092, THIGH, p.legs === 'skirt' ? skinM : pantsM, null, 10, true), 0, -THIGH / 2, 0));
         knee.position.y = -THIGH; hip.add(knee);
-        knee.add(ball(pantsM, 0, 0, 0, 0.093, 0.093, 0.093, { ol: false }));
-        knee.add(at(cyl(0.092, 0.086, 0.23, pantsM, null, 10, true), 0, -0.115, 0));
+        knee.add(ball(shinM, 0, 0, 0, 0.093 * legR, 0.093 * legR, 0.093 * legR, { ol: false }));
+        knee.add(at(cyl(0.092 * legR, 0.086 * legR, 0.23, shinM, null, 10, true), 0, -0.115, 0));
         const bt = new T.Group(), sk = new T.Group();
         knee.add(bt); knee.add(sk); boots.push(bt); skates.push(sk);
-        bt.add(at(cyl(0.1, 0.106, 0.08, toon('#efe6d2'), null, 10), 0, -0.16, 0));
+        if (!p.player) bt.add(at(cyl(0.1, 0.106, 0.08, toon('#efe6d2'), null, 10), 0, -0.16, 0));
         bt.add(ball(toon(p.boot.f), 0, -0.26, 0.045, 0.12, 0.1, 0.18));
         bt.add(at(box(0.22, 0.03, 0.34, toon(p.sole.f), { ol: false }), 0, -0.345, 0.045));
         sk.position.y = -SHIN;
@@ -407,10 +430,22 @@ window.LOT3D = (function () {
       }
       rig.add(ball(pantsM, 0, 0.64, 0, r * 0.88, 0.13, r * 0.7));
 
-      // torso, belly, vest
+      // torso, vest, and a player's skirt or overalls
       const torso = at(mesh(torsoGeo(r, th), coatM), 0, tb, 0);
       torso.scale.z = 0.8; upper.add(torso);
-      if (belly) upper.add(ball(coatM, 0, tb + 0.28, 0.07 + 0.06 * belly, 0.2 + 0.07 * belly, 0.18 + 0.05 * belly, 0.17 + 0.06 * belly));
+      if (p.legs === 'skirt') { const sk = at(cyl(r * 0.92, 0.3, 0.27, pantsM, null, 18), 0, 0.55, 0); sk.scale.z = 0.85; rig.add(sk); }
+      if (p.legs === 'overalls') {
+        const band = at(cyl(r * 1.03, r * 0.97, 0.14, pantsM, null, 20), 0, tb + 0.08, 0);
+        band.scale.z = 0.82; upper.add(band);
+        upper.add(at(box(0.24, 0.26, 0.03, pantsM), 0, tb + 0.24, r * 0.84));
+        // the straps, up over the shoulders and down the back
+        for (const s of [-1, 1]) for (const z of [-1, 1]) {
+          const pts = [[0.08, tb + 0.3, 0.84], [0.09, top - 0.12, 0.8], [0.1, top - 0.03, 0.55]].map(([x, y, d]) => new V3(s * x, y, z * r * d));
+          upper.add(rod(pts[0], pts[1], 0.018, pantsM)); upper.add(rod(pts[1], pts[2], 0.018, pantsM));
+          if (z > 0) upper.add(ball(toon('#e8c87a'), s * 0.08, tb + 0.33, r * 0.84 + 0.02, 0.02, 0.02, 0.012, { ol: false }));
+        }
+        for (const s of [-1, 1]) upper.add(rod(new V3(s * 0.1, top - 0.03, r * 0.55), new V3(s * 0.1, top - 0.03, -r * 0.55), 0.018, pantsM));
+      }
       if (p.outfit === 'vest') {
         const v = at(mesh(torsoGeo(r * 1.07, th * 0.97, 0.36), toon(null, quilt(p.acc.f, 5, false), T.DoubleSide)), 0, tb + 0.02, 0);
         v.scale.z = 0.86; upper.add(v);
@@ -421,14 +456,18 @@ window.LOT3D = (function () {
       for (const s of [-1, 1]) {
         const sh = new T.Group(), el = new T.Group();
         sh.position.set(s * sx, sy, 0); sh.rotation.z = s * 0.12; upper.add(sh);
+        // (a T-shirt's sleeves stop short of the elbow, with the arm bare below)
+        const tee = p.outfit === 'tee', lowM = tee ? skinM : sleeveM, lowR = tee ? armR * 0.82 : armR;
         sh.add(ball(sleeveM, 0, 0, 0, armR + 0.02, armR + 0.02, armR + 0.02));
-        sh.add(at(cyl(armR, armR * 0.95, 0.22, sleeveM, null, 10, true), 0, -0.11, 0));
+        if (tee) sh.add(at(cyl(armR + 0.012, armR + 0.006, 0.12, sleeveM, null, 10, true), 0, -0.06, 0));
+        sh.add(at(cyl(lowR, lowR * 0.95, 0.22, lowM, null, 10, true), 0, -0.11, 0));
         el.position.y = -0.22; sh.add(el);
-        el.add(ball(sleeveM, 0, 0, 0, armR * 0.96, armR * 0.96, armR * 0.96, { ol: false }));
-        el.add(at(cyl(armR * 0.95, armR * 0.88, 0.2, sleeveM, null, 10, true), 0, -0.1, 0));
+        el.add(ball(lowM, 0, 0, 0, lowR * 0.96, lowR * 0.96, lowR * 0.96, { ol: false }));
+        el.add(at(cyl(lowR * 0.95, lowR * 0.88, 0.2, lowM, null, 10, true), 0, -0.1, 0));
         if (p.outfit === 'jersey') el.add(at(cyl(armR, armR, 0.07, toon(p.acc.f), { ol: false }, 10, true), 0, -0.06, 0));
         if (parka) { const cuff = at(mesh(new T.TorusGeometry(armR * 0.9, 0.03, 6, 14), creamM), 0, -0.19, 0); cuff.rotation.x = Math.PI / 2; el.add(cuff); }
-        el.add(ball(gloveM, 0, -0.25, 0.01, 0.085, 0.1, 0.09));
+        if (p.player) el.add(ball(gloveM, 0, -0.23, 0.01, 0.068, 0.08, 0.072)); // a bare hand
+        else el.add(ball(gloveM, 0, -0.25, 0.01, 0.085, 0.1, 0.09));
         arms[s] = sh; elbows[s] = el;
       }
 
@@ -445,6 +484,29 @@ window.LOT3D = (function () {
         upper.add(ring(r * 0.66, 0.075, sm, top - 0.02));
         const tail = at(box(0.13, 0.34, 0.045, sm), 0.09, top - 0.2, r * 0.72);
         tail.rotation.z = 0.12; upper.add(tail);
+      }
+      // a player's neckline: a tie (with a suit's white shirt behind it), a crew neck, a
+      // necklace, a hood, or the shirt under a hi-vis vest
+      const vee = (rad, col, y) => { const v = at(new T.Mesh(new T.CircleGeometry(rad, 3), basic(col)), 0, y, r * 0.82 + 0.008); v.rotation.set(-0.12, 0, -Math.PI / 2); upper.add(v); };
+      if (p.player) {
+        if (p.outfit === 'suit') vee(0.15, '#f4f4f8', top - 0.1);
+        if (p.outfit === 'tie' || p.outfit === 'suit') {
+          const accM = toon(p.acc.f), len = p.outfit === 'suit' ? 0.2 : 0.46;
+          const tie = at(box(0.05, len, 0.015, accM, { ol: false }), 0, top - 0.05 - len / 2, r * 0.82 + 0.014);
+          tie.rotation.x = -0.08; upper.add(tie);
+          upper.add(ball(accM, 0, top - 0.045, r * 0.74, 0.034, 0.03, 0.022));
+          upper.add(ring(r * 0.58, 0.03, toon(p.outfit === 'suit' ? '#f4f4f8' : p.coat.f), top - 0.02));
+        }
+        if (['tee', 'stripes', 'sweater'].includes(p.outfit)) upper.add(ring(r * 0.56, 0.028, toon(p.outfit === 'tee' ? p.acc.f : mixc(p.coat.f, '#000000', 0.2)), top - 0.02));
+        if (p.outfit === 'blouse') { vee(0.08, p.skin.f, top - 0.06); upper.add(ball(toon(p.acc.f), 0, top - 0.13, r * 0.82 + 0.012, 0.02, 0.024, 0.012, { ol: false })); }
+        if (p.outfit === 'hivis') vee(0.1, p.arms.f, top - 0.07);
+        if (p.outfit === 'hoodie') {
+          const hood = ring(r * 0.66, 0.07, coatM, top - 0.02);
+          hood.position.z = -0.03; upper.add(hood);
+          upper.add(ball(coatM, 0, top - 0.15, -r * 0.74, 0.17, 0.13, 0.07));
+          upper.add(at(box(0.26, 0.11, 0.03, toon(mixc(p.coat.f, '#000000', 0.18))), 0, tb + 0.14, r * 0.8 + 0.01));
+          for (const s of [-1, 1]) upper.add(rod(new V3(s * 0.04, top - 0.03, r * 0.76), new V3(s * 0.045, top - 0.2, r * 0.84), 0.009, toon(p.acc.f), { ol: false }));
+        }
       }
 
       // the head
@@ -471,7 +533,7 @@ window.LOT3D = (function () {
       const hat = p.hat !== 'none', hair = p.hair;
       if (hair === 'bald') head.add(ball(hairM, 0, -0.07, -0.05, 0.28, 0.17, 0.25));
       else head.add(ball(hairM, 0, 0.01, -0.035, 0.285, 0.29, 0.272));
-      if (!hat && !['bald', 'spiky', 'curly'].includes(hair)) {
+      if (!hat && !['bald', 'buzz', 'spiky', 'curly'].includes(hair)) {
         const fringe = ball(hairM, hair === 'swept' ? 0.07 : 0, 0.17, 0.13, 0.22, 0.09, 0.12);
         if (hair === 'swept') fringe.rotation.z = 0.35;
         head.add(fringe);
@@ -510,7 +572,7 @@ window.LOT3D = (function () {
       // hats
       if (p.hat === 'toque' || p.hat === 'stripes' || p.hat === 'leaf') {
         // the striped one is cream with green, red, yellow and navy bands; the leaf one is red
-        const wool = p.hat === 'stripes' ? p.cream.f : p.hat === 'leaf' ? '#c8282e' : p.acc.f;
+        const wool = p.hat === 'stripes' ? p.cream.f : p.hat === 'leaf' ? '#c8282e' : p.hatC.f;
         head.add(at(mesh(HEMI, toon(null, p.hat === 'stripes' ? striped(wool) : knit(wool))), 0, 0.085, 0, 0.29, 0.31, 0.285));
         head.add(at(cyl(0.296, 0.3, 0.1, toon(mixc(wool, '#000000', 0.12)), null, 22), 0, 0.11, 0));
         if (p.pom || p.hat === 'stripes') head.add(ball(toon(p.hat === 'stripes' ? '#d83a30' : p.pomT.f), 0, 0.43, 0, 0.085, 0.085, 0.085));
@@ -526,6 +588,48 @@ window.LOT3D = (function () {
           head.add(ball(pm, s * 0.275, -0.04, -0.01, 0.06, 0.15, 0.13));
           head.add(ball(fleeceM, s * 0.28, -0.17, -0.01, 0.065, 0.045, 0.12));
         }
+      }
+      // a player's head thing: a cap, a hard hat or a cowboy hat, or glasses, shades,
+      // headphones or a bow with the hair showing
+      const hatM = toon(p.hatC.f);
+      if (p.hat === 'cap') {
+        head.add(at(mesh(HEMI, hatM), 0, 0.06, -0.005, 0.292, 0.27, 0.285));
+        const peak = at(cyl(0.2, 0.2, 0.024, hatM, null, 18), 0, 0.075, 0.2);
+        peak.scale.z = 0.9; peak.rotation.x = 0.1; head.add(peak);
+        head.add(ball(hatM, 0, 0.33, 0, 0.03, 0.02, 0.03));
+      }
+      if (p.hat === 'hardhat') {
+        head.add(at(mesh(HEMI, hatM), 0, 0.07, 0, 0.31, 0.33, 0.305));
+        head.add(at(mesh(HEMI, hatM), 0, 0.07, 0, 0.055, 0.35, 0.33)); // the ridge over the top
+        const brim = at(cyl(0.36, 0.36, 0.022, hatM, null, 22), 0, 0.075, 0.025);
+        brim.scale.z = 1.08; head.add(brim);
+      }
+      if (p.hat === 'cowboy') {
+        const brim = at(cyl(0.5, 0.5, 0.025, hatM, null, 24), 0, 0.09, 0);
+        brim.scale.z = 0.88; head.add(brim);
+        head.add(at(cyl(0.21, 0.25, 0.24, hatM, null, 18), 0, 0.22, 0));
+        head.add(at(cyl(0.255, 0.26, 0.05, toon('#5c4c3a'), { ol: false }, 18), 0, 0.13, 0));
+        head.add(ball(toon(mixc(p.hatC.f, '#000000', 0.25)), 0, 0.335, 0, 0.15, 0.03, 0.11, { ol: false })); // the crease
+      }
+      if (p.wear === 'glasses' || p.wear === 'shades') {
+        const fm = basic('#16121c'), thin = { ol: false, cast: false };
+        for (const s of [-1, 1]) {
+          head.add(at(mesh(new T.TorusGeometry(0.048, 0.009, 6, 16), fm, thin), s * 0.092, -0.005, 0.27));
+          if (p.wear === 'shades') head.add(at(new T.Mesh(new T.CircleGeometry(0.046, 16), basic('#1c1a26')), s * 0.092, -0.005, 0.271));
+          head.add(rod(new V3(s * 0.14, 0, 0.262), new V3(s * 0.24, 0.005, 0.17), 0.008, fm, thin));
+          head.add(rod(new V3(s * 0.24, 0.005, 0.17), new V3(s * 0.274, 0, 0.03), 0.008, fm, thin));
+        }
+        head.add(rod(new V3(-0.044, 0, 0.272), new V3(0.044, 0, 0.272), 0.008, fm, thin));
+      }
+      if (p.wear === 'headphones') {
+        head.add(mesh(new T.TorusGeometry(0.315, 0.022, 6, 20, Math.PI), hatM));
+        for (const s of [-1, 1]) { const cup = at(cyl(0.08, 0.08, 0.06, toon('#c8352f'), null, 14), s * 0.3, -0.02, 0); cup.rotation.z = Math.PI / 2; head.add(cup); }
+      }
+      if (p.wear === 'bow') {
+        const bow = new T.Group();
+        bow.position.set(0.17, 0.26, 0); bow.rotation.z = -0.5; head.add(bow);
+        for (const s of [-1, 1]) { const loop = ball(hatM, s * 0.06, 0, 0, 0.065, 0.045, 0.03); loop.rotation.z = s * 0.3; bow.add(loop); }
+        bow.add(ball(hatM, 0, 0, 0, 0.025, 0.03, 0.03));
       }
 
       // each part that moves as one (the head, a shin, a boot) welded into a mesh per material

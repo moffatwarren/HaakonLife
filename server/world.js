@@ -11,6 +11,9 @@
 //                                  connecting: everyone here, the server's clock, and any
 //                                  game you're still in or table you're still sitting at
 //   { k: 'p', id, r }              someone's record changed (r is null once they've gone)
+//   { k: 'ps', ps: { id: r } }     instead of 'p', for a copy that connected with &b=1:
+//                                  everyone whose record changed since the last one,
+//                                  bundled up 30 times a second (see flush)
 //   { k: 'm', m: {...} }           a message for you, with `from`, `n` (their name) and `t`
 //   { k: 'st', m, s } / { k: 'end', m, r }  a server-run game's state, and its result
 //   { k: 'tb', t, s, r }           what you see at a table (see tables.js)
@@ -24,6 +27,10 @@ const MAIL_MAX = 50; // messages kept for someone whose connection has dropped
 const KEEP = 600000; // ms an id stays reserved for its owner after they disconnect
 const ASK_MS = 60000; // ms a challenge stays open
 const PER_SEC = 100; // messages a second from one player before the rest are dropped
+// How often changed records go out to copies that take bundles: 30 times a second. A step
+// from one tile to the next takes four of these, so other players walk as smoothly as when
+// every record went out on its own. (At ten a second they'd stutter.)
+export const BUNDLE_MS = 1000 / 30;
 
 // a copy of o if it's a flat object of allowed values, otherwise null
 function flat(o) {
@@ -40,8 +47,9 @@ function flat(o) {
 export class World {
   constructor(name, games = {}, now = Date.now, kinds = {}) {
     Object.assign(this, { name, games, now, kinds });
-    this.players = new Map(); // id -> { id, key, sock, rec, mail, goneAt, room, table, rate }
+    this.players = new Map(); // id -> { id, key, sock, bundles, rec, mail, goneAt, room, table, rate }
     this.socks = new Map(); // connection -> player
+    this.moved = new Map(); // id -> record (null once they've gone), changed since the last bundle
     this.asks = new Map(); // matchId -> an open challenge for a server-run game
     this.rooms = new Map(); // matchId -> Room
     this.tables = new Map(); // key (from kinds) -> Table, while anyone's sitting at it
@@ -50,14 +58,14 @@ export class World {
   online() { return [...this.players.values()].filter((p) => p.sock).length; }
 
   // A connection says who it is. The id is the browser's own, so it keeps it across a
-  // reconnect; the key proves it's the same browser. Returns false if the id is someone
-  // else's.
-  join(id, key, sock) {
+  // reconnect; the key proves it's the same browser. bundles: it takes 'ps' rather than
+  // 'p'. Returns false if the id is someone else's.
+  join(id, key, sock, bundles = false) {
     let p = this.players.get(id);
     if (p && p.key !== key) return false;
-    if (!p) this.players.set(id, p = { id, key, sock: null, rec: null, mail: [], goneAt: 0, room: null, table: null, rate: { s: 0, n: 0 } });
+    if (!p) this.players.set(id, p = { id, key, sock: null, bundles, rec: null, mail: [], goneAt: 0, room: null, table: null, rate: { s: 0, n: 0 } });
     const old = p.sock;
-    p.sock = sock; p.goneAt = 0;
+    p.sock = sock; p.goneAt = 0; p.bundles = bundles;
     this.socks.set(sock, p);
     if (old) old.close(4000, 'replaced'); // the same tab reconnecting: drop the stale one
     const players = {};
@@ -74,7 +82,7 @@ export class World {
     this.socks.delete(sock);
     if (!p || p.sock !== sock) return; // replaced by a newer connection
     p.sock = null; p.goneAt = this.now();
-    if (p.rec) { p.rec = null; this.broadcast({ k: 'p', id: p.id, r: null }, p); }
+    if (p.rec) { p.rec = null; this.changed(p, null); }
     if (p.room) this.rooms.get(p.room)?.gone(p.id);
     if (p.table) this.tables.get(p.table)?.gone(p.id);
   }
@@ -91,7 +99,7 @@ export class World {
       if (!['f', 'x', 'y', 'p'].every((k) => typeof r[k] === 'number')) return;
       r.t = this.now();
       p.rec = r;
-      this.broadcast({ k: 'p', id: p.id, r }, p);
+      this.changed(p, r);
     } else if (d.k === 'to') {
       const m = flat(d.m);
       if (!m || typeof d.to !== 'string' || d.to === p.id) return;
@@ -178,9 +186,32 @@ export class World {
     else if (keep && p.mail.length < MAIL_MAX) p.mail.push(msg);
   }
 
-  broadcast(msg, except) {
-    const str = JSON.stringify(msg);
-    for (const p of this.players.values()) if (p !== except && p.sock) this.write(p.sock, str);
+  // Their record changed (r is null once they've gone). A copy that takes bundles hears
+  // about it in the next one; an older copy is sent it straight away.
+  changed(p, r) {
+    this.moved.set(p.id, r);
+    let str;
+    for (const o of this.players.values()) {
+      if (o === p || !o.sock || o.bundles) continue;
+      str ??= JSON.stringify({ k: 'p', id: p.id, r });
+      this.write(o.sock, str);
+    }
+  }
+
+  // Every BUNDLE_MS: everyone whose record changed since the last time, in one message,
+  // the same one for every copy that takes bundles. That's far less work than a message
+  // per change per player once there are more than a few people on. It has your own
+  // record in it too (browsers skip theirs), but nobody is sent a bundle of just theirs.
+  flush() {
+    if (!this.moved.size) return;
+    const only = this.moved.size === 1 ? this.moved.keys().next().value : null;
+    let str;
+    for (const p of this.players.values()) {
+      if (!p.sock || !p.bundles || p.id === only) continue;
+      str ??= JSON.stringify({ k: 'ps', ps: Object.fromEntries(this.moved) });
+      this.write(p.sock, str);
+    }
+    this.moved.clear();
   }
 
   write(sock, msg) {

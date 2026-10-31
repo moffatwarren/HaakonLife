@@ -20,9 +20,10 @@ const srv = start({ port: PORT, games: { count, broken } });
 after(() => srv.close());
 
 let n = 0;
-// a stand-in browser: connect(), then wait for() a message matching a test
-function client(world = 'test', id = 'p' + ++n, key = 'k' + id) {
-  const ws = new WebSocket(`ws://localhost:${PORT}/?w=${world}&id=${id}&key=${key}`);
+// a stand-in browser: connect(), then wait for() a message matching a test. bundles: it
+// asks for everyone's moves bundled up, the way the game does now
+function client(world = 'test', id = 'p' + ++n, key = 'k' + id, bundles = false) {
+  const ws = new WebSocket(`ws://localhost:${PORT}/?w=${world}&id=${id}&key=${key}` + (bundles ? '&b=1' : ''));
   const got = [], waiting = [];
   ws.on('message', (buf) => {
     const d = JSON.parse(buf);
@@ -68,6 +69,30 @@ test('players see each other arrive, move and leave', async () => {
   a.ws.close();
   assert.equal((await b.for((d) => d.k === 'p' && d.id === a.id)).r, null);
   b.ws.close();
+});
+
+test('a copy that takes bundles hears about everyone who moved together, and older copies still one at a time', async () => {
+  const a = client(), b = client(), c = client('test', 'p' + ++n, 'kp' + n, true);
+  for (const x of [a, b, c]) { await x.open(); await x.for((d) => d.k === 'all'); }
+  a.me({ x: 7 }); b.me({ x: 8 });
+  await pause(250);
+  const bundles = c.got.filter((d) => d.k === 'ps');
+  assert.ok(bundles.length >= 1 && bundles.length <= 2);
+  const seen = Object.assign({}, ...bundles.map((d) => d.ps));
+  assert.deepEqual([seen[a.id].x, seen[b.id].x], [7, 8]);
+  assert.ok(!c.got.some((d) => d.k === 'p'));
+  // the older copies hear the newer one straight away, as before; it isn't sent a bundle
+  // of just its own record
+  c.got.length = 0;
+  c.me({ x: 9 });
+  assert.equal((await a.for((d) => d.k === 'p' && d.id === c.id)).r.x, 9);
+  assert.equal((await b.for((d) => d.k === 'p' && d.id === c.id)).r.x, 9);
+  await pause(250);
+  assert.ok(!c.got.some((d) => d.k === 'ps'));
+  // somebody leaving goes in the next bundle
+  a.ws.close();
+  assert.equal((await c.for((d) => d.k === 'ps' && a.id in d.ps)).ps[a.id], null);
+  b.ws.close(); c.ws.close();
 });
 
 test('the live and test worlds never meet', async () => {
