@@ -139,7 +139,8 @@ window.HD = (function () {
   function person(name, body, look, style) {
     const h = hash(name || '?'), st = style || {}, female = body === 'female', g = female ? 'female' : 'male';
     const pickOf = (list, key, bits) => (list.includes(st[key]) ? st[key] : list[(h >>> bits) % list.length]);
-    const hair = pickOf(HAIRS[g], 'hair', 0);
+    // (a hairdo someone asks for can be from either list: a player's look from the character editor)
+    const hair = HAIRS.male.concat(HAIRS.female).includes(st.hair) ? st.hair : pickOf(HAIRS[g], 'hair', 0);
     let hat = st.hat === 'earmuffs' ? 'trapper' : pickOf(HATS, 'hat', 5);
     if (!st.hat && hair === 'bun') hat = 'none';
     const beard = female ? '' : st.beard === false ? 'stubble' : pickOf(BEARDS, 'beard', 9);

@@ -36,10 +36,14 @@
   const miniCanvas = MAPS.floors.map((f) => Art.renderMini(f));
   const charSprites = {};
   GENDERS.forEach((g) => { charSprites[g] = Art.LOOKS[g].map((look) => Art.renderSprites(g, look)); });
-  // Last character picked (used as the default on the select screen).
-  const pick = { gender: GENDERS.includes(store.get('gender')) ? store.get('gender') : 'male', index: 0 };
-  pick.index = Math.min(+store.get('look') || 0, Art.LOOKS[pick.gender].length - 1);
-  let sprites = charSprites[pick.gender][pick.index];
+  // Players' looks (see "the character editor"), each one's sprite sheet made once.
+  const lookSheets = {};
+  const lookSprites = (look) => lookSheets[Art.lookCode(look)] || (lookSheets[Art.lookCode(look)] = Art.renderLook(look));
+  // The look last made in this browser, or from before the editor, the closest thing to
+  // the character last picked.
+  const oldPick = (g, i) => Art.lookLike(g, Art.LOOKS[g][Math.max(0, Math.min(Math.floor(+i) || 0, Art.LOOKS[g].length - 1))]);
+  let myLook = Art.lookFrom(store.get('avatar')) || oldPick(GENDERS.includes(store.get('gender')) ? store.get('gender') : 'male', store.get('look'));
+  let sprites = lookSprites(myLook);
 
   // Curtains ('C' tiles): closed until the player peeks around them, then
   // walkable until they leave the curtained room. Pre-render the open look.
@@ -7694,7 +7698,7 @@
   function wearCostume(key) {
     if (Art.COSTUMES[key]) hw.costume = key;
     hw.worn = true;
-    sprites = Art.renderCostume(pick.gender, Art.LOOKS[pick.gender][pick.index], hw.costume, sdgIcon);
+    sprites = Art.renderLookCostume(myLook, hw.costume, sdgIcon);
   }
   const propAt = (fi, x, y) => (hw.state === 'party' && fi === hw.floor && hw.props.find((p) => p.x === x && p.y === y))
     || (CHRISTMAS && fi === xmas.tree.floor && y === xmas.tree.y && x >= xmas.tree.x && x < xmas.tree.x + 2 && xmas.tree) || null;
@@ -9932,7 +9936,8 @@
     playerName = playerName.trim() || 'New Hire';
     store.set('name', playerName);
     sfx('menu');
-    startFade(HALLOWEEN ? openCostumes : enterOffice);
+    editStart();
+    startFade(() => { mode = 'edit'; });
   }
   function enterOffice() {
     mode = 'play'; roomName = null; curRoom = null; updateRoom();
@@ -10123,12 +10128,12 @@
     const r = roomAt(o.f, o.x, o.y);
     return r ? r.name : MAPS.floors[o.f].name;
   }
-  // Their sprite sheet: the look they picked, in costume if they're wearing one.
+  // Their sprite sheet: the look they made, in costume if they're wearing one.
   const mpSheets = {};
   function mpSprites(o) {
-    const key = o.g + ':' + o.l + ':' + o.c + ':' + sdgIcon.complete;
+    const key = o.a + ':' + o.c + ':' + sdgIcon.complete;
     if (!mpSheets[key])
-      mpSheets[key] = o.c ? Art.renderCostume(o.g, Art.LOOKS[o.g][o.l], o.c, sdgIcon) : charSprites[o.g][o.l];
+      mpSheets[key] = o.c ? Art.renderLookCostume(o.look, o.c, sdgIcon) : lookSprites(o.look);
     return mpSheets[key];
   }
 
@@ -10237,9 +10242,11 @@
       // goodbye: tidy it (and anything still waiting in its inbox) away
       if (!MP_WS && now - (+r.t || 0) > 600000) { mpFetch('/players/' + id, 'DELETE').catch(() => {}); mpFetch('/inbox/' + id, 'DELETE').catch(() => {}); continue; }
       if (r.p !== MP_PROTO) { if (r.p > MP_PROTO && now - r.t < 30000) mp.newer = true; delete mp.others[id]; continue; }
-      const g = GENDERS.includes(r.g) ? r.g : 'male', looks = Art.LOOKS[g];
+      // their look: the one they made (a), or from a copy before the character editor, the
+      // closest thing to the character they picked (g and l)
+      const look = Art.lookFrom(r.a) || oldPick(GENDERS.includes(r.g) ? r.g : 'male', r.l);
       const rec = {
-        n: String(r.n || '?').slice(0, NAME_MAX), g, l: looks[r.l] ? r.l : 0, c: Art.COSTUMES[r.c] ? r.c : '',
+        n: String(r.n || '?').slice(0, NAME_MAX), look, a: Art.lookCode(look), c: Art.COSTUMES[r.c] ? r.c : '',
         f: MAPS.floors[r.f] ? r.f : 0, x: +r.x || 0, y: +r.y || 0, d: DIRS[r.d] ? r.d : 'down', b: !!r.b,
         s: MP_LINES[r.s] ? r.s : -1, w: mpClean((typeof r.w0 === 'string' ? r.w0 : '') + (typeof r.w1 === 'string' ? r.w1 : '')),
         sn: +r.sn || 0, v: +r.v || 0, t: +r.t || 0, tc: !!r.tc,
@@ -10310,7 +10317,9 @@
   // second), and every few seconds anyway so everyone knows you're still here.
   function mpRecord() {
     const rec = {
-      n: playerName || 'New Hire', g: pick.gender, l: pick.index, c: hw.worn ? hw.costume : '', f: P.floor,
+      // (a copy from before the character editor goes by g and l, so it sees one of its own
+      // characters in your place)
+      n: playerName || 'New Hire', a: Art.lookCode(myLook), g: myLook.g, l: 0, c: hw.worn ? hw.costume : '', f: P.floor,
       x: P.x + (P.moving ? P.mdx : 0), y: P.y + (P.moving ? P.mdy : 0), d: P.dir, b: ui.length || fade ? 1 : 0,
       s: mp.say, sn: mp.sayN, v: MP_VER, p: MP_PROTO, tc: isTouch ? 1 : 0,
     };
@@ -10986,7 +10995,7 @@
         const [x, y] = spot(mid(p, q, 0), mid(p, q, 1)), ang = q ? p[4] + wrapA(q[4] - p[4]) * f : p[4];
         return { x, y, ang: wrapA(ang + (flip ? Math.PI : 0)), push: !!n[5], down: +n[6] || 0, fall: n[7] || 1,
           stick: { k: n[8], a: +n[9] || 0, p: +n[10] || 0, hand: 1 }, ring: HOCKEY_RINGS[j % 2], full: k.pk[4] === j,
-          me: j === a.me, look: j === a.me ? null : o ? { n: o.n, g: o.g, l: o.l } : { n: String(w.n || '?'), g: 'male', l: 0 },
+          me: j === a.me, look: j === a.me ? null : o ? { n: o.n, look: o.look } : { n: String(w.n || '?'), look: oldPick('male', 0) },
           tag: j === a.me ? '' : String(w.n || '?') + (w.ai ? ' (CPU)' : '') };
       });
       const [px, py] = spot(mid(a.pk, b && b.pk, 0), mid(a.pk, b && b.pk, 1));
@@ -11277,6 +11286,8 @@
   }
   // someone's look in the smoother style, made once
   const hdPerson = (key, name, body, look, style) => hd.people[key] || (hd.people[key] = HD.person(name, body, look, style));
+  // a player, from the look they made: the same colours, hair and (if it can) head thing
+  const hdLook = (key, name, look) => hdPerson(key, name, look.g, Art.lookColours(look), Art.lookStyle(look));
   const iceAt = (px, py) => tileAt(YARD, Math.round(px / 16), Math.round(py / 16)) === '~';
   // how far through a stride someone is (two steps to a stride), or -1 standing still
   const stride = (moving, step, prog) => (moving ? ((step ? 1 : 0) + prog / 16) / 2 : -1);
@@ -11285,7 +11296,7 @@
     const h = hdScreen(), c = h.c, K = HD.K;
     // (you're only not P.free for a moment, coming out of the doors)
     const px = (P.free ? P.fx : P.x) * 16, py = (P.free ? P.fy : P.y) * 16;
-    const me = 'me:' + playerName + ':' + pick.gender + pick.index, mySpec = hdPerson(me, playerName || 'New Hire', pick.gender, Art.LOOKS[pick.gender][pick.index]);
+    const me = 'me:' + playerName + ':' + Art.lookCode(myLook), mySpec = hdLook(me, playerName || 'New Hire', myLook);
     const npcSpec = (n) => { const { body, look } = lookFor(n.name); return hdPerson('npc:' + n.name, n.name, body, look, personOf(n.name).style); };
     // everyone out here: you, coworkers and other players (in a hockey game, you and
     // whoever you're playing are out on the ice instead)
@@ -11299,8 +11310,8 @@
     }
     const others = mpHere().filter((o) => o.f === YARD && !(sc && hockey.ids && hockey.ids.includes(o.id)));
     for (const o of others) {
-      const [tx, ty] = mpTarget(o), mv = o.px !== tx || o.py !== ty, key = 'mp:' + o.n + ':' + o.g + o.l;
-      people.push({ key, spec: hdPerson(key, o.n, o.g, Art.LOOKS[o.g][o.l]), px: o.px, py: o.py, dir: o.dir, face: o.face,
+      const [tx, ty] = mpTarget(o), mv = o.px !== tx || o.py !== ty, key = 'mp:' + o.n + ':' + o.a;
+      people.push({ key, spec: hdLook(key, o.n, o.look), px: o.px, py: o.py, dir: o.dir, face: o.face,
         walk: mv ? (o.dist / 32) % 1 : -1, skate: iceAt(o.px, o.py) });
     }
     // the view follows you, or in a hockey game the play (mostly the puck, and leaning a
@@ -11310,8 +11321,8 @@
     if (sc) {
       const at = (x, y) => [x * 16 - 8, y * 16 - 8];
       sc.skaters.forEach((p, i) => {
-        const lk = p.look, key = p.me ? me : p.npc ? 'npc:' + p.npc.name : 'mp:' + lk.n + ':' + lk.g + lk.l;
-        const spec = p.me ? mySpec : p.npc ? npcSpec(p.npc) : hdPerson(key, lk.n, lk.g, Art.LOOKS[lk.g][lk.l] || Art.LOOKS[lk.g][0]);
+        const lk = p.look, key = p.me ? me : p.npc ? 'npc:' + p.npc.name : 'mp:' + lk.n + ':' + Art.lookCode(lk.look);
+        const spec = p.me ? mySpec : p.npc ? npcSpec(p.npc) : hdLook(key, lk.n, lk.look);
         // (another player on the ice gets a figure of their own, apart from the one out in the lot)
         people.push({ key: p.look ? 'ice:' + i + ':' + key : key, spec, px: p.x * 16 - 8, py: p.y * 16 - 8,
           dir: ['down', 'right', 'up', 'left'][(Math.round(p.ang / (Math.PI / 2)) + 4) % 4], face: p.ang, walk: p.push ? (tick / 40) % 1 : -1, skate: true,
@@ -11441,7 +11452,7 @@
   function genderBlock(x, y, dx, dy) {
     let r = roomAt(P.floor, x, y);
     if (!r && tileAt(P.floor, x, y) === 'D') r = roomAt(P.floor, x + dx, y + dy);
-    if (!r || !r.gender || r.gender === pick.gender) return null;
+    if (!r || !r.gender || r.gender === myLook.g) return null;
     return 'You can\'t go into the ' + (r.gender === 'male' ? 'boys\'' : 'girls\'') + ' bathroom!';
   }
 
@@ -11805,9 +11816,14 @@
       if (fade.t === 16) fade.cb();
       if (fade.t >= 32) fade = null;
     } else if (mode === 'title') {
-      if (pressed.has('a') || pressed.has('start')) { sfx('menu'); mode = 'select'; }
-    } else if (mode === 'select') {
-      updateSelect();
+      if (pressed.has('a') || pressed.has('start')) {
+        sfx('menu');
+        if (!playerName) playerName = store.get('name') || '';
+        nameKeys.fit(playerName);
+        mode = 'name';
+      }
+    } else if (mode === 'edit') {
+      updateEdit();
     } else if (mode === 'name') {
       updateName();
     } else if (mode === 'costume') {
@@ -11832,49 +11848,137 @@
     pressed.clear();
   }
 
-  // ---------- character select ----------
-  function updateSelect() {
-    const n = Art.LOOKS[pick.gender].length;
-    if (pressed.has('left')) { pick.index = (pick.index + n - 1) % n; sfx('select'); }
-    if (pressed.has('right')) { pick.index = (pick.index + 1) % n; sfx('select'); }
-    if (pressed.has('up') || pressed.has('down')) {
-      pick.gender = pick.gender === 'male' ? 'female' : 'male';
-      pick.index = Math.min(pick.index, Art.LOOKS[pick.gender].length - 1);
-      sfx('select');
-    }
-    if (pressed.has('a') || pressed.has('start')) {
-      sfx('menu');
-      store.set('gender', pick.gender); store.set('look', pick.index);
-      sprites = charSprites[pick.gender][pick.index];
-      if (!playerName) playerName = store.get('name') || '';
-      nameKeys.fit(playerName);
-      startFade(() => { mode = 'name'; });
-    }
+  // ---------- saved looks ----------
+  // Each name's look is kept in the leaderboards' database as well, at
+  // looks/<world>/<name> (the name keyed the same as its scores), so typing your name on
+  // another phone or computer brings your character with it. The hosted copy keeps them
+  // under looks/live and any other copy under looks/test, like playing together, so trying
+  // the editor out never changes anybody's real look. Until the database's rules have a
+  // `looks` part (see the README) this just doesn't find anything, and your look stays
+  // in this browser.
+  const LOOK_URL = BOARD_URL ? BOARD_URL.replace(/\/+$/, '') + '/looks/' + (BOARD_POSTS ? 'live' : 'test') + '/' : '';
+  // (everybody who doesn't type a name is a New Hire, so theirs isn't kept)
+  const lookName = (name) => (LOOK_URL && name && name !== 'New Hire' ? boardKey(name) : '');
+  function lookFetch(name, opts) {
+    const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 4000);
+    return fetch(LOOK_URL + lookName(name) + '.json', Object.assign({ signal: ac.signal }, opts)).finally(() => clearTimeout(timer));
+  }
+  // the look saved under a name, or null if there isn't one (or the database can't be reached)
+  function lookLoad(name) {
+    if (!lookName(name)) return Promise.resolve(null);
+    return lookFetch(name).then((r) => (r.ok ? r.json() : null)).then((r) => (r && Art.lookFrom(r.a)) || null, () => null);
+  }
+  function lookSave(name, look) {
+    if (!lookName(name)) return;
+    lookFetch(name, { method: 'PUT', body: JSON.stringify({ name, a: Art.lookCode(look), t: { '.sv': 'timestamp' } }) }).catch(() => {});
   }
 
-  function drawSelect() {
+  // ---------- the character editor ----------
+  // After your name: make your character, one part a row. It starts as the look saved
+  // under your name, or if there isn't one the last look made in this browser, and DONE
+  // saves it to both. The parts themselves are in js/art.js ("your own character").
+  const LK = Art.LOOK, LOOK_COUNT = Object.fromEntries(Art.LOOK_PARTS);
+  const EDIT_ROWS = [
+    { label: 'GENDER', key: 'g', n: 2, name: (i) => ['Male', 'Female'][i] },
+    { label: 'SKIN', key: 'skin', swatch: (i) => [LK.skins[i]] },
+    { label: 'HAIR', key: 'hair', name: (i) => LK.hairs[i].name },
+    { label: 'HAIR COLOUR', key: 'hairC', swatch: (i) => [LK.hairColours[i][1]], name: (i) => LK.hairColours[i][0] },
+    { label: 'HEAD', key: 'hat', name: (i) => LK.hats[i].name },
+    { label: 'SHIRT', key: 'shirt', name: (i) => LK.shirts[i].name },
+    { label: 'SHIRT COLOUR', key: 'shirtC', swatch: (i) => LK.shirtColours[i].slice(1), name: (i) => LK.shirtColours[i][0] },
+    { label: 'PANTS', key: 'pants', name: (i) => LK.pants[i].name },
+    { label: 'PANTS COLOUR', key: 'pantsC', swatch: (i) => [LK.pantsColours[i][1]], name: (i) => LK.pantsColours[i][0] },
+  ];
+  // row: the part being changed (EDIT_ROWS.length is the RANDOM / DONE buttons, btn the
+  // one picked); wait: ticks left to hold on while your saved look is being looked up
+  const edit = { row: 0, btn: 1, look: null, wait: 0, ask: null };
+  const editValue = (r, look) => (r.key === 'g' ? (look.g === 'female' ? 1 : 0) : look[r.key]);
+  function editSet(r, v) {
+    if (r.key === 'g') edit.look.g = v ? 'female' : 'male';
+    else edit.look[r.key] = v;
+  }
+  // Start on your look (called as the name screen closes), and ask the database for the
+  // one saved under your name, which takes over if there is one.
+  function editStart() {
+    Object.assign(edit, { row: 0, btn: 1, look: Object.assign({}, myLook), wait: lookName(playerName) ? 240 : 0 });
+    const ask = edit.ask = {};
+    lookLoad(playerName).then((look) => {
+      if (edit.ask !== ask || edit.wait <= 0) return; // (too late: you might have changed something by now)
+      if (look) edit.look = look;
+      edit.wait = 0;
+    });
+  }
+  function editRandom() {
+    for (const r of EDIT_ROWS) if (r.key !== 'g') editSet(r, Math.floor(Math.random() * LOOK_COUNT[r.key]));
+    if (Math.random() < 0.4) edit.look.hat = 0; // (most people don't wear anything on their head)
+  }
+  function editDone() {
+    if (fade) return;
+    myLook = Art.lookFix(edit.look);
+    sprites = lookSprites(myLook);
+    store.set('avatar', Art.lookCode(myLook));
+    lookSave(playerName, myLook);
+    sfx('menu');
+    startFade(HALLOWEEN ? openCostumes : enterOffice);
+  }
+  function updateEdit() {
+    if (edit.wait > 0) { edit.wait--; return; }
+    const n = EDIT_ROWS.length, r = EDIT_ROWS[edit.row], d = pressed.has('left') ? -1 : pressed.has('right') ? 1 : 0;
+    if (pressed.has('up')) { edit.row = (edit.row + n) % (n + 1); sfx('select'); }
+    if (pressed.has('down')) { edit.row = (edit.row + 1) % (n + 1); sfx('select'); }
+    if (r && (d || pressed.has('a'))) {
+      const count = r.n || LOOK_COUNT[r.key];
+      editSet(r, (editValue(r, edit.look) + (d || 1) + count) % count);
+      sfx('select');
+    } else if (d) { edit.btn ^= 1; sfx('select'); }
+    else if (pressed.has('a') && edit.btn === 0) { editRandom(); sfx('blip'); }
+    else if (pressed.has('a')) editDone();
+    if (pressed.has('start')) editDone();
+    else if (pressed.has('b')) { sfx('select'); nameKeys.fit(playerName); startFade(() => { mode = 'name'; }); }
+  }
+  function drawEdit() {
     ctx.fillStyle = col.light; ctx.fillRect(0, 0, SW, SH);
     ctx.fillStyle = col.dark; ring(4, 4, SW - 8, SH - 8); ring(6, 6, SW - 12, SH - 12);
-    const title = 'Choose your character';
-    text(title, (SW - title.length * 12) >> 1, 20, 2);
-    GENDERS.forEach((g, gi) => {
-      const y = 62 + gi * 74, label = g.toUpperCase();
-      text(label, 24, y - 2);
-      charSprites[g].forEach((sp, i) => {
-        const x = 36 + i * 70, sel = pick.gender === g && pick.index === i;
-        const frame = sel ? [1, 0, 2, 0][(tick >> 3) & 3] : 0;
-        ctx.drawImage(sp.down[frame], x, y + 12, 48, 48);
-        if (sel) { ctx.fillStyle = col.dark; ring(x - 6, y + 6, 60, 60); ring(x - 5, y + 7, 58, 58); }
-      });
+    const title = 'Make your character';
+    text(title, (SW - title.length * 12) >> 1, 14, 2);
+    // you, walking on the spot and turning round now and then
+    const look = edit.look, sp = lookSprites(look);
+    ctx.drawImage(sp[['down', 'left', 'up', 'right'][(tick >> 6) & 3]][[1, 0, 2, 0][(tick >> 3) & 3]], 20, 52, 80, 80);
+    const who = playerName || 'New Hire';
+    text(who, 60 - who.length * 3, 142);
+    // the parts, each with its choice between arrows
+    EDIT_ROWS.forEach((r, i) => {
+      const y = 42 + i * 16, sel = edit.row === i, c = sel ? col.light : col.dark, v = editValue(r, look);
+      if (sel) { ctx.fillStyle = col.dark; ctx.fillRect(112, y - 3, 198, 14); }
+      text(r.label, 116, y, 1, c);
+      text('<', 198, y, 1, c); text('>', 300, y, 1, c);
+      const name = r.name ? r.name(v) : '', sw = r.swatch ? r.swatch(v) : null;
+      let x = 252 - (((sw ? 9 : 0) + (sw && name ? 4 : 0) + (name ? name.length * 6 - 1 : 0)) >> 1);
+      if (sw) {
+        ctx.fillStyle = c; ctx.fillRect(x, y - 1, 9, 9);
+        ctx.fillStyle = sw[0]; ctx.fillRect(x + 1, y, 7, 7);
+        if (sw[1]) { ctx.fillStyle = sw[1]; ctx.fillRect(x + 1, y + 5, 7, 2); }
+        x += 13;
+      }
+      if (name) text(name, x, y, 1, c);
     });
-    ctext('Arrows: choose   Space: start', SH - 24);
+    ['RANDOM', 'DONE'].forEach((label, i) => {
+      const x = 146 + i * 76, y = 42 + EDIT_ROWS.length * 16 + 4, sel = edit.row === EDIT_ROWS.length && edit.btn === i;
+      ctx.fillStyle = col.dark;
+      if (sel) ctx.fillRect(x, y - 4, 60, 15); else { ring(x, y - 4, 60, 15); ring(x + 1, y - 3, 58, 13); }
+      text(label, x + 30 - label.length * 3, y, 1, sel ? col.light : col.dark);
+    });
+    ctext('Arrows: choose   Space: change   Enter: done', SH - 22);
+    if (edit.wait > 0) {
+      box(60, 96, SW - 120, 40);
+      ctext('Looking you up...', 112);
+    }
   }
 
   // ---------- Halloween costume select ----------
   let costumeCur = 0, costumeSheets = [];
   function openCostumes() {
-    const look = Art.LOOKS[pick.gender][pick.index];
-    costumeSheets = COSTUME_KEYS.map((k) => Art.renderCostume(pick.gender, look, k, sdgIcon));
+    costumeSheets = COSTUME_KEYS.map((k) => Art.renderLookCostume(myLook, k, sdgIcon));
     costumeCur = Math.max(0, COSTUME_KEYS.indexOf(hw.costume));
     mode = 'costume';
   }
@@ -11888,7 +11992,7 @@
       wearCostume(COSTUME_KEYS[costumeCur]);
       store.set('costume', hw.costume);
       startFade(enterOffice);
-    } else if (pressed.has('b')) { sfx('select'); nameKeys.fit(playerName); startFade(() => { mode = 'name'; }); }
+    } else if (pressed.has('b')) { sfx('select'); startFade(() => { mode = 'edit'; }); }
   }
   function drawCostume() {
     ctx.fillStyle = col.light; ctx.fillRect(0, 0, SW, SH);
@@ -12100,13 +12204,13 @@
 
   function draw() {
     // outside, the screen is see-through over the parking lot's own canvas
-    const outside = !['title', 'select', 'name', 'costume'].includes(mode) && P.floor === YARD;
+    const outside = !['title', 'edit', 'name', 'costume'].includes(mode) && P.floor === YARD;
     hdShow(outside);
     setPadMode(outside ? 'stick' : 'dpad');
     if (outside) ctx.clearRect(0, 0, SW, SH);
     else { ctx.fillStyle = col.dark; ctx.fillRect(0, 0, SW, SH); }
     if (mode === 'title') drawTitle();
-    else if (mode === 'select') drawSelect();
+    else if (mode === 'edit') drawEdit();
     else if (mode === 'name') drawName();
     else if (mode === 'costume') drawCostume();
     else {
@@ -12154,7 +12258,11 @@
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
     if (q.has('x')) { P.x = +q.get('x'); P.y = +q.get('y'); }
-    if (q.has('char')) { const [g, i] = q.get('char').split(':'); pick.gender = g; pick.index = +i || 0; sprites = charSprites[g][pick.index]; }
+    // &char=female:2 dresses you as one of the old characters, &look=f12345678 in a look
+    // from the editor (its code, see js/art.js)
+    if (q.has('char')) { const [g, i] = q.get('char').split(':'); myLook = oldPick(GENDERS.includes(g) ? g : 'male', i); }
+    if (Art.lookFrom(q.get('look'))) myLook = Art.lookFrom(q.get('look'));
+    sprites = lookSprites(myLook);
     if (q.has('dir')) P.dir = q.get('dir');
     // &costume=vampire wears that costume (in October you wear your last one anyway);
     // &party=1 starts the boardroom party with you standing by a chair (or at &x=&y=)
@@ -12170,7 +12278,9 @@
     // &yard=1 stands you outside the parking lot's doors (at Christmas, or with &christmas=1)
     if (q.has('yard') && CHRISTMAS) placePlayer(YARD, MAPS.yard.x, MAPS.yard.y + 1, 'down');
     if ((q.has('phone') || q.has('call')) && phone) placePlayer(phone.floor, ...phoneSpot());
-    mode = q.has('title') ? 'title' : q.has('select') ? 'select' : q.has('naming') ? 'name' : 'play';
+    mode = q.has('title') ? 'title' : q.has('naming') ? 'name' : 'play';
+    // &editor=1 opens the character editor
+    if (q.has('editor') || q.has('select')) { editStart(); mode = 'edit'; }
     if (q.has('costumes')) openCostumes();
     updateRoom();
     if (q.has('say')) ask('The elevator. Which floor?', ['GROUND', '2F', 'CANCEL'], () => {});

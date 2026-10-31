@@ -877,6 +877,324 @@ window.Art = (function () {
     ],
   };
 
+  // ---------- your own character (the character editor) ----------
+  // A look is { g, skin, hair, hairC, hat, shirt, shirtC, pants, pantsC }: the body
+  // ('male' or 'female') and a place in each list below. It's saved and sent as a short
+  // code (lookCode), one base-36 digit per part in LOOK_PARTS order, so only ever add to
+  // the end of a list: moving something would change everyone's saved look.
+  // In the pictures, h = hair (H a shade darker), s = skin, w = shirt (v a shade darker),
+  // u = its accent, K = pants; anything else is the ordinary palette.
+  const SKINS = ['#f8dcc0', '#f8d8b8', '#f8d0a8', '#e8b48a', '#d8a070', '#b87848', '#8a5838', '#6a4028'];
+  const HAIR_COLOURS = [
+    ['Brown', '#5a3420'], ['Black', '#201818'], ['Blonde', '#e8c050'], ['Chestnut', '#6a3c20'], ['Ginger', '#d06030'],
+    ['Grey', '#9a9aa4'], ['White', '#ecebf0'], ['Platinum', '#f0e4b8'], ['Blue', '#3868c8'], ['Pink', '#e870a8'],
+    ['Green', '#48a848'], ['Purple', '#7848b8'],
+  ];
+  // a shirt colour and the accent that goes with it (the tie, the stripe, the strings)
+  const SHIRT_COLOURS = [
+    ['White', '#f8f8f8', '#3050a8'], ['Sky', '#78a8e8', '#283878'], ['Green', '#58a848', '#2c6a34'], ['Red', '#b83028', '#f0b030'],
+    ['Pearl', '#f8f8f8', '#d03868'], ['Purple', '#9868c8', '#f8e070'], ['Teal', '#40a0a0', '#f8f8f8'], ['Gold', '#f0b030', '#b83028'],
+    ['Black', '#383848', '#d03838'], ['Grey', '#a0a0b0', '#283878'], ['Pink', '#e878a0', '#f8f8f8'], ['Orange', '#e87830', '#283878'],
+    ['Navy', '#283878', '#f8f8f8'], ['Brown', '#8a5a32', '#f0d0a0'],
+  ];
+  const PANTS_COLOURS = [
+    ['Charcoal', '#484858'], ['Khaki', '#b09870'], ['Black', '#383848'], ['Grey', '#686878'], ['Slate', '#585868'],
+    ['Plum', '#3a3050'], ['Denim', '#4a6c9e'], ['Navy', '#283878'], ['Brown', '#6a4428'], ['Olive', '#5a6a30'],
+    ['Red', '#9a2820'], ['Cream', '#e0d8c0'],
+  ];
+  // Hair: the whole head, from row 0, looking down (at you), up (away) and left (right is
+  // the same flipped). Rows past the chin (row 9) are laid over the shirt, where '.'
+  // leaves the shirt showing. `hd` is the parking lot's nearest hairdo (js/hd.js).
+  const HAIRS = [
+    { name: 'Short', hd: 'short', down: HEAD_DOWN, up: HEAD_UP, left: HEAD_LEFT },
+    {
+      name: 'Long', hd: 'long',
+      down: FEMALE.down.slice(0, 10).concat(['..khk......khk..']),
+      up: FEMALE.up.slice(0, 10).concat(['.....hhhhhh.....', '......hhhh......']),
+      left: FEMALE.left.slice(0, 10).concat(['..........hhk...']),
+    },
+    {
+      name: 'Buzz cut', hd: 'short',
+      down: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...khhhhhhhhk...', '...kssssssssk...', '...kssssssssk...', '...kskssssksk...', '....kssssssk....', '.....kkkkkk.....'],
+      up: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...kshhhhhhsk...', '....kssssssk....', '.....kkkkkk.....'],
+      left: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...kshhhhhhhk...', '...ksssshhhhk...', '..ksssssshhhk...', '..ksksssssshk...', '...ksssssshk....', '....kkkkkkk.....'],
+    },
+    {
+      name: 'Spiky', hd: 'spiky',
+      down: ['....k.k..k.k....', '...khkhkkhkhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhshhshhk...', '...kssssssssk...', '...kskssssksk...', '....kssssssk....', '.....kkkkkk.....'],
+      up: ['....k.k..k.k....', '...khkhkkhkhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...kshhhhhhsk...', '....khhhhhhk....', '.....kkkkkk.....'],
+      left: ['.....k.k.k......', '....khkhkhkk....', '...khhhhhhhhk...', '...khhhhhhhhhk..', '...khhhhhhhhk...', '...ksshhhhhhk...', '..ksssshhhhhk...', '..ksksssshhhk...', '...kssssshhk....', '....kkkkkkk.....'],
+    },
+    {
+      name: 'Curly', hd: 'curly',
+      down: ['....kkkkkkkk....', '...khhHhhHhhk...', '..khHhhhhhhHhk..', '..khhhhHhhhhhk..', '..khHhhhhhhHhk..', '..khhsssssshhk..', '...kssssssssk...', '...kskssssksk...', '....kssssssk....', '.....kkkkkk.....'],
+      up: ['....kkkkkkkk....', '...khhHhhHhhk...', '..khHhhhhhhHhk..', '..khhhhHhhhhhk..', '..khHhhhhhhHhk..', '..khhhhHhhhhhk..', '..khhHhhhhHhhk..', '...kshhhhhhsk...', '....khhhhhhk....', '.....kkkkkk.....'],
+      left: ['....kkkkkkkk....', '...khhHhhHhhk...', '..khHhhhhhhHhk..', '..khhhhHhhhhhk..', '..kshhhhhhHhhk..', '..kssshhhhhhhk..', '..ksssshhHhhhk..', '..ksksssshhhk...', '...kssssshhk....', '....kkkkkkk.....'],
+    },
+    {
+      name: 'Bob', hd: 'bob',
+      down: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '..khhhhhhhhhhk..', '..khhhhhhhhhhk..', '..khsssssssshk..', '..khsksssskshk..', '..khhsssssshhk..', '..kkkkkkkkkkkk..'],
+      up: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '..khhhhhhhhhhk..', '..khhhhhhhhhhk..', '..khhhhhhhhhhk..', '..khhhhhhhhhhk..', '..khhhhhhhhhhk..', '..kkkkkkkkkkkk..'],
+      left: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '..khhhhhhhhhhk..', '..khhhhhhhhhhk..', '..ksssshhhhhhk..', '..ksksssshhhhk..', '...kssssshhhhk..', '....kkkkkkkkkk..'],
+    },
+    {
+      name: 'Ponytail', hd: 'ponytail',
+      down: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhsssshhk...', '...khsssssshk...', '...kskssssksk...', '....kssssssk....', '.....kkkkkk.....'],
+      up: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...khhhrrhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...kshhhhhhsk...', '....khhhhhhk....', '.....kkhhkk.....', '......khhk......', '.......hh.......'],
+      left: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...khhhhhhhhkk..', '...ksshhhhhhkhk.', '..ksssshhhhhkhk.', '..ksksssshhhkhk.', '...kssssshhk.kk.', '....kkkkkkk.....'],
+    },
+    {
+      name: 'Bun', hd: 'bun',
+      down: ['......kkkk......', '.....kHHHHk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhsssshhk...', '...khsssssshk...', '...kskssssksk...', '....kssssssk....', '.....kkkkkk.....'],
+      up: ['......kkkk......', '.....khhhhk.....', '....khHHHHhk....', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...kshhhhhhsk...', '....kssssssk....', '.....kkkkkk.....'],
+      left: ['........kkk.....', '.....kkkhhhk....', '....khhhHHhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...ksshhhhhhk...', '..ksssshhhhhk...', '..ksksssshhhk...', '...kssssshhk....', '....kkkkkkk.....'],
+    },
+    {
+      name: 'Bald', hd: 'bald',
+      down: ['................', '.....kkkkkk.....', '....kssssssk....', '...kssssssssk...', '...kssssssssk...', '...khsssssshk...', '...khsssssshk...', '...kskssssksk...', '....kssssssk....', '.....kkkkkk.....'],
+      up: ['................', '.....kkkkkk.....', '....kssssssk....', '...kssssssssk...', '...kssssssssk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...kshhhhhhsk...', '....khhhhhhk....', '.....kkkkkk.....'],
+      left: ['................', '.....kkkkkk.....', '....kssssssk....', '...kssssssssk...', '...kssssssssk...', '...ksssssshhk...', '..ksssssshhhk...', '..ksksssshhhk...', '...kssssshhk....', '....kkkkkkk.....'],
+    },
+  ];
+  // Head things: laid over the hair, from row 0 ('.' leaves it, '_' rubs it out).
+  // `hd` is what they wear out in the parking lot instead (js/hd.js).
+  const HATS = [
+    { name: 'Nothing', hd: 'none' },
+    {
+      name: 'Cap', hd: 'none',
+      down: ['________________', '_____kkkkkk_____', '....krrrrrrk....', '...krrrWWrrrk...', '..kRRRRRRRRRRk..'],
+      up: ['________________', '_____kkkkkk_____', '....krrrrrrk....', '...krrrrrrrrk...', '...krrkhhkrrk...'],
+      left: ['________________', '_____kkkkkk_____', '....krrrrrrk....', '...krrrrrrrrk...', '.kRRRRRrrrrrk...', '.kkk............'],
+    },
+    {
+      name: 'Toque', hd: 'toque',
+      down: ['______kWWk______', '_____kEEEEk_____', '....kEEEEEEk....', '...kEEEEEEEEk...', '...keeeeeeeek...'],
+    },
+    {
+      name: 'Hard hat', hd: 'none',
+      down: ['________________', '_____kkkkkk_____', '....kooyyook....', '...kooooooook...', '..kqqqqqqqqqqk..'],
+      left: ['________________', '_____kkkkkk_____', '....kooyyook....', '...kooooooook...', '.kqqqqqqqqqqqk..'],
+    },
+    {
+      name: 'Cowboy hat', hd: 'none',
+      down: ['______kkkk______', '_____knNNnk_____', '....knnnnnnk....', '...kkDDDDDDkk...', 'knnnnnnnnnnnnnnk', '.kkkkkkkkkkkkkk.'],
+    },
+    {
+      name: 'Headphones', hd: 'none',
+      down: ['', '', '....kggggggk....', '...kg......gk...', '...kg......gk...', '..kkk......kkk..', '..krk......krk..', '..kkk......kkk..'],
+      left: ['', '........kkk.....', '.........gk.....', '.........gk.....', '.........gk.....', '........kkkk....', '........krrk....', '........kkkk....'],
+    },
+    {
+      name: 'Glasses', hd: 'none',
+      down: ['', '', '', '', '', '', '....kkk..kkk....', '....kik..kik....'],
+      up: [],
+      left: ['', '', '', '', '', '', '', '...kikkkk.......'],
+    },
+    {
+      name: 'Shades', hd: 'none',
+      down: ['', '', '', '', '', '', '', '...kkgkkkkgkk...'],
+      up: [],
+      left: ['', '', '', '', '', '', '', '...kgkkkk.......'],
+    },
+    {
+      name: 'Bow', hd: 'none',
+      down: ['..........kk.kk.', '..........kRkRk.', '..........krrrk.', '..........kRkRk.', '..........kk.kk.'],
+      up: ['.kk.kk..........', '.kRkRk..........', '.krrrk..........', '.kRkRk..........', '.kk.kk..........'],
+      left: ['.......kk.kk....', '.......kRkRk....', '.......krrrk....', '.......kRkRk....'],
+    },
+  ];
+  // Shirts: rows 10-12 (or from row 9, when `from` says so), looking down, up (the same
+  // as down unless it says), left standing and left mid-stride.
+  const SHIRTS = [
+    {
+      name: 'Shirt & tie',
+      down: ['....kwwuuwwk....', '...kswwuuwwsk...', '...kswwwwwwsk...'],
+      up: ['....kwwwwwwk....', '...kswwwwwwsk...', '...kswwwwwwsk...'],
+      left: ['....kuwwwwwk....', '....kuwsswwk....', '....kwwsswwk....'],
+      leftWalk: ['....kuwwwwwk....', '...ksuwwwwwk....', '....kwwwwwsk....'],
+    },
+    {
+      name: 'Blouse',
+      down: ['....kwwuuwwk....', '...kswwwwwwsk...', '...kswwwwwwsk...'],
+      up: ['....kwwwwwwk....', '...kswwwwwwsk...', '...kswwwwwwsk...'],
+      left: ['....kwwwwwwk....', '....kwwsswwk....', '....kwwsswwk....'],
+      leftWalk: ['....kwwwwwwk....', '...kswwwwwwk....', '....kwwwwwsk....'],
+    },
+    {
+      name: 'T-shirt',
+      down: ['...kwwuuuuwwk...', '...kswwwwwwsk...', '...kswwwwwwsk...'],
+      up: ['...kwwwwwwwwk...', '...kswwwwwwsk...', '...kswwwwwwsk...'],
+      left: ['....kwwwwwwk....', '....kwwwwwwk....', '....kwwsswwk....'],
+      leftWalk: ['....kwwwwwwk....', '...kswwwwwwk....', '....kwwwwwsk....'],
+    },
+    {
+      name: 'Stripes',
+      down: ['....kwwwwwwk....', '...ksuuuuuusk...', '...kswwwwwwsk...'],
+      left: ['....kwwwwwwk....', '....kuussuuk....', '....kwwsswwk....'],
+      leftWalk: ['....kwwwwwwk....', '...ksuuuuuuk....', '....kwwwwwsk....'],
+    },
+    {
+      name: 'Hoodie', from: 9,
+      down: ['...kw......wk...', '...kwwuwwuwwk...', '...kwwuwwuwwk...', '...kswuuuuwsk...'],
+      up: ['...kv......vk...', '....kvvvvvvk....', '...kwwvvvvwwk...', '...kswwwwwwsk...'],
+      left: ['', '....kwwwwvvk....', '....kwwwwwwk....', '....kwwsswwk....'],
+      leftWalk: ['', '....kwwwwvvk....', '...kwwwwwwwk....', '....kwwwwwsk....'],
+    },
+    {
+      name: 'Suit',
+      down: ['....kwWuuWwk....', '...kwwwuuwwwk...', '...kswwwwwwsk...'],
+      up: ['....kwwwwwwk....', '...kwwwwwwwwk...', '...kswwwwwwsk...'],
+      left: ['....kWwwwwwk....', '....kuwwwwwk....', '....kwwsswwk....'],
+      leftWalk: ['....kWwwwwwk....', '...kwuwwwwwk....', '....kwwwwwsk....'],
+    },
+    {
+      name: 'Sweater',
+      down: ['....kwwwwwwk....', '...kwuwuuwuwk...', '...kswuwwuwsk...'],
+      left: ['....kwwwwwwk....', '....kuwuwuwk....', '....kwussuwk....'],
+      leftWalk: ['....kwwwwwwk....', '...kwuwuwuwk....', '....kwuwuwsk....'],
+    },
+    {
+      name: 'Hi-vis vest',
+      down: ['....kowwwwok....', '...ksoWWWWosk...', '...ksoooooosk...'],
+      up: ['....kooooook....', '...ksWWWWWWsk...', '...ksoooooosk...'],
+      left: ['....kooooook....', '....kWWssWWk....', '....koossook....'],
+      leftWalk: ['....kooooook....', '...ksWWWWWWk....', '....kooooosk....'],
+    },
+  ];
+  // Pants: rows 13-15, looking down (up is the same), down mid-stride, left standing and
+  // left mid-stride; `top` is laid over the shirt (rows 10-12) the same four ways.
+  const PANTS = [
+    {
+      name: 'Trousers',
+      down: ['....kKKKKKKk....', '....kKKkkKKk....', '.....kk..kk.....'],
+      downWalk: LEGS_A,
+      left: ['....kKKKKKKk....', '....kKKkKKk.....', '.....kk.kk......'],
+      leftWalk: ['....kKKKKKKk....', '...kKKk..kKKk...', '...kkk....kkk...'],
+    },
+    {
+      name: 'Shorts',
+      down: ['....kKKKKKKk....', '....ksskkssk....', '.....kk..kk.....'],
+      downWalk: ['....kKKKKKKk....', '...ksskk.ksk....', '...kkk....kk....'],
+      left: ['....kKKKKKKk....', '....ksskssk.....', '.....kk.kk......'],
+      leftWalk: ['....kKKKKKKk....', '...kssk..kssk...', '...kkk....kkk...'],
+    },
+    {
+      name: 'Skirt',
+      down: ['....kKKKKKKk....', '...kKKKKKKKKk...', '.....kk..kk.....'],
+      downWalk: ['....kKKKKKKk....', '...kKKKKKKKKk...', '....kk....kk....'],
+      left: ['....kKKKKKKk....', '...kKKKKKKKk....', '.....kk.kk......'],
+      leftWalk: ['....kKKKKKKk....', '...kKKKKKKKKk...', '...kk......kk...'],
+    },
+    {
+      name: 'Overalls',
+      down: ['....kKKKKKKk....', '....kKKkkKKk....', '.....kk..kk.....'],
+      downWalk: LEGS_A,
+      left: ['....kKKKKKKk....', '....kKKkKKk.....', '.....kk.kk......'],
+      leftWalk: ['....kKKKKKKk....', '...kKKk..kKKk...', '...kkk....kkk...'],
+      top: {
+        down: ['.....K....K.....', '.....K....K.....', '...ksKKKKKKsk...'],
+        up: ['.....K....K.....', '......KKKK......', '...ksKKKKKKsk...'],
+        left: ['......K.........', '......K.........', '....kKKssKKk....'],
+        leftWalk: ['......K.........', '......K.........', '....kKKKKKsk....'],
+      },
+    },
+  ];
+  const LOOK_PARTS = [['skin', SKINS], ['hair', HAIRS], ['hairC', HAIR_COLOURS], ['hat', HATS],
+    ['shirt', SHIRTS], ['shirtC', SHIRT_COLOURS], ['pants', PANTS], ['pantsC', PANTS_COLOURS]];
+  // a look with every part in range (missing or unknown ones are the first in their list)
+  function lookFix(look) {
+    const out = { g: look && look.g === 'female' ? 'female' : 'male' };
+    for (const [k, list] of LOOK_PARTS) {
+      const i = look ? Math.floor(+look[k]) : 0;
+      out[k] = i >= 0 && i < list.length ? i : 0;
+    }
+    return out;
+  }
+  const lookCode = (look) => (look.g === 'female' ? 'f' : 'm') + LOOK_PARTS.map(([k]) => look[k].toString(36)).join('');
+  // a look from its code, or null if it isn't one (a code with fewer parts than this copy
+  // knows gets the first of each missing one, and one with more just has them ignored)
+  function lookFrom(code) {
+    if (typeof code !== 'string' || !/^[mf][0-9a-z]{0,15}$/.test(code)) return null;
+    const look = { g: code[0] === 'f' ? 'female' : 'male' };
+    LOOK_PARTS.forEach(([k], i) => { look[k] = code[i + 1] ? parseInt(code[i + 1], 36) : 0; });
+    return lookFix(look);
+  }
+  // the nearest colour in a list to a hex colour (pick picks the hex out of a list entry)
+  function nearest(list, hex, pick) {
+    const [r, g, b] = hexRGB(hex);
+    let best = 0, bd = Infinity;
+    list.forEach((e, i) => {
+      const [r2, g2, b2] = hexRGB(pick(e)), d = (r - r2) ** 2 + (g - g2) ** 2 + (b - b2) ** 2;
+      if (d < bd) { bd = d; best = i; }
+    });
+    return best;
+  }
+  // The look closest to one of the old pick-a-character looks (LOOKS), or to anyone's
+  // colours: what someone who picked a character before the editor came along wears.
+  function lookLike(g, c) {
+    const female = g === 'female';
+    return lookFix({
+      g, skin: nearest(SKINS, c.s, (e) => e), hair: female ? 1 : 0, hairC: nearest(HAIR_COLOURS, c.h, (e) => e[1]), hat: 0,
+      shirt: female ? 1 : 0, shirtC: nearest(SHIRT_COLOURS, c.w, (e) => e[1]) , pants: 0, pantsC: nearest(PANTS_COLOURS, c.K, (e) => e[1]),
+    });
+  }
+  function darker(hex, f) {
+    const c = hexRGB(hex), k = hexRGB(COLORS.k);
+    return '#' + c.map((v, i) => Math.round(v + (k[i] - v) * f).toString(16).padStart(2, '0')).join('');
+  }
+  // a look's colours, the way the rest of the game (and js/hd.js) names them
+  function lookColours(look) {
+    const sc = SHIRT_COLOURS[look.shirtC];
+    return { h: HAIR_COLOURS[look.hairC][1], s: SKINS[look.skin], w: sc[1], u: sc[2], K: PANTS_COLOURS[look.pantsC][1] };
+  }
+  // how a look dresses in the parking lot's smoother style (js/hd.js)
+  const lookStyle = (look) => ({ hair: HAIRS[look.hair].hd, hat: HATS[look.hat].hd });
+
+  // lay rows over a buffer from row y0: '.' (or past a row's end) leaves what's there, '_' rubs it out
+  function lay(b, rows, y0) {
+    (rows || []).forEach((row, j) => [...row].forEach((ch, i) => {
+      if (ch === '_') b[(y0 + j) * 16 + i] = null; else if (ch !== '.') set(b, i, y0 + j, ch);
+    }));
+  }
+  const mirror = (rows) => rows.map((r) => [...r].reverse().join(''));
+  // One picture of a look, as a buffer: dir is 'down', 'up' or 'left', and step 0 standing,
+  // 1 mid-stride or 2 the other stride (which only flips the legs, so a bow or a side
+  // part stays put). noHat leaves the head thing off (under a costume).
+  function lookBuf(look, dir, step, noHat) {
+    const b = buf(), shirt = SHIRTS[look.shirt], pants = PANTS[look.pants], hair = HAIRS[look.hair], hat = HATS[look.hat];
+    const side = dir === 'left', walk = step > 0;
+    const torso = side ? (walk ? shirt.leftWalk : shirt.left) : (dir === 'up' && shirt.up) || shirt.down;
+    lay(b, torso, shirt.from || 10);
+    if (pants.top) lay(b, side ? (walk ? pants.top.leftWalk : pants.top.left) : pants.top[dir], 10);
+    const legs = side ? (walk ? pants.leftWalk : pants.left) : walk ? pants.downWalk : pants.down;
+    lay(b, step === 2 && !side ? mirror(legs) : legs, 13);
+    lay(b, hair[dir], 0);
+    if (!noHat) lay(b, hat[dir] || hat.down, 0);
+    return b;
+  }
+  function lookPalette(look, over) {
+    const c = lookColours(look);
+    return palette(Object.assign({ H: darker(c.h, 0.35), v: darker(c.w, 0.25) }, c, over));
+  }
+  // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look, the same
+  // shape renderSprites gives.
+  function renderLook(look) {
+    const pal = lookPalette(look), out = {};
+    const make = (dir, step, flip) => {
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 16;
+      const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16);
+      blit(img, lookBuf(look, dir, step), 0, 0, pal, flip);
+      ctx.putImageData(img, 0, 0);
+      return cv;
+    };
+    out.down = [make('down', 0), make('down', 1), make('down', 2)];
+    out.up = [make('up', 0), make('up', 1), make('up', 2)];
+    out.left = [make('left', 0), make('left', 1), make('left', 1)];
+    out.right = [make('left', 0, true), make('left', 1, true), make('left', 1, true)];
+    return out;
+  }
+
   // ---------- Halloween costumes ----------
   // Each costume is drawn over the ordinary body: `pal` recolours it (and adds any new
   // colour letters), and down / up / left are overlays stamped on top, row 0 first.
@@ -1217,30 +1535,38 @@ window.Art = (function () {
     },
   };
   // The sprite sheet for someone in a costume: the same shape renderSprites returns.
-  // `logo` is the SDG logo image, for the costume that wears it.
-  function renderCostume(gender, look, key, logo) {
-    const c = COSTUMES[key];
-    if (!c) return renderSprites(gender, look);
-    const pal = palette(Object.assign({}, look, c.pal)), out = {};
-    const SP = gender === 'female' ? SPRITES_F : SPRITES;
-    const make = (art, over, flip, sign) => {
+  // base(dir, i) is the body under it (i: 0 standing, 1 mid-stride), and `logo` is the
+  // SDG logo image, for the costume that wears it.
+  function costumeSheet(c, base, pal, logo) {
+    const out = {};
+    const make = (dir, i, flip, sign) => {
       const cv = document.createElement('canvas');
       cv.width = cv.height = 16;
-      const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16), b = buf();
-      stamp(b, art);
-      over.forEach((row, j) => [...row].forEach((ch, i) => {
-        if (ch === '_') b[j * 16 + i] = null; else if (ch !== '.') set(b, i, j, ch);
-      }));
+      const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16), b = base(dir, i);
+      lay(b, c[dir], 0);
       blit(img, b, 0, 0, pal, flip);
       ctx.putImageData(img, 0, 0);
       if (sign && logo && logo.complete && logo.naturalWidth) ctx.drawImage(logo, sign[0], sign[1], sign[2], sign[3]);
       return cv;
     };
-    out.down = [make(SP.down[0], c.down, false, c.sign), make(SP.down[1], c.down, false, c.sign), make(SP.down[1], c.down, true, c.sign)];
-    out.up = [make(SP.up[0], c.up), make(SP.up[1], c.up), make(SP.up[1], c.up, true)];
-    out.left = [make(SP.left[0], c.left), make(SP.left[1], c.left), make(SP.left[1], c.left)];
-    out.right = [make(SP.left[0], c.left, true), make(SP.left[1], c.left, true), make(SP.left[1], c.left, true)];
+    out.down = [make('down', 0, false, c.sign), make('down', 1, false, c.sign), make('down', 1, true, c.sign)];
+    out.up = [make('up', 0), make('up', 1), make('up', 1, true)];
+    out.left = [make('left', 0), make('left', 1), make('left', 1)];
+    out.right = [make('left', 0, true), make('left', 1, true), make('left', 1, true)];
     return out;
+  }
+  // a coworker in a costume: their body and colours, like renderSprites
+  function renderCostume(gender, look, key, logo) {
+    const c = COSTUMES[key];
+    if (!c) return renderSprites(gender, look);
+    const SP = gender === 'female' ? SPRITES_F : SPRITES;
+    return costumeSheet(c, (dir, i) => { const b = buf(); stamp(b, SP[dir][i]); return b; }, palette(Object.assign({}, look, c.pal)), logo);
+  }
+  // a player in a costume, over the look they made (minus any head thing)
+  function renderLookCostume(look, key, logo) {
+    const c = COSTUMES[key];
+    if (!c) return renderLook(look);
+    return costumeSheet(c, (dir, i) => lookBuf(look, dir, i, true), lookPalette(look, c.pal), logo);
   }
 
   // ---------- tile painters ----------
@@ -2018,5 +2344,9 @@ window.Art = (function () {
     return cv;
   }
 
-  return { LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs };
+  return {
+    LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
+    LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLookCostume,
+  };
 })();

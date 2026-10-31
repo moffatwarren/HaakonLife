@@ -34,11 +34,18 @@ upload again without a push.
   for a bigger screen (touch the screen to bring them back). Browsers won't let a
   controller start the sound, so it starts with your first click, tap or key.
 - Walk onto a staircase to change floors, or face the elevator doors and press A.
-- After the title screen, pick a male or female character (four looks each),
-  then type your name. The game remembers your last pick and name. Don't try
-  calling yourself Bob, though: there is only one of those.
-- Character colours live in `LOOKS` at the top of `js/art.js` if you want to
-  add or tweak outfits.
+- After the title screen, type your name (the game remembers it), then make your
+  character: gender, skin, hair and its colour, something on your head (a cap, a toque,
+  a hard hat, a cowboy hat, headphones, glasses, shades or a bow), and a shirt and
+  pants, each in a colour. Up and down pick a part, left and right (or A) change it,
+  RANDOM picks for you and DONE (or START) heads into the office. Your character is
+  saved with your name (see **Saved characters** below), so typing the same name on
+  a phone and a computer gets you the same one. Don't try calling yourself Bob,
+  though: there is only one of those.
+- The parts are in "your own character" in `js/art.js`: the colours, then the hair,
+  head things, shirts and pants, each drawn as rows of pixels. Only ever add to the end
+  of a list, because a saved character is a list of places in them. Coworkers' colours
+  are `LOOKS` at the top of the same file.
 
 ## Mini-games
 
@@ -262,6 +269,20 @@ The scores live in a free Firebase Realtime Database. To set one up:
           }
         }
       }
+    },
+    "looks": {
+      "$world": {
+        ".validate": "$world === 'live' || $world === 'test'",
+        "$player": {
+          ".read": true,
+          ".write": "newData.exists()",
+          ".validate": "$player.length <= 12 && newData.hasChildren(['name','a','t']) && newData.child('t').val() == now",
+          "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12" },
+          "a": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 16" },
+          "t": { ".validate": true },
+          "$other": { ".validate": false }
+        }
+      }
     }
   }
 }
@@ -286,13 +307,29 @@ So is Live Hold'em: its totals won and lost are two boards of their own,
 (so both only go up), and the game works out the difference. To reset someone's tally,
 delete their row from both.
 
+### Saved characters
+
+The `looks` part of the rules is for the character editor: each name's character is
+kept in the same database, so the same name on a phone and a computer gets the same
+character. They're under `looks/live` (from haakonlife.com) or `looks/test` (from any
+other copy, so trying the editor out never changes anybody's real character), then the
+name, keyed the same way as its scores. A character is stored as a short code (`a`,
+like `f03411604`): one letter for the gender, then one digit per part. Anyone can look
+one up or save over it, but not delete it, so like the scores, somebody could type
+your name and change your character. To reset one, delete its row on the Data tab.
+
+If the database's rules were set up before the character editor, replace them with the
+ones above and press Publish again. Until then the game can't find or save characters
+there, and just remembers yours in the browser.
+
 ## Playing together
 
 Everyone playing at the same time is in the same office. You see each other walk
-around, with your names over your heads, wearing whatever look (and Halloween costume)
-you picked. They're red dots on the map, and **Who's here** in the Start menu lists
-everyone and the room they're in. Other players don't block your way, so nobody can
-stand in a doorway and trap you.
+around, with your names over your heads, looking like the characters you made (in
+whatever Halloween costume you picked). Somebody on a copy from before the character
+editor sees you as one of the old characters until they update. They're red dots on the
+map, and **Who's here** in the Start menu lists everyone and the room they're in. Other
+players don't block your way, so nobody can stand in a doorway and trap you.
 
 - **Say something**: from the Start menu, or walk up to another player and press A.
   Pick **Small talk** (Hi!, Follow me!, Good game! and so on) or **Shop talk** (Check
