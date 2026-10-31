@@ -687,10 +687,11 @@
     el.addEventListener('pointercancel', up);
     el.addEventListener('lostpointercapture', up);
   });
-  // The direction control is a D-pad indoors and a thumbstick out in the parking lot
-  // (setPadMode), except in the lot's winter games, which are easier with the D-pad. The
-  // stick still holds one of the four directions down, for walking and menus, and also
-  // says which way it's pushed and how far (stick), for skating in hockey.
+  // The direction control is a D-pad, except out in the parking lot, where it's a
+  // thumbstick for walking round and for the games that want one (hockey and the snowman:
+  // stick on their screens); menus and everything else there are easier with the D-pad
+  // (setPadMode). The stick still holds one of the four directions down, for walking, and
+  // also says which way it's pushed and how far (stick), for skating in hockey.
   // It's the same element either way, so a thumb held down through the door carries on.
   let padMode = 'dpad', setPadMode = () => {};
   const dpad = document.getElementById('dpad');
@@ -10931,8 +10932,7 @@
   // Six games at the lot's props: the chopping block at the end of the woodpile (ChopGame),
   // the fire pit (MallowGame), the big spruce (SpruceGame), the snowman (SnowmanGame), the
   // hot chocolate stand (CocoaGame) and the snowbanks (SnowballGame). They fill the screen
-  // like the games indoors (cover tells draw it needn't draw the lot underneath them, and
-  // to give a phone the D-pad back instead of the lot's thumbstick).
+  // like the games indoors (cover tells draw it needn't draw the lot underneath them).
   // When the lot is in 3D they are too (js/winter3d.js draws them, in the lot's own look),
   // with their words and meters drawn over them as usual; otherwise they draw themselves
   // flat.
@@ -11607,7 +11607,7 @@
       disc(x + r * 0.25, y + r * 0.25, r * 0.7, '#e4ecf8'); disc(x - r * 0.35, y - r * 0.35, Math.max(1, r * 0.25), '#ffffff');
     }
     const self = {
-      music: 'jingle', doing: 'snowman', cover: true,
+      music: 'jingle', doing: 'snowman', cover: true, stick: true,
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -12224,7 +12224,7 @@
       }, '#f8f8f8');
     }
     const self = {
-      music: 'hockey', doing: 'hockey', escStart: true, // Esc pauses (B is a check)
+      music: 'hockey', doing: 'hockey', escStart: true, stick: true, // Esc pauses (B is a check)
       update() {
         t++; go++;
         updateNpcs(); // everyone else carries on round the lot
@@ -12514,6 +12514,7 @@
     const self = {
       music: 'hockey',
       get escStart() { return rink; }, // Esc opens the menu in a game (B is a check), and leaves the lobby
+      get stick() { return rink && menu < 0; }, // skating (the lobby and the menu take the D-pad)
       // over your head for everyone else: waiting in the lobby for more players, or the game
       get doing() {
         const v = tb.view;
@@ -13698,7 +13699,8 @@
     const outside = !['title', 'edit', 'name', 'costume'].includes(mode) && P.floor === YARD;
     const covered = outside && ui.some((el) => el.cover);
     hdShow(outside);
-    setPadMode(outside && !covered ? 'stick' : 'dpad');
+    // the thumbstick for walking round the lot, and for what's on top if it wants one
+    setPadMode(outside && (!ui.length || top().stick) ? 'stick' : 'dpad');
     if (outside) ctx.clearRect(0, 0, SW, SH);
     else { ctx.fillStyle = col.dark; ctx.fillRect(0, 0, SW, SH); }
     if (mode === 'title') drawTitle();

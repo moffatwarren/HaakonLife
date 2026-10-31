@@ -21,7 +21,7 @@ upload again without a push.
 
 | Action | Keyboard | Touch | Controller (Xbox / PlayStation) |
 | --- | --- | --- | --- |
-| Move | Arrows / WASD | D-pad (a thumbstick in the parking lot, but not in its winter games) | Left stick or D-pad |
+| Move | Arrows / WASD | D-pad (a thumbstick for walking round the parking lot, for hockey and for rolling snowballs) | Left stick or D-pad |
 | A: interact, confirm | E / Space | A | A / ✕ |
 | B: back, cancel | Esc / X / Shift | B | B or X / ○ or □ |
 | Start menu (map, sound, music) | Enter (or Esc while walking) | START | Menu / Options |
