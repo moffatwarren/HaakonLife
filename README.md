@@ -390,6 +390,21 @@ players don't block your way, so nobody can stand in a doorway and trap you.
   - **Pong**: the break room TV's Pong, against each other on one table, first to 5.
     The game server runs this one (see **Game server**), so it's only in the list when
     there is one. You're always the left paddle on your own screen.
+  - **Snowball fight** (from Christmas 2026): the parking lot's snowball fight, with the two of
+    you behind walls of snow across the lot from each other. It plays like the one
+    against coworkers: left and right move you along your wall, A throws straight across
+    the lot, and holding Down ducks behind your wall, where nothing can hit you, and packs
+    another snowball (you hold 5). A snowball takes a moment to get across (a little less
+    as the fight goes on), so throw where they're going to be; theirs leave a mark on your
+    wall where they'll land. Getting hit splatters snow over your screen, and for a moment
+    afterwards the next one only brushes you. Three hits and you're out; otherwise
+    whoever has been hit fewer times when the 90 seconds are up wins (the same is a draw).
+    Out in the lot it's drawn in 3D (and flat anywhere else). It's in the list from
+    November 27 2026 on, for good (`SEASON_FROM`, as for the Hall of Fame), or early with
+    `#christmas=1` on the address (which is how to try it on the live site: only the one
+    challenging needs it). The game
+    server runs this one (`server/games/snowball.js`), so it's only in the list when
+    there is one.
 
   The treadmill, Snake and the control panel carry on until you're both out.
 
@@ -492,6 +507,8 @@ player gets sent. Then add an entry with the same key and `server: true` to `VER
 what the player does with `m.input(...)`, and finishes when `m.result` is set (or
 `m.gone`, if the other player left). Challenging somebody works just like the other
 head-to-head games, and these games only show up in the list when there's a game server.
+Give the entry `christmas: true` as well (as the snowball fight has) and it's only in the
+list from the day Christmas first starts (`SEASON_FROM`), then for good.
 
 **A table anyone can join.** The live poker table (`server/tables/poker.js`, drawn by
 `LivePoker` in `js/game.js`) isn't a match two people agree to: people sit down and get
@@ -712,7 +729,8 @@ From November 27 to December 31 (by your device's date) the office does Christma
     behind your wall, where nothing can hit you, and packs another snowball (you hold
     5). They pop up, wind up and throw at where you're standing, with a mark on your wall
     where each will land, so duck or get out of the way. More of them pop up at once, and
-    they throw faster and straighter, as it goes on.
+    they throw faster and straighter, as it goes on. To have a snowball fight with another
+    player instead, challenge them (see **Playing together**).
 
   They're in `js/game.js` after `yardTalk` (ChopGame, MallowGame, SpruceGame, SnowmanGame,
   CocoaGame and SnowballGame), and `YARD_GAMES` says which prop starts which. When the
@@ -894,7 +912,7 @@ with `&name=Sam` among them on some boards).
 
 To try a head-to-head game on your own, add `&vs=1` with `game=duel`, `jar`, `lego`,
 `dance`, `coffee`, `run`, `snake` or `simon`. It plays against "Echo", a stand-in who
-sends back everything you send a second later (not Pong, which needs the game server). That's for seeing the screens, not
+sends back everything you send a second later (not Pong or the snowball fight, which need the game server). That's for seeing the screens, not
 for a fair game: the score races always end in a dead heat (`&seed=5` deals a
 different game).
 

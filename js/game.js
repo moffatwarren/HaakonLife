@@ -10194,7 +10194,9 @@
   // game server instead (the module with the same key in server/games/): its Game is
   // handed a match whose `view` is what the server last said the game looks like,
   // `input(d)` sends the server what you did, and `result` is set once it's over. Those
-  // can only be picked when there's a game server.
+  // can only be picked when there's a game server. A game with `christmas: true` is only
+  // in the list once Christmas has first come round (SEASON_FROM), and from then on for
+  // good; &christmas=1 puts it there early for testing. Anybody can still accept one.
   const VERSUS = {
     duel: { label: 'AIR DUEL', title: 'an air handling duel', Game: (m) => BattleGame(m) },
     jar: { label: 'CANDY JAR', title: 'a candy jar guess-off', Game: (m) => CandyJarGame(m) },
@@ -10206,6 +10208,7 @@
     snake: { label: 'SNAKE', title: 'a game of Snake', Game: (m) => SnakeGame(m) },
     pong: { label: 'PONG', title: 'a game of Pong', server: true, Game: (m) => PongGame(m) },
     simon: { label: 'CONTROL PANEL', title: 'a control panel showdown', Game: (m) => SimonGame(m) },
+    snowball: { label: 'SNOWBALL FIGHT', title: 'a snowball fight', server: true, christmas: true, Game: (m) => SnowballGame(m) },
   };
   // A small seeded random number generator (mulberry32), so both players in a match get
   // the same jars.
@@ -10466,7 +10469,7 @@
     const o = mp.others[opp];
     const m = {
       id, opp, name, gone: false, rng: seeded(seed), soft: !!soft, moves: [],
-      sprites: o ? mpSprites(o) : charSprites.male[0],
+      sprites: o ? mpSprites(o) : charSprites.male[0], look: o ? o.look : null, code: o ? o.a : '',
       server: !!server, view: null, result: undefined,
       send(data) { mpSend(opp, Object.assign({}, data, { k: 'mv', m: id })); },
       take() { return m.moves.shift(); },
@@ -10700,8 +10703,10 @@
     return self;
   }
   function mpChallenge(o) {
-    const keys = Object.keys(VERSUS).filter((k) => MP_WS || !VERSUS[k].server);
-    ui.push(Choice(keys.map((k) => VERSUS[k].label).concat(['CANCEL']), -1, SH - 48 - (keys.length + 1) * 16 - 8, (i) => {
+    const keys = Object.keys(VERSUS).filter((k) => (MP_WS || !VERSUS[k].server)
+      && (!VERSUS[k].christmas || CHRISTMAS || Date.now() >= SEASON_FROM.CHRISTMAS));
+    // (a long list comes down over where the dialog was, rather than off the top)
+    ui.push(Choice(keys.map((k) => VERSUS[k].label).concat(['CANCEL']), -1, Math.max(4, SH - 48 - (keys.length + 1) * 16 - 8), (i) => {
       if (i < 0 || i >= keys.length) return;
       if (!mpLive(o)) { say(o.n + ' has gone.'); return; }
       if (o.b) { say(o.n + ' is busy right now. Try again in a moment.'); return; }
@@ -11968,16 +11973,35 @@
   // nothing can hit you, and packs another snowball (you can hold 5). They pop up, wind up
   // and throw at where you're standing, so duck or get out of the way. Three hits and
   // you're out; otherwise it's 90 seconds.
-  function SnowballGame() {
-    const TIME = 90 * 60, WALL = 206, AMMO = 5;
-    // three forts near and two further back, behind the gaps
-    const forts = [[70, 136, 26], [160, 136, 26], [250, 136, 26], [115, 90, 18], [205, 90, 18]].map(([x, y, hw], i) => ({ x, y, hw, far: i > 2 }));
-    const crew = lotCrew(forts.length);
-    forts.forEach((f, i) => Object.assign(f, { name: crew[i] ? crew[i].name : 'Somebody', sprites: crew[i] ? crew[i].sprites : sprites,
-      state: 'hide', wait: 60 + Math.random() * 160, up: 0, st: 0, dx: 0 }));
+  //
+  // Against another player (VERSUS.snowball, at Christmas) the game server runs it
+  // (server/games/snowball.js, with the same sizes and speeds as here). They're behind a
+  // wall of their own right across the lot, playing just as you are, and their snowballs
+  // come straight back across at you; whoever has been hit fewer times at the end wins.
+  // The server sends what the lot looks like 30 times a second (vs.view, see view()
+  // there), with you always behind the near wall. You move and duck the moment you press,
+  // and the server is told; between views the snowballs carry on across the lot and they
+  // glide to where the server last had them. Who gets hit is the server's say.
+  function SnowballGame(vs) {
+    const TIME = 90 * 60, WALL = 206, AMMO = 5, FAR = 136; // FAR: their wall, against a player
+    const foe = vs ? vs.name : '';
+    // three forts near and two further back, behind the gaps (or their wall, all the way across)
+    const forts = vs ? [{ x: 160, y: FAR, hw: 150, far: false, wall: true, name: foe, sprites: vs.sprites, state: 'hide', up: 0, st: 0, dx: 0 }]
+      : [[70, 136, 26], [160, 136, 26], [250, 136, 26], [115, 90, 18], [205, 90, 18]].map(([x, y, hw], i) => ({ x, y, hw, far: i > 2 }));
+    if (!vs) {
+      const crew = lotCrew(forts.length);
+      forts.forEach((f, i) => Object.assign(f, { name: crew[i] ? crew[i].name : 'Somebody', sprites: crew[i] ? crew[i].sprites : sprites,
+        state: 'hide', wait: 60 + Math.random() * 160, up: 0, st: 0, dx: 0 }));
+    }
     // hurt: how long since a heart went (it flashes as it goes)
-    let state = 'ready', t = 0, left = TIME, px = 160, duck = false, ammo = AMMO, pack = 0, cool = 0, hearts = 3, hurt = 0, hits = 0,
+    let state = vs ? 'wait' : 'ready', t = 0, left = TIME, px = 160, duck = false, ammo = AMMO, pack = 0, cool = 0, hearts = 3, hurt = 0, hits = 0,
       mine = [], theirs = [], blobs = [], pops = [], record = false, msg = '', msgT = 0;
+    // against a player: the server's latest view; their hearts, hits and whether they're
+    // ducking; the snowballs in the air, by id; how many you've thrown, what you last sent
+    // and how it ended ('win', 'lose', 'draw', 'gone' or 'stopped')
+    let view = null, theirHearts = 3, theirHurt = 0, theirHits = 0, theirX = 160, theirDuck = false, flying = new Map(),
+      thrown = 0, sentX = null, sentD = -1, sentN = 0, sendT = 0, outcome = null;
+    const num = (n, d) => (typeof n === 'number' && Number.isFinite(n) ? n : d);
     const gone = () => (TIME - left) / 60; // seconds in
     function out(how) { state = 'done'; t = 0; msg = how; record = saveBest('snowball', hits); sfx('ding'); }
     // a heart, outlined, its top left corner at (x, y)
@@ -12017,6 +12041,113 @@
         }
       }
     }
+    // how far your snowballs have got across the lot (theirs are drawn from t and dur)
+    const place = () => { for (const b of mine) b.y = b.y0 + (b.y1 - b.y0) * Math.min(1, b.t / b.dur); };
+    // a view from the server (against a player)
+    function hear(v) {
+      if (!v || typeof v !== 'object' || !v.me || !v.th || !Array.isArray(v.b)) return;
+      const me = v.me, th = v.th, f = forts[0];
+      // the sounds, from what's happened since the last view
+      if (view) {
+        if (num(me.h, hearts) < hearts) { hurt = 40; sfx('splat'); splat(); }
+        if (num(th.h, theirHearts) < theirHearts) {
+          theirHurt = 40; sfx('splat');
+          pops.push({ x: f.x + f.dx, y: f.y - 40, z: f.y, s: 'Got ' + foe + '!', t: 0 });
+        }
+        if (num(me.tp, 0) > view.me.tp || num(th.tp, 0) > view.th.tp) sfx('tap');
+        if (num(me.a, 0) > view.me.a) sfx('crunch');
+      } else { px = num(me.x, px); f.dx = num(th.x, theirX) - f.x; }
+      hearts = num(me.h, hearts); hits = num(me.hi, hits); theirHearts = num(th.h, theirHearts); theirHits = num(th.hi, theirHits);
+      // (less any you've thrown that it hadn't heard about yet)
+      ammo = clamp(num(me.a, ammo) - (thrown - num(me.n, thrown)), 0, AMMO);
+      pack = num(me.pk, 0);
+      left = num(v.left, left);
+      // them: where they are, up or ducking, and winding up with a snowball, just thrown one
+      // or just been hit
+      theirX = num(th.x, theirX); theirDuck = !!th.d;
+      if (num(th.hu, 0) > 0) { f.state = 'hit'; f.st = 40 - th.hu; }
+      else if (num(th.c, 0) > 0) { f.state = 'after'; f.st = 12 - th.c; }
+      else f.state = th.a > 0 ? 'wind' : 'idle';
+      // the snowballs in the air, each kept as the same thing from view to view
+      const now = new Map();
+      for (const it of v.b) {
+        if (!Array.isArray(it)) continue;
+        const [id, my, x, bt, dur] = it.map((n) => num(n, 0));
+        let b = flying.get(id);
+        if (!b) {
+          b = my ? { x, y0: WALL - 24, y1: FAR } : { x0: x, y0: FAR - 22, tx: x };
+          if (!my) sfx('swish');
+        }
+        Object.assign(b, { t: bt, dur: Math.max(1, dur) });
+        now.set(id, b);
+      }
+      flying = now;
+      mine = [...now.values()].filter((b) => b.y1);
+      theirs = [...now.values()].filter((b) => !b.y1);
+      place();
+      if (!v.ph) t = num(v.t, 0);
+      state = v.ph ? 'play' : 'ready';
+      view = v;
+    }
+    function versusOver() {
+      const r = vs.result;
+      if (r && typeof r.w === 'number' && Array.isArray(r.hits) && Array.isArray(r.hp)) {
+        const seat = view ? view.s : 0;
+        hits = num(r.hits[seat], hits); theirHits = num(r.hits[1 - seat], theirHits);
+        outcome = r.w < 0 ? 'draw' : r.w === seat ? 'win' : 'lose';
+        msg = !(r.hp[seat] > 0) ? 'Snowed under!' : !(r.hp[1 - seat] > 0) ? foe + ' is snowed under!' : 'Time!';
+      } else outcome = r && (r.error || r.timeout) ? 'stopped' : 'gone';
+      state = 'done'; t = 0;
+      sfx(outcome === 'win' ? 'cup' : outcome === 'draw' ? 'ding' : 'bump');
+    }
+    function versusUpdate() {
+      if (state === 'done') {
+        if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
+          remove(self); vs.end();
+          const score = (a, b) => a + (a === 1 ? ' hit' : ' hits') + ' to ' + b;
+          say(outcome === 'win' ? 'You won the snowball fight against ' + foe + ', ' + score(hits, theirHits) + '! They have snow down their collar.'
+            : outcome === 'lose' ? foe + ' won the snowball fight, ' + score(theirHits, hits) + '. You have snow down your collar.'
+              : outcome === 'draw' ? 'A draw, ' + score(hits, theirHits) + '. Everyone has snow down their collar.'
+                : outcome === 'gone' ? foe + ' has gone. Nobody wins this one.' : 'The snowball fight fizzled out. Nobody wins this one.');
+        }
+        return;
+      }
+      if (pressed.has('b')) { remove(self); vs.end(); say('You wave a white mitten. Truce.'); return; }
+      if (vs.view !== view) hear(vs.view);
+      if (vs.result !== undefined || vs.gone) { versusOver(); return; }
+      // them, gliding to where the server has them and bobbing up and down behind their wall
+      const f = forts[0];
+      f.dx += (theirX - f.x - f.dx) / 2;
+      f.up = clamp(f.up + (theirDuck ? -0.15 : 0.15), 0, 1);
+      f.st++;
+      if (theirHurt > 0) theirHurt--;
+      for (const b of flying.values()) if (b.t < b.dur) b.t++;
+      place();
+      if (state !== 'play') return;
+      if (msgT > 0) msgT--;
+      if (left > 0) left--;
+      // you: duck and pack, or stand and move and throw, straight away on your screen
+      duck = held.down;
+      if (cool > 0) cool--;
+      if (duck) { if (ammo < AMMO && pack < 27) pack++; } else {
+        pack = 0;
+        if (held.left) px -= 2.4;
+        if (held.right) px += 2.4;
+        px = clamp(px, 20, SW - 20);
+        if (pressed.has('a')) {
+          if (!ammo) { sfx('bump'); msg = 'Out of snowballs! Hold Down to pack more'; msgT = 60; }
+          else if (!cool) { ammo--; cool = 12; thrown++; sfx('swish'); }
+        }
+      }
+      // and the server: at once when you duck, stand up or throw, and where you are at most
+      // 30 times a second
+      const d = duck ? 1 : 0;
+      if (px !== sentX) sendT++;
+      if (d !== sentD || thrown !== sentN || (px !== sentX && sendT >= 2)) {
+        sendT = 0; sentX = px; sentD = d; sentN = thrown;
+        vs.input({ x: Math.round(px * 100) / 100, d, n: thrown });
+      }
+    }
     const self = {
       music: 'jingle', doing: 'snowball', cover: true,
       update() {
@@ -12026,6 +12157,7 @@
         if (hurt > 0) hurt--;
         for (const p of pops) { p.t++; p.y -= 0.4; }
         pops = pops.filter((p) => p.t < 50);
+        if (vs) { versusUpdate(); return; }
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
@@ -12080,7 +12212,9 @@
         theirs = theirs.filter((b) => !b.dead);
       },
       draw() {
-        const st = draw3D('snowball', () => ({ forts, who: npcSpec, me: meSpec(), px, duck, cool, pack, mine, theirs }));
+        // (another player as they made themselves in the character editor)
+        const who = vs ? () => (vs.look ? hdLook('mp:' + foe + ':' + vs.code, foe, vs.look) : npcSpec(foe)) : npcSpec;
+        const st = draw3D('snowball', () => ({ forts, who, me: meSpec(), px, duck, cool, pack, mine, theirs }));
         if (!st) {
           duskSky(0, 62);
           ctx.fillStyle = '#e6ecf6'; ctx.fillRect(0, 62, SW, SH - 62);
@@ -12110,7 +12244,7 @@
             ctx.fillRect(f.x - f.hw, top + Math.round(fh / 2), f.hw * 2, 1);
           }
           for (const b of mine) {
-            const p = (b.y0 - b.y) / (b.y0 - 50), y = b.y - Math.sin(Math.min(1, p) * Math.PI) * 14;
+            const p = (b.y0 - b.y) / (b.y0 - (b.y1 || 50)), y = b.y - Math.sin(Math.min(1, p) * Math.PI) * 14;
             ball(b.x, y, 4 - p * 2);
           }
           // you, behind your wall
@@ -12125,11 +12259,18 @@
           shade(0, 36);
           shade(WALL + 6, SH - WALL - 6);
         }
-        winterHud('Snowball fight', 'Hits ' + hits, 'Best ' + getBest('snowball'), left);
         // what you've got left, after your hits: a heart goes each time you're hit, flashing
-        // white and shaking as it goes
-        for (let i = 0; i < hearts; i++) heart(70 + i * 18, 22, '#e03040');
-        if (hurt > 0 && (hurt >> 2) & 1) heart(70 + hearts * 18 + Math.round((Math.random() - 0.5) * 3), 22, '#f8f8f8');
+        // white and shaking as it goes (against a player, after "You", with theirs by their
+        // name on the right)
+        const shake = () => Math.round((Math.random() - 0.5) * 3), hx = vs ? 36 : 70;
+        if (vs) {
+          const FOE = foe.slice(0, 12), fx = SW - 30 - FOE.length * 6;
+          winterHud('Snowball fight', 'You', FOE, left);
+          for (let i = 0; i < theirHearts; i++) heart(fx - i * 18, 22, '#e03040');
+          if (theirHurt > 0 && (theirHurt >> 2) & 1) heart(fx - theirHearts * 18 + shake(), 22, '#f8f8f8');
+        } else winterHud('Snowball fight', 'Hits ' + hits, 'Best ' + getBest('snowball'), left);
+        for (let i = 0; i < hearts; i++) heart(hx + i * 18, 22, '#e03040');
+        if (hurt > 0 && (hurt >> 2) & 1) heart(hx + hearts * 18 + shake(), 22, '#f8f8f8');
         // your snowballs, and the next one as you pack it
         for (let i = 0; i < AMMO; i++) {
           if (i < ammo) disc(16 + i * 12, WALL + 14, 4, '#f8fbff');
@@ -12150,8 +12291,13 @@
         }
         for (const b of blobs) { ctx.globalAlpha = Math.min(1, b.life / 40); disc(b.x, b.y, b.r, '#f8fbff'); disc(b.x + b.r * 0.6, b.y + b.r * 0.5, b.r * 0.45, '#f8fbff'); ctx.globalAlpha = 1; }
         if (msgT > 0 && state === 'play') ctext(msg, 46, '#f8e040');
-        if (state === 'ready') readyBox(t, 'Space: throw  Down: duck');
-        else if (state === 'done') doneBox([msg, 'Hits: ' + hits, record ? 'New record!' : 'Best ' + getBest('snowball')], t);
+        if (state === 'wait') { box(60, 92, 200, 48); ctext('Waiting for ' + foe + '...', 104); ctext('Esc: give up', 120); }
+        else if (state === 'ready') readyBox(t, 'Space: throw  Down: duck');
+        else if (state === 'done' && vs) {
+          doneBox(outcome === 'gone' ? [foe + ' left.', 'Nobody wins this one.', '']
+            : outcome === 'stopped' ? ['The snowball fight fizzled out.', 'Nobody wins this one.', '']
+              : [msg, outcome === 'win' ? 'You win!' : outcome === 'lose' ? foe + ' wins!' : 'A draw!', 'Hits: you ' + hits + ', ' + foe + ' ' + theirHits], t);
+        } else if (state === 'done') doneBox([msg, 'Hits: ' + hits, record ? 'New record!' : 'Best ' + getBest('snowball')], t);
         else text('Arrows: move  Space: throw  Down: duck  Esc: quit', 10, SH - 10, 1, '#c8ccd8');
       },
     };

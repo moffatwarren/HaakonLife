@@ -3,5 +3,6 @@
 // rooms.js for what a game module exports.
 import * as pong from './pong.js';
 import * as forklift from './forklift.js';
+import * as snowball from './snowball.js';
 
-export default { pong, forklift };
+export default { pong, forklift, snowball };

@@ -974,7 +974,8 @@ window.WINTER3D = (function () {
       top.rotation.z = Math.PI / 2; g.add(top);
       return g;
     }
-    scene.add(wall(11.5, WH, 0.55, bricks('w3wall', 10, 1)));
+    const wallM = bricks('w3wall', 10, 1);
+    scene.add(wall(11.5, WH, 0.55, wallM));
     lampPost(K, scene, -6.5, -10.5, 1.4); lampPost(K, scene, 6.5, -10.5, 1.4);
     car(K, scene, -3.6, -17.5, '#8a2a2a', 0.05); car(K, scene, 3.3, -17, '#2a4a8a', -0.08); car(K, scene, 8, -19, '#e0a030', 0.2);
     const crew = crowd(K, scene);
@@ -992,7 +993,8 @@ window.WINTER3D = (function () {
         fortsOf = f.forts;
         forts.forEach((o) => scene.remove(o.g));
         forts.length = 0;
-        f.forts.forEach((o) => { const g = wall(o.hw * 2 * SX, 1.1, 0.6, fortM); g.position.set(X(o.x), 0, Z(o.y)); scene.add(g); forts.push({ g }); });
+        // (a wall right across the lot, against another player, is bricked like yours)
+        f.forts.forEach((o) => { const g = wall(o.hw * 2 * SX, 1.1, 0.6, o.wall ? wallM : fortM); g.position.set(X(o.x), 0, Z(o.y)); scene.add(g); forts.push({ g }); });
       }
       // them, popping up behind their forts: winding up with a snowball, throwing, or
       // getting one in the face
@@ -1025,9 +1027,10 @@ window.WINTER3D = (function () {
         }
       } else if (f.cool > 6) { p.arms[-1].rotation.set(-1.4, 0, -0.1); p.elbows[-1].rotation.x = -0.1; }
       flying([...f.mine, ...f.theirs], (m, b) => {
-        if (b.y0 !== undefined && b.dur === undefined) {
-          // yours, straight up the lot from your hand
-          const k = (b.y0 - b.y) / (b.y0 - 50);
+        if (b.tx === undefined) {
+          // yours, straight up the lot from your hand (to the back of it, or to y1, their
+          // wall, against another player)
+          const k = (b.y0 - b.y) / (b.y0 - (b.y1 || 50));
           m.position.set(X(b.x), 1.55 + Math.sin(Math.min(1, k) * Math.PI) * 1.0, Z(b.y) + 3 * (1 - Math.min(1, k * 4)));
         } else {
           const k = b.t / b.dur, z0 = Z(b.y0 + 22) - 0.4;
