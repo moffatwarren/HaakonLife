@@ -48,7 +48,8 @@ window.Art = (function () {
   const buf = () => new Array(256).fill(null);
   function set(b, x, y, c) { if (x >= 0 && x < 16 && y >= 0 && y < 16 && c) b[y * 16 + x] = c; }
   function rect(b, x, y, w, h, c) { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) set(b, i, j, c); }
-  function stamp(b, art) {
+  function stamp(b, art) { stampArt(b, art); }
+  function stampArt(b, art) {
     for (let j = 0; j < art.length; j++)
       for (let i = 0; i < art[j].length; i++) {
         const ch = art[j][i];
@@ -3703,7 +3704,7 @@ window.Art = (function () {
   }
 
   // Auto-connecting block (desks, tables, counters).
-  function block(b, con, top, face, hi) {
+  function blockAt(b, con, top, face, hi) {
     const x0 = con.l ? 0 : 1, x1 = con.r ? 15 : 14, y0 = con.u ? 0 : 2, y1 = con.d ? 15 : 14;
     for (let y = y0; y <= y1; y++)
       for (let x = x0; x <= x1; x++) {
@@ -3734,7 +3735,7 @@ window.Art = (function () {
   // A steel work table on the plant floor: a grey top with seams where the tables meet,
   // and a drawer with a handle in the blue front.
   function paintWorkTable(b, con) {
-    block(b, con, 'W', 'u', 'w');
+    blockAt(b, con, 'W', 'u', 'w');
     const top = con.u ? 0 : 3, bottom = con.d ? 16 : 10;
     if (con.r) rect(b, 15, top, 1, bottom - top, 'G');
     if (!con.d) {
@@ -4166,20 +4167,25 @@ window.Art = (function () {
   }
 
   // Build the 16x16 buffer for map tile (x, y).
-  function tile(get, floorCh, x, y) {
+  // (objOnly: just what stands on the floor, for renderFloor32, which draws the floor, the
+  // walls, doors, desks and counters and partitions itself, at 32 x 32)
+  function tile(get, floorCh, x, y, objOnly) {
     const b = buf();
     const t = get(x, y);
-    if (t === ' ') { rect(b, 0, 0, 16, 16, 'k'); return b; }
-    if (t === '#') { paintWall(b, get, x, y, floorCh === '-'); return b; }
+    const block = objOnly ? () => {} : blockAt;
+    // (anything with a 32 x 32 picture is left out for renderFloor32 and noted in b.hi, for it to draw)
+    const stamp = (bb, art) => { const k = ART_KEY.get(art); if (objOnly && OBJ32[k]) (bb.hi = bb.hi || []).push(k); else stampArt(bb, art); };
+    if (t === ' ') { if (!objOnly) rect(b, 0, 0, 16, 16, 'k'); return b; }
+    if (t === '#') { if (!objOnly) paintWall(b, get, x, y, floorCh === '-'); return b; }
     if (t === 'X') { paintExit(b); return b; }
     if (t === 'E') { paintElevator(b, get, x, y); return b; }
-    paintFloor(b, floorCh, x, y);
+    if (!objOnly) paintFloor(b, floorCh, x, y);
     const con = (chars) => ({
       u: chars.includes(get(x, y - 1)), d: chars.includes(get(x, y + 1)),
       l: chars.includes(get(x - 1, y)), r: chars.includes(get(x + 1, y)),
     });
     switch (t) {
-      case 'D': paintDoor(b, get, x, y); break;
+      case 'D': if (!objOnly) paintDoor(b, get, x, y); break;
       case 'S': paintStairs(b, get, x, y); break;
       case 'd': case 'm':
         block(b, con('dm%!'), 'N', 'n', 'y');
@@ -4201,7 +4207,7 @@ window.Art = (function () {
         break;
       case 'r': case 'R': block(b, con('rR'), 'y', 'u', 'w'); if (t === 'R') stamp(b, ART.monitor); break;
       case 'Z': block(b, con('Z'), 'y', 'N', 'w'); stamp(b, (y & 1) ? ART.candyB : ART.candy); break;
-      case '=': partition(b, con('=#')); break;
+      case '=': if (!objOnly) partition(b, con('=#')); break;
       case 'c': stamp(b, ART.chair); break;
       case 'p': stamp(b, ART.plant); break;
       case 'w': stamp(b, ART.toilet); break;
@@ -4274,6 +4280,804 @@ window.Art = (function () {
     for (let y = 0; y < H; y++)
       for (let x = 0; x < W; x++)
         blit(img, tile(get, floor.floor[y][x], x, y), x * 16, y * 16, pal, false);
+    ctx.putImageData(img, 0, 0);
+    return cv;
+  }
+
+  // The things that stand on the floor at 32 x 32, by their name in ART: laid over the tile
+  // from its top left ('.' clear). Anything not here is today's, doubled (see renderFloor32).
+  const OBJ32 = {
+    chair: [
+      '',
+      '',
+      '',
+      '...........kkkkkkkkkk',
+      '.........kkkkkkkkkkkkkk',
+      '.........kwwwwwwwwwwwkk',
+      '........kkUUUUUUUUUUUukk',
+      '........kkUUUUUUUUUUUukk',
+      '........kkUUUUUUUUUUUukk',
+      '........kkUUUUUUUUUUUukk',
+      '........kkUUUUUUUUUUUukk',
+      '.........kUUUUUUUUUUUkk',
+      '.........kkkkkkkkkkkkkk',
+      '.........kkkkkkkkkkkkkk',
+      '.......kkkkkkkkkkkkkkkkkk',
+      '.......kiiiiiiiiiiiiiiikk',
+      '......kkUUUUUUUUUUUUUUUUkk',
+      '......kkUUUUUUUUUUUUUUUUkk',
+      '......kkuuuuuuuuuuuuuuuukk',
+      '.......kuuuuuuuuuuuuuuuuk',
+      '.......kkkkkkkkkkkkkkkkkk',
+      '.........kkkkkkkkkkkkkk',
+      '..............kKKk',
+      '..............kKKk',
+      '..............kKKk',
+      '........kKKKKKKKKKKKKKKk',
+      '........kkkkkkkkkkkkkkkk',
+      '.......kkk.....kk.....kkk',
+      '.......kkk....kkkk....kkk',
+      '.......kkk....kkkk....kkk',
+      '...............kk',
+    ],
+    plant: [
+      '.......kkkeeekEeeekeeekkk',
+      '......kkeeEEEEEleleeeeeekk',
+      '.....kkeEEleleEEEEEEEeeeekk',
+      '.....kkleEEEEEEEleleEEeeekk',
+      '....kkkEEEEleleEEEEEEEleekkk',
+      '...kkeleleEEEEEEEleleEEeeeekk',
+      '..kkeEEEEEEEleleEEEEEEEleeeekk',
+      '..kkeEEleleEEEEEEEleleEEeeeekk',
+      '..kkeeEEEEEEEleleEEEEEEEeeeekk',
+      '..kkeEEEleleEEEEEEEleleEeeeekk',
+      '..kkeleEEEEEEEleleEEEEEEeeeekk',
+      '..kkeeEEEleleEEEEEEEleleeeeekk',
+      '...kkeEeEEEEEEEEeEeEEEEeeeekk',
+      '...kkeeEEEEeEeEEEEEEEEeeeeekk',
+      '...kkeeeeEEEEEEEEeEeEeeeeeekk',
+      '...kkeeeeeEEeEeEeEEeeeeeeeekk',
+      '...kkeeeeeeeeeEeeeeeeeeeeeekk',
+      '....kkeeeeeekekkkkekeeeeeekk',
+      '.....kkkkNyyyyyyyyyyyyNkkkk',
+      '......kkkNNNNNNNNNNNNNNkkk',
+      '.......kkNNNNNNNNNNNNNNkk',
+      '.......kkkkkkkkkkkkkkkkkk',
+      '........kkkNNNNNNNnnnkkk',
+      '.........kkNNNNNNNnnnkk',
+      '.........kkNNNNNNNnnnkk',
+      '.........kkNNNNNNNnnnkk',
+      '.........kkNNNNNNNnnnkk',
+      '.........kknnnnnnnnnnkk',
+      '.........kknnnnnnnnnnkk',
+      '..........kknnnnnnnnkk',
+      '...........kkkkkkkkkk',
+      '............kkkkkkkk',
+    ],
+    monitor: [
+      '',
+      '.........kkkkkkkkkkkkkk',
+      '........kkkkkkkkkkkkkkkk',
+      '........kkiiiiiiiiiiiikk',
+      '........kkiiwwiiiiiiiikk',
+      '........kkiiiwwiiiiiiikk',
+      '........kkiiiiwwiiiiiikk',
+      '........kkiiiiiwwiiiiikk',
+      '........kkiiiiiiiiiiiikk',
+      '........kkUUUUUUUUUUUUkk',
+      '........kkUUUUUUUUUUUUkk',
+      '........kkUUUUUUUUUUUUkk',
+      '........kkkkkkkkkkkkokkk',
+      '.........kkkkkkkkkkkkkk',
+      '.............kKKKKk',
+      '.............kKKKKk',
+      '...........kkkkkkkkkk',
+      '...........kkkkkkkkkk',
+      '',
+      '.....kkkkkkkkkkkkkkkkkkk',
+      '.....kWGWGWGWGWGWGWGWGWk..k',
+      '.....kWWWWWWWWWWWWWWWWWk.kWk',
+      '.....kWGWGWGWGWGWGWGWGWk.kWk',
+      '.....kWWWWGGGGGGGGGWWWWk.kWk',
+      '.....kkkkkkkkkkkkkkkkkkk..k',
+    ],
+    papers: [
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '......kkkkkkkkkk',
+      '......kwwwwwwwWkk',
+      '......kwGGGGGGWkk',
+      '......kwwwwwwwWkk..kkkkk',
+      '......kwGGGGGGWkk.kDDDDDk',
+      '......kwwwwwwwWkk.kRrrrrkkk',
+      '......kwGGGGGGWkk.kRrrrrk.kk',
+      '......kwwwwwwwWkk.kRrrrrk..k',
+      '......kwGGGGwwWkk.kRrrrrk.kk',
+      '......kwwwwwwwWkk.kRrrrrkkk',
+      '......kwwwwwwwWkk.kRrrrrk',
+      '......kWWWWWWWWkk.krrrrrk',
+      '......kkkkkkkkkkk..kkkkk',
+      '.....kkkkkkkkkkk',
+    ],
+    copier: [
+      '',
+      '',
+      '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '.kkGGGGGGGGGGGGGGGGGGGGGGGGGGkk',
+      '.kkGGkkkkkkkkkkkkkkkkkkkkkkGGkk',
+      '.kkGGkUUUUUUUUUUUUUUUUUUUUkGGkk',
+      '.kkGGkiiiiiiiiiiiiiiiiiiiikGGkk',
+      '.kkGGkiiiiiiiiiiiiiiiiiiiikGGkk',
+      '.kkGGkiiiiiiiiiiiiiiiiiiiikGGkk',
+      '.kkGGkkkkkkkkkkkkkkkkkkkkkkGGkk',
+      '.kkGGGGGGGGGGGGGGGGGGGGGGGGGGkk',
+      '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '.kkWWWWWWWWWWWWWWWWWiiiiWWWWWkk',
+      '.kkWWWWWWWWWWWWWWWWWiiiiWuWoWkk',
+      '.kkWWWWWWWWWWWWWWWWWiiiiWWWWWkk',
+      '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '.kkwwwwwwwwwwwwwwwwwwwwwwwwwwkk',
+      '.kkwwwwwwwwwwkkkkkkwwwwwwwwwwkk',
+      '.kkwwwwwwwwwwkkkkkkwwwwwwwwwwkk',
+      '.kkwwwwwwwwwwwwwwwwwwwwwwwwwwkk',
+      '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '.kkwwwwwwwwwwwwwwwwwwwwwwwwwwkk',
+      '.kkwwwwwwwwwwkkkkkkwwwwwwwwwwkk',
+      '.kkwwwwwwwwwwkkkkkkwwwwwwwwwwkk',
+      '.kkwwwwwwwwwwwwwwwwwwwwwwwwwwkk',
+      '.kkGGGGGGGGGGGGGGGGGGGGGGGGGGkk',
+      '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+    ],
+    printer: [
+      '',
+      '',
+      '.......kkkkkkkkkkkkkkkkkk',
+      '.......kwwwwwwwwwwwwwwwwk',
+      '.......kwGGGGGGGGGGGGGGwk',
+      '.......kwwwwwwwwwwwwwwwwk',
+      '.......kwwwwwwwwwwwwwwwwk',
+      '.....kkkkkkkkkkkkkkkkkkkkkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkwwwwwwwwwwwwwwwwwwwwkk',
+      '....kkGGGGGGGGGGGGGGGuGoGGkk',
+      '....kkGGGGGGGGGGGGGGGGGGGGkk',
+      '....kkKKKKKKKKKKKKKKKKKKKKkk',
+      '....kkKKKKKKKKKKKKKKKKKKKKkk',
+      '....kkGGGGGGGGGGGGGGGGGGGGkk',
+      '....kkggggggggggggggggggggkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '.....kkkkkkkkkkkkkkkkkkkkkk',
+      '.......kwwwwwwwwwwwwwwwwk',
+      '.......kwwwwwwwwwwwwwwwwk',
+      '.......kkkkkkkkkkkkkkkkkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkNNNNNNNNNNNNNNNNNNNNkk',
+      '....kkNNNNNNNNNNNNNNNNNNNNkk',
+      '....kknnnnnnnnnnnnnnnnnnnnkk',
+      '....kknnnnnnnnDDDDnnnnnnnnkk',
+      '....kknnnnnnnnDDDDnnnnnnnnkk',
+      '....kknnnnnnnnnnnnnnnnnnnnkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+    ],
+    fridge: [
+      '........kkkkkkkkkkkkkkkk',
+      '.......kkkkkkkkkkkkkkkkkk',
+      '......kkGGGGGGGGGGGGGGWWkk',
+      '......kkGGGGGGGGGGGGGGWWkk',
+      '......kkwKKwwwwwwwwwwwWWkk',
+      '......kkwKKwwwwwwwwwwwWWkk',
+      '......kkwKKwwwwwwwwwwwWWkk',
+      '......kkwKKwwwwwwwwwwwWWkk',
+      '......kkwKKwwwwwwwwwwwWWkk',
+      '......kkwwwwwwwwwwwwwwWWkk',
+      '......kkkkkkkkkkkkkkkkWWkk',
+      '......kkGGGGGGGGGGGGGGWWkk',
+      '......kkwwwwwwwwwwwwwwWWkk',
+      '......kkwKKwwwwwwwwwwwWWkk',
+      '......kkwKKwwwwwwrrrwwWWkk',
+      '......kkwKKwwwwwwrrrwwWWkk',
+      '......kkwKKwwwwwwrrrwwWWkk',
+      '......kkwKKwwwwwwwwwwwWWkk',
+      '......kkwKKwwwuuwwwwwwWWkk',
+      '......kkwKKwwwuuwwwwwwWWkk',
+      '......kkwKKwwwwwwwwwwwWWkk',
+      '......kkwwwwwwwwwwwwwwWWkk',
+      '......kkwwwwwwwwwwwwwwWWkk',
+      '......kkwwwwwwwwwwwwwwWWkk',
+      '......kkwwwwwwwwwwwwwwWWkk',
+      '......kkwwwwwwwwwwwwwwWWkk',
+      '......kkwwwwwwwwwwwwwwWWkk',
+      '......kkwwwwwwwwwwwwwwWWkk',
+      '......kkGGGGGGGGGGGGGGGGkk',
+      '......kkGGGGGGGGGGGGGGGGkk',
+      '.......kkkkkkkkkkkkkkkkkk',
+      '........kkkkkkkkkkkkkkkk',
+    ],
+    sink: [
+      '',
+      '',
+      '',
+      '',
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      'kkWWWWWWWWWWWgGggggWWWWWWWWWWWkk',
+      'kkWWWWWWWWWWWggggggWWWWWWWWWWWkk',
+      'kkWWWWWWWWWWWggKKggWWWWWWWWWWWkk',
+      'kkWWWWWWWWWWWWWKKWWWWWWWWWWWWWkk',
+      'kkWWWWWWWWWWWWWKKWWWWWWWWWWWWWkk',
+      'kkWWWWWWkkkkkkkkkkkkkkkkWWWWWWkk',
+      'kkWWWWkkkkkkkkkkkkkkkkkkkkWWWWkk',
+      'kkWWWkkkwwwwwwwiiiiiiiiikkkWWWkk',
+      'kkWWWkkiiiiiiiiiiiiiiiiiikkWWWkk',
+      'kkWWkkiiiiiiiiiiiiiiiiiiiikkWWkk',
+      'kkWWkkiiiiiiiiiiiiiiiiiiiikkWWkk',
+      'kkWWkkiiiiiiiiiiiiiiiiiiiikkWWkk',
+      'kkWWkkiiiiiiiUUUUUiiiiiiiikkWWkk',
+      'kkWWkkiiiiiiiUUKKUiiiiiiiikkWWkk',
+      'kkWWkkiiiiiiiiiiiiiiiiiiiikkWWkk',
+      'kkWWWkkiiiiiiiiiiiiiiiiiikkWWWkk',
+      'kkWWWkkkiiiiiiiiiiiiiiiikkkWWWkk',
+      'kkWWWWkkkkkkkkkkkkkkkkkkkkWWWWkk',
+      'kkWWWWWWkkkkkkkkkkkkkkkkWWWWWWkk',
+      'kkWWWWWWWWWWWWWWWWWWWWWWWWWWWWkk',
+      'kkGGGGGGGGGGGGGGGGGGGGGGGGGGGGkk',
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+    ],
+    toilet: [
+      '',
+      '',
+      '......kkkkkkkkkkkkkkkkkkkk',
+      '......kkkkkkkkkkkkkkkkkkkk',
+      '......kkwwwwwwwwwwwwwwGwkk',
+      '......kkwwwwwwwwwwwwwwwwkk',
+      '......kkGGGGGGGGGGGGGGGGkk',
+      '......kkGGGGGGGGGGGGGGGGkk',
+      '......kkkkkkkkkkkkkkkkkkkk',
+      '......kkkkkkkkkkkkkkkkkkkk',
+      '......kkWWWWWWWWWWWWWWWWkk',
+      '......kkWWWWWWWWWWWWWWWWkk',
+      '.........kkwwwwwwwwwwkk',
+      '........kkwwwwwGGwwwwwkk',
+      '........kkwwwGGGGGGwwwkk',
+      '........kkwwGGGGGGGGwwkk',
+      '.......kkwwGGGiiiiGGGwwkk',
+      '.......kkwwGGiwwwwiGGwwkk',
+      '.......kkwwGiiiiiiiiGwwkk',
+      '.......kkwwGiiiiiiiiGwwkk',
+      '.......kkwwGiiiiiiiiGwwkk',
+      '.......kkwwGiiiiiiiiGwwkk',
+      '........kkwGiiiiiiiiGwkk',
+      '........kkwwGiiiiiiGwwkk',
+      '........kkwwwGiiiiGwwwkk',
+      '.........kkwwwwGGwwwwkk',
+      '..........kkkwwwwwwkkk',
+      '...........kkkkkkkkkk',
+      '.............kkkkkk',
+    ],
+    recycling: [
+      '',
+      '',
+      '.....kkkkkkkkkkkkkkkkkkkkkk',
+      '.....kkkkkkkkkkkkkkkkkkkkkk',
+      '.....kkiiiiiiiiiiiiiiiiiikk',
+      '.....kkUUUUUUUUUUUUUUUUUUkk',
+      '.....kkuuuuuuuuuuuuuuuuuukk',
+      '.....kkkkkkkkkkkkkkkkkkkkkk',
+      '.....kkkkkkkkkkkkkkkkkkkkkk',
+      '.......kkkkkkkkkkkkkkkkkk',
+      '.......kkUUUUUUUUUUUUuukk',
+      '.......kkUUUUUUUwUUUUuukk',
+      '.......kkUUUUUUwwUUUUuukk',
+      '.......kkUUUUUwUUwUUUuukk',
+      '.......kkUUUUwUUUUwUUuukk',
+      '.......kkUUUUUUUUUUwUuukk',
+      '.......kkUUUwUUUUUUwUuukk',
+      '.......kkUUUwUUUUUUwUuukk',
+      '.......kkUUwUUUUUUUUwuukk',
+      '.......kkUUUUwwwwwwUUuukk',
+      '.......kkUUUwUUUUUUUUuukk',
+      '.......kkUUUUUUUUUUUUuukk',
+      '.......kkUUUUUUUUUUUUuukk',
+      '.......kkUUUUUUUUUUUUuukk',
+      '.......kkUUUUUUUUUUUUuukk',
+      '.......kkUUUUUUUUUUUUuukk',
+      '.......kkuuuuuuuuuuuuuukk',
+      '.......kkuuuuuuuuuuuuuukk',
+      '.......kkkkkkkkkkkkkkkkkk',
+      '.......kkkkkkkkkkkkkkkkkk',
+    ],
+    shelf: [
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      'kknnnnnnnnnnnnnnnnnnnnnnnnnnnnkk',
+      'kknDDDDDDDEEEDRRRDDDDDRRRDEEDnkk',
+      'kknooDRRRDEEEDRRRDEEEDRRRDEEDnkk',
+      'kknooDRRRDEEEDRRRDEEEDRRRDEEDnkk',
+      'kknooDRRRDEEEDRRRDEEEDRRRDEEDnkk',
+      'kknooDRRRDEEEDRRRDEEEDRRRDEEDnkk',
+      'kknooDRRRDEEEDRRRDEEEDRRRDEEDnkk',
+      'kknooDRRRDEEEDRRRDEEEDRRRDEEDnkk',
+      'kknooDRRRDEEEDRRRDEEEDRRRDEEDnkk',
+      'kkNNNNNNNNNNNNNNNNNNNNNNNNNNNNkk',
+      'kknDDDDUUUDyyyDDDDDyyyDUUUDDDnkk',
+      'kknyyyDUUUDyyyDUUUDyyyDUUUDyDnkk',
+      'kknyyyDUUUDyyyDUUUDyyyDUUUDyDnkk',
+      'kknyyyDUUUDyyyDUUUDyyyDUUUDyDnkk',
+      'kknyyyDUUUDyyyDUUUDyyyDUUUDyDnkk',
+      'kknyyyDUUUDyyyDUUUDyyyDUUUDyDnkk',
+      'kknyyyDUUUDyyyDUUUDyyyDUUUDyDnkk',
+      'kknyyyDUUUDyyyDUUUDyyyDUUUDyDnkk',
+      'kkNNNNNNNNNNNNNNNNNNNNNNNNNNNNkk',
+      'kknyyyyyyyyyyyyyyyyyyyyyyyyyynkk',
+      'kknNNNNNNNNNNNNNNNNNNNNNNNNNNnkk',
+      'kknNNNNNNNNNNNNNNNNNNNNNNNNNNnkk',
+      'kknNNNNNNNNNNDDDDDDNNNNNNNNNNnkk',
+      'kknNNNNNNNNNNDDDDDDNNNNNNNNNNnkk',
+      'kknNNNNNNNNNNNNNNNNNNNNNNNNNNnkk',
+      'kknNNNNNNNNNNNNNNNNNNNNNNNNNNnkk',
+      'kknnnnnnnnnnnnnnnnnnnnnnnnnnnnkk',
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+    ],
+    appliance: [
+      '',
+      '',
+      '',
+      '',
+      '',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '..kkGGGGGGGGGGGGGGGGGGGGGGGGkk',
+      '..kkGkkkkkkkkkkkkkkkGGKKKKKGkk',
+      '..kkGkKKKKKKKKKKKKKkGGKooKKGkk',
+      '..kkGkKUUUUUUUUUUUKkGGKKKKKGkk',
+      '..kkGkKiiiiiiiiiiiKkGGGGGGGGkk',
+      '..kkGkKiiiiiiiiiiiKkGGgGgGgGkk',
+      '..kkGkKiiiiiiiiiiiKkGGGGGGGGkk',
+      '..kkGkKiiiiiiiiiiiKkGGgGgGgGkk',
+      '..kkGkKiiiiiiiiiiiKkGGGGGGGGkk',
+      '..kkGkKiiiiiiiioiiKkGGgGgGgGkk',
+      '..kkGkKiiiiiiiiiiiKkGGGGGGGGkk',
+      '..kkGkKiiiiiiiiiiiKkGGuuuuuGkk',
+      '..kkGkKKKKKKKKKKKKKkGGuuuuuGkk',
+      '..kkGkkkkkkkkkkkkkkkGGGGGGGGkk',
+      '..kkGGGGGGGGGGGGGGGGGGGGGGGGkk',
+      '..kkggggggggggggggggggggggggkk',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+    ],
+    coffeeTop: [
+      '',
+      '',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkKKkkkkkkkkkkkkkkkkKKkk',
+      '....kkKKkkkkkkkkkkkkkkkkKKkk',
+      '....kkKKkkNNNNNNNNNNNNkkKKkk',
+      '....kkKKkkNDDNNNNDDNNNkkKKkk',
+      '....kkKKkkNNNNNNDDNNNNkkKKkk',
+      '....kkKKkkNNNNDDNNNNNNkkKKkk',
+      '....kkKKkkNNDDNNNNNDDNkkKKkk',
+      '....kkKKkkNNNNNNNNNNNNkkKKkk',
+      '....kkKKkkkkkkkkkkkkkkkkKKkk',
+      '....kkKKkkkkkkkkkkkkkkkkKKkk',
+      '....kkKKKKKKKKKKKKKKKKKKKKkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkKKKKKKKKKKKKKKKKKKKKkk',
+      '....kkKKKKKKKKKKKKKKKKKKKKkk',
+      '....kkKKkkkkkkkkkkkkkkkkKKkk',
+      '....kkKKkiUUUUUUUiiiiiikKKkk',
+      '....kkKKkiiiiiiiiiiiiiikKKkk',
+      '....kkKKkiiiiiiiiiiiiiikKKkk',
+      '....kkKKkkkkkkkkkkkkkkkkKKkk',
+      '....kkKKKKKKKKKKKKKKKKKKKKkk',
+      '....kkKKKKKKKKKKKKKKKKKKKKkk',
+      '....kkKKKKKKKKKKKKKKKKKKKKkk',
+      '....kkKKKKoKKrKKuKKEKKKKKKkk',
+      '....kkKKKKKKKKKKKKKKKKKKKKkk',
+      '....kkKKKKKKKKKKKKKKKKKKKKkk',
+      '....kkKKKKKKKKKKKKKKKKKKKKkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+    ],
+    coffeeBottom: [
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkKKKKKKKKKKKKKKKKKKKKkk',
+      '....kkKKkkKKKggggggKKKkkKKkk',
+      '....kkKKkkKKKggggggKKKkkKKkk',
+      '....kkKKkkKKKggggggKKKkkKKkk',
+      '....kkKKkkKKKKKggKKKKKkkKKkk',
+      '....kkKKkkKKKKKggKKKKKkkKKkk',
+      '....kkKKkkKKKKKggKKKKKkkKKkk',
+      '....kkKKkkKKKKKKKKKKKKkkKKkk',
+      '....kkKKkkKKKKKKKKKKKKkkKKkk',
+      '....kkKKkkKKKKKKKKKKKKkkKKkk',
+      '....kkKKkkKKkkkkkkkkKKkkKKkk',
+      '....kkKKkkKKknnnnnnkKKkkKKkk',
+      '....kkKKkkKKkwwwwwwkkKkkKKkk',
+      '....kkKKkkKKkwwwwwwkkKkkKKkk',
+      '....kkKKkkKKkwwwwwwkkKkkKKkk',
+      '....kkKKkkKKkwwwwwwkKKkkKKkk',
+      '....kkKKkkKKkwwwwwwkKKkkKKkk',
+      '....kkKKkkKKkkkkkkkkKKkkKKkk',
+      '....kkKKkkkkkkkkkkkkkkkkKKkk',
+      '....kkKKgKgKgKgKgKgKgKggKKkk',
+      '....kkKKggggggggggggggggKKkk',
+      '....kkGGGGGGGGGGGGGGGGGGGGkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+    ],
+    candy: [
+      '',
+      '',
+      '',
+      '',
+      '',
+      '.............oo....EE',
+      '..........RR.oo.UU.Ek',
+      '..........Rk..ooUU...rr',
+      '...........RR.okooUU.rr',
+      '.......kkkkRRRkkooUUEEkkk',
+      '.......kwwwwRkwwwwwwEEwwk',
+      '.......kwwwwwwwwwwwwwwwwk',
+      '.......kwwwwwwwwwwwwwwwwk',
+      '.......kwwwwwwwwwwwwwwwwk',
+      '........kwwwwwwwwwwwwwwk',
+      '........kwWWWWWWWWWWWWwk',
+      '.........kkwwwwwwwwwwkk',
+      '...........kkkkkkkkkk',
+      '',
+      '',
+      '.........................oo',
+      '',
+      '....RR',
+      '',
+      '',
+      '',
+      '.........UU',
+      '......................EE',
+    ],
+    candyB: [
+      '',
+      '',
+      '',
+      '.......WooW',
+      '...UU...WrrW...EE',
+      '...k.....k.....k..WEEW',
+      '...........WRRW....k',
+      '............k',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '....UU.............RR',
+      '....k..............k',
+      '',
+      '...RR',
+      '...k',
+      '.............rr',
+      '.............k',
+      '..............oo',
+      '..............k',
+    ],
+    box: [
+      '',
+      '',
+      '',
+      '',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkyyyyyyyyNNNNyyyyyyyykk',
+      '....kkyyyyyyyyNNNNyyyyyyyykk',
+      '....kkyyyyyyyyNNNNyyyyyyyykk',
+      '....kkyyyyyyyyNNNNyyyyyyyykk',
+      '....kkyyyyyyyyNNNNyyyyyyyykk',
+      '....kkyyyyyyyyNNNNyyyyyyyykk',
+      '....kkNNNNNNNNNNNNNNNNNNNNkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkNNNNNNNNNNNNNNNNNNnnkk',
+      '....kkNNNNNNNNNNNNNNNNNNnnkk',
+      '....kkNNNNNNNNNNNNNNNNNNnnkk',
+      '....kkNNNkkkkkkkkNNNNNNNnnkk',
+      '....kkNNNkwwwwwwkNNNNNNNnnkk',
+      '....kkNNNkwggggwkNNNNNNNnnkk',
+      '....kkNNNkwwwwwwkNNNNNNNnnkk',
+      '....kkNNNkkkkkkkkNNNNNNNnnkk',
+      '....kkNNNNNNNNNNNNNNNNNNnnkk',
+      '....kkNNNNNNNNNNNNNNNNNNnnkk',
+      '....kkNNNNNNNNNNNNNNNNNNnnkk',
+      '....kknnnnnnnnnnnnnnnnnnnnkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+      '....kkkkkkkkkkkkkkkkkkkkkkkk',
+    ],
+    cupboard: [
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      'kknnnnnnnnnnnnnnnnnnnnnnnnnnnnkk',
+      'kknDDDDDDDDDDDDDDDDDDDDDDDDDDnkk',
+      'kknDkkkkkDkkkkkDkkkkkDDDDDDDDnkk',
+      'kknDkGGGkDkGGGkDkGGGkDuuUUDDDnkk',
+      'kknDkwwwkDkwwwkDkwwwkDuuUUrrDnkk',
+      'kknDkGGGkDkGGGkDkGGGkDuuUUrrDnkk',
+      'kknDkwwwkDkwwwkDkwwwkDuuUUrrDnkk',
+      'kknDkwwwkDkwwwkDkwwwkDuuUUrrDnkk',
+      'kknDkkkkkDkkkkkDkkkkkDuuUUrrDnkk',
+      'kknDDDDDDDDDDDDDDDDDDDDDDDDDDnkk',
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      'kkNNNNNNNNNNNNNNNNNNNNNNNNNNNNkk',
+      'kknkkkkkkkkkkkknnkkkkkkkkkkkknkk',
+      'kknkNNNNNNNNNNknnkNNNNNNNNNNknkk',
+      'kknkNyyyyyyyyNknnkNyyyyyyyyNknkk',
+      'kknkNyyyyyyyyNknnkNyyyyyyyyNknkk',
+      'kknkNyyyyyyyyNknnkNyyyyyyyyNknkk',
+      'kknkNNNNNNNNNNknnkNNNNNNNNNNknkk',
+      'kknkNNNNNNNNNoknnkoNNNNNNNNNknkk',
+      'kknkNyyyyyyyyNknnkNyyyyyyyyNknkk',
+      'kknkNyyyyyyyyNknnkNyyyyyyyyNknkk',
+      'kknkNyyyyyyyyNknnkNyyyyyyyyNknkk',
+      'kknkNNNNNNNNNNknnkNNNNNNNNNNknkk',
+      'kknkNNNNNNNNNNknnkNNNNNNNNNNknkk',
+      'kknkkkkkkkkkkkknnkkkkkkkkkkkknkk',
+      'kkDDDDDDDDDDDDDDDDDDDDDDDDDDDDkk',
+      'kkDDDDDDDDDDDDDDDDDDDDDDDDDDDDkk',
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+    ],
+    snackShelf: [
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      'kknnnnnnnnnnnnnnnnnnnnnnnnnnnnkk',
+      'kknDDDDDDDDDDDDDDDDDDDDDDDDDDnkk',
+      'kknDDDDDDDDDDDDDDDDDDDDDDDDDDnkk',
+      'kknDkkkDwwwDkkkDwwwDkkkDwwwDDnkk',
+      'kknDEEDDyyDDrrDDooDDRRDDuuDDDnkk',
+      'kknDEEDDyyDDrrDDooDDRRDDuuDDDnkk',
+      'kknDEEDDyyDDrrDDooDDRRDDuuDDDnkk',
+      'kknDEEDDyyDDrrDDooDDRRDDuuDDDnkk',
+      'kknDEEDDyyDDrrDDooDDRRDDuuDDDnkk',
+      'kknDEEDDyyDDrrDDooDDRRDDuuDDDnkk',
+      'kkNNNNNNNNNNNNNNNNNNNNNNNNNNNNkk',
+      'kknDDDDDDDDDDDDDDDDDDDDDDDDDDnkk',
+      'kknDDDDDDDDDDDDDDDDDDDDDDDDDDnkk',
+      'kknDkkkDwwwDkkkDwwwDkkkDwwwDDnkk',
+      'kknDRRDDuuDDEEDDyyDDrrDDooDDDnkk',
+      'kknDRRDDuuDDEEDDyyDDrrDDooDDDnkk',
+      'kknDRRDDuuDDEEDDyyDDrrDDooDDDnkk',
+      'kknDRRDDuuDDEEDDyyDDrrDDooDDDnkk',
+      'kknDRRDDuuDDEEDDyyDDrrDDooDDDnkk',
+      'kknDRRDDuuDDEEDDyyDDrrDDooDDDnkk',
+      'kkNNNNNNNNNNNNNNNNNNNNNNNNNNNNkk',
+      'kknyyyyyyyyyyyyyyyyyyyyyyyyyynkk',
+      'kknNNNNNNNNNNNNNNNNNNNNNNNNNNnkk',
+      'kknNNNNNNNNNNNNNNNNNNNNNNNNNNnkk',
+      'kknNNNNNNNNNNNNNNNNNNNNNNNNNNnkk',
+      'kknNNNNNNNNNNNNNNNNNNNNNNNNNNnkk',
+      'kknnnnnnnnnnnnnnnnnnnnnnnnnnnnkk',
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+    ],
+  };
+  const ART_KEY = new Map(Object.entries(ART).map(([k, v]) => [v, k]));
+
+  // ---------- the office at 32 x 32 ----------
+  // A floor at double resolution (renderFloor32): the floors, walls, doors, desks and
+  // counters and the cubicle partitions are drawn at 32 x 32 here, a tile at a time, and
+  // everything that stands on the floor (chairs, plants, machines and the rest) is today's,
+  // laid out at 16 for the whole floor and doubled in one go with Scale2x, so anything that
+  // spans tiles stays whole, then laid over the top. Outlines are 2 pixels, light from the
+  // top left, as for the people.
+  function floor32(b, f, tx, ty) {
+    for (let y = 0; y < 32; y++)
+      for (let x = 0; x < 32; x++) {
+        const gx = tx * 32 + x, gy = ty * 32 + y;
+        let c;
+        switch (f) {
+          case '.': // office carpet: a fine loop pile
+            c = (gx % 16 === 0 && gy % 16 === 0) || (gx % 16 === 8 && gy % 16 === 8) ? 'p' : 'P';
+            break;
+          case ',': // reception's stone tiles, one to a tile: grout, a light edge, two shades
+            c = x === 0 || y === 0 ? 'A' : x === 1 || y === 1 ? 'a' : (tx + ty) & 1 ? 'a' : 'Z';
+            break;
+          case ':': // small white tiles, grout every 8, a little shade on each one's lower edge
+            c = x % 8 === 0 || y % 8 === 0 ? 'G' : x % 8 === 7 || y % 8 === 7 ? 'W' : 'w';
+            break;
+          case ';': // plant concrete: big slabs with saw cuts, flecks of aggregate
+            c = gx % 128 === 0 || gy % 128 === 0 || (gx * 13 + gy * 7) % 29 === 0 ? 'p' : (gx * 5 + gy * 11) % 37 === 0 ? 'W' : 'G';
+            break;
+          case '-': { // casino carpet: a dark red lattice with a gold stud in each diamond
+            const p = (gx + gy) & 31, q = (gx - gy) & 31, dd = Math.abs(p - 16) + Math.abs(q - 16);
+            c = p === 0 || q === 0 ? 'm' : dd <= 2 ? 'o' : dd <= 4 ? 'q' : 'M';
+            break;
+          }
+          case '_': { // long planks, 8 tall, staggered joints, a grain line or two, a light top edge (J: warm wood)
+            const row = Math.floor(gy / 8), joint = (gx + row * 38) % 96 === 0;
+            const grain = y % 8 === 3 && (gx * 7 + row * 3) % 13 < 4;
+            c = y % 8 === 7 || joint || grain ? 'N' : y % 8 === 0 ? 'y' : 'J';
+            break;
+          }
+          default: c = 'k';
+        }
+        b[y * 32 + x] = c;
+      }
+  }
+  // a wall: the top of it (cap), a line, the face with stripes and a dado rail, a skirting
+  // board; outlined 2 pixels wherever it ends
+  function wall32(b, get, x, y, casino) {
+    const [cap, wall, stripe, base, foot] = casino ? ['t', 'M', 'q', 'T', 't'] : ['d', 'c', 'C', 'n', 'D'];
+    const up = get(x, y - 1), dn = get(x, y + 1), lf = get(x - 1, y), rt = get(x + 1, y);
+    const face = !isWall(dn) && dn !== ' ', capH = face ? 10 : 32;
+    for (let yy = 0; yy < 32; yy++)
+      for (let xx = 0; xx < 32; xx++) {
+        let c;
+        if (yy < capH) c = cap;
+        else if (yy < capH + 2) c = 'k';
+        else if (yy >= 26) c = yy >= 30 ? foot : yy === 26 ? 'k' : base;
+        else if (yy === 21) c = casino ? 'q' : 'C';
+        else c = xx % 16 === 6 && yy < 21 ? stripe : wall;
+        if ((xx < 2 && !isWall(lf)) || (xx > 29 && !isWall(rt))) c = 'k';
+        if (yy < 2 && !isWall(up)) c = 'k';
+        if (yy > 29 && !face && !isWall(dn)) c = 'k';
+        b[yy * 32 + xx] = c;
+      }
+  }
+  // a doorway: the threshold strip, a frame each side, a ribbed mat
+  function door32(b, get, x, y) {
+    const lf = get(x - 1, y), rt = get(x + 1, y), up = get(x, y - 1), dn = get(x, y + 1);
+    const horiz = isWall(lf) || isWall(rt) || lf === 'D' || rt === 'D';
+    let x0, x1, y0, y1;
+    if (horiz) { x0 = lf === 'D' ? 0 : 4; x1 = rt === 'D' ? 31 : 27; y0 = 6; y1 = 25; }
+    else { y0 = up === 'D' ? 0 : 4; y1 = dn === 'D' ? 31 : 27; x0 = 6; x1 = 25; }
+    for (let yy = y0; yy <= y1; yy++)
+      for (let xx = x0; xx <= x1; xx++) {
+        const edge = (xx <= x0 + 1 && x0 > 0) || (xx >= x1 - 1 && x1 < 31) || (yy <= y0 + 1 && y0 > 0) || (yy >= y1 - 1 && y1 < 31);
+        const rib = horiz ? yy % 4 === 0 : xx % 4 === 0;
+        b[yy * 32 + xx] = edge ? 'd' : rib ? 'A' : 'C';
+      }
+  }
+  // A desk, table or counter at 32 x 32. Its shape is worked out across its neighbours, not
+  // a tile at a time, so where a run turns a corner (an L-shaped desk) the outline goes all
+  // the way round it and the front of one run stops at a line where it meets the top of the
+  // other. Within the shape: a 2-pixel outline, a highlight along its back edges, the top
+  // (with a grain line or two on wood), a line, and its front, 6 pixels deep.
+  function block32(b, get, joins, top, face, hi, tx, ty) {
+    const rects = new Map();
+    const rectOf = (x, y) => {
+      const key = x + ',' + y;
+      if (!rects.has(key)) {
+        const c = (dx, dy) => joins.includes(get(x + dx, y + dy));
+        rects.set(key, joins.includes(get(x, y)) ? [c(-1, 0) ? 0 : 2, c(1, 0) ? 31 : 29, c(0, -1) ? 0 : 4, c(0, 1) ? 31 : 29] : null);
+      }
+      return rects.get(key);
+    };
+    // inside the desk: worked out once for this tile and 12 pixels round it (P), from each
+    // tile's own rectangle; outside that it's taken as more desk
+    const P = 12, N = 32 + P * 2, grid = new Uint8Array(N * N);
+    for (let j = 0; j < N; j++)
+      for (let i = 0; i < N; i++) {
+        const gx = tx * 32 - P + i, gy = ty * 32 - P + j, x = Math.floor(gx / 32), y = Math.floor(gy / 32), r = rectOf(x, y);
+        const lx = gx - x * 32, ly = gy - y * 32;
+        grid[j * N + i] = r && lx >= r[0] && lx <= r[1] && ly >= r[2] && ly <= r[3] ? 1 : 0;
+      }
+    const m = (gx, gy) => {
+      const i = gx - tx * 32 + P, j = gy - ty * 32 + P;
+      return i < 0 || j < 0 || i >= N || j >= N ? true : grid[j * N + i] === 1;
+    };
+    const AROUND = [[1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [-2, 0], [0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+    // what each pixel of the desk is: its edge, its front (or the line above that), the
+    // highlight along the back, or the top
+    const part = (gx, gy) => {
+      if (!m(gx, gy)) return null;
+      if (AROUND.some(([dx, dy]) => !m(gx + dx, gy + dy))) return 'edge';
+      let d = 1;
+      while (d <= 10 && m(gx, gy + d)) d++;
+      if (d <= 8) return 'face';
+      if (d <= 10) return 'line';
+      let u = 1;
+      while (u <= 4 && m(gx, gy - u)) u++;
+      return u <= 4 ? 'hi' : 'top';
+    };
+    const flat = (p) => p === 'top' || p === 'hi';
+    for (let y = 0; y < 32; y++)
+      for (let x = 0; x < 32; x++) {
+        const gx = tx * 32 + x, gy = ty * 32 + y, p = part(gx, gy);
+        if (!p) continue;
+        let c;
+        if (p === 'edge' || p === 'line') c = 'k';
+        // (the front of a run stops at a line where it meets the top of the run it joins)
+        else if (p === 'face') c = [1, 2, -1, -2].some((dx) => flat(part(gx + dx, gy))) ? 'k' : face;
+        else if (p === 'hi') c = hi;
+        else c = top === 'N' && y % 9 === 3 && (gx * 7 + y) % 11 < 6 ? 'n' : top; // (grain, on wood)
+        b[y * 32 + x] = c;
+      }
+  }
+  // a cubicle partition: a padded low wall, joined up with its neighbours
+  function partition32(b, con) {
+    const inM = (x, y) =>
+      (y >= 6 && y <= 23 && ((x >= 10 && x <= 21) || (con.l && x <= 21) || (con.r && x >= 10))) ||
+      (x >= 10 && x <= 21 && ((con.u && y <= 23) || (con.d && y >= 6)));
+    const at = (x, y) => x >= 0 && x < 32 && y >= 0 && y < 32 && inM(x, y);
+    for (let y = 0; y < 32; y++)
+      for (let x = 0; x < 32; x++) {
+        if (!inM(x, y)) continue;
+        let c = (x + y) % 4 === 0 ? 'g' : 'G';
+        const edge = (dx, dy) => !inM(x + dx, y + dy) && x + dx >= 0 && x + dx < 32 && y + dy >= 0 && y + dy < 32;
+        if (edge(-1, 0) || edge(1, 0) || edge(0, -1) || edge(0, 1) || edge(-2, 0) || edge(2, 0) || edge(0, -2) || edge(0, 2)) c = 'k';
+        else if (!at(x, y + 5) && y + 5 < 32) c = 'g';
+        else if (!at(x, y - 3) && y - 3 >= 0) c = 'w';
+        b[y * 32 + x] = c;
+      }
+  }
+  // what each kind of desk or counter is made of: [the tiles it joins up with, top, front, highlight]
+  const BLOCKS32 = {
+    d: ['dm%!', 'N', 'n', 'y'], m: ['dm%!', 'N', 'n', 'y'], '%': ['dm%!', 'N', 'n', 'y'], '!': ['dm%!', 'N', 'n', 'y'],
+    T: ['T', 'y', 'N', 'w'], k: ['kMnP', 'W', 'g', 'w'], M: ['kMnP', 'W', 'g', 'w'], P: ['kMnP', 'W', 'g', 'w'],
+    r: ['rR', 'y', 'u', 'w'], R: ['rR', 'y', 'u', 'w'], Z: ['Z', 'y', 'N', 'w'], e: ['e', 'g', 'K', 'G'],
+  };
+  // the floor, walls, door, desk or partition of one tile at 32 x 32 (what's standing on it comes after)
+  function structure32(get, floorCh, x, y) {
+    const b = new Array(1024).fill(null), t = get(x, y);
+    if (t === ' ') return b.fill('k');
+    if (t === '#') { wall32(b, get, x, y, floorCh === '-'); return b; }
+    floor32(b, floorCh, x, y);
+    const con = (chars) => ({ u: chars.includes(get(x, y - 1)), d: chars.includes(get(x, y + 1)), l: chars.includes(get(x - 1, y)), r: chars.includes(get(x + 1, y)) });
+    if (t === 'D') door32(b, get, x, y);
+    else if (t === '=') partition32(b, con('=#'));
+    else if (BLOCKS32[t]) { const [joins, top, face, hi] = BLOCKS32[t]; block32(b, get, joins, top, face, hi, x, y); }
+    return b;
+  }
+  // a whole floor at 32 x 32: a canvas marked hi: 2 (see js/game.js)
+  function renderFloor32(floor) {
+    const H = floor.tiles.length, W = floor.tiles[0].length, PW = W * 32, PH = H * 32;
+    const get = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? ' ' : floor.tiles[y][x];
+    // everything standing on the floor, at 16, as letters for the whole floor
+    const W16 = W * 16, H16 = H * 16, obj = new Array(W16 * H16).fill(null);
+    const hi = [];
+    for (let ty = 0; ty < H; ty++)
+      for (let tx = 0; tx < W; tx++) {
+        const t = tile(get, floor.floor[ty][tx], tx, ty, true);
+        for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) obj[(ty * 16 + y) * W16 + tx * 16 + x] = t[y * 16 + x];
+        if (t.hi) hi.push([tx, ty, t.hi]);
+      }
+    // ... doubled by Scale2x, over the floors, walls and desks drawn at 32
+    const cv = document.createElement('canvas');
+    cv.width = PW; cv.height = PH; cv.hi = 2;
+    const ctx = cv.getContext('2d'), img = ctx.createImageData(PW, PH), d = img.data, pal = palette({ J: '#e4b47c' });
+    const at = (x, y) => obj[Math.min(H16 - 1, Math.max(0, y)) * W16 + Math.min(W16 - 1, Math.max(0, x))];
+    const put = (X, Y, c) => { if (!c) return; const rgb = pal[c], i = (Y * PW + X) * 4; d[i] = rgb[0]; d[i + 1] = rgb[1]; d[i + 2] = rgb[2]; d[i + 3] = 255; };
+    for (let ty = 0; ty < H; ty++)
+      for (let tx = 0; tx < W; tx++) {
+        const b = structure32(get, floor.floor[ty][tx], tx, ty);
+        for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) put(tx * 32 + x, ty * 32 + y, b[y * 32 + x]);
+      }
+    for (let y = 0; y < H16; y++)
+      for (let x = 0; x < W16; x++) {
+        const p = at(x, y);
+        const a = at(x, y - 1), r = at(x + 1, y), l = at(x - 1, y), dn = at(x, y + 1), edge = a !== dn && l !== r;
+        put(x * 2, y * 2, edge && l === a ? l : p);
+        put(x * 2 + 1, y * 2, edge && a === r ? r : p);
+        put(x * 2, y * 2 + 1, edge && l === dn ? l : p);
+        put(x * 2 + 1, y * 2 + 1, edge && dn === r ? r : p);
+      }
+    // and the things drawn at 32 x 32, in their places
+    for (const [tx, ty, keys] of hi)
+      for (const k of keys) OBJ32[k].forEach((row, y) => [...row].forEach((c, x) => { if (c !== '.') put(tx * 32 + x, ty * 32 + y, c); }));
     ctx.putImageData(img, 0, 0);
     return cv;
   }
@@ -5639,7 +6443,7 @@ window.Art = (function () {
   }
 
   return {
-    LOOKS, UI, COSTUMES, scale2x, renderFloor, renderSprites, renderCostume, renderDog, renderDog32, renderMini, renderTileAs,
+    LOOKS, UI, COSTUMES, scale2x, renderFloor, renderFloor32, renderSprites, renderCostume, renderDog, renderDog32, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
     LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLook32, renderSprites32, renderLookCostume, renderLookCostume32, renderCostume32, renderGhost32,
     SWEATERS,

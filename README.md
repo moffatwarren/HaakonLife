@@ -972,8 +972,14 @@ shirts `SHIRT32`, pants `PANTS32` and ugly Christmas sweaters `SWEATER32`), the 
 (`renderSprites32`: the same parts, short hair, shirt and tie and trousers for a man, long
 hair and a blouse for a woman, in their own colours), the dogs and the cat
 (`renderDog32`), and the Halloween costumes and ghosts (`COSTUME32`, `GHOST32`). The
-office itself (floors, walls, furniture) is still drawn at 16 x 16, doubled with Scale2x.
-Add `&hires=0` to a `#play` link to see everyone at 16 x 16 as they were, e.g.
+office is drawn at 32 x 32 too (`renderFloor32`, "the office at 32 x 32" in `js/art.js`):
+the floors (carpet, reception's stone, white tile, wood, concrete, the casino's carpet),
+walls, doorways, desks and counters and cubicle partitions (a desk's outline is worked
+out from its whole shape, so its corners join up cleanly), and the things standing on the
+floor that have been redrawn (`OBJ32`: chairs, plants, monitors, papers, the copier,
+printer, fridge, sink, toilet, recycling, shelves, cupboards, the microwave, the coffee
+machine, candy and boxes). Anything not yet redrawn is today's, doubled with Scale2x.
+Add `&hires=0` to a `#play` link to see it all at 16 x 16 as it was, e.g.
 `index.html#play&hires=0`. A look code, as in `&look=m20000000`, is the body, then the
 skin 0 to 7, the hairstyle 0 to 8, the hair colour, the head thing, then the shirt and
 pants and their colours.

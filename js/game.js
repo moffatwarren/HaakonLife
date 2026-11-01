@@ -24,17 +24,18 @@
     return drawImage1(img, a[0] * k, a[1] * k, a[2] * k, a[3] * k, a[4], a[5], a[6], a[7]);
   };
   // Everyone is drawn at 32 x 32 (see "32 x 32 characters" in js/art.js): players,
-  // coworkers, costumes, the ghosts and the dogs, and the floors are made double with
-  // Scale2x (Art.scale2x). &hires=0 in a #play link draws them all at 16 x 16 as they were.
+  // coworkers, costumes, the ghosts and the dogs, and so is the office (see "the office at
+  // 32 x 32"). &hires=0 in a #play link draws it all at 16 x 16 as it was.
   const HIRES = !/[#&]hires=0/.test(location.hash);
   if (HIRES) {
-    const floor = Art.renderFloor;
+    const tileAs = Art.renderTileAs;
     Art.renderLook = Art.renderLook32;
     Art.renderSprites = (g, ...a) => (g === 'ghost' ? Art.renderGhost32() : Art.renderSprites32(g, ...a));
     Art.renderCostume = Art.renderCostume32;
     Art.renderLookCostume = Art.renderLookCostume32;
     Art.renderDog = Art.renderDog32;
-    Art.renderFloor = (f) => Art.scale2x(floor(f));
+    Art.renderFloor = Art.renderFloor32;
+    Art.renderTileAs = (...a) => Art.scale2x(tileAs(...a));
   }
   // Touch screens get the on-screen D-pad (a thumbstick out in the parking lot) and A/B/START
   // buttons (see layout), and the control hints drawn in the game name those buttons
