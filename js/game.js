@@ -3298,7 +3298,8 @@
     poker: { title: 'SPRING ROLL HOLD\'EM' }, blackjack: { title: 'SPRING ROLL BLACKJACK' }, slots: { title: 'SPRING ROLL SLOTS' },
     // the live table: spring rolls won less spring rolls lost there, all told (see netNote)
     pokerlive: { title: 'LIVE HOLD\'EM', unit: ' rolls', net: true },
-    catch: { title: 'FRISBEE CATCH' },
+    // most catches in a row (the old `catch` board was out of 10 throws, in an easier game)
+    catchrun: { title: 'FRISBEE CATCH' },
     bob: { title: 'BOBBING FOR APPLES' }, carve: { title: 'PUMPKIN CARVING' }, treat: { title: 'TRICK-OR-TREAT' },
     ghosts: { title: 'GHOST IN THE CUPBOARD' }, costume: { title: 'COSTUME CONTEST' },
     golf: { title: 'WADE\'S PUTTING GREEN', low: true }, dark: { title: 'DAMIR\'S LIGHTS', unit: 's', low: true },
@@ -3318,7 +3319,7 @@
   let pendingBoard = null;
   // Called with every result; the board itself goes up once the game on top has closed (see update).
   function boardNote(key, score) {
-    if (key.startsWith('dog.')) key = 'catch';
+    if (key.startsWith('dogrun.')) key = 'catchrun';
     if (!BOARDS[key] || !(BOARD_URL || boardDemo)) return;
     pendingBoard = { key, score, owner: top() };
   }
@@ -3450,7 +3451,7 @@
     ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pulldown', 'ball', 'laundry']],
     ['TVS AND CODY\'S CASINO', ['pong', 'snake', 'poker', 'pokerlive', 'blackjack', 'slots']],
     ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cpr', 'engrave', 'golf', 'legosolo']],
-    ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catch']],
+    ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catchrun']],
     ['KINGSTON PLANT', ['forklift', 'paint']],
     ['HALLOWEEN', ['bob', 'mummy', 'carve', 'treat', 'ghosts', 'costume']],
     ['CHRISTMAS', ['chop', 'mallow', 'spruce', 'snowman', 'cocoa', 'snowball', 'hockey', 'humbug']],
@@ -3778,12 +3779,12 @@
   }
 
   // ---------- score races against another player ----------
-  // The coffee machine, treadmill, Snake and the control panel can be played against
-  // another player (see VERSUS). You both get the same game from the match's seed and send
-  // each other how you're doing as you go ({ e: 'p', s: score, ... }, passed on to hear),
+  // The coffee machine, treadmill, Snake, the control panel and mini golf can be played
+  // against another player (see VERSUS). You both get the same game from the match's seed and
+  // send each other how you're doing as you go ({ e: 'p', s: score, ... }, passed on to hear),
   // then your final score ({ e: 'f', s }). It carries on until you're both out, and the
-  // higher final score wins.
-  function scoreRace(vs, { what, fmt, hear }) {
+  // higher final score wins (or the lower, if low).
+  function scoreRace(vs, { what, fmt, hear, low }) {
     const foe = vs.name;
     let sentKey = '', sendT = 0;
     const r = {
@@ -3795,8 +3796,10 @@
           if (m.e === 'f') { r.theirs = r.now; r.theirsDone = true; } else if (hear) hear(m);
         }
         if (r.outcome) return r.outcome;
-        if (r.theirsDone && r.mineDone) r.outcome = r.mine > r.theirs ? 'win' : r.mine < r.theirs ? 'lose' : 'tie';
-        else if (vs.gone && !r.theirsDone) r.outcome = 'gone';
+        if (r.theirsDone && r.mineDone) {
+          const ahead = low ? r.theirs - r.mine : r.mine - r.theirs;
+          r.outcome = ahead > 0 ? 'win' : ahead < 0 ? 'lose' : 'tie';
+        } else if (vs.gone && !r.theirsDone) r.outcome = 'gone';
         return r.outcome;
       },
       finish(score) {
@@ -3889,22 +3892,34 @@
     }
     ctx.globalAlpha = 1;
   }
-  // Each dog's best catch game, or null if nobody has played catch with them yet.
-  const dogBest = (name) => { const v = store.get('best.dog.' + name); return v === null ? null : +v; };
+  // Each dog's longest run of catches, or null if nobody has played catch with them yet.
+  const dogBest = (name) => { const v = store.get('best.dogrun.' + name); return v === null ? null : +v; };
 
   // The dog runs out while the power meter swings: throw so the frisbee comes down
   // near the dog, then steer the dog under it and jump to snag it before it lands.
   function CatchGame(n) {
-    // A cat doesn't play: it sleeps through two throws and that's the end of it.
-    const d = n.dog, THROWS = d.cat ? 2 : 10, GY = 196, TOP = 34, HAND = { x: 44, y: GY - 26 };
+    // A cat doesn't play: it sleeps through two throws and that's the end of it. A dog
+    // plays until the first frisbee it misses.
+    const d = n.dog, THROWS = d.cat ? 2 : Infinity, GY = 196, TOP = 34, HAND = { x: 44, y: GY - 26 };
     const RUN = 1.15 * d.speed, CHASE = 1.05 * d.speed;
-    let state = 'ready', t = 0, throwNo = 0, caught = 0, record = false, msg = '';
-    let p = 0, pdir = 1, wind = 0, disc = null, runMul = 1, meterMul = 1;
+    let state = 'ready', t = 0, throwNo = 0, caught = 0, record = false, msg = '', missed = false;
+    let p = 0, pdir = 1, wind = 0, disc = null, runMul = 1, meterMul = 1, hard = null;
     const HOME = d.cat ? 150 : 56;
     const dog = { x: HOME, dir: 1, h: 0, vh: 0, moving: false };
+    // Every catch makes a dog's next throw harder, by less each time but for as long as you
+    // keep going (h starts at 0, is 0.9 by 20 catches, and never quite gets to 1.6): the wind
+    // blows harder and pushes the frisbee all the way along, the meter swings faster, the dog
+    // runs faster and doubles back while you aim, tires when you steer it, and the frisbee
+    // flies flatter and quicker, so it's down before the dog can get far.
+    const toughness = () => {
+      if (d.cat) return { wind: 0.04 + throwNo * 0.014, meter: 0.012 + throwNo * 0.0018, turn: 0, sprint: 1, chase: 1, fling: 1, drift: 0, grav: 0.045, fall: 0.6 };
+      const h = 1.6 * (1 - Math.exp(-throwNo / 24));
+      return { wind: 0.08 + 0.32 * h, meter: 0.016 + 0.034 * h, turn: 0.02 * h, sprint: 1 + 0.9 * h, chase: 0.85 - 0.27 * h, fling: 1 + 0.7 * h, drift: 0.025, grav: 0.05 + 0.06 * h, fall: 0.75 + 0.95 * h };
+    };
     // each throw gets its own wind, dog sprint speed and meter speed
     const newWind = () => {
-      wind = (Math.random() * 2 - 1) * (0.04 + throwNo * 0.014);
+      hard = toughness();
+      wind = (Math.random() * 2 - 1) * hard.wind;
       runMul = 0.75 + Math.random() * 0.55;
       meterMul = 0.75 + Math.random() * 0.6;
     };
@@ -3913,7 +3928,7 @@
       const top = GY - 32 - dog.h;
       return { x1: dog.x + (dog.dir > 0 ? 18 : 0), x2: dog.x + (dog.dir > 0 ? 32 : 14), y1: top + 8, y2: top + 22 };
     };
-    function finish(text) { msg = text; state = 'result'; t = 0; }
+    function finish(text, miss) { msg = text; missed = !!miss; state = 'result'; t = 0; }
     const self = {
       music: 'run', doing: 'catch',
       update() {
@@ -3932,14 +3947,17 @@
         if (state === 'aim') {
           // the dog sprints out and back; the meter gets quicker every throw
           dog.moving = !d.cat;
-          if (dog.moving) dog.x += dog.dir * RUN * runMul;
+          if (dog.moving) {
+            if (Math.random() < hard.turn) dog.dir = -dog.dir;
+            dog.x += dog.dir * RUN * runMul * hard.sprint;
+          }
           if (dog.x > SW - 44) dog.dir = -1;
           if (dog.x < 56) dog.dir = 1;
-          p += pdir * (0.012 + throwNo * 0.0018) * meterMul;
+          p += pdir * hard.meter * meterMul;
           if (p >= 1) { p = 1; pdir = -1; }
           if (p <= 0) { p = 0; pdir = 1; }
           if (pressed.has('a')) {
-            disc = { x: HAND.x, y: HAND.y, vx: 0.5 + p * 1.1 + wind, vy: -2 };
+            disc = { x: HAND.x, y: HAND.y, vx: (0.5 + p * 1.1) * hard.fling + wind, vy: -2 };
             sfx('swish'); state = 'fly'; t = 0;
           }
           return;
@@ -3947,28 +3965,29 @@
         if (state === 'fly') {
           // you steer the dog now
           dog.moving = false;
-          const spd = dog.h > 0 ? CHASE * 1.4 : CHASE;
+          const spd = (dog.h > 0 ? CHASE * 1.4 : CHASE) * hard.chase;
           if (!d.cat) {
             if (held.left) { dog.x -= spd; dog.dir = -1; dog.moving = true; }
             if (held.right) { dog.x += spd; dog.dir = 1; dog.moving = true; }
             dog.x = Math.max(8, Math.min(SW - 40, dog.x));
             if (pressed.has('a') && dog.h === 0) { dog.vh = 3; dog.h = 0.01; sfx('jump'); }
           }
-          disc.x += disc.vx; disc.vy = Math.min(disc.vy + 0.045, 0.6); disc.y += disc.vy;
+          disc.vx += wind * hard.drift;
+          disc.x += disc.vx; disc.vy = Math.min(disc.vy + hard.grav, hard.fall); disc.y += disc.vy;
           const m = mouth();
           if (!d.cat && disc.x + 4 > m.x1 && disc.x - 4 < m.x2 && disc.y + 2 > m.y1 && disc.y - 1 < m.y2) {
             caught++; sfx('cup'); finish(dog.h > 4 ? 'What a leap! Caught it!' : 'Caught it!');
-          } else if (disc.y >= GY - 2) { sfx('bump'); disc.y = GY - 2; finish(d.cat ? n.name + ' didn\'t even open an eye.' : 'It hit the grass.'); }
-          else if (disc.x > SW - 8) { sfx('bump'); disc = null; finish(d.cat ? n.name + ' didn\'t even open an eye.' : 'Way too far!'); }
+          } else if (disc.y >= GY - 2) { sfx('bump'); disc.y = GY - 2; finish(d.cat ? n.name + ' didn\'t even open an eye.' : 'It hit the grass.', true); }
+          else if (disc.x > SW - 8) { sfx('bump'); disc = null; finish(d.cat ? n.name + ' didn\'t even open an eye.' : 'Way too far!', true); }
           return;
         }
         if (state === 'result') {
           dog.moving = false;
           if (t > 70) {
-            if (++throwNo >= THROWS) {
+            if (++throwNo >= THROWS || (missed && !d.cat)) {
               state = 'done'; t = 0;
-              record = saveBest('dog.' + n.name, caught);
-              if (dogBest(n.name) === null) store.set('best.dog.' + n.name, caught);
+              record = saveBest('dogrun.' + n.name, caught);
+              if (dogBest(n.name) === null) store.set('best.dogrun.' + n.name, caught);
               sfx('ding');
               return;
             }
@@ -3980,7 +3999,7 @@
       draw() {
         box(0, 0, SW, SH);
         text('Catch with ' + n.name + '!', 12, 8);
-        text('Frisbee ' + Math.min(throwNo + 1, THROWS) + '/10', 12, 20); // a cat gives up early
+        text('Frisbee ' + (d.cat ? Math.min(throwNo + 1, THROWS) + '/10' : caught + 1), 12, 20); // a cat gives up early
         const right = (str, y) => text(str, SW - 12 - str.length * 6, y);
         right('Caught ' + caught, 8);
         right('Best ' + (dogBest(n.name) || 0), 20);
@@ -4008,7 +4027,7 @@
         }
         // wind
         if (state === 'aim' || state === 'fly') {
-          const arrows = Math.round(Math.abs(wind) / 0.05);
+          const arrows = Math.min(8, Math.round(Math.abs(wind) / 0.05));
           right('Wind ' + (arrows ? (wind > 0 ? '>' : '<').repeat(arrows) : 'calm'), TOP + 10);
         }
         // you, with the frisbee until it's thrown
@@ -4040,7 +4059,7 @@
         }
         if (state === 'ready') readyBox(t, 'Space: throw, then run + jump!');
         else if (state === 'done') doneBox(d.cat ? [n.name + ' refuses to move.']
-          : [n.name + ' caught ' + caught + ' of ' + THROWS + '!', record ? 'A new record for ' + n.name + '!' : 'Best ' + (dogBest(n.name) || 0)], t);
+          : [n.name + ' caught ' + caught + ' in a row!', record ? 'A new record for ' + n.name + '!' : 'Best ' + (dogBest(n.name) || 0)], t);
         else {
           if (state === 'result') { box(50, 92, 220, 32); ctext(msg, 104); }
           text(state === 'aim' ? 'Space: throw   Esc: give up' : d.cat ? 'Esc: give up' : 'Arrows: run   Space: jump', 12, SH - 14, 1, '#f8f8f8');
@@ -4063,7 +4082,7 @@
     return self;
   }
 
-  // Every dog's best catch game, the one you just played with picked out.
+  // Every dog's longest run, the one you just played with picked out.
   function DogBoard(n) {
     // cats always come last: they never catch anything
     const isCat = (name) => (window.DOGS[name].cat ? 1 : 0);
@@ -4082,7 +4101,7 @@
       draw() {
         box(0, 0, SW, SH);
         ctext('FRISBEE LEADERBOARD', 12);
-        ctext('Most caught out of 10', 26);
+        ctext('Most caught in a row', 26);
         names.forEach((name, i) => {
           const y = 42 + i * 21, me = name === n.name, best = dogBest(name);
           if (me) { ctx.fillStyle = col.dark; ctx.fillRect(16, y - 3, SW - 32, 20); }
@@ -5225,7 +5244,10 @@
   }
 
   // ---------- Wade's putting green: top-down mini golf ----------
-  function GolfGame() {
+  // Against another player (VERSUS.golf) it's a score race, fewest strokes wins, over the
+  // same course with four more holes on the end. You each play at your own pace, seeing
+  // their ball when you're on the same hole, and whoever finishes first watches the other.
+  function GolfGame(vs) {
     const FX = 16, FY = 40, FW = 288, FH = 174, R = 3, CUP = 5, MAX_STROKES = 10;
     // walls / sand / water are rects inside the field
     const HOLES = [
@@ -5239,7 +5261,16 @@
       { par: 4, ball: [44, 196], cup: [270, 64],
         walls: [{ x: 92, y: 40, w: 12, h: 130 }, { x: 186, y: 92, w: 12, h: 122 }],
         sand: [{ x: 214, y: 150, w: 70, h: 44 }], water: [{ x: 120, y: 40, w: 50, h: 26 }] },
-    ];
+    ].concat(!vs ? [] : [ // (not on your own, so the green's records stay out of 5 holes)
+      { par: 3, ball: [40, 127], cup: [280, 127], walls: [],
+        sand: [{ x: 240, y: 40, w: 64, h: 40 }, { x: 240, y: 174, w: 64, h: 40 }], water: [{ x: 110, y: 84, w: 100, h: 86 }] },
+      { par: 4, ball: [40, 190], cup: [284, 190],
+        walls: [{ x: 96, y: 96, w: 12, h: 118 }, { x: 172, y: 40, w: 12, h: 118 }, { x: 248, y: 96, w: 12, h: 118 }], sand: [], water: [] },
+      { par: 3, ball: [44, 66], cup: [250, 150], walls: [{ x: 130, y: 40, w: 12, h: 100 }],
+        sand: [{ x: 206, y: 106, w: 88, h: 14 }, { x: 206, y: 180, w: 88, h: 14 }, { x: 280, y: 120, w: 14, h: 60 }], water: [] },
+      { par: 3, ball: [40, 127], cup: [284, 127], walls: [{ x: 226, y: 120, w: 10, h: 14 }],
+        sand: [], water: [{ x: 150, y: 40, w: 154, h: 62 }, { x: 150, y: 152, w: 154, h: 62 }] },
+    ]);
     const BOUNDS = [
       { x: FX - 8, y: FY - 8, w: FW + 16, h: 8 }, { x: FX - 8, y: FY + FH, w: FW + 16, h: 8 },
       { x: FX - 8, y: FY, w: 8, h: FH }, { x: FX + FW, y: FY, w: 8, h: FH },
@@ -5273,10 +5304,27 @@
     const total = () => cards.reduce((a, b) => a + b, 0);
     const parSoFar = () => HOLES.slice(0, cards.length).reduce((a, h) => a + h.par, 0);
     const best = () => +store.get('best.golf') || 0; // fewest strokes, 0 = never finished
+    // their ball: the hole they're on, where they last said it was and where it's drawn
+    const foe = { h: 0, x: HOLES[0].ball[0], y: HOLES[0].ball[1], px: HOLES[0].ball[0], py: HOLES[0].ball[1] };
+    const race = vs && scoreRace(vs, { what: 'mini golf', fmt: String, low: true, hear: (m) => {
+      const h = Math.max(0, Math.min(HOLES.length - 1, +m.h || 0));
+      foe.x = +m.x || 0; foe.y = +m.y || 0;
+      if (h !== foe.h) { foe.h = h; foe.px = foe.x; foe.py = foe.y; }
+    } });
     const self = {
       music: 'golf', doing: 'golf',
       update() {
         t++;
+        if (race) {
+          if (race.update() && state !== 'over') { state = 'over'; t = 0; sfx(race.outcome === 'win' ? 'cup' : 'bump'); }
+          if (state === 'over') { if (t > 30 && (pressed.has('a') || pressed.has('b'))) { remove(self); vs.end(); race.say(); } return; }
+          foe.px += (foe.x - foe.px) * 0.3; foe.py += (foe.y - foe.py) * 0.3;
+          if (state === 'wait') { if (pressed.has('b')) { remove(self); vs.end(); say('You lean the putter back against the wall.'); } return; }
+          if (ball) {
+            const x = Math.round(ball.x), y = Math.round(ball.y), s = total() + (state === 'holed' ? 0 : strokes);
+            race.send({ h: n, x, y, s }, n + ':' + x + ':' + y + ':' + s);
+          }
+        }
         if (state === 'ready') { if (t > 75) startHole(); return; }
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
@@ -5287,7 +5335,7 @@
           }
           return;
         }
-        if (pressed.has('b')) { remove(self); say('You lean the putter back against the wall.'); return; }
+        if (pressed.has('b')) { remove(self); if (vs) vs.end(); say('You lean the putter back against the wall.'); return; }
         if (state === 'aim') {
           if (held.left) ang -= 0.075;
           if (held.right) ang += 0.075;
@@ -5331,6 +5379,7 @@
           if (t > 50) state = strokes >= MAX_STROKES ? (cards.push(MAX_STROKES), msg = 'Picked up', t = 0, 'holed') : 'aim';
         } else if (state === 'holed' && t > 80) {
           if (++n < HOLES.length) startHole();
+          else if (race) { race.finish(total()); state = 'wait'; t = 0; sfx('ding'); }
           else {
             state = 'done'; t = 0;
             questNote('golf', 1);
@@ -5343,12 +5392,14 @@
       },
       draw() {
         box(0, 0, SW, SH);
-        const h = hole || HOLES[0];
-        text('Hole ' + Math.min(n + 1, HOLES.length) + '/' + HOLES.length + '  Par ' + h.par, 16, 10);
+        // once you've finished you watch them play on, on whatever hole they've got to
+        const watching = race && race.mineDone, num = watching ? foe.h : Math.min(n, HOLES.length - 1);
+        const h = watching ? HOLES[num] : hole || HOLES[0];
+        text('Hole ' + (num + 1) + '/' + HOLES.length + '  Par ' + h.par, 16, 10);
         text('Strokes ' + strokes, 16, 22);
         const tot = 'Total ' + total() + (cards.length ? ' (' + (total() - parSoFar() >= 0 ? '+' : '') + (total() - parSoFar()) + ')' : '');
         text(tot, SW - 16 - tot.length * 6, 10);
-        const b = 'Best ' + (best() || '-');
+        const b = !race ? 'Best ' + (best() || '-') : vs.name + (race.theirsDone ? ' finished on ' + race.now : ' hole ' + (foe.h + 1) + ', ' + race.now);
         text(b, SW - 16 - b.length * 6, 22);
         // wooden rail around the course
         ctx.fillStyle = col.dark; ctx.fillRect(FX - 8, FY - 8, FW + 16, FH + 16);
@@ -5408,7 +5459,16 @@
           fine(cx + 0.5, cy - 20, 0.5, 17, '#f8f8f8'); fine(cx + 5, cy - 19, 0.5, 3, '#c03030'); fine(cx + 1, cy - 20, 4, 0.5, '#f88878');
           fine(cx - 0.5, cy - 21, 2, 1, '#f0c040');
         }
-        if (ball && state !== 'holed') {
+        // their ball, when they're on this hole
+        if (race && !race.theirsDone && foe.h === num && state !== 'ready') {
+          const gx = Math.round(foe.px), gy = Math.round(foe.py), nm = vs.name.slice(0, 7);
+          ctx.globalAlpha = 0.75;
+          ctx.fillStyle = col.dark; ctx.fillRect(gx - 3, gy - 2, 5, 3); ctx.fillRect(gx - 2, gy - 3, 3, 5);
+          ctx.fillStyle = '#f0b030'; ctx.fillRect(gx - 2, gy - 2, 3, 3);
+          text(nm, gx - nm.length * 3, gy - 13);
+          ctx.globalAlpha = 1;
+        }
+        if (ball && state !== 'holed' && !watching) {
           // aim line: dots get longer with power
           if (state === 'aim' || state === 'power') {
             const len = 14 + (state === 'power' ? pw * 50 : 10);
@@ -5426,9 +5486,11 @@
           ctx.fillStyle = '#e8e8e8'; ctx.fillRect(51, SH - 14, 98, 7);
           ctx.fillStyle = '#f0b030'; ctx.fillRect(51, SH - 14, Math.round(98 * pw), 7);
         } else if (state === 'aim') text('Left/Right: aim  Space: putt', 16, SH - 14);
-        else if (state !== 'ready' && state !== 'done') text('Esc: give up', 16, SH - 14);
+        else if (state === 'wait') text('Waiting for ' + vs.name + '...  Esc: leave', 16, SH - 14);
+        else if (state !== 'ready' && state !== 'done' && state !== 'over') text('Esc: give up', 16, SH - 14);
         if (state === 'holed' || state === 'wet') { box(90, 110, 140, 30); ctext(msg, 121); }
         if (state === 'ready') readyBox(t, 'Hold Space, let go to putt');
+        else if (state === 'over') race.box(t);
         else if (state === 'done') {
           const d = total() - parSoFar();
           doneBox(['Round complete!', total() + ' strokes (' + (d === 0 ? 'E' : (d > 0 ? '+' : '') + d) + ')', record ? 'New record!' : 'Best ' + best()], t);
@@ -7236,11 +7298,13 @@
     return self;
   }
 
-  // ---------- printer jam: ease each sheet out without tearing it ----------
+  // ---------- printer jam: as many sheets as you can ease out in 90 seconds ----------
   // Every sheet is different: snags on hidden rollers (marked on the OUT bar) make it
   // strain, it comes out crooked (Left/Right straightens it, and a crooked sheet
-  // strains faster), and the paper itself can be thin, stiff or sticky. Whatever was
-  // printed on it is revealed line by line as it comes out.
+  // strains faster), and the paper itself can be thin, stiff or sticky. The harder it's
+  // being pulled the quicker it comes, so the best times ride close to tearing, and a
+  // torn sheet is all that work and time gone. Whatever was printed on it is revealed
+  // line by line as it comes out.
   const JAM_PAPERS = [
     { name: 'Plain paper', bg: '#f8f8f8', pull: 0.55, strain: 1.5, relax: 2.3, drift: 0.22 },
     { name: 'Thin paper', bg: '#ecece4', pull: 0.7, strain: 1.7, relax: 2.6, drift: 0.3 },
@@ -7265,10 +7329,10 @@
     ['VACATION PHOTOS.JPG', 'Page 1 of 400', '', '##########  ####', '####  ##########', '##########  ####', '####  ##########', '', 'Who printed this??'],
   ];
   function JamGame() {
-    const SHEETS = 5, LEN = 100; // the sheet is LEN pixels long when it's all the way out
+    const TIME = 90 * 60, LEN = 100; // the sheet is LEN pixels long when it's all the way out
     const docs = JAM_DOCS.slice();
     for (let i = docs.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [docs[i], docs[j]] = [docs[j], docs[i]]; }
-    let state = 'ready', t = 0, done = 0, torn = 0, shake = 0, record = false;
+    let state = 'ready', t = 0, left = TIME, done = 0, torn = 0, shake = 0, record = false;
     let sheet = null, out = 0, tension = 0, skew = 0, wait = 0, msg = '';
     const SNAG_W = 6;
     function newSheet() {
@@ -7287,10 +7351,7 @@
     }
     const inSnag = () => sheet.snags.some((s) => out >= s && out < s + SNAG_W);
     const snagAhead = () => sheet.snags.some((s) => out >= s - 10 && out < s);
-    function finishSheet() {
-      if (done + torn >= SHEETS) { state = 'done'; t = 0; record = saveBest('jam', done); return; }
-      newSheet(); state = 'play';
-    }
+    function finishSheet() { newSheet(); state = 'play'; }
     newSheet();
     const self = {
       music: 'stack', doing: 'jam',
@@ -7300,15 +7361,17 @@
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
-            say(torn === 0 ? 'Every sheet out clean. The printer almost looks grateful.'
-              : done ? done + ' sheets out, ' + torn + ' torn. The printer lives to jam again.'
-                : 'You shredded the lot. PC LOAD LETTER, forever.');
+            const got = done + (done === 1 ? ' sheet' : ' sheets') + ' out';
+            say(!done ? (torn ? 'You shredded the lot. PC LOAD LETTER, forever.' : 'Not one sheet. The printer wins this round.')
+              : !torn ? got + ', none torn. The printer almost looks grateful.'
+                : got + ', ' + torn + ' torn. The printer lives to jam again.');
           }
           return;
         }
         if (pressed.has('b')) { remove(self); say('You give up and use the other printer.'); return; }
         if (shake > 0) shake--;
-        // a finished sheet stays up so you can read it; a torn one hangs there a moment
+        if (--left <= 0) { left = 0; state = 'done'; t = 0; record = saveBest('jam', done); sfx('ding'); return; }
+        // a finished sheet stays up so you can read it (on the clock); a torn one hangs there a moment
         if (state === 'clean') { wait++; if (wait > 20 && pressed.has('a')) { sfx('select'); finishSheet(); } return; }
         if (state === 'tore') { if (++wait > 70) finishSheet(); return; }
         const p = sheet.paper, snag = inSnag();
@@ -7316,7 +7379,7 @@
         if (held.left) skew -= 0.7;
         if (held.right) skew += 0.7;
         if (held.a) {
-          out += p.pull * (snag ? 0.5 : 1);
+          out += p.pull * (snag ? 0.5 : 1) * (0.7 + tension / 100);
           // pulling crooked makes it worse, and strains it more
           skew += p.drift * (skew >= 0 ? 1 : -1) + (Math.random() - 0.5) * 0.3;
           tension += p.strain * (snag ? 1.8 : 1) * (1 + Math.abs(skew) / 18);
@@ -7339,7 +7402,7 @@
       draw() {
         box(0, 0, SW, SH);
         const p = sheet.paper;
-        text('Sheet ' + Math.min(done + torn + (state === 'clean' || state === 'tore' ? 0 : 1), SHEETS) + '/' + SHEETS, 16, 8);
+        text('Time ' + Math.ceil(left / 60), 16, 8, 1, left < 600 && (tick >> 3) & 1 ? '#c03030' : col.dark);
         const b = 'Best ' + getBest('jam');
         text(b, SW - 16 - b.length * 6, 8);
         text('Clean ' + done + '   Torn ' + torn, 16, 20);
@@ -7431,7 +7494,7 @@
         } else if (state === 'tore' || state === 'clean') { warn = msg; wc = state === 'tore' ? '#c03030' : '#2c7a40'; }
         if (warn && (state !== 'play' || warn !== 'EASY!' || (tick >> 2) & 1)) text(warn, 160 - warn.length * 3, 196, 1, wc);
         if (state === 'ready') readyBox(t, 'Hold Space, but ease off!');
-        else if (state === 'done') doneBox(['Jam cleared!', 'Clean ' + done + '   Torn ' + torn,
+        else if (state === 'done') doneBox(['Time\'s up!', 'Clean ' + done + '   Torn ' + torn,
           record ? 'New record!' : 'Best ' + getBest('jam')], t);
         else if (state === 'clean') text('Space: next sheet   Esc: give up', 16, SH - 22);
         else text('Space: pull  Left/Right: straighten  Esc: quit', 16, SH - 22);
@@ -7930,9 +7993,9 @@
     return self;
   }
 
-  // ---------- Wade's grudge match: alternate putts, fewest strokes over 3 holes ----------
+  // ---------- Wade's grudge match: alternate putts, most holes won out of 9 ----------
   function WadeGolfGame() {
-    const FX = 16, FY = 44, FW = 288, FH = 150, R = 3, CUP = 6, HOLES = 3;
+    const FX = 16, FY = 44, FW = 288, FH = 150, R = 3, CUP = 6, HOLES = 9;
     const wade = spritesFor('Wade');
     let hole = 0, state = 'ready', t = 0, turn = 'you', phase = 'aim';
     let aim = 0, power = 0, dir = 1, ball = null, vel = null, strokes = [0, 0], won = [0, 0];
@@ -11560,6 +11623,10 @@
   // LINDA_TASKS. Mini-games report their results to questNote(key, value) and a task
   // is crossed off when value reaches its target. Finish them all, and find her stapler,
   // and Linda is free to move on. None of this is saved: it starts fresh every visit.
+  // Neither this list nor Kiki's (COWORKERS) ever asks for a holiday's game, the ones on its
+  // FAME_GROUPS page, even though some of them can still be played after the holiday.
+  const HOLIDAY_GAMES = new Set(FAME_GROUPS.filter(([g]) => g in SEASON_FROM).flatMap(([, k]) => k));
+  const everyDay = (task) => !HOLIDAY_GAMES.has(task.key);
   const LINDA_TASKS = [
     { key: 'coffee', need: 75, text: 'Catch 75 drops of coffee' },
     { key: 'pong', need: 1, text: 'Beat the TV at Pong' },
@@ -11567,13 +11634,13 @@
     { key: 'squat', need: 175, text: 'Squat 175 lb' },
     { key: 'run', need: 150, text: 'Run 150m on the treadmill' },
     { key: 'pulldown', need: 10, text: 'Do 10 clean lat pulldowns' },
-    { key: 'jam', need: 3, text: 'Unjam 3 sheets from the printer' },
+    { key: 'jam', need: 8, text: 'Unjam 8 sheets from the printer' },
     { key: 'blackjack', need: 300, text: 'Win 100 spring rolls off Cody' }, // you start with 200
     { key: 'battle', need: 1, text: 'Beat Richard in his silly duel' },
     { key: 'dark', need: 1, text: 'Fix the lights in Damir\'s office' },
     { key: 'elevator', need: 1, text: 'Make small talk in the elevator' },
     { key: 'jar', need: 2, text: 'Beat Kiki at the candy jar' },
-    { key: 'wade', need: 1, text: 'Win a hole against Wade' },
+    { key: 'wade', need: 3, text: 'Win 3 holes against Wade' },
     { key: 'simon', need: 5, text: 'Get 5 rounds on a light panel' },
     { key: 'lunch', need: 3, text: 'Find the right lunch 3 times' },
     { key: 'candy', need: 5, text: 'Sneak 5 candies off the table' },
@@ -11583,7 +11650,7 @@
     { key: 'engrave', need: 70, text: 'Engrave a nameplate (70% on)' },
     { key: 'golf', need: 1, text: 'Play a round on Wade\'s green' },
     { key: 'legosolo', need: 5, text: 'Clear 5 rows at Joe\'s Lego shelf' },
-  ];
+  ].filter(everyDay);
   const LINDA_COUNT = 7;
   const LINDA_WAITING = [
     'Ooooo... you found my list! Don\'t forget the rest of it.',
@@ -11741,7 +11808,7 @@
   // up by the front entrance. Not saved, like Linda's list.
   const COWORKERS = [
     { name: 'Nathan', task: 'Grab 8 of Nathan\'s trophies', key: 'trophy', need: 8, thanks: 'Nathan grudgingly admits you know your trophies.' },
-    { name: 'Wade', task: 'Beat Wade at putting', key: 'wade', need: 2, thanks: 'Wade shakes your hand. He is already planning the rematch.' },
+    { name: 'Wade', task: 'Beat Wade at putting', key: 'wade', need: 5, thanks: 'Wade shakes your hand. He is already planning the rematch.' },
     { name: 'Kiki', task: 'Beat me at the candy jar', key: 'jar', need: 2, thanks: 'Kiki is impressed. Nobody out-guesses her at the candy jar.' },
     { name: 'Jhonna', task: 'Fill in 15 of Jhonna\'s fields', key: 'forms', need: 15, thanks: 'Jhonna can finally close that Manulife ticket.' },
     { name: 'Richard', task: 'Win Richard\'s air duel', key: 'battle', need: 1, thanks: 'Richard bows. Your air handling knowledge is sound.' },
@@ -11750,7 +11817,7 @@
     { name: 'Nik', task: 'Out-cook Nik at the wok', key: 'wok', need: 1, thanks: 'Nik hands you a pair of chopsticks. "You can cook. Don\'t let it go to your head."' },
     { name: 'Dmitriy', task: 'Pass Dmitriy\'s knife skills test', key: 'carrot', need: 1, thanks: 'Dmitriy nods. "Even slices. Nik never managed that."' },
     { name: 'Joe', task: 'Win Joe\'s Lego brick battle', key: 'lego', need: 1, thanks: 'Joe builds you a tiny trophy out of yellow bricks. "Master builder."' },
-  ];
+  ].filter(everyDay);
   const helped = new Set();
   let eotm = false; // Kiki has given you the award
   let kikiList = false; // Kiki has handed you her list
@@ -12273,6 +12340,7 @@
     snake: { label: 'SNAKE', title: 'a game of Snake', Game: (m) => SnakeGame(m) },
     pong: { label: 'PONG', title: 'a game of Pong', server: true, Game: (m) => PongGame(m) },
     simon: { label: 'CONTROL PANEL', title: 'a control panel showdown', Game: (m) => SimonGame(m) },
+    golf: { label: 'MINI GOLF', title: 'a round of mini golf', Game: (m) => GolfGame(m) },
     snowball: { label: 'SNOWBALL FIGHT', title: 'a snowball fight', server: true, christmas: true, Game: (m) => SnowballGame(m) },
   };
   // A small seeded random number generator (mulberry32), so both players in a match get
@@ -12296,7 +12364,7 @@
   // where someone is, for the who's-here list
   function mpWhere(o) {
     const r = roomAt(o.f, o.x, o.y);
-    return r ? r.name : MAPS.floors[o.f].name;
+    return r ? (o.f === PLANT ? 'Kingston ' : '') + r.name : MAPS.floors[o.f].name;
   }
   // Their sprite sheet: the look they made, in costume if they're wearing one.
   const mpSheets = {};
@@ -16427,7 +16495,7 @@
     //        what they say if you decline, no label]
     const OFFERS = {
       Nathan: ['Have you seen all of my trophies? Go on, grab one.', 'GRAB ONE', NathanGame, 'Your loss. They are lovely.'],
-      Wade: ['Fancy a quick three holes?', 'YOU ARE ON', WadeGolfGame, 'Another time, then.'],
+      Wade: ['Fancy a quick nine holes?', 'YOU ARE ON', WadeGolfGame, 'Another time, then.'],
       Kiki: ['Bet you cannot guess how many sweets are in that jar.', 'TAKE THE BET', CandyJarGame, 'Offer stands all week!'],
       Jhonna: ['Have you done your Manulife dependant forms?', 'DO THEM NOW', FormsGame, 'They are not going to fill themselves in.', 'NOT YET'],
       Richard: ['Do you want to test your air handling knowledge?', 'YES', BattleGame, 'Come back when you are ready.', 'NO'],
@@ -17358,7 +17426,7 @@
       computer: () => ComputerScreen('sdg'), sdg: SdgApp, elevator: () => ElevatorGame(npcs[0], 0, 2, () => {}),
       fame: HallOfFame, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];
     // &vs=1 plays a head-to-head game (a VERSUS key: duel, jar, lego, dance, coffee, run,
-    // snake, simon) against "Echo", a stand-in who sends you back everything you send, a
+    // snake, simon, golf) against "Echo", a stand-in who sends you back everything you send, a
     // second later
     const versus = q.has('vs') && VERSUS[q.get('game')] && !VERSUS[q.get('game')].server && VERSUS[q.get('game')];
     if (versus) {

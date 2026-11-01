@@ -75,7 +75,7 @@ Walk up to these and press A:
 - **Squat rack** (fitness room): mash A to stand up with the bar before time runs out; it gets heavier every lift
 - **Treadmill** (fitness room): jump over the gym clutter (hold A to jump higher) and duck under hanging stuff with Down
 - **Big TVs**: play Pong against the TV, first to 5
-- **Wade's putting green** (2nd floor, office 137): 5 holes of top-down mini golf with sand and water
+- **Wade's putting green** (2nd floor, office 137): 5 holes of top-down mini golf with sand and water (9 holes when you challenge another player to it; see **Playing together**)
 - **Air handling fan** (Boardroom 114): hold the wheel inside the target CFM band without tripping the motor
 - **Cooling coil** (Boardroom 114): hold the superheat in the green while the load wanders; frost it or flood it and you lose
 - **Dampers** (Boardroom 114): three branches share one fan, so balancing them is a puzzle, not three dials
@@ -88,7 +88,7 @@ Walk up to these and press A:
 - **Lat pulldown** (fitness room): pull, then release, as the marker sweeps through the sweet spot; 20 sweeps, scored out of 20
 - **Exercise ball** (fitness room): shift your weight and stay on it
 - **Front desk** (Reception): send each visitor to the right office; you have to know the building
-- **Printer**: ease five jammed sheets out without tearing them: watch for snags on the rollers, keep each sheet straight, and read whatever somebody printed
+- **Printer**: 90 seconds to ease out as many jammed sheets as you can without tearing them: the harder you pull the quicker a sheet comes, so ride close to the red, watch for snags on the rollers, keep each sheet straight, and read whatever somebody printed if you've got the time
 - **Washer and dryer** (fitness room): catch the load the machine is asking for, let the rest drop
 - **Joe's Lego shelf** (2nd floor, office 146): the same falling bricks as Joe's brick battle, but on your own. Rows of grey bricks push up from the bottom, slowly at first and then faster and faster, so see how many lines you can clear before they reach the top
 - **Elevator**: every ride, a coworker gets in and makes conversation
@@ -359,7 +359,8 @@ Everyone playing at the same time is in the same office. You see each other walk
 around, with your names over your heads, looking like the characters you made (in
 whatever Halloween costume you picked). Somebody on a copy from before the character
 editor sees you as one of the old characters until they update. They're red dots on the
-map, and **Who's here** in the Start menu lists everyone and the room they're in. Other
+map, and **Who's here** in the Start menu lists everyone and the room they're in (with
+"Kingston" in front of it for anyone at the plant, whose rooms can sound like the office's). Other
 players don't block your way, so nobody can stand in a doorway and trap you. You see them
 where they really are, going any way, unless they're on an older copy, which only says
 which tile they're on (and has them walking from tile to tile).
@@ -418,6 +419,10 @@ which tile they're on (and has them walking from tile to tile).
     rounds they've cleared (not their presses, so they can't give it away). Once one of
     you is out, they watch the other's lights on their panel until they're out too.
     Most rounds wins.
+  - **Mini golf**: Wade's putting green, against each other: its 5 holes and 4 more you
+    only get here, the same course for you both. You each putt at your own pace, you can
+    see the other's ball whenever you're on the same hole and which hole they've got to,
+    and whoever finishes first watches the other play on. Fewest strokes wins.
   - **Pong**: the break room TV's Pong, against each other on one table, first to 5.
     The game server runs this one (see **Game server**), so it's only in the list when
     there is one. You're always the left paddle on your own screen.
@@ -437,7 +442,7 @@ which tile they're on (and has them walking from tile to tile).
     server runs this one (`server/games/snowball.js`), so it's only in the list when
     there is one.
 
-  The treadmill, Snake and the control panel carry on until you're both out.
+  The treadmill, Snake, the control panel and mini golf carry on until you're both done.
 
   They get 30 seconds to accept. Someone who's in a game has what they're playing
   over their head ("Playing Paper Toss", "Playing live poker (3 players)", "Waiting for
@@ -586,7 +591,7 @@ Some coworkers have a game for you. Walk up to them and press A:
   for a few seconds of dance party.
 - **Nathan** (office 115): grab the trophy he names off his crowded shelf
   before the sweeping hand runs away with you.
-- **Wade** (2nd floor, office 137): a three-hole putting grudge match.
+- **Wade** (2nd floor, office 137): a nine-hole putting grudge match.
 - **Kiki** (Reception): guess how many sweets are in the candy jar, closer than
   she does, over 3 rounds. A round where you're both equally close goes to
   nobody, and if no one wins 2 rounds it's a draw and you play again. The first time you talk to her she hands you her Employee of the
@@ -615,7 +620,9 @@ picked at random from about 20 each time you take it (beat the TV at Pong, win
 100 spring rolls off Cody, fix Damir's lights, and so on). Read it any time
 from the Start menu; each task crosses itself off when you do it. Linda has
 new things to say once her list is done. The list isn't saved: every visit
-starts fresh.
+starts fresh. It never includes a Halloween or Christmas game, and nor does
+Employee of the Month, even though the Halloween games can still be played after
+Halloween.
 
 Linda also lost her **red stapler**. It turns up on a different desk, counter,
 shelf or table every visit, and Linda drops hints about which room. Finding it
@@ -632,7 +639,7 @@ an easel by the front entrance and the name you entered at the start. Like
 Linda's list, it isn't saved.
 
 - **Nathan** (office 115): grab the trophy he names off a crowded shelf, before the sweeping hand runs away with you (get 8)
-- **Wade** (2nd floor, office 137): a three-hole putting grudge match (win it)
+- **Wade** (2nd floor, office 137): a nine-hole putting grudge match (win 5 holes)
 - **Kiki** (Reception): guess how many sweets are in the jar, closer than she does (win it)
 - **Jhonna** (office 118): her Manulife dependant forms, at last (tick 15 fields)
 - **Richard** (office 122): his air handling duel (win it)
@@ -1053,7 +1060,7 @@ is the live poker table's), and
 with `&name=Sam` among them on some boards).
 
 To try a head-to-head game on your own, add `&vs=1` with `game=duel`, `jar`, `lego`,
-`dance`, `coffee`, `run`, `snake` or `simon`. It plays against "Echo", a stand-in who
+`dance`, `coffee`, `run`, `snake`, `simon` or `golf`. It plays against "Echo", a stand-in who
 sends back everything you send a second later (not Pong or the snowball fight, which need the game server). That's for seeing the screens, not
 for a fair game: the score races always end in a dead heat (`&seed=5` deals a
 different game).
@@ -1092,8 +1099,11 @@ Nala (Jhonna) and Frankie (Avery). Kim's cat Felix just sleeps in the middle of 
 you can try to play catch with him too. Walk
 up to one and press A: it barks, and you can play catch. The dog runs out while
 the power meter swings; throw so the frisbee comes down near the dog, then steer
-it with the arrows and press A to jump. After 10 frisbees you see the leaderboard
-of every dog's best game. Names, owners, breeds, colours, barks and running speed live in
+it with the arrows and press A to jump. It goes on until the first frisbee the dog
+misses, and every catch makes the next throw harder: more wind, a faster meter, a dog
+that's harder to read and tires as it goes, and a frisbee that's down sooner. Then you
+see the leaderboard of every dog's longest run. (Felix doesn't play: two throws, he
+sleeps through both, and that's the end of it.) Names, owners, breeds, colours, barks and running speed live in
 `DOGS` at the bottom of `js/people.js`.
 
 ## Editing the map
