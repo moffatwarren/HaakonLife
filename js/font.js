@@ -85,8 +85,25 @@ window.FONT = (function () {
   };
   const glyphs = {};
   for (const ch in G) glyphs[ch] = G[ch].split(' ');
+  // The same letters at double resolution (10 x 14), made smooth with Scale2x: where two
+  // inked pixels meet at a corner, the corner between them is inked too, so curves and
+  // diagonals come out rounded instead of stepped. For js/game.js at double resolution.
+  const glyphs2 = {};
+  for (const ch in glyphs) {
+    const g = glyphs[ch], h = g.length, w = 5, out = [];
+    const at = (x, y) => (x >= 0 && x < w && y >= 0 && y < h ? g[y][x] : '0');
+    for (let y = 0; y < h * 2; y++) out.push([]);
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const p = at(x, y), a = at(x, y - 1), b = at(x + 1, y), l = at(x - 1, y), d = at(x, y + 1), e = a !== d && l !== b;
+        out[y * 2][x * 2] = e && l === a ? l : p; out[y * 2][x * 2 + 1] = e && a === b ? b : p;
+        out[y * 2 + 1][x * 2] = e && l === d ? l : p; out[y * 2 + 1][x * 2 + 1] = e && d === b ? b : p;
+      }
+    glyphs2[ch] = out.map((r) => r.join(''));
+  }
   return {
     glyphs,
+    glyphs2,
     ADV: 6,
     // Draw text with a callback that plots one pixel.
     draw(plot, text, x, y) {

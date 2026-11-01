@@ -860,9 +860,35 @@
   ];
   const touchHint = (str) => TOUCH_HINTS.reduce((s, [re, to]) => s.replace(re, to), str);
   const buttonHints = () => isTouch || usingController;
+  // At double resolution each letter is FONT.glyphs2 (smoothed), made into a picture once
+  // for each colour and drawn at the letter's size, every pixel showing.
+  const glyphPics = new Map();
+  function glyphPic(ch, color) {
+    const key = ch + color;
+    let cv = glyphPics.get(key);
+    if (!cv) {
+      const g = FONT.glyphs2[ch] || FONT.glyphs2['?'];
+      cv = document.createElement('canvas');
+      cv.width = 10; cv.height = g.length; cv.hi = 2;
+      const c = cv.getContext('2d');
+      c.fillStyle = color;
+      g.forEach((row, y) => [...row].forEach((v, x) => { if (v === '1') c.fillRect(x, y, 1, 1); }));
+      glyphPics.set(key, cv);
+    }
+    return cv;
+  }
   function text(str, x, y, scale, color) {
     if (buttonHints()) str = touchHint(str);
     scale = scale || 1;
+    if (HIRES) {
+      let cx = x;
+      for (const ch of str) {
+        const g = glyphPic(ch, color || col.dark);
+        ctx.drawImage(g, cx, y, 5 * scale, (g.height / 2) * scale);
+        cx += FONT.ADV * scale;
+      }
+      return;
+    }
     ctx.fillStyle = color || col.dark;
     let cx = x;
     for (const ch of str) {
@@ -10230,6 +10256,7 @@
         const X = 90, Y = 12, W = 140, H = 176;
         ctx.fillStyle = '#5a6478'; ctx.fillRect(X - 6, Y - 6, W + 12, H + 12);
         ctx.fillStyle = '#20242e'; ctx.fillRect(X, Y, W, H);
+        if (HIRES) { ctx.fillStyle = '#1a1e26'; for (let i = 0; i < W; i += 4) ctx.fillRect(X + i, Y, 0.5, H); } // the back panel's ribs
         // shelf, towel, sneakers, gym bag
         ctx.fillStyle = '#8890a0'; ctx.fillRect(X, Y + 50, W, 5);
         ctx.fillStyle = '#c8ccd8'; ctx.fillRect(X + 60, Y + 55, 2, 10); // hook
@@ -10238,13 +10265,33 @@
         ctx.fillStyle = '#f8f8f8'; ctx.fillRect(X + 84, Y + 156, 22, 12); ctx.fillRect(X + 108, Y + 156, 22, 12);
         ctx.fillStyle = '#c03030'; ctx.fillRect(X + 84, Y + 166, 22, 3); ctx.fillRect(X + 108, Y + 166, 22, 3);
         // the folded paper, glowing a little, until you take it
+        if (HIRES) {
+          const px = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+          px(X, Y + 50, W, 0.5, '#c8ccd8'); px(X, Y + 54.5, W, 0.5, '#484858');                            // the shelf's edge
+          px(X + 59.5, Y + 55, 3, 1, '#a8acb8'); px(X + 59.5, Y + 64, 1, 1, '#a8acb8');                    // the hook's curl
+          for (let i = 2; i < 20; i += 6) px(X + 52 + i, Y + 64, 0.5, 54, '#c85050');                      // the towel's folds
+          px(X + 52, Y + 75.5, 20, 0.5, '#d8d8e0'); px(X + 52, Y + 107.5, 20, 0.5, '#d8d8e0');
+          for (let i = 0; i < 20; i += 2) px(X + 52 + i, Y + 118, 0.5, 2, '#d85858');                      // fringe
+          px(X + 14, Y + 147, 52, 0.5, '#1c3070'); px(X + 16, Y + 146.5, 48, 0.5, '#c8ccd8');              // the bag's zip
+          px(X + 62, Y + 145, 2, 3, '#c8ccd8'); px(X + 12, Y + 165, 56, 1, '#284888');
+          px(X + 31, Y + 135, 18, 0.5, '#5878d8');                                                         // its strap, catching the light
+          for (const sx of [84, 108]) {                                                                    // laces, soles
+            for (let i = 0; i < 4; i++) px(X + sx + 4 + i * 4, Y + 158, 2, 0.5, '#8890a0');
+            px(X + sx, Y + 168.5, 22, 0.5, '#801818');
+          }
+        }
         if (state !== 'grab') {
           const glow = 0.25 + 0.2 * Math.sin(tick / 10);
           ctx.fillStyle = 'rgba(200,230,255,' + glow + ')'; ctx.fillRect(X + 40, Y + 22, 52, 30);
           ctx.fillStyle = '#181820'; ctx.fillRect(X + 45, Y + 28, 42, 22);
           ctx.fillStyle = '#f4ecd0'; ctx.fillRect(X + 46, Y + 29, 40, 20);
           ctx.fillStyle = '#d8ccb0'; ctx.fillRect(X + 46, Y + 38, 40, 1);
-          ctx.fillStyle = '#5068b0'; for (let i = 0; i < 3; i++) ctx.fillRect(X + 50, Y + 32 + i * 5, 24 - i * 6, 1);
+          ctx.fillStyle = '#5068b0';
+          if (HIRES) {
+            // handwriting: little words along the lines, a fold down the middle
+            for (let i = 0; i < 3; i++) for (let k = 0; k < 24 - i * 6; k += 3 + (k % 2)) ctx.fillRect(X + 50 + k, Y + 32 + i * 5 + ((k * 7) % 3) * 0.5, 2, 0.5);
+            ctx.fillStyle = '#c8bc98'; ctx.fillRect(X + 66, Y + 29, 0.5, 20);
+          } else for (let i = 0; i < 3; i++) ctx.fillRect(X + 50, Y + 32 + i * 5, 24 - i * 6, 1);
         }
         // the door, swinging open
         const open = state === 'open' ? Math.min(1, t / 30) : 1;
@@ -10252,6 +10299,19 @@
         ctx.fillStyle = '#6a7490'; ctx.fillRect(X - 6, Y - 6, dw, H + 12);
         ctx.fillStyle = '#8890a8';
         if (dw > 30) for (let i = 0; i < 4; i++) ctx.fillRect(X + 8, Y + 8 + i * 6, dw - 24, 2);
+        if (HIRES) {
+          // louvres with a shadow under each, a pressed edge round the door, the handle and a padlock
+          ctx.fillStyle = '#4a5468';
+          if (dw > 30) for (let i = 0; i < 4; i++) ctx.fillRect(X + 8, Y + 10 + i * 6, dw - 24, 0.5);
+          ctx.fillStyle = '#7a84a0'; ctx.fillRect(X - 4, Y - 4, dw - 4, 0.5); ctx.fillRect(X - 4, Y - 4, 0.5, H + 8);
+          ctx.fillStyle = '#4a5468'; ctx.fillRect(X - 4, Y + H + 3.5, dw - 4, 0.5); ctx.fillRect(X + dw - 8.5, Y - 4, 0.5, H + 8);
+          if (dw > 30) {
+            const hx = X + dw - 20, hy = Y + 80;
+            ctx.fillStyle = '#c8ccd8'; ctx.fillRect(hx, hy, 3, 14); ctx.fillStyle = '#484858'; ctx.fillRect(hx + 2.5, hy, 0.5, 14);
+            ctx.fillStyle = '#d8a838'; ctx.fillRect(hx - 1, hy + 18, 5, 4); ctx.fillStyle = '#a07818'; ctx.fillRect(hx - 1, hy + 21.5, 5, 0.5);
+            ctx.strokeStyle = '#c8ccd8'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.arc(hx + 1.5, hy + 18, 1.75, Math.PI, 0); ctx.stroke();
+          }
+        }
         if (state === 'look') sayBox('Something is tucked on the top shelf.', 'Space: take it   Esc: close');
         if (state === 'grab') sayBox('You reach in and grab a paper.', 'Space: read it');
       },
@@ -10280,17 +10340,30 @@
         ctx.fillStyle = '#c8bc98'; ctx.fillRect(X + 3, Y + 3, W, H);
         ctx.fillStyle = '#f4ecd0'; ctx.fillRect(X, Y, W, H);
         const list = items(), gap = list.length > 7 ? Math.min(17, Math.floor(130 / (list.length - 1))) : 20; // long lists sit closer together
-        ctx.fillStyle = '#b8d0e8'; for (let y = Y + 40; y < Y + H - 8; y += gap) ctx.fillRect(X + 4, y + 11, W - 8, 1);
-        ctx.fillStyle = '#e8a0a0'; ctx.fillRect(X + 24, Y + 4, 1, H - 8);
+        const L = HIRES ? 0.5 : 1; // (lines at double resolution are half as thick)
+        if (HIRES) { ctx.fillStyle = '#ece2c4'; for (let i = 0; i < 40; i++) ctx.fillRect(X + ((i * 97) % W), Y + ((i * 53) % H), 3, 0.5); } // fibres in the paper
+        ctx.fillStyle = '#b8d0e8'; for (let y = Y + 40; y < Y + H - 8; y += gap) ctx.fillRect(X + 4, y + 11, W - 8, L);
+        ctx.fillStyle = '#e8a0a0'; ctx.fillRect(X + 24, Y + 4, L, H - 8);
+        if (HIRES) { ctx.fillStyle = '#e8a0a0'; ctx.fillRect(X + 25.5, Y + 4, L, H - 8); }
         const tx0 = X + 24 + ((W - 24 - title.length * 6) >> 1);
         text(title, tx0, Y + 12, 1, '#a03030');
-        ctx.fillStyle = '#a03030'; ctx.fillRect(tx0, Y + 21, title.length * 6 - 1, 1);
+        ctx.fillStyle = '#a03030'; ctx.fillRect(tx0, Y + 21, title.length * 6 - 1, L);
         list.forEach((task, i) => {
           const y = Y + 40 + i * gap, tx = X + 34;
           // the box, ticked once done
-          ctx.fillStyle = INK; ring(X + 8, y + 1, 9, 9);
+          ctx.fillStyle = INK;
+          if (HIRES) { ctx.fillRect(X + 8, y + 1, 9, L); ctx.fillRect(X + 8, y + 9.5, 9, L); ctx.fillRect(X + 8, y + 1, L, 9); ctx.fillRect(X + 16.5, y + 1, L, 9); }
+          else ring(X + 8, y + 1, 9, 9);
           text(task.text, tx, y + 2, 1, task.done ? '#7080b0' : INK);
-          if (task.done) {
+          if (task.done && HIRES) {
+            // a tick in red pen, and a wavy line through what's done
+            ctx.strokeStyle = '#c03030'; ctx.lineWidth = 1.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.beginPath(); ctx.moveTo(X + 9.5, y + 5); ctx.lineTo(X + 12, y + 8); ctx.lineTo(X + 18.5, y + 0.5); ctx.stroke();
+            ctx.lineWidth = 0.75; ctx.beginPath();
+            const w = task.text.length * 6;
+            for (let k = 0; k <= w; k += 1) ctx.lineTo(tx - 2 + k, y + 5.5 + Math.sin(k / 2.2) * 0.8);
+            ctx.stroke();
+          } else if (task.done) {
             ctx.fillStyle = '#c03030';
             const w = task.text.length * 6;
             for (let k = 0; k < w; k += 2) ctx.fillRect(tx - 2 + k, y + 5 + ((k >> 1) % 3 === 1 ? 1 : 0), 2, 1);
@@ -10327,7 +10400,7 @@
       update() { t++; if (t > 20 && (pressed.has('a') || pressed.has('b'))) { sfx('select'); remove(self); } },
       draw() {
         ctx.fillStyle = '#e8dcc0'; ctx.fillRect(0, 0, SW, SH);
-        ctx.fillStyle = '#d8ccb0'; for (let y = 0; y < SH; y += 8) ctx.fillRect(0, y, SW, 1);
+        ctx.fillStyle = '#d8ccb0'; for (let y = 0; y < SH; y += 8) ctx.fillRect(0, y, SW, HIRES ? 0.5 : 1);
         const head = 'EMPLOYEE OF THE MONTH';
         text(head, (SW - head.length * 12) >> 1, 10, 2, '#a07010');
         // gold frame
@@ -10336,6 +10409,13 @@
         ctx.fillStyle = '#e0b030'; ctx.fillRect(FX, FY, FW, FH);
         ctx.fillStyle = '#f8e070'; ctx.fillRect(FX + 3, FY + 3, FW - 6, 2); ctx.fillRect(FX + 3, FY + 3, 2, FH - 6);
         ctx.fillStyle = '#a07010'; ctx.fillRect(FX + 8, FY + 8, FW - 16, FH - 16);
+        if (HIRES) {
+          // the frame's moulding: a fine bead round it, a shadow inside, a gleam on the gold
+          ctx.fillStyle = '#c89020'; ctx.fillRect(FX + 1, FY + 1, FW - 2, 0.5); ctx.fillRect(FX + 1, FY + 1, 0.5, FH - 2);
+          ctx.fillStyle = '#8a6010'; ctx.fillRect(FX + 1, FY + FH - 1.5, FW - 2, 0.5); ctx.fillRect(FX + FW - 1.5, FY + 1, 0.5, FH - 2);
+          ctx.fillStyle = '#f8e070'; for (let i = 6; i < FW - 6; i += 6) ctx.fillRect(FX + i, FY + 6, 1, 0.5);
+          ctx.fillStyle = '#6a4a10'; ctx.fillRect(FX + 8, FY + 8, FW - 16, 0.5); ctx.fillRect(FX + 8, FY + 8, 0.5, FH - 16);
+        }
         // the photo: you, on a studio backdrop
         ctx.fillStyle = '#5878b8'; ctx.fillRect(FX + 10, FY + 10, FW - 20, FH - 20);
         ctx.fillStyle = '#6888c8'; ctx.fillRect(FX + 10, FY + 10, FW - 20, (FH - 20) >> 1);
