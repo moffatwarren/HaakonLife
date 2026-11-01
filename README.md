@@ -1000,8 +1000,8 @@ locker, Linda's and Kiki's lists, the Employee of the Month certificate, coffee,
 the copier, lunch, candy, lights, punch, treadmill, squat, golf, snake, pong, fan, coil,
 dampers, filters, parts, patch panel, CPR, engraving, pulldown, balance ball, battle, front
 desk, paper jam, laundry, forms, Nathan's trophies, wok, carrot, Wade's golf, dance, dark, Lego,
-candy jar, poker and blackjack. Still to do: slots, forklift, paint, the costume contest,
-the Halloween games (bob, mummy, carve, treat, ghosts), catch, Humbug Sweeper, the SDG app,
+candy jar, poker, blackjack, slots, forklift, paint, the costume contest and the Halloween
+games (bob, mummy, carve, treat, ghosts). Still to do: catch, Humbug Sweeper, the SDG app,
 the elevator, the winter games' and hockey's flat fallbacks, and the menus and title screen.
 Add `&hires=0` to a `#play` link to see it all at 16 x 16 as it was, e.g.
 `index.html#play&hires=0`. A look code, as in `&look=m20000000`, is the body, then the
