@@ -14431,7 +14431,8 @@
   // fresh snow it rolls over (leaving bare ground behind it), and the bigger it gets the
   // slower it goes. A stands it up where it is and starts the next. Then they're stacked,
   // and the snowman is as tall as it stands: a ball has to be smaller than the one it goes
-  // on, or it rolls off (and the next one goes on whatever is still standing). 60 seconds.
+  // on, or it rolls off (and the next one goes on whatever is still standing). You judge
+  // the size by eye: you're only told how big a ball is once it's stood up. 60 seconds.
   function SnowmanGame() {
     const TIME = 60 * 60, CELL = 8, GW = 38, GH = 24, X0 = 8, Y0 = 36, CM = 1.6;
     const NAMES = ['The bottom', 'The middle', 'The head'];
@@ -14488,7 +14489,7 @@
       if (made.length >= 3) { stack(); return; }
       const [dx, dy] = DIRS[dir], r = rOf(ball.v), [nx, ny] = roomNear(ball.x - dx * (r + 10), ball.y - dy * (r + 10));
       ball = { x: nx, y: ny, v: 0, spin: 0 };
-      msg = NAMES[made.length] + ' next. Smaller than ' + cm(topR()) + ' cm!'; msgT = 90;
+      msg = NAMES[made.length - 1] + ' is ' + cm(r) + ' cm. ' + NAMES[made.length] + ' next, and smaller!'; msgT = 150;
     }
     // the ball the next one will go on: whichever is the top of the snowman so far, which is
     // always the smallest yet
@@ -14662,9 +14663,10 @@
         }
         if (py >= ball.y) you();
         ctx.fillStyle = '#1c2448'; ctx.fillRect(0, 0, SW, Y0 - 2);
-        const under = made.length ? topR() : 0, now = NAMES[Math.min(2, made.length)] + ' ' + cm(r) + ' cm';
+        // (never the size of the one you're rolling: that's for you to judge by eye)
+        const under = made.length ? topR() : 0, now = NAMES[Math.min(2, made.length)];
         text('Snowman', 12, 10, 1, '#f8e8a0');
-        text(now, 12, 24, 1, under && r >= under ? '#f05040' : '#f8f8f8');
+        text(now, 12, 24, 1, '#f8f8f8');
         if (under) text('(under it ' + cm(under) + ')', 12 + now.length * 6 + 6, 24, 1, '#8890a0');
         const tm = 'Time ' + Math.ceil(left / 60), bs = 'Best ' + getBest('snowman') + ' cm';
         text(tm, SW - 12 - tm.length * 6, 10, 1, left < 300 ? '#f05040' : '#f8f8f8');
@@ -14760,9 +14762,9 @@
         text(height + ' cm', 48, top - 10, 1, '#f8e040');
       }
       if (state === 'done') {
-        const lines = [tower.length < made.length ? 'Some rolled off!' : 'Snowman built!', 'Height ' + height + ' cm', record ? 'New record!' : 'Best ' + getBest('snowman') + ' cm'];
+        const lines = [tower.length < made.length ? 'Some rolled off!' : 'Snowman built!', 'Height ' + height + ' cm', (made.length > 1 ? 'Balls ' : 'Ball ') + made.map((b) => cm(b.r)).join(', '), record ? 'New record!' : 'Best ' + getBest('snowman') + ' cm'];
         if (t > 30 && (tick >> 4) & 1) lines.push('Press Space');
-        box(190, 60, 122, 74);
+        box(190, 60, 122, 88);
         lines.forEach((l, i) => { if (buttonHints()) l = touchHint(l); text(l, 251 - l.length * 3, 72 + i * 14); });
       }
     }

@@ -773,8 +773,8 @@ From November 27 to December 31 (by your device's date) the office does Christma
     it grows; A stands it where it is and starts the next one. Then they're stacked, and
     you're scored on how tall your snowman stands, in centimetres. A ball has to be
     smaller than the one it goes on or it rolls off (the next one goes on whatever is
-    still standing), so the top of the screen shows the size you're rolling and the size
-    it has to beat.
+    still standing). You judge the size you're rolling by eye: you're only told how big
+    a ball is once it's stood up, and the top of the screen keeps the size to beat.
   - **Hot chocolate stand** (WORK THE STAND): coworkers line up with their orders for 90
     seconds. Hold A to pour up to the red line on the mug (the last of the stream still
     falls after you let go), then Left drops in a marshmallow, Up adds whipped cream,
