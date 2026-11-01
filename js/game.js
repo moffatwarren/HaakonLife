@@ -3743,12 +3743,30 @@
         ctx.fillStyle = '#d85050'; ctx.fillRect(bx + 6, BAG_TOP + 4, 4, BAG_H - 8);
         ctx.fillStyle = col.dark;
         ctx.fillRect(bx + 2, BAG_TOP + 14, BAG_W - 4, 3); ctx.fillRect(bx + 2, BAG_TOP + BAG_H - 17, BAG_W - 4, 3);
+        if (HIRES) {
+          // leather panels with stitched seams, the shade round the far side, a buckle on each strap
+          for (const sx of [bx + 14, bx + BAG_W - 12]) for (let y = BAG_TOP + 19; y < BAG_TOP + BAG_H - 19; y += 2) fine(sx, y, 0.5, 1, '#801818');
+          fine(bx + BAG_W - 6, BAG_TOP + 2, 4, BAG_H - 4, '#982626'); fine(bx + BAG_W - 3.5, BAG_TOP + 2, 1.5, BAG_H - 4, '#801c1c');
+          fine(bx + 7, BAG_TOP + 4, 1, BAG_H - 8, '#f08080');
+          for (const y of [BAG_TOP + 14, BAG_TOP + BAG_H - 17]) {
+            fine(bx + 2, y + 0.5, BAG_W - 4, 0.5, '#585868');
+            fine(bx + BAG_W / 2 - 3, y - 1, 6, 5, '#a8a8b8'); fine(bx + BAG_W / 2 - 2, y, 4, 3, col.dark); fine(bx + BAG_W / 2 - 3, y - 1, 6, 0.5, '#e8e8f0');
+          }
+          fine(bx + 2, BAG_TOP + 2, BAG_W - 4, 1, '#c84040');
+          fine(BAG_X - 9, 36.5, 18, 0.5, '#8890a0');
+          for (let i = 0; i < 6; i++) fine(BAG_X - 0.5 + Math.round(off * i / 6), 40.5 + i * 2, 1, 1, i & 1 ? '#8890a0' : '#c8ccd8');
+        }
         // glove shoots in from the left right after a punch
         if (state === 'hit' && t < 12) {
           const gx = bx - 34 + Math.min(t, 4) * 2;
           ctx.fillStyle = col.dark; ctx.fillRect(gx - 40, BAG_TOP + 40, 40, 10); ctx.fillRect(gx, BAG_TOP + 34, 26, 22);
           ctx.fillStyle = '#c02828'; ctx.fillRect(gx + 2, BAG_TOP + 36, 22, 18);
           ctx.fillStyle = '#e8b890'; ctx.fillRect(gx - 38, BAG_TOP + 42, 38, 6);
+          if (HIRES) { // the glove's shine, thumb seam and white cuff
+            fine(gx + 4, BAG_TOP + 37, 10, 1.5, '#f06060'); fine(gx + 3, BAG_TOP + 38, 1, 8, '#f06060');
+            fine(gx + 6, BAG_TOP + 49, 14, 0.5, '#801818'); fine(gx + 2, BAG_TOP + 36, 3, 18, '#f0f0f0'); fine(gx + 4.5, BAG_TOP + 36, 0.5, 18, '#c8ccd8');
+            fine(gx - 38, BAG_TOP + 42, 38, 1, '#f4d0b0'); fine(gx - 38, BAG_TOP + 47, 38, 1, '#c89870');
+          }
         }
         ctx.restore();
         if (state === 'hit' && last) ctext(last.label + '  +' + last.pts, 168);
@@ -3760,7 +3778,12 @@
         ctx.fillStyle = '#a8d870'; ctx.fillRect(B.x + B.w * 0.45, B.y + 2, B.w * 0.10, B.h - 4);
         ctx.fillStyle = '#389838'; ctx.fillRect(Math.round(B.x + B.w * 0.488), B.y + 2, Math.round(B.w * 0.024), B.h - 4);
         const mx = Math.round(B.x + 2 + p * (B.w - 6));
+        if (HIRES) {
+          fine(B.x + 2, B.y + 2, B.w - 4, 1, 'rgba(255,255,255,0.6)'); fine(B.x + 2, B.y + B.h - 3, B.w - 4, 1, 'rgba(0,0,0,0.12)');
+          for (let i = 1; i < 20; i++) fine(B.x + 2 + i * (B.w - 4) / 20, B.y + B.h - 2 - (i % 5 ? 2 : 4), 0.5, i % 5 ? 2 : 4, 'rgba(0,0,0,0.3)');
+        }
         ctx.fillStyle = col.dark; ctx.fillRect(mx, B.y - 5, 2, B.h + 10);
+        if (HIRES) { fine(mx - 1.5, B.y - 6, 5, 1.5, col.dark); fine(mx - 1.5, B.y + B.h + 4.5, 5, 1.5, col.dark); }
         if (state === 'ready') readyBox(t, 'Space: punch');
         else if (state === 'done') doneBox(['Workout done!', 'Total ' + total + ' / ' + PUNCHES * 100, record ? 'New record!' : 'Best ' + getBest('punch5')], t);
         else text('Esc: give up', 16, SH - 14);
@@ -3785,17 +3808,29 @@
     let pen = ctx;
     // Things on the belt to jump over (h = how tall)...
     const LOW = [
-      { w: 18, h: 8, draw: (x, y) => { pen.fillStyle = col.dark; pen.fillRect(x, y, 18, 8); pen.fillStyle = '#58b8a8'; pen.fillRect(x + 1, y + 1, 16, 6); pen.fillStyle = '#f8f8f8'; pen.fillRect(x + 1, y + 3, 16, 1); } },
-      { w: 16, h: 12, draw: (x, y) => { pen.fillStyle = col.dark; pen.fillRect(x, y, 5, 12); pen.fillRect(x + 11, y, 5, 12); pen.fillRect(x + 4, y + 5, 8, 2); } },
+      { w: 18, h: 8, draw: (x, y) => {
+        pen.fillStyle = col.dark; pen.fillRect(x, y, 18, 8); pen.fillStyle = '#58b8a8'; pen.fillRect(x + 1, y + 1, 16, 6); pen.fillStyle = '#f8f8f8'; pen.fillRect(x + 1, y + 3, 16, 1);
+        if (fineRun()) { fine(x + 1, y + 1, 16, 0.5, '#88d8c8'); fine(x + 1, y + 6.5, 16, 0.5, '#388878'); for (let i = 3; i < 16; i += 3) fine(x + i, y + 4.5, 0.5, 1.5, '#388878'); }
+      } },
+      { w: 16, h: 12, draw: (x, y) => {
+        pen.fillStyle = col.dark; pen.fillRect(x, y, 5, 12); pen.fillRect(x + 11, y, 5, 12); pen.fillRect(x + 4, y + 5, 8, 2);
+        if (fineRun()) { fine(x + 1, y + 1, 0.5, 10, '#686878'); fine(x + 12, y + 1, 0.5, 10, '#686878'); fine(x + 4, y + 5, 8, 0.5, '#a8a8b8'); }
+      } },
       { w: 10, h: 22, draw: (x, y) => {
         pen.fillStyle = col.dark; pen.fillRect(x, y + 3, 10, 19); pen.fillRect(x + 3, y, 4, 4);
         pen.fillStyle = '#58a8e0'; pen.fillRect(x + 1, y + 6, 8, 15);
         pen.fillStyle = '#f8f8f8'; pen.fillRect(x + 2, y + 7, 2, 6);
+        if (fineRun()) { fine(x + 1, y + 11, 8, 4, '#f0f0f0'); fine(x + 2, y + 12, 6, 0.5, '#58a8e0'); fine(x + 2, y + 13, 4, 0.5, '#58a8e0'); fine(x + 3.5, y + 0.5, 3, 1, '#585868'); fine(x + 7, y + 7, 0.5, 13, '#3878b0'); }
       } },
       { w: 18, h: 32, draw: (x, y) => { // a stack of weight plates
         for (let i = 0; i < 4; i++) {
           pen.fillStyle = col.dark; pen.fillRect(x + (i & 1), y + i * 8, 17, 8);
           pen.fillStyle = i & 1 ? '#585868' : '#c03838'; pen.fillRect(x + 1 + (i & 1), y + i * 8 + 1, 15, 6);
+          if (fineRun()) {
+            const px = x + 1 + (i & 1), py = y + i * 8 + 1;
+            fine(px, py, 15, 0.5, i & 1 ? '#888898' : '#e06060'); fine(px, py + 5.5, 15, 0.5, i & 1 ? '#404050' : '#902828');
+            fine(px + 6, py + 2.5, 3, 1, col.dark);
+          }
         }
       } },
     ];
@@ -3805,14 +3840,24 @@
         pen.fillStyle = col.dark; pen.fillRect(x + 7, CEIL, 2, y - 30 - CEIL); pen.fillRect(x, y - 30, 16, 30);
         pen.fillStyle = '#b03030'; pen.fillRect(x + 1, y - 29, 14, 28);
         pen.fillStyle = col.dark; pen.fillRect(x + 1, y - 24, 14, 2); pen.fillRect(x + 1, y - 7, 14, 2);
+        if (fineRun()) { fine(x + 3, y - 28, 1, 26, '#e06060'); fine(x + 11.5, y - 29, 3, 28, '#982626'); fine(x + 7, y - 22, 0.5, 15, '#801818'); }
       } },
       { w: 26, gap: 20, draw: (x, y) => { // towel over a pull-up bar
         pen.fillStyle = col.dark; pen.fillRect(x + 2, CEIL, 2, y - 18 - CEIL); pen.fillRect(x + 22, CEIL, 2, y - 18 - CEIL);
         pen.fillRect(x, y - 20, 26, 3); pen.fillRect(x + 6, y - 17, 14, 17);
         pen.fillStyle = '#e8c048'; pen.fillRect(x + 7, y - 17, 12, 16);
         pen.fillStyle = '#f8f8f8'; pen.fillRect(x + 7, y - 5, 12, 2);
+        if (fineRun()) {
+          fine(x + 1, y - 19.5, 24, 0.5, '#a8a8b8');
+          for (let i = 9; i < 19; i += 2.5) fine(x + i, y - 16, 0.5, 10, '#c8a030');
+          fine(x + 7, y - 16.5, 12, 0.5, '#f8e090');
+          for (let i = 7.5; i < 19; i += 1.5) fine(x + i, y - 1, 0.5, 1, '#e8c048');
+        }
       } },
     ];
+    // (the fine detail is only for the screen: the other player's half-size view is drawn
+    // on a canvas of its own first)
+    const fineRun = () => HIRES && pen === ctx;
     let state = 'ready', t = 0, h = 0, vy = 0, speed = 3, dist = 0, nextAt = 220, obs = [], record = false, ducking = false;
     let frame = 0;
     let myStop = null, theirStop = null; // how far the belts had gone when each of you stepped off
@@ -3840,7 +3885,13 @@
       const d = (stop === null ? dist : stop) - behind;
       pen.fillStyle = col.dark; pen.fillRect(8, FLOOR, SW - 16, 14);
       pen.fillStyle = '#585868';
-      for (let x = 8 - ((Math.floor(d) % 24) + 24) % 24; x < SW - 8; x += 24) if (x >= 8) pen.fillRect(x, FLOOR + 4, 12, 3);
+      for (let x = 8 - ((Math.floor(d) % 24) + 24) % 24; x < SW - 8; x += 24) if (x >= 8) pen.fillRect(x, FLOOR + 4, Math.min(12, SW - 8 - x), 3);
+      if (fineRun()) {
+        // the belt's grip ridges, its shine, and a roller at each end
+        for (let x = 8 - ((Math.floor(d) % 6) + 6) % 6; x < SW - 8; x += 6) if (x >= 8) fine(x, FLOOR + 1, 0.5, 2, '#383848');
+        fine(8, FLOOR + 0.5, SW - 16, 0.5, '#686878'); fine(8, FLOOR + 10, SW - 16, 0.5, '#383848');
+        for (const rx of [8, SW - 20]) { fine(rx, FLOOR + 1, 12, 12, '#383848'); fine(rx + 1, FLOOR + 2, 10, 10, '#686878'); fine(rx + 2, FLOOR + 3, 8, 1, '#a8a8b8'); fine(rx + 5.5, FLOOR + 6.5, 1, 1, col.dark); }
+      }
       if (stop === null) for (const o of obs) o.k.draw(Math.round(o.x + behind), FLOOR - (o.k.gap || o.k.h));
       if (who.duck) pen.drawImage(who.img, PX, FLOOR - 17, 32, 17);
       else pen.drawImage(who.img, PX, FLOOR - 32 - who.h, 32, 32);
@@ -3900,7 +3951,20 @@
           const cx = Math.max(8, wx), cw = Math.min(SW - 8, wx + 50) - cx;
           ctx.fillStyle = col.dark; ctx.fillRect(cx, 60, cw, 50);
           ctx.fillStyle = '#a8d8f0'; ctx.fillRect(Math.max(9, wx + 2), 62, Math.max(0, Math.min(SW - 9, wx + 48) - Math.max(9, wx + 2)), 46);
+          if (HIRES) {
+            // sky paler at the bottom, two glints, the glazing bars and a sill
+            const gx = Math.max(9, wx + 2), gw = Math.max(0, Math.min(SW - 9, wx + 48) - gx);
+            if (gw) {
+              fine(gx, 62, gw, 12, '#98ccec'); fine(gx, 96, gw, 12, '#c0e4f8');
+              const glint = (x, y, n) => { for (let i = 0; i < n; i++) if (x + i >= gx && x + i < gx + gw - 1) fine(x + i, y - i, 1, 1, '#f0f8ff'); };
+              glint(wx + 8, 90, 10); glint(wx + 14, 92, 6);
+              if (wx + 24 >= 8 && wx + 25 <= SW - 8) fine(wx + 24, 62, 1.5, 46, col.dark);
+              fine(gx, 84.5, gw, 1, col.dark);
+              fine(Math.max(8, wx - 2), 110, Math.min(SW - 8, wx + 52) - Math.max(8, wx - 2), 2, '#e8e8f0'); fine(Math.max(8, wx - 2), 111.5, Math.min(SW - 8, wx + 52) - Math.max(8, wx - 2), 0.5, '#888898');
+            }
+          }
         }
+        if (HIRES) { fine(8, FLOOR - 24, SW - 16, 0.5, '#a8aab8'); fine(8, FLOOR - 23.5, SW - 16, 0.5, '#e0e2ea'); }
         // the other player's treadmill, further back: the same clutter as yours (it's the
         // same run), with them where they were this far into it. Once they've wiped out
         // their belt stops, and they stand there watching you.
@@ -4072,6 +4136,9 @@
         // (against a player the ball can run a step past the edge before the server says
         // who scored)
         if (state === 'play' && ball.x > L - 8 && ball.x < R + 8 && (wait === 0 || (wait >> 2) & 1)) ctx.fillRect(Math.round(ball.x), Math.round(ball.y), BS, BS);
+        if (HIRES) { // an old TV's scanlines, softly
+          for (let y = TOP - 7.5; y < BOT + 8; y += 1) fine(L - 4, y, R - L + 8, 0.5, 'rgba(0,0,0,0.22)');
+        }
         text('YOU', L, 10, 1, '#f8f8f8');
         text(foe.toUpperCase(), R - foe.length * 6, 10, 1, '#f8f8f8');
         text('First to ' + WIN, SW / 2 - 27, 10, 1, '#f8f8f8');
@@ -4680,9 +4747,18 @@
         ctx.fillStyle = '#c8ccd8'; ctx.fillRect(8, 38, SW - 16, FLOOR - 38);
         ctx.fillStyle = col.dark; ctx.fillRect(8, FLOOR, SW - 16, 1);
         ctx.fillStyle = '#585868'; ctx.fillRect(8, FLOOR + 1, SW - 16, 14);
+        if (HIRES) { // rubber mat tiles, and a skirting line up the wall
+          for (let x = 8; x < SW - 8; x += 40) fine(x, FLOOR + 1, 0.5, 14, '#484858');
+          fine(8, FLOOR + 1, SW - 16, 0.5, '#787888'); fine(8, FLOOR - 6, SW - 16, 0.5, '#a8aab8');
+        }
         for (const x of [70, 246]) {
           ctx.fillStyle = col.dark; ctx.fillRect(x, 70, 6, FLOOR - 70);
           ctx.fillStyle = '#8890a0'; ctx.fillRect(x + 1, 71, 4, FLOOR - 71);
+          if (HIRES) { // a shine down the upright, a row of pin holes and a J-hook
+            fine(x + 1.5, 71, 1, FLOOR - 71, '#c8ccd8'); fine(x + 4, 71, 1, FLOOR - 71, '#686878');
+            for (let y = 76; y < FLOOR - 6; y += 6) fine(x + 2.5, y, 1.5, 1.5, col.dark);
+            fine(x + (x < SW / 2 ? 6 : -4), 112, 4, 2, col.dark); fine(x + (x < SW / 2 ? 8 : -4), 108, 2, 5, col.dark);
+          }
         }
         // you: squashed down at the bottom of the squat, standing tall at the top
         const ph = Math.round(30 + h * 26), py = FLOOR - ph;
@@ -4692,12 +4768,21 @@
         const by = py + Math.round(ph * 0.55);
         ctx.fillStyle = col.dark; ctx.fillRect(40, by, SW - 80, 4);
         ctx.fillStyle = '#c8ccd8'; ctx.fillRect(41, by + 1, SW - 82, 2);
+        if (HIRES) { // the bar's shine and its knurled grip
+          fine(41, by + 1, SW - 82, 0.5, '#f8f8f8'); fine(41, by + 2.5, SW - 82, 0.5, '#888898');
+          for (let x = 104; x < SW - 104; x += 1.5) if (x < 128 || x > SW - 128) fine(x, by + 1.5, 0.5, 1, '#888898');
+        }
         const plates = Math.min(8, Math.round((weight - 45) / 40));
         for (let i = 0; i < plates; i++) {
           for (const side of [-1, 1]) {
             const x = side < 0 ? 96 - i * 6 : SW - 102 + i * 6;
             ctx.fillStyle = col.dark; ctx.fillRect(x, by - 14, 6, 32);
             ctx.fillStyle = i & 1 ? '#585868' : '#c03838'; ctx.fillRect(x + 1, by - 13, 4, 30);
+            if (HIRES) { // rounded ends, a raised rim, a shine
+              fine(x, by - 14, 1, 1, '#c8ccd8'); fine(x + 5, by - 14, 1, 1, '#c8ccd8'); fine(x, by + 17, 1, 1, '#c8ccd8'); fine(x + 5, by + 17, 1, 1, '#c8ccd8');
+              fine(x + 1, by - 13, 0.5, 30, i & 1 ? '#888898' : '#e06060'); fine(x + 4.5, by - 13, 0.5, 30, i & 1 ? '#404050' : '#902828');
+              fine(x + 1.5, by - 11, 0.5, 8, '#f8f8f8');
+            }
           }
         }
         // lift meter
@@ -4706,6 +4791,10 @@
         ctx.fillStyle = '#e8e8e8'; ctx.fillRect(M.x + 2, M.y + 2, M.w - 4, M.h - 4);
         const mh = Math.round((M.h - 4) * h);
         ctx.fillStyle = '#f0b030'; ctx.fillRect(M.x + 2, M.y + M.h - 2 - mh, M.w - 4, mh);
+        if (HIRES) {
+          if (mh) { fine(M.x + 2, M.y + M.h - 2 - mh, M.w - 4, 0.5, '#f8d070'); fine(M.x + 3, M.y + M.h - 2 - mh, 1, mh, '#f8d070'); }
+          for (let i = 1; i < 10; i++) fine(M.x + M.w - 5, M.y + 2 + i * (M.h - 4) / 10, 3, 0.5, 'rgba(0,0,0,0.35)');
+        }
         text('UP', M.x + 1, M.y - 11);
         if (state === 'lifted') ctext('LIFTED! +' + STEP + ' lb next', 46);
         if (state === 'ready') readyBox(t, 'Mash Space to lift!');
@@ -4847,23 +4936,47 @@
         ctx.fillStyle = '#9a6434'; ctx.fillRect(FX - 7, FY - 7, FW + 14, FH + 14);
         // mowed stripes
         for (let x = 0; x < FW; x += 16) { ctx.fillStyle = (x >> 4) & 1 ? '#58a848' : '#68b858'; ctx.fillRect(FX + x, FY, Math.min(16, FW - x), FH); }
+        if (HIRES) {
+          // the rail's grain and bevel, and blades of grass scattered over the green
+          fine(FX - 7, FY - 7, FW + 14, 0.5, '#c89058'); fine(FX - 7, FY - 7, 0.5, FH + 14, '#c89058');
+          fine(FX - 7, FY + FH + 6.5, FW + 14, 0.5, '#6a4020'); fine(FX + FW + 6.5, FY - 7, 0.5, FH + 14, '#6a4020');
+          for (let x = FX; x < FX + FW - 20; x += 23) { fine(x, FY - 4.5, 9, 0.5, '#7a4c24'); fine(x + 11, FY + FH + 3.5, 9, 0.5, '#7a4c24'); }
+          for (let y = FY; y < FY + FH - 17; y += 19) { fine(FX - 4.5, y, 0.5, 8, '#7a4c24'); fine(FX + FW + 3.5, y + 9, 0.5, 8, '#7a4c24'); }
+          for (let i = 0; i < 260; i++) {
+            const gx = FX + 1 + ((i * 97) % (FW - 2)), gy = FY + 1 + ((i * 61 + (i >> 3) * 13) % (FH - 2));
+            fine(gx, gy, 0.5, 1, ((gx - FX) >> 4) & 1 ? '#489838' : '#78c868');
+          }
+        }
         ctx.fillStyle = col.dark; ctx.fillRect(FX - 1, FY - 1, FW + 2, 1); ctx.fillRect(FX - 1, FY + FH, FW + 2, 1);
         ctx.fillRect(FX - 1, FY, 1, FH); ctx.fillRect(FX + FW, FY, 1, FH);
         for (const r of h.sand) {
           ctx.fillStyle = '#e8d090'; ctx.fillRect(r.x, r.y, r.w, r.h);
           ctx.fillStyle = '#c8b070';
           for (let y = r.y + 3; y < r.y + r.h; y += 6) for (let x = r.x + ((y >> 1) % 6); x < r.x + r.w - 1; x += 7) ctx.fillRect(x, y, 1, 1);
+          if (HIRES) { // raked lines and a lip of shade
+            for (let y = r.y + 1.5; y < r.y + r.h - 1; y += 3) fine(r.x + 1, y, r.w - 2, 0.5, '#dcc080');
+            fine(r.x, r.y, r.w, 0.5, '#b09858'); fine(r.x, r.y, 0.5, r.h, '#b09858');
+          }
         }
         for (const r of h.water) {
           ctx.fillStyle = '#3878c8'; ctx.fillRect(r.x, r.y, r.w, r.h);
           ctx.fillStyle = '#68a0f8';
           for (let y = r.y + 6; y < r.y + r.h - 2; y += 10)
             for (let x = r.x + 4 + ((y + (tick >> 3)) % 12); x < r.x + r.w - 6; x += 16) ctx.fillRect(x, y, 5, 1);
+          if (HIRES) {
+            fine(r.x, r.y, r.w, 1, '#28609c'); fine(r.x, r.y, 1, r.h, '#28609c');
+            for (let y = r.y + 11; y < r.y + r.h - 2; y += 10) for (let x = r.x + 9 + ((y + (tick >> 3)) % 12); x < r.x + r.w - 4; x += 16) fine(x, y, 3, 0.5, '#a8c8f8');
+          }
         }
         for (const r of h.walls) {
           ctx.fillStyle = col.dark; ctx.fillRect(r.x, r.y, r.w, r.h);
           ctx.fillStyle = '#9a6434'; ctx.fillRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
           ctx.fillStyle = '#c89058'; ctx.fillRect(r.x + 2, r.y + 1, 2, r.h - 2);
+          if (HIRES) {
+            if (r.w > r.h) for (let y = r.y + 2; y < r.y + r.h - 1; y += 2) fine(r.x + 5, y, r.w - 7, 0.5, '#7a4c24');
+            else for (let x = r.x + 5; x < r.x + r.w - 1; x += 2) fine(x, r.y + 2, 0.5, r.h - 4, '#7a4c24');
+            fine(r.x + 1, r.y + 1, r.w - 2, 0.5, '#e0b080');
+          }
         }
         // cup and flag
         const [cx, cy] = h.cup;
@@ -4871,6 +4984,11 @@
         ctx.fillRect(cx, cy - 20, 1, 18);
         ctx.fillStyle = '#f05040';
         for (let i = 0; i < 5; i++) ctx.fillRect(cx + 1, cy - 20 + i, 8 - i * 2 + (i < 3 ? 2 : 0), 1);
+        if (HIRES) { // the cup's white liner, the pole's shine, the flag's fold
+          fine(cx - 3, cy - 3, 7, 0.5, '#f8f8f8'); fine(cx - 3.5, cy - 2.5, 0.5, 2, '#f8f8f8'); fine(cx + 4, cy - 2.5, 0.5, 2, '#f8f8f8');
+          fine(cx + 0.5, cy - 20, 0.5, 17, '#f8f8f8'); fine(cx + 5, cy - 19, 0.5, 3, '#c03030'); fine(cx + 1, cy - 20, 4, 0.5, '#f88878');
+          fine(cx - 0.5, cy - 21, 2, 1, '#f0c040');
+        }
         if (ball && state !== 'holed') {
           // aim line: dots get longer with power
           if (state === 'aim' || state === 'power') {
@@ -4881,6 +4999,7 @@
           ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(Math.round(ball.x) - 2, Math.round(ball.y) - 1, 5, 4);
           ctx.fillStyle = col.dark; ctx.fillRect(Math.round(ball.x) - 3, Math.round(ball.y) - 2, 5, 3); ctx.fillRect(Math.round(ball.x) - 2, Math.round(ball.y) - 3, 3, 5);
           ctx.fillStyle = '#f8f8f8'; ctx.fillRect(Math.round(ball.x) - 2, Math.round(ball.y) - 2, 3, 3);
+          if (HIRES) { const bx = Math.round(ball.x), by = Math.round(ball.y); fine(bx, by, 1, 1, '#d0d4dc'); fine(bx - 1, by + 0.5, 0.5, 0.5, '#d0d4dc'); fine(bx - 2, by - 2, 1, 1, '#ffffff'); }
         }
         if (state === 'power') {
           text('POWER', 16, SH - 14);
@@ -5366,7 +5485,20 @@
         ctx.fillStyle = col.dark; ring(W.x - W.r - 2, W.y - W.r - 2, W.r * 2 + 4, W.r * 2 + 4);
         ctx.fillStyle = '#d8dce8'; ctx.fillRect(W.x - W.r, W.y - W.r, W.r * 2, W.r * 2);
         ctx.fillStyle = col.dark;
-        for (let i = 0; i < 10; i++) {
+        if (HIRES) {
+          // a guard ring and corner bolts on the housing, then curved blades with a lit edge
+          for (const [bx, by] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { fine(W.x + bx * (W.r - 5) - 1, W.y + by * (W.r - 5) - 1, 2, 2, '#888898'); fine(W.x + bx * (W.r - 5) - 1, W.y + by * (W.r - 5) - 1, 1, 1, '#f8f8f8'); }
+          for (let k = 0; k < 120; k++) { const a = k * Math.PI / 60; fine(W.x + Math.cos(a) * (W.r - 2) - 0.5, W.y + Math.sin(a) * (W.r - 2) - 0.5, 1, 1, '#a8acb8'); }
+          for (let i = 0; i < 10; i++) {
+            const a = spin * 0.06 + i * Math.PI / 5;
+            for (let r = 10; r < W.r - 4; r += 1) {
+              const b = a + (r - 10) * 0.012;
+              const x = W.x + Math.cos(b) * r, y = W.y + Math.sin(b) * r;
+              fine(Math.round(x * 2) / 2 - 1, Math.round(y * 2) / 2 - 1, 2.5, 2.5, col.dark);
+              fine(Math.round(x * 2) / 2 - 0.5, Math.round(y * 2) / 2 - 0.5, 1, 1, '#686878');
+            }
+          }
+        } else for (let i = 0; i < 10; i++) {
           const a = spin * 0.06 + i * Math.PI / 5;
           for (let r = 12; r < W.r - 3; r += 3) {
             ctx.fillRect(Math.round(W.x + Math.cos(a) * r) - 1, Math.round(W.y + Math.sin(a) * r) - 1, 3, 3);
@@ -5374,6 +5506,11 @@
         }
         ctx.fillStyle = '#585868'; ctx.fillRect(W.x - 8, W.y - 8, 16, 16);
         ctx.fillStyle = '#8890a0'; ctx.fillRect(W.x - 6, W.y - 6, 12, 12);
+        if (HIRES) { // the hub's bevel and its nut
+          fine(W.x - 8, W.y - 8, 1, 1, '#d8dce8'); fine(W.x + 7, W.y - 8, 1, 1, '#d8dce8'); fine(W.x - 8, W.y + 7, 1, 1, '#d8dce8'); fine(W.x + 7, W.y + 7, 1, 1, '#d8dce8');
+          fine(W.x - 6, W.y - 6, 12, 1, '#b8bcc8'); fine(W.x - 6, W.y - 6, 1, 12, '#b8bcc8'); fine(W.x - 6, W.y + 5, 12, 1, '#686878'); fine(W.x + 5, W.y - 6, 1, 12, '#686878');
+          fine(W.x - 2.5, W.y - 2.5, 5, 5, '#585868'); fine(W.x - 1.5, W.y - 1.5, 3, 3, '#a8acb8'); fine(W.x - 1.5, W.y - 1.5, 1, 1, '#f8f8f8');
+        }
         // CFM gauge with the target band marked
         const G = GAUGE, gy = (v) => G.y + G.h - 2 - Math.round((G.h - 4) * v / 110);
         text('CFM', G.x, G.y - 12);
@@ -5381,7 +5518,9 @@
         ctx.fillStyle = '#e8e8e8'; ctx.fillRect(G.x + 2, G.y + 2, G.w - 4, G.h - 4);
         ctx.fillStyle = '#b8e8b8'; ctx.fillRect(G.x + 2, gy(band.hi), G.w - 4, gy(band.lo) - gy(band.hi));
         ctx.fillStyle = '#58b058'; ctx.fillRect(G.x + 2, gy(band.hi), G.w - 4, 1); ctx.fillRect(G.x + 2, gy(band.lo), G.w - 4, 1);
+        if (HIRES) for (let v = 10; v < 110; v += 10) fine(G.x + 2, gy(v), v % 50 ? 3 : 5, 0.5, 'rgba(0,0,0,0.35)');
         ctx.fillStyle = col.dark; ctx.fillRect(G.x - 3, gy(rpm) - 1, G.w + 6, 3);
+        if (HIRES) fine(G.x - 2, gy(rpm) - 0.5, G.w + 4, 0.5, '#888898');
         // hold meter: fills while you stay in the band
         const hw = Math.round((G.w - 4) * Math.min(1, hold / HOLD_NEED));
         ctx.fillStyle = col.dark; ctx.fillRect(G.x, G.y + G.h + 6, G.w, 8);
@@ -5466,23 +5605,36 @@
         ctx.fillStyle = col.dark; ctx.fillRect(C.x, C.y, C.w, C.h);
         ctx.fillStyle = '#e0c898'; ctx.fillRect(C.x + 3, C.y + 3, C.w - 6, C.h - 6);
         ctx.fillStyle = '#9a6434';
-        for (let fx = C.x + 7; fx < C.x + C.w - 6; fx += 5) ctx.fillRect(fx, C.y + 7, 2, C.h - 14);
-        ctx.fillStyle = '#c87830';
-        for (let py = C.y + 18; py < C.y + C.h - 10; py += 34) ctx.fillRect(C.x + 3, py, C.w - 6, 4);
+        if (HIRES) { // thin aluminium fins, close together, with copper tubes through them
+          fine(C.x + 3, C.y + 3, C.w - 6, C.h - 6, '#d4d8e0');
+          for (let fx = C.x + 5; fx < C.x + C.w - 4; fx += 2) fine(fx, C.y + 4, 0.5, C.h - 8, '#9aa0ac');
+          fine(C.x + 3, C.y + 3, C.w - 6, 1, '#f0f0f4'); fine(C.x + 3, C.y + C.h - 4, C.w - 6, 1, '#a8acb8');
+          for (let py = C.y + 18; py < C.y + C.h - 10; py += 34) {
+            fine(C.x + 3, py, C.w - 6, 4, '#c87830'); fine(C.x + 3, py + 0.5, C.w - 6, 1, '#f0a868'); fine(C.x + 3, py + 3.5, C.w - 6, 0.5, '#8a4818');
+            for (let fx = C.x + 5; fx < C.x + C.w - 4; fx += 2) fine(fx, py, 0.5, 4, 'rgba(120,128,140,0.5)');
+          }
+        } else {
+          for (let fx = C.x + 7; fx < C.x + C.w - 6; fx += 5) ctx.fillRect(fx, C.y + 7, 2, C.h - 14);
+          ctx.fillStyle = '#c87830';
+          for (let py = C.y + 18; py < C.y + C.h - 10; py += 34) ctx.fillRect(C.x + 3, py, C.w - 6, 4);
+        }
         if (sh < gLo) {
           const fr = Math.round((C.h - 6) * Math.min(1, (gLo - sh) / Math.max(1, gLo - lo)));
           ctx.fillStyle = '#dff0fa'; ctx.fillRect(C.x + 3, C.y + C.h - 3 - fr, C.w - 6, fr);
           ctx.fillStyle = '#a8e0f8';
           for (let i = 0; i < 12; i++) {
             const px = C.x + 8 + ((i * 37) % (C.w - 16)), py = C.y + C.h - 6 - ((i * 23) % Math.max(1, fr));
-            ctx.fillRect(px, py, 2, 2);
+            if (HIRES) { fine(px + 0.5, py - 0.5, 1, 3, '#a8e0f8'); fine(px - 0.5, py + 0.5, 3, 1, '#a8e0f8'); fine(px + 0.5, py + 0.5, 1, 1, '#ffffff'); }
+            else ctx.fillRect(px, py, 2, 2);
           }
+          if (HIRES) { fine(C.x + 3, C.y + C.h - 3 - fr, C.w - 6, 0.5, '#ffffff'); for (let i = 0; i < 40; i++) fine(C.x + 4 + ((i * 53) % (C.w - 8)), C.y + C.h - 4 - ((i * 31) % Math.max(1, fr)), 0.5, 0.5, '#ffffff'); }
         } else if (sh > gHi) {
           ctx.fillStyle = '#6890e0';
           for (let i = 0; i < 10; i++) {
             const px = C.x + 10 + ((i * 29) % (C.w - 20));
             const py = C.y + 10 + ((i * 53 + (tick * 2)) % (C.h - 20));
-            ctx.fillRect(px, py, 2, 4);
+            if (HIRES) { fine(px + 0.5, py, 1, 0.5, '#6890e0'); fine(px, py + 0.5, 2, 3, '#6890e0'); fine(px + 0.5, py + 3.5, 1, 0.5, '#6890e0'); fine(px + 0.5, py + 1, 0.5, 1, '#c8dcf8'); }
+            else ctx.fillRect(px, py, 2, 4);
           }
         }
         // superheat gauge: the frost and flood walls move in as the levels climb
@@ -5496,6 +5648,7 @@
         ctx.fillStyle = col.dark;
         ctx.fillRect(G.x + 2, gy(lo), G.w - 4, 1); ctx.fillRect(G.x + 2, gy(hi), G.w - 4, 1);
         ctx.fillRect(G.x - 4, gy(sh) - 1, G.w + 8, 3);
+        if (HIRES) fine(G.x - 3, gy(sh) - 0.5, G.w + 6, 0.5, '#888898');
         text('FROST', G.x - 36, gy(lo) - 3, 1, '#4080c0');
         text('FLOOD', G.x - 36, gy(hi) - 3, 1, '#c03030');
         // the expansion valve you are steering with
@@ -5503,6 +5656,10 @@
         ctx.fillStyle = col.dark; ctx.fillRect(80, 204, 120, 8);
         ctx.fillStyle = '#e8e8e8'; ctx.fillRect(81, 205, 118, 6);
         ctx.fillStyle = '#3868c8'; ctx.fillRect(139 + Math.round(valve * 57), 205, 4, 6);
+        if (HIRES) {
+          for (let i = 0; i <= 10; i++) fine(81 + i * 11.8, 210, 0.5, i % 5 ? 1 : 1.5, 'rgba(0,0,0,0.35)');
+          fine(139 + Math.round(valve * 57), 205, 4, 1, '#78a0f0'); fine(140.5 + Math.round(valve * 57), 206.5, 1, 3, '#a8c4f8');
+        }
         text('SHUT', 50, 204, 1, '#585868'); text('OPEN', 204, 204, 1, '#585868');
         if (levelUp > 0 && (levelUp >> 2) & 1) {
           const msg = 'LEVEL ' + level + '!';
@@ -5580,11 +5737,16 @@
         // the trunk duct feeding three branches
         ctx.fillStyle = col.dark; ctx.fillRect(16, 44, SW - 32, 22);
         ctx.fillStyle = '#b0b8c8'; ctx.fillRect(17, 45, SW - 34, 20);
+        if (HIRES) { // the trunk's shine, its seams and their rivets
+          fine(17, 45, SW - 34, 1, '#d8dce8'); fine(17, 63.5, SW - 34, 1.5, '#9098a8'); fine(17, 49, SW - 34, 0.5, '#c8ccd8');
+          for (let x = 60; x < SW - 20; x += 64) { fine(x, 45, 1, 20, '#9098a8'); fine(x + 1, 45, 0.5, 20, '#d8dce8'); for (let y = 47; y < 64; y += 5) fine(x - 1.5, y, 1, 1, '#787f90'); }
+        }
         text('FAN', 22, 50, 1, col.dark);
         ROOMS.forEach((r, i) => {
           const x = 48 + i * 86;
           ctx.fillStyle = col.dark; ctx.fillRect(x, 66, 44, 16);
           ctx.fillStyle = '#b0b8c8'; ctx.fillRect(x + 1, 66, 42, 15);
+          if (HIRES) { fine(x + 1, 66, 1, 15, '#d8dce8'); fine(x + 41.5, 66, 1.5, 15, '#9098a8'); fine(x + 1, 74, 42, 0.5, '#9098a8'); }
           // damper blades: flatter as they open
           const open = pos[i];
           ctx.fillStyle = col.dark; ctx.fillRect(x + 6, 84, 32, 34);
@@ -5592,10 +5754,17 @@
           ctx.fillStyle = '#585868';
           for (let bl = 0; bl < 3; bl++) {
             const by = 90 + bl * 10, lean = (5 - open) * 2;
-            for (let k = 0; k < 28; k++) {
+            if (HIRES) { // smooth blades with a lit top edge, on a spindle
+              for (let k = 0; k < 28; k += 0.5) {
+                const yy = by + Math.round(((k - 14) / 14) * lean * 2) / 2;
+                fine(x + 8 + k, yy, 0.5, 3, '#585868'); fine(x + 8 + k, yy, 0.5, 0.5, '#9098a8');
+              }
+              fine(x + 20.5, by + 0.5, 3, 2, '#383848'); fine(x + 21, by + 1, 1, 1, '#a8acb8');
+            } else for (let k = 0; k < 28; k++) {
               ctx.fillRect(x + 8 + k, by + Math.round(((k - 14) / 14) * lean), 1, 3);
             }
           }
+          if (HIRES) { fine(x + 7, 85, 30, 0.5, '#f8f8f8'); fine(x + 7, 116.5, 30, 0.5, '#a8acb8'); for (const [bx, by] of [[x + 8, 86], [x + 35, 86], [x + 8, 115], [x + 35, 115]]) fine(bx, by, 1, 1, '#888898'); }
           if (i === sel && state === 'play' && testing === 0) { ctx.fillStyle = '#3060d0'; ring(x + 4, 82, 36, 38); }
           text('OPEN ' + open, x + 1, 122);
           // target vs what this setting actually delivers
@@ -5694,6 +5863,12 @@
           ctx.fillStyle = filled ? '#e8e8e8' : '#8a7458'; ctx.fillRect(x + 3, 67, 58, 50);
           ctx.fillStyle = filled ? '#c8ccd8' : '#5c4c3a';
           for (let py = 70; py < 114; py += 6) ctx.fillRect(x + 5, py, 54, 3);
+          if (HIRES) { // pleats with a lit fold, a card frame, and dust on the old ones
+            for (let py = 70; py < 114; py += 6) { fine(x + 5, py, 54, 0.5, filled ? '#e8eaf0' : '#7a6650'); fine(x + 5, py + 2.5, 54, 0.5, filled ? '#a8acb8' : '#3c3024'); }
+            fine(x + 3, 67, 58, 1, filled ? '#f8f8f8' : '#a89070'); fine(x + 3, 67, 1, 50, filled ? '#f8f8f8' : '#a89070');
+            fine(x + 3, 116, 58, 1, filled ? '#a8acb8' : '#5c4c3a'); fine(x + 60, 67, 1, 50, filled ? '#a8acb8' : '#5c4c3a');
+            if (!filled) for (let k = 0; k < 30; k++) fine(x + 6 + ((k * 37) % 52), 69 + ((k * 23) % 46), 0.5, 0.5, k & 1 ? '#3c3024' : '#b0987a');
+          }
           if (!filled) text(String(need[i - at]), x + 20, 86, 1, '#f8f8f8');
           if (i === at && (tick >> 3) & 1) { ctx.fillStyle = '#c03030'; ring(x - 2, 62, 68, 60); }
         }
@@ -5705,6 +5880,10 @@
           ctx.fillStyle = '#e8e8e8'; ctx.fillRect(x + 2, 152, 36, 42);
           ctx.fillStyle = '#c8ccd8';
           for (let py = 155; py < 191; py += 6) ctx.fillRect(x + 4, py, 32, 3);
+          if (HIRES) {
+            for (let py = 155; py < 191; py += 6) { fine(x + 4, py, 32, 0.5, '#e8eaf0'); fine(x + 4, py + 2.5, 32, 0.5, '#a8acb8'); }
+            fine(x + 2, 152, 36, 1, '#ffffff'); fine(x + 2, 152, 1, 42, '#ffffff'); fine(x + 2, 193, 36, 1, '#b8bcc8'); fine(x + 37, 152, 1, 42, '#b8bcc8');
+          }
           text(String(s), x + 8, 168, 1, col.dark);
           if (i === sel && state === 'play') { ctx.fillStyle = '#3060d0'; ring(x - 2, 148, 44, 50); }
         });
@@ -5806,9 +5985,21 @@
           ctx.fillStyle = '#0d2818'; ctx.fillRect(x, y, COLS * c, ROWS * c);
           ctx.fillStyle = fd && (tick >> 3) & 1 ? '#f8e070' : '#f0b030';
           if (fd) ctx.fillRect(x + fd[0] * c + (c >> 2), y + fd[1] * c + (c >> 2), c - (c >> 2) * 2, c - (c >> 2) * 2);
+          if (HIRES && c > 4 && fd) { // the food's shine and a leaf
+            const fx = x + fd[0] * c + (c >> 2), fy = y + fd[1] * c + (c >> 2);
+            fine(fx + 0.5, fy + 0.5, 1, 1, '#fff8d0'); fine(fx + c / 2 - 1, fy - 1, 1.5, 1, '#58a848');
+          }
+          if (HIRES && c > 4) { // faint phosphor scanlines
+            for (let yy = y + 0.5; yy < y + ROWS * c; yy += 1) fine(x, yy, COLS * c, 0.5, 'rgba(20,60,36,0.35)');
+          }
           body.forEach((sg, i) => {
             ctx.fillStyle = i === 0 ? '#a8e070' : '#58a848';
-            ctx.fillRect(x + sg[0] * c + 1, y + sg[1] * c + 1, c - (c > 4 ? 2 : 1), c - (c > 4 ? 2 : 1));
+            const sx = x + sg[0] * c + 1, sy = y + sg[1] * c + 1, w = c - (c > 4 ? 2 : 1);
+            ctx.fillRect(sx, sy, w, w);
+            if (HIRES && c > 4) { // a scale shine, and eyes on the head
+              fine(sx, sy, w, 0.5, i === 0 ? '#d0f8a0' : '#78c868'); fine(sx, sy + w - 0.5, w, 0.5, i === 0 ? '#78b048' : '#387828');
+              if (i === 0) { fine(sx + 1, sy + 1.5, 1, 1, '#0d2818'); fine(sx + w - 2, sy + 1.5, 1, 1, '#0d2818'); }
+            }
           });
         };
         if (race) {
@@ -5831,6 +6022,15 @@
           ctx.fillStyle = '#3a3a48'; ctx.fillRect(FX - 7, FY - 7, COLS * CW + 14, ROWS * CW + 14);
           field(FX, FY, CW, snake, food);
           ctx.fillStyle = '#181820'; ctx.fillRect(FX + 60, FY + ROWS * CW + 13, COLS * CW - 120, 6);
+          if (HIRES) {
+            // the bezel's bevel, a glare across the glass, a power light and the stand's shine
+            const W = COLS * CW, H = ROWS * CW;
+            fine(FX - 7, FY - 7, W + 14, 0.5, '#5a5a68'); fine(FX - 7, FY - 7, 0.5, H + 14, '#5a5a68');
+            fine(FX - 7, FY + H + 6.5, W + 14, 0.5, '#282830'); fine(FX + W + 6.5, FY - 7, 0.5, H + 14, '#282830');
+            fine(FX - 0.5, FY - 0.5, W + 1, 0.5, '#181820'); fine(FX - 0.5, FY - 0.5, 0.5, H + 1, '#181820');
+            fine(FX + W + 2, FY + H + 2, 2, 2, '#58d870'); fine(FX + W + 2, FY + H + 2, 1, 1, '#c8ffd0');
+            fine(FX + 60, FY + H + 13, W - 120, 0.5, '#3a3a48');
+          }
         }
         if (state === 'ready') readyBox(t, 'Arrows: steer');
         else if (state === 'over') race.box(t);
