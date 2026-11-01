@@ -28,14 +28,13 @@
   // 32 x 32"). &hires=0 in a #play link draws it all at 16 x 16 as it was.
   const HIRES = !/[#&]hires=0/.test(location.hash);
   if (HIRES) {
-    const tileAs = Art.renderTileAs;
     Art.renderLook = Art.renderLook32;
     Art.renderSprites = (g, ...a) => (g === 'ghost' ? Art.renderGhost32() : Art.renderSprites32(g, ...a));
     Art.renderCostume = Art.renderCostume32;
     Art.renderLookCostume = Art.renderLookCostume32;
     Art.renderDog = Art.renderDog32;
     Art.renderFloor = Art.renderFloor32;
-    Art.renderTileAs = (...a) => Art.scale2x(tileAs(...a));
+    Art.renderTileAs = Art.renderTileAs32;
   }
   // Touch screens get the on-screen D-pad (a thumbstick out in the parking lot) and A/B/START
   // buttons (see layout), and the control hints drawn in the game name those buttons

@@ -4175,11 +4175,16 @@ window.Art = (function () {
     const block = objOnly ? () => {} : blockAt;
     // (anything with a 32 x 32 picture is left out for renderFloor32 and noted in b.hi, for it to draw)
     const art32 = (k, draw) => { if (objOnly && OBJ32[k]) (b.hi = b.hi || []).push(k); else draw(); };
+    // (and the things drawn by code: renderFloor32 runs their 32 x 32 painter instead)
+    const paint32 = (k, draw) => { if (objOnly && PAINT32[k]) (b.hi = b.hi || []).push((bb) => PAINT32[k](bb, get, x, y, t)); else draw(); };
     const stamp = (bb, art) => art32(ART_KEY.get(art), () => stampArt(bb, art));
     if (t === ' ') { if (!objOnly) rect(b, 0, 0, 16, 16, 'k'); return b; }
     if (t === '#') { if (!objOnly) paintWall(b, get, x, y, floorCh === '-'); return b; }
-    if (t === 'X') { paintExit(b); return b; }
-    if (t === 'E') { paintElevator(b, get, x, y); return b; }
+    if (t === 'X' || t === 'E') {
+      if (objOnly && PAINT32[t]) b.hi = [(bb) => PAINT32[t](bb, get, x, y, t)];
+      else if (t === 'X') paintExit(b); else paintElevator(b, get, x, y);
+      return b;
+    }
     if (!objOnly) paintFloor(b, floorCh, x, y);
     const con = (chars) => ({
       u: chars.includes(get(x, y - 1)), d: chars.includes(get(x, y + 1)),
@@ -4187,19 +4192,19 @@ window.Art = (function () {
     });
     switch (t) {
       case 'D': if (!objOnly) paintDoor(b, get, x, y); break;
-      case 'S': paintStairs(b, get, x, y); break;
+      case 'S': paint32('S', () => paintStairs(b, get, x, y)); break;
       case 'd': case 'm':
         block(b, con('dm%!'), 'N', 'n', 'y');
         stamp(b, t === 'm' ? ART.monitor : ((x * 7 + y * 5) % 3 === 0 ? ART.papers : []));
         break;
-      case '%': block(b, con('dm%!'), 'N', 'n', 'y'); paintLegoDesk(b, x, y); break;
+      case '%': block(b, con('dm%!'), 'N', 'n', 'y'); paint32('%', () => paintLegoDesk(b, x, y)); break;
       case '!': block(b, con('dm%!'), 'N', 'n', 'y'); break; // the phone itself is drawn by the game, so it can ring
-      case '+': paintWorkTable(b, con('+')); break;
+      case '+': if (!objOnly) paintWorkTable(b, con('+')); break; // (at 32 x 32 a desk like any other: see BLOCKS32)
       case '0': case '1': case '2': case '3': case '4': case '5': paintShipUnit(b, get, x, y, t); break;
       case '[': case ']': paintWhole(b, get, x, y, t, CASINO_TABLES[t]); break;
       case '7': stamp(b, get(x, y + 1) === '7' ? ART.slotTop : ART.slotBottom); break;
       case '^': stamp(b, ART.forklift); break;
-      case '&': paintLegoShelf(b, get, x, y); break;
+      case '&': paint32('&', () => paintLegoShelf(b, get, x, y)); break;
       case 'T': block(b, con('T'), 'y', 'N', 'w'); break;
       case 'k': case 'M': block(b, con('kMnP'), 'W', 'g', 'w'); if (t === 'M') stamp(b, ART.appliance); break;
       case 'P':
@@ -4228,26 +4233,26 @@ window.Art = (function () {
       case 'W': stamp(b, ART.washer); break;
       case 't': stamp(b, ART.trophies); break;
       case 'g': stamp(b, ART.snackShelf); break;
-      case 'l': paintRailing(b, get, x, y); break;
-      case 'C': paintCurtain(b, get, x, y, false); break;
-      case '~': paintCurtain(b, get, x, y, true); break;
-      case 'u': paintStretcher(b, get, x, y); break;
+      case 'l': paint32('l', () => paintRailing(b, get, x, y)); break;
+      case 'C': paint32('C', () => paintCurtain(b, get, x, y, false)); break;
+      case '~': paint32('~', () => paintCurtain(b, get, x, y, true)); break;
+      case 'u': paint32('u', () => paintStretcher(b, get, x, y)); break;
       case 'z': stamp(b, ART.serverRack); break;
       case 'y': stamp(b, ART.computerRack); break;
       case 'O': stamp(b, ART.dryer); break;
       case 'G': stamp(b, ART.punchingBag); break;
       case 'N': stamp(b, ART.locker); break;
       case 'I': stamp(b, ART.pulldown); break;
-      case 'A': paintSquatRack(b, get, x, y); break;
-      case 'i': paintGreen(b, get, x, y); break;
+      case 'A': paint32('A', () => paintSquatRack(b, get, x, y)); break;
+      case 'i': paint32('i', () => paintGreen(b, get, x, y)); break;
       case 'e': block(b, con('e'), 'g', 'K', 'G'); stamp(b, ART.dumbbells); break;
       case 'F': stamp(b, ART.fan); break;
       case 'a': stamp(b, ART.damper); break;
       case 's': stamp(b, ART.engraver); break;
       case 'L': stamp(b, ART.coil); break;
       case 'K': stamp(b, ART.panel); break;
-      case 'V': case 'Q': paintTV(b, get, x, y, t); break;
-      case '*': paintFame(b, get, x, y); break;
+      case 'V': case 'Q': paint32('V', () => paintTV(b, get, x, y, t)); break;
+      case '*': paint32('*', () => paintFame(b, get, x, y)); break;
       case 'U': stamp(b, ART.cupboard); break;
       case 'Y': stamp(b, ART.printer); break;
       case 'B': stamp(b, ART.box); break;
@@ -5640,8 +5645,255 @@ window.Art = (function () {
       '....kkkkkkkkkkkkkkkkkkkkkkkk',
       '.....kkkkkkkkkkkkkkkkkkkkkk',
     ],
+    slotTop: [
+      '',
+      '',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '..kkwqoqwqoqwqoqwqoqwqoqwqoqkrrk',
+      '..kkoqqqqqqqqqqqqqqqqqqqqqqokrrk',
+      '..kkqqkkkkkkkkkkkkkkkkkkkkqqkkkk',
+      '..kkoqkRRRRRRRRRRRRRRRRRRkqokKK',
+      '..kkqqkrroorroorroorroorrkqqkKK',
+      '..kkoqkrroorroorroorroorrkqokKK',
+      '..kkqqkrrrrrrrrrrrrrrrrrrkqqkKK',
+      '..kkoqkkkkkkkkkkkkkkkkkkkkqokKK',
+      '..kkqqqqqqqqqqqqqqqqqqqqqqqqkKK',
+      '..kkoqwqoqwqoqwqoqwqoqwqoqwqkKK',
+      '..kkrrrrrrrrrrrrrrrrrrrrrrrrkKK',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '..kkkkWWWWWWkWWWWWWkWWWWWWkkkk',
+      '..kkkkwwwwwwkwwwwwwkwwwwwwkkkk',
+      '..kkkkwwwwwwkwwwwwwkwwwwwwkkkk',
+      '..kkkkwrrrrwkwwwEwwkwwoowwkkkk',
+      '..kkkkwwwwrwkwwEwEwkwoooowkkkk',
+      '..kkkkwwwrwwkwrrwwwkwoooowkkkk',
+      '..kkkkwwwrwwkwrrrrwkwoooowkkkk',
+      '..kkkkwwrwwwkwwwrrwkooooookkkk',
+      '..kkkkwwwwwwkwwwwwwkwwqwwwkkkk',
+      '..kkkkwwwwwwkwwwwwwkwwwwwwkkkk',
+      '..kkkkWWWWWWkWWWWWWkWWWWWWkkkk',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '..kkRRRRRRRRRRRRRRRRRRRRRRRRkk',
+      '..kkrrrrrrrrrrrrrrrrrrrrrrrrkk',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+    ],
+    slotBottom: [
+      '..kkrrrrrrrrrrrrrrrrrrrrrrrrkkKK',
+      '..kkrrrrrrrrrrrrrrrrrrrrrrrrkkKK',
+      '..kkrrrrrrrrrrrrrrrrrrrrrrrrkkKK',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkkKK',
+      '..kkkWWWWWWWWWWWWWWWWWWWWWWkkkKK',
+      '..kkkWWoooWWrrrWWuuuWWEEEWWkkk',
+      '..kkkWWoooWWrrrWWuuuWWEEEWWkkk',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '..kkrrrrrrrrrrrrrrrrrrrrrrrrkk',
+      '..kkrrrrrrrrrrrrrrrrrkkkkrrrkk',
+      '..kkrrrrrrrrrrrrrrrrrkqqkrrrkk',
+      '..kkrrrrrrrrrrrrrrrrrkkkkrrrkk',
+      '..kkrrrrrrrrrrrrrrrrrrrrrrrrkk',
+      '..kkrrrkkkkkkkkkkkkkkkkkkrrrkk',
+      '..kkrrrkKKKKKKKKKKKKKKKKkrrrkk',
+      '..kkrrrkKKKKKKKKKKKKKKKKkrrrkk',
+      '..kkrrrkKKKKKKKoKKKKKKKKkrrrkk',
+      '..kkrrrkKKKoKKKKKKKoKKKKkrrrkk',
+      '..kkrrrkggggggggggggggggkrrrkk',
+      '..kkrrrkkkkkkkkkkkkkkkkkkrrrkk',
+      '..kkrrrrrrrrrrrrrrrrrrrrrrrrkk',
+      '..kkqqqqqqqqqqqqqqqqqqqqqqqqkk',
+      '..kkqqqqqqqqqqqqqqqqqqqqqqqqkk',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+      '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
+    ],
   };
   const ART_KEY = new Map(Object.entries(ART).map(([k, v]) => [v, k]));
+
+  // ---------- things drawn by code, at 32 x 32 ----------
+  // Each takes a 32 x 32 buffer and the same (get, x, y, t) as its painter at 16, and draws
+  // what stands on the tile (renderFloor32 lays it over the floor and the rest).
+  function r32(b, x, y, w, h, c) { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (i >= 0 && i < 32 && j >= 0 && j < 32) b[j * 32 + i] = c; }
+  const s32 = (b, x, y, c) => { if (x >= 0 && x < 32 && y >= 0 && y < 32) b[y * 32 + x] = c; };
+  // a box with an outline n pixels thick
+  function box32(b, x, y, w, h, c, n) { r32(b, x, y, w, h, 'k'); r32(b, x + (n || 1), y + (n || 1), w - 2 * (n || 1), h - 2 * (n || 1), c); }
+  // a Lego brick: outlined, studs every 4 pixels
+  function brick32(b, x, y, w, h, c, hi) {
+    box32(b, x, y, w, h, c, 1);
+    for (let j = y + 2; j < y + h - 2; j += 4) for (let i = x + 2; i < x + w - 2; i += 4) { r32(b, i, j, 2, 2, hi); s32(b, i + 1, j + 1, c); }
+  }
+  const PAINT32 = {
+    // an exit: a red door in its frame, a window with a shine, a push bar
+    X(b) {
+      r32(b, 0, 0, 32, 32, 'c');
+      r32(b, 2, 0, 28, 32, 'k'); r32(b, 4, 2, 24, 30, 'r'); r32(b, 4, 2, 24, 2, 'R'); r32(b, 4, 4, 2, 28, 'R');
+      box32(b, 8, 7, 16, 11, 'i', 2); s32(b, 11, 10, 'w'); s32(b, 12, 10, 'w'); s32(b, 11, 11, 'w');
+      r32(b, 7, 21, 18, 3, 'k'); r32(b, 8, 22, 16, 1, 'G'); r32(b, 22, 20, 2, 5, 'o');
+    },
+    // the elevator: steel doors that meet in the middle, a frame, the lit buttons above
+    E(b, get, x, y) {
+      const top = get(x, y - 1) !== 'E';
+      r32(b, 0, 0, 32, 32, 'g');
+      if (top) r32(b, 0, 0, 32, 2, 'k');
+      r32(b, 3, 3, 26, 27, 'k'); r32(b, 5, 5, 22, 24, 'G');
+      for (let j = 6; j < 28; j += 3) { r32(b, 6, j, 9, 1, 'W'); r32(b, 17, j, 9, 1, 'W'); }
+      r32(b, 15, 5, 2, 24, 'k');
+      if (top) { r32(b, 12, 1, 8, 3, 'K'); s32(b, 14, 2, 'o'); s32(b, 17, 2, 'o'); }
+    },
+    // stairs: treads with a light front edge and a shadow under each nose, rails at the sides
+    S(b, get, x, y) {
+      const lf = get(x - 1, y) === 'S', rt = get(x + 1, y) === 'S', up = get(x, y - 1) === 'S';
+      for (let yy = 0; yy < 32; yy++)
+        for (let xx = 0; xx < 32; xx++) {
+          const k = yy % 8;
+          let c = k === 0 ? 'w' : k >= 6 ? 'd' : 'C';
+          if ((xx < 3 && !lf) || (xx > 28 && !rt)) c = xx === 0 || xx === 31 ? 'k' : 'K';
+          if (yy < 2 && !up) c = 'k';
+          b[yy * 32 + xx] = c;
+        }
+    },
+    // a TV on the wall, seen from the side (joining up with the TV tiles above and below):
+    // a black frame, the screen's glow flickering down it, a bracket to the wall
+    V(b, get, x, y, t) {
+      const up = get(x, y - 1) === t, dn = get(x, y + 1) === t, x0 = t === 'V' ? 18 : 2;
+      const y0 = up ? 0 : 4, y1 = dn ? 31 : 27;
+      r32(b, x0, y0, 12, y1 - y0 + 1, 'k');
+      r32(b, x0 + 2, up ? 0 : y0 + 2, 8, (dn ? 32 : y1 - 1) - (up ? 0 : y0 + 2), 'u');
+      for (let i = 0; i < 32; i++) {
+        const sy = (y * 32 + i) % 80;
+        if (sy < 12 && i >= y0 + 2 && i <= y1 - 2) r32(b, x0 + 2 + (sy >> 2) % 6, i, 2, 1, 'U');
+      }
+      if (!up) r32(b, x0 + 2, y0 + 2, 8, 1, 'i');
+      r32(b, t === 'V' ? 30 : 0, 14, 2, 4, 'K');
+    },
+    // the Hall of Fame: a tall board on the wall in a wooden frame with a gold edge; at the
+    // top a crown and gold, silver and bronze, and the names in rows down the rest
+    '*'(b, get, x, y) {
+      const up = get(x, y - 1) === '*', dn = get(x, y + 1) === '*', y0 = up ? 0 : 2, y1 = dn ? 31 : 29;
+      r32(b, 0, y0, 24, y1 - y0 + 1, 'k');
+      r32(b, 1, up ? 0 : y0 + 1, 22, (dn ? 32 : y1) - (up ? 0 : y0 + 1), 'n');
+      r32(b, 3, up ? 0 : y0 + 3, 18, (dn ? 32 : y1 - 2) - (up ? 0 : y0 + 3), 'o');
+      r32(b, 5, up ? 0 : y0 + 5, 14, (dn ? 32 : y1 - 4) - (up ? 0 : y0 + 5), 'k');
+      if (!up) {
+        for (const px of [7, 11, 15]) { r32(b, px, 8, 2, 2, 'o'); r32(b, px, 10, 2, 2, 'o'); }
+        r32(b, 7, 11, 10, 3, 'o'); s32(b, 11, 12, 'r'); s32(b, 12, 12, 'r'); s32(b, 9, 9, 'w');
+        r32(b, 7, 17, 10, 2, 'o'); r32(b, 7, 21, 9, 2, 'G'); r32(b, 7, 25, 8, 2, 'N');
+      } else {
+        for (let j = 1; j < (dn ? 32 : 26); j += 4) {
+          r32(b, 7, j, 2, 2, 'U');
+          r32(b, 10, j, 3 + ((x * 3 + y * 7 + j) % 5), 2, 'W');
+        }
+      }
+    },
+    // Wade's putting green: mown in stripes, its edge, the hole and flag on one end, a ball on the other
+    i(b, get, x, y) {
+      const l = get(x - 1, y) === 'i', r = get(x + 1, y) === 'i', u = get(x, y - 1) === 'i', d = get(x, y + 1) === 'i';
+      const x0 = l ? 0 : 2, x1 = r ? 32 : 30, y0 = u ? 0 : 2, y1 = d ? 32 : 30;
+      r32(b, x0, y0, x1 - x0, y1 - y0, 'e');
+      const ix0 = l ? 0 : 4, ix1 = r ? 32 : 28, iy0 = u ? 0 : 4, iy1 = d ? 32 : 28;
+      for (let j = iy0; j < iy1; j++) r32(b, ix0, j, ix1 - ix0, 1, ((y * 32 + j) >> 3) & 1 ? 'l' : 'E');
+      let ix = 0, iy = 0;
+      while (get(x - 1 - ix, y) === 'i') ix++;
+      while (get(x, y - 1 - iy) === 'i') iy++;
+      if (iy === 0 && !r) {
+        r32(b, 16, 21, 10, 7, 'k'); r32(b, 18, 20, 6, 9, 'k'); r32(b, 18, 22, 6, 4, 'K');   // the hole
+        r32(b, 20, 3, 2, 19, 'k'); r32(b, 20, 3, 1, 18, 'w');                               // the pole
+        for (let k = 0; k < 6; k++) r32(b, 22, 4 + k, 8 - k, 1, k < 1 ? 'R' : 'r');           // the flag
+      }
+      if (!d && ix === 0) {
+        r32(b, 11, 11, 7, 7, 'k'); r32(b, 12, 12, 5, 5, 'w'); s32(b, 13, 13, 'W'); s32(b, 15, 15, 'W');
+        r32(b, 12, 18, 7, 2, 'e');
+      }
+    },
+    // the squat rack: the uprights with their peg holes at either end, the bar across with a
+    // red plate by each upright, its base along the floor
+    A(b, get, x, y) {
+      const l = get(x - 1, y) === 'A', r = get(x + 1, y) === 'A';
+      r32(b, l ? 0 : 6, 26, (l ? 6 : 0) + (r ? 32 : 26) - 6, 4, 'k'); r32(b, l ? 0 : 7, 27, (l ? 7 : 0) + (r ? 32 : 25) - 7, 2, 'K');
+      r32(b, 0, 12, 32, 6, 'k'); r32(b, 0, 14, 32, 2, 'g'); r32(b, 0, 14, 32, 1, 'w');
+      if (!l) {
+        r32(b, 0, 12, 4, 6, null);
+        r32(b, 4, 2, 6, 28, 'k'); r32(b, 6, 4, 2, 24, 'K');
+        for (let i = 6; i < 26; i += 6) r32(b, 6, i, 2, 2, 'g');
+        r32(b, 12, 6, 4, 18, 'k'); r32(b, 13, 8, 2, 14, 'r'); r32(b, 13, 8, 1, 14, 'R');
+      }
+      if (!r) {
+        r32(b, 22, 2, 6, 28, 'k'); r32(b, 24, 4, 2, 24, 'K');
+        for (let i = 6; i < 26; i += 6) r32(b, 24, i, 2, 2, 'g');
+        r32(b, 16, 6, 4, 18, 'k'); r32(b, 17, 8, 2, 14, 'r'); r32(b, 17, 8, 1, 14, 'R');
+        r32(b, 28, 12, 4, 6, null);
+      }
+    },
+    // a railing: a rail along the top, posts, joining up with railings and walls either side
+    l(b, get, x, y) {
+      const joins = (c) => c === 'l' || c === '#';
+      const x0 = joins(get(x - 1, y)) ? 0 : 2, x1 = joins(get(x + 1, y)) ? 31 : 29;
+      for (const px of [6, 24]) { r32(b, px - 2, 14, 6, 14, 'k'); r32(b, px, 14, 2, 12, 'g'); r32(b, px, 14, 1, 12, 'w'); }
+      r32(b, x0, 10, x1 - x0 + 1, 6, 'k'); r32(b, x0, 12, x1 - x0 + 1, 2, 'G'); r32(b, x0, 12, x1 - x0 + 1, 1, 'w');
+      if (x0) r32(b, 2, 10, 2, 18, 'k');
+      if (x1 < 31) r32(b, 28, 10, 2, 18, 'k');
+    },
+    // the boardroom curtains, closed (pleated all the way across) or open (bunched at one side), on their rail
+    C(b, get, x, y, t) {
+      const open = t === '~', isC = (c) => c === 'C' || c === '~', l = isC(get(x - 1, y)), r = isC(get(x + 1, y));
+      const bx = r && !l ? 0 : 22;
+      for (let yy = 6; yy < 32; yy++)
+        for (let xx = 0; xx < 32; xx++) {
+          if (open && (xx < bx || xx >= bx + 10)) continue;
+          const k = (xx - (open ? bx : 0)) % 8;
+          b[yy * 32 + xx] = yy >= 30 ? 'e' : k === 0 || k === 7 ? 'E' : k === 1 ? 'e' : 'l';
+        }
+      r32(b, 0, 2, 32, 4, 'K'); r32(b, 0, 2, 32, 2, 'g');
+      for (let xx = 4; xx < 32; xx += 8) if (!open || (xx >= bx && xx < bx + 10)) r32(b, xx, 6, 2, 2, 'k');
+    },
+    // a stretcher: a frame, a white mattress, a pillow, a blue blanket, legs on castors
+    u(b, get, x, y) {
+      const l = get(x - 1, y) === 'u', r = get(x + 1, y) === 'u';
+      const x0 = l ? 0 : 2, x1 = r ? 31 : 29, m0 = l ? 0 : 4, m1 = r ? 31 : 27;
+      r32(b, x0, 8, x1 - x0 + 1, 14, 'k');
+      r32(b, m0, 10, m1 - m0 + 1, 10, 'w');
+      if (!l) { r32(b, 6, 10, 8, 10, 'W'); r32(b, 6, 10, 8, 2, 'G'); r32(b, 7, 12, 2, 1, 'w'); }
+      const b0 = l ? 0 : 16;
+      r32(b, b0, 12, m1 - b0 + 1, 8, 'U'); r32(b, b0, 12, m1 - b0 + 1, 2, 'i'); r32(b, b0, 16, m1 - b0 + 1, 1, 'u');
+      r32(b, x0, 22, x1 - x0 + 1, 2, 'g');
+      if (!l) { r32(b, 4, 24, 2, 4, 'K'); r32(b, 3, 28, 4, 2, 'k'); }
+      if (!r) { r32(b, 26, 24, 2, 4, 'K'); r32(b, 25, 28, 4, 2, 'k'); }
+    },
+    // Joe's Lego shelf on its plank, a different build on each tile
+    '&'(b, get, x, y) {
+      const up = get(x, y - 1) === '&', dn = get(x, y + 1) === '&', y0 = up ? 0 : 2, y1 = dn ? 31 : 29;
+      r32(b, 0, y0, 28, y1 - y0 + 1, 'k');
+      r32(b, 0, y0 + (up ? 0 : 2), 26, y1 - y0 + 1 - (up ? 0 : 2) - (dn ? 0 : 2), 'N');
+      r32(b, 0, y0, 4, y1 - y0 + 1, 'n');
+      switch (y % 3) {
+        case 0: // a red house with a white door and a window, a yellow minifig out front
+          brick32(b, 4, 4, 20, 16, 'r', 'R'); r32(b, 4, 2, 20, 3, 'k'); r32(b, 6, 2, 16, 2, 'D');
+          r32(b, 10, 12, 6, 8, 'k'); r32(b, 11, 13, 4, 7, 'w'); r32(b, 17, 8, 4, 4, 'k'); r32(b, 18, 9, 2, 2, 'i');
+          r32(b, 9, 21, 6, 9, 'k'); r32(b, 10, 22, 4, 3, 'o'); s32(b, 11, 23, 'k'); s32(b, 12, 23, 'k'); r32(b, 10, 25, 4, 4, 'r');
+          break;
+        case 1: // a blue spaceship with white wings and a glass cockpit
+          brick32(b, 4, 2, 8, 28, 'W', 'w'); brick32(b, 18, 2, 8, 28, 'W', 'w');
+          brick32(b, 8, 6, 14, 20, 'u', 'U'); r32(b, 12, 12, 6, 6, 'k'); r32(b, 13, 13, 4, 4, 'i'); s32(b, 13, 13, 'w');
+          r32(b, 13, 26, 4, 3, 'o');
+          break;
+        default: // a green tree and a stack of loose bricks
+          brick32(b, 4, 2, 16, 14, 'E', 'l'); r32(b, 10, 16, 4, 4, 'k'); r32(b, 11, 16, 2, 4, 'n');
+          brick32(b, 4, 20, 10, 10, 'o', 'y'); brick32(b, 14, 18, 12, 12, 'u', 'U');
+      }
+    },
+    // a desk with a Lego build on it: a red and yellow tower, or a blue car with its driver
+    '%'(b, get, x, y) {
+      if ((x + y) & 1) {
+        brick32(b, 2, 2, 16, 20, 'r', 'R'); brick32(b, 6, 6, 8, 12, 'o', 'y');
+        brick32(b, 18, 2, 12, 10, 'E', 'l'); brick32(b, 18, 12, 10, 10, 'u', 'U');
+      } else {
+        for (const [wx, wy] of [[4, 2], [22, 2], [4, 20], [22, 20]]) r32(b, wx, wy, 6, 4, 'k');
+        brick32(b, 2, 4, 28, 18, 'u', 'U');
+        r32(b, 11, 7, 10, 11, 'k'); r32(b, 12, 8, 8, 9, 'i'); r32(b, 14, 10, 4, 4, 'o'); s32(b, 15, 11, 'k'); s32(b, 16, 11, 'k'); r32(b, 14, 14, 4, 2, 'r');
+      }
+    },
+  };
+  PAINT32['~'] = PAINT32.C; // (open curtains: the same painter, which looks at t)
 
   // ---------- the office at 32 x 32 ----------
   // A floor at double resolution (renderFloor32): the floors, walls, doors, desks and
@@ -5796,6 +6048,7 @@ window.Art = (function () {
     d: ['dm%!', 'N', 'n', 'y'], m: ['dm%!', 'N', 'n', 'y'], '%': ['dm%!', 'N', 'n', 'y'], '!': ['dm%!', 'N', 'n', 'y'],
     T: ['T', 'y', 'N', 'w'], k: ['kMnP', 'W', 'g', 'w'], M: ['kMnP', 'W', 'g', 'w'], P: ['kMnP', 'W', 'g', 'w'],
     r: ['rR', 'y', 'u', 'w'], R: ['rR', 'y', 'u', 'w'], Z: ['Z', 'y', 'N', 'w'], e: ['e', 'g', 'K', 'G'],
+    '+': ['+', 'W', 'u', 'w'], // (the plant's steel work tables)
   };
   // the floor, walls, door, desk or partition of one tile at 32 x 32 (what's standing on it comes after)
   function structure32(get, floorCh, x, y) {
@@ -5844,11 +6097,32 @@ window.Art = (function () {
       }
     // and the things drawn at 32 x 32, in their places
     for (const [tx, ty, keys] of hi)
-      for (const k of keys) OBJ32[k].forEach((row, y) => [...row].forEach((c, x) => { if (c !== '.') put(tx * 32 + x, ty * 32 + y, c); }));
+      for (const k of keys) {
+        if (typeof k === 'function') { const bb = new Array(1024).fill(null); k(bb); bb.forEach((c, i) => put(tx * 32 + (i & 31), ty * 32 + (i >> 5), c)); }
+        else OBJ32[k].forEach((row, y) => [...row].forEach((c, x) => { if (c !== '.') put(tx * 32 + x, ty * 32 + y, c); }));
+      }
     ctx.putImageData(img, 0, 0);
     return cv;
   }
 
+  // renderTileAs at 32 x 32: one tile drawn as if it were `ch`, with `over` swapping any
+  // colours (the floor and so on at 32, what stands on it doubled, or at 32 where it's been redrawn)
+  function renderTileAs32(floor, x, y, ch, over) {
+    const H = floor.tiles.length, W = floor.tiles[0].length;
+    const get = (xx, yy) => (xx === x && yy === y) ? ch : (xx < 0 || yy < 0 || xx >= W || yy >= H) ? ' ' : floor.tiles[yy][xx];
+    const b = structure32(get, floor.floor[y][x], x, y), t = tile(get, floor.floor[y][x], x, y, true);
+    double(t).forEach((c, i) => { if (c) b[i] = c; });
+    for (const k of t.hi || []) {
+      if (typeof k === 'function') { const bb = new Array(1024).fill(null); k(bb); bb.forEach((c, i) => { if (c) b[i] = c; }); }
+      else lay32Over(b, OBJ32[k], 0, 0);
+    }
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 32; cv.hi = 2;
+    const ctx = cv.getContext('2d'), img = ctx.createImageData(32, 32);
+    blit(img, b, 0, 0, palette(Object.assign({ J: '#e4b47c' }, over)), false, 32);
+    ctx.putImageData(img, 0, 0);
+    return cv;
+  }
   // One tile drawn as if it were `ch` (used for things that change at runtime,
   // like a curtain being pulled open), with `over` swapping any colours.
   function renderTileAs(floor, x, y, ch, over) {
@@ -7210,7 +7484,7 @@ window.Art = (function () {
   }
 
   return {
-    LOOKS, UI, COSTUMES, scale2x, renderFloor, renderFloor32, renderSprites, renderCostume, renderDog, renderDog32, renderMini, renderTileAs,
+    LOOKS, UI, COSTUMES, scale2x, renderFloor, renderFloor32, renderTileAs32, renderSprites, renderCostume, renderDog, renderDog32, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
     LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLook32, renderSprites32, renderLookCostume, renderLookCostume32, renderCostume32, renderGhost32,
     SWEATERS,
