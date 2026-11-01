@@ -11573,6 +11573,7 @@
       .concat(quest ? [['LINDA\'S LIST', () => ui.push(LindaList())]] : [])
       .concat(kikiList ? [['KIKI\'S LIST', () => ui.push(KikiList())]] : [])
       .concat([
+        ['EDIT CHARACTER', (self) => { remove(self); editAgain(); }],
         [soundOn ? 'SOUND ON' : 'SOUND OFF', (self) => { soundOn = !soundOn; store.set('sound', soundOn ? 'on' : 'off'); self.options = items().map((o) => o[0]); sfx('select'); }],
         [musicOn ? 'MUSIC ON' : 'MUSIC OFF', (self) => { musicOn = !musicOn; store.set('music', musicOn ? 'on' : 'off'); self.options = items().map((o) => o[0]); sfx('select'); }],
         ['CLOSE', (self) => remove(self)],
@@ -12105,6 +12106,7 @@
     startFade(() => { mode = 'edit'; });
   }
   function enterOffice() {
+    if (edit.back) { editBack(); return; }
     mode = 'play'; roomName = null; curRoom = null; updateRoom();
     if (HALLOWEEN) questQueue.push('It\'s Halloween at Haakon! When you\'re ready for the party, go and take a seat in the downstairs boardroom.');
     if (CHRISTMAS) questQueue.push('Happy holidays from Haakon! The office is all decked out, and somebody has flooded a rink in the parking lot. Head out through the fitness room\'s side doors.');
@@ -12529,7 +12531,7 @@
       // (a copy from before the character editor goes by g and l, so it sees one of its own
       // characters in your place)
       n: playerName || 'New Hire', a: Art.lookCode(wornLook(myLook)), g: myLook.g, l: 0, c: hw.worn ? hw.costume : '', f: P.floor,
-      x: P.x + (P.moving ? P.mdx : 0), y: P.y + (P.moving ? P.mdy : 0), d: P.dir, b: ui.length || fade ? 1 : 0,
+      x: P.x + (P.moving ? P.mdx : 0), y: P.y + (P.moving ? P.mdy : 0), d: P.dir, b: ui.length || fade || mode !== 'play' ? 1 : 0,
       s: mp.say, sn: mp.sayN, v: MP_VER, p: MP_PROTO, tc: isTouch ? 1 : 0,
     };
     if (mp.sayText) { rec.w0 = mp.sayText.slice(0, 16); if (mp.sayText.length > 16) rec.w1 = mp.sayText.slice(16); }
@@ -12651,7 +12653,8 @@
   // Every tick: send your record, read your mail and walk everyone else towards where
   // they last said they were.
   function mpUpdate() {
-    if (!MP_ON || mode !== 'play') return;
+    // (back in the character editor from the Start menu you're still here, just busy)
+    if (!MP_ON || (mode !== 'play' && !edit.back)) return;
     if (!mp.on) mpConnect();
     mpPut();
     while (mp.mail.length) mpMail(mp.mail.shift());
@@ -12668,7 +12671,7 @@
       mp.match.gone = true;
     }
     mp.tickAt = now;
-    if (mp.newer && !mp.nudged && !ui.length && !fade) {
+    if (mp.newer && !mp.nudged && mode === 'play' && !ui.length && !fade) {
       mp.nudged = true;
       say('Somebody here has a newer version of the game. Reload the page (or START > UPDATE GAME) to get it.');
     }
@@ -16870,7 +16873,8 @@
   // ---------- the character editor ----------
   // After your name: make your character, one part a row. It starts as the look saved
   // under your name, or if there isn't one the last look made in this browser, and DONE
-  // saves it to both. The parts themselves are in js/art.js ("your own character").
+  // saves it to both. EDIT CHARACTER in the Start menu opens it again any time (see
+  // editAgain). The parts themselves are in js/art.js ("your own character").
   const LK = Art.LOOK, LOOK_COUNT = Object.fromEntries(Art.LOOK_PARTS);
   const EDIT_ROWS = [
     { label: 'GENDER', key: 'g', n: 2, name: (i) => ['Male', 'Female'][i] },
@@ -16884,8 +16888,9 @@
     { label: 'PANTS COLOUR', key: 'pantsC', swatch: (i) => [LK.pantsColours[i][1]], name: (i) => LK.pantsColours[i][0] },
   ];
   // row: the part being changed (EDIT_ROWS.length is the RANDOM / DONE buttons, btn the
-  // one picked); wait: ticks left to hold on while your saved look is being looked up
-  const edit = { row: 0, btn: 1, look: null, wait: 0, ask: null };
+  // one picked); wait: ticks left to hold on while your saved look is being looked up;
+  // back: opened from the Start menu, so it goes back to where you were
+  const edit = { row: 0, btn: 1, look: null, wait: 0, ask: null, back: false };
   const editValue = (r, look) => (r.key === 'g' ? (look.g === 'female' ? 1 : 0) : look[r.key]);
   function editSet(r, v) {
     if (r.key === 'g') edit.look.g = v ? 'female' : 'male';
@@ -16907,6 +16912,17 @@
     const crown = crownCheck(name).then((on) => { if (playerName === name) setCrowned(on); });
     const gift = giftCheck(name).then((on) => { if (playerName === name && on) santaHat = true; });
     Promise.all([saved, crown, gift, cupCheck()]).then(() => { if (edit.ask === ask) edit.wait = 0; });
+  }
+  // From the Start menu: start on you as you are now (with nothing to look up, it was all
+  // asked when you came in), then the same screens as coming in, and back to where you were.
+  function editAgain() {
+    Object.assign(edit, { row: 0, btn: 1, look: Object.assign({}, myLook), wait: 0, ask: null, back: true });
+    startFade(() => { mode = 'edit'; });
+  }
+  function editBack() {
+    edit.back = false;
+    if (hw.worn) wearCostume(); // (DONE dressed you in your look, without the costume)
+    mode = 'play';
   }
   // the choices a row has, in order: the head things leave out the crown (only ever the
   // champion's, who can't change it: see crowned), the Santa hat and the Christmas Cup's
@@ -16946,6 +16962,7 @@
     else if (pressed.has('a') && edit.btn === 0) { editRandom(); sfx('blip'); }
     else if (pressed.has('a')) editDone();
     if (pressed.has('start')) editDone();
+    else if (pressed.has('b') && edit.back) { sfx('select'); startFade(editBack); }
     else if (pressed.has('b')) { sfx('select'); nameKeys.fit(playerName); startFade(() => { mode = 'name'; }); }
   }
   function drawEdit() {

@@ -24,7 +24,7 @@ upload again without a push.
 | Move | Arrows / WASD | D-pad (a thumbstick for walking round the parking lot, for hockey and for rolling snowballs) | Left stick or D-pad |
 | A: interact, confirm | E / Space | A | A / ✕ |
 | B: back, cancel (out in the parking lot at Christmas, throw a snowball) | Esc / X / Shift | B | B or X / ○ or □ |
-| Start menu (map, sound, music) | Enter (or Esc while walking) | START | Menu / Options |
+| Start menu (map, edit your character, sound, music) | Enter (or Esc while walking) | START | Menu / Options |
 | Map | M | (Start → Map) | Y or View / △ or Share (Create on a PS5) |
 
 - Controllers: pair an Xbox or PlayStation controller with your phone or computer over
@@ -44,6 +44,10 @@ upload again without a push.
   saved with your name (see **Saved characters** below), so typing the same name on
   a phone and a computer gets you the same one. Don't try calling yourself Bob,
   though: there is only one of those.
+- To change your character later, pick **Edit character** in the Start menu. It's the
+  same screen (then the costume or ugly sweater picker in season), and you carry on from
+  where you were standing. B backs out without changing anything, and other players see
+  you as busy while you're in there.
 - The parts are in "your own character" in `js/art.js`: the colours, then the hair,
   head things, shirts and pants, each drawn as rows of pixels. Only ever add to the end
   of a list, because a saved character is a list of places in them. Coworkers' colours
