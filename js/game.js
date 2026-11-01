@@ -25,12 +25,13 @@
   };
   // &hires: a look at the office in double resolution, while the characters are redrawn
   // at 32 x 32 (see "32 x 32 characters" in js/art.js): players' looks and coworkers are
-  // drawn that way, and the floors, costumes, ghosts and dogs are made double with Scale2x
-  // (Art.scale2x).
+  // drawn that way, and so are the dogs (Art.renderDog32); the floors, costumes and ghosts
+  // are made double with Scale2x (Art.scale2x).
   const HIRES = /[#&]hires/.test(location.hash);
   if (HIRES) {
     const up = (sheet) => { const out = {}; for (const d in sheet) out[d] = sheet[d].map((cv) => Art.scale2x(cv)); return out; };
-    for (const k of ['renderCostume', 'renderLookCostume', 'renderDog']) { const f = Art[k]; Art[k] = (...a) => up(f(...a)); }
+    for (const k of ['renderCostume', 'renderLookCostume']) { const f = Art[k]; Art[k] = (...a) => up(f(...a)); }
+    Art.renderDog = Art.renderDog32;
     const floor = Art.renderFloor, sprites = Art.renderSprites;
     Art.renderLook = Art.renderLook32;
     // coworkers at 32 x 32 (all but the ghosts, which are made double)

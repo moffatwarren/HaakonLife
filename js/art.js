@@ -4434,6 +4434,219 @@ window.Art = (function () {
     return cv;
   }
 
+  // ---------- dogs and the cat at 32 x 32 (for &hires: see js/game.js) ----------
+  // Each way a dog faces, standing and mid-step (from row DOG32.from); the cat curled up
+  // asleep (from row DOG32.catFrom). Their own colours (h, D, y, u, as at 16) plus H, the
+  // coat in shadow, j, a shine on it, R, the tongue and nose, and o, the collar's tag.
+  const DOG32 = {
+    from: 7,
+    down: [[
+        '............kkkkkkkk',
+        '.......kkk.kkkkkkkkkk.kkk',
+        '......kkkkkkhhhhhhhHkkkkkk',
+        '.....kkDDDkhhhhhhhhhHkDDDkk',
+        '.....kkDDDhhjjhhhhhhhHDDDkk',
+        '....kkDDDDDhjhhhhhhhhDDDDDkk',
+        '....kkDDDDDhhhhhhhhhhDDDDDkk',
+        '....kkDDDDDhWkhhhhWkhDDDDDkk',
+        '....kkDDDDDhkkhhhhkkhDDDDDkk',
+        '.....kkDDDhhhyyWkyyhhHDDDkk',
+        '.....kkDDDHhyyykkyyyHHDDDkk',
+        '......kkkkkHyyyyyyyyHkkkkk',
+        '.......kkkkkHykRRkyHkkkkk',
+        '..........kkHHHHHHHHkk',
+        '.........kkuuuuuuuuuukk',
+        '........kkHHHHyooyHHHHkk',
+        '........kkHHHyyyyyyHHHkk',
+        '........kkHHHyyyyyyHHHkk',
+        '........kkHHHyyyyyyHHHkk',
+        '.........kkHHyyyyyyHHkk',
+        '.........kkHHHyyyyHHHkk',
+        '.........kkyyykkkkyyykk',
+        '.........kkyyykkkkyyykk',
+        '.........kkyyykkkkyyykk',
+        '..........kkkkk..kkkkk',
+    ], [
+        '............kkkkkkkk',
+        '.......kkk.kkkkkkkkkk.kkk',
+        '......kkkkkkhhhhhhhHkkkkkk',
+        '.....kkDDDkhhhhhhhhhHkDDDkk',
+        '.....kkDDDhhjjhhhhhhhHDDDkk',
+        '....kkDDDDDhjhhhhhhhhDDDDDkk',
+        '....kkDDDDDhhhhhhhhhhDDDDDkk',
+        '....kkDDDDDhWkhhhhWkhDDDDDkk',
+        '....kkDDDDDhkkhhhhkkhDDDDDkk',
+        '.....kkDDDhhhyyWkyyhhHDDDkk',
+        '.....kkDDDHhyyykkyyyHHDDDkk',
+        '......kkkkkHyyyyyyyyHkkkkk',
+        '.......kkkkkHykRRkyHkkkkk',
+        '..........kkHHHHHHHHkk',
+        '.........kkuuuuuuuuuukk',
+        '........kkHHHHyooyHHHHkk',
+        '........kkHHHyyyyyyHHHkk',
+        '........kkHHHyyyyyyHHHkk',
+        '........kkHHHyyyyyyHHHkk',
+        '.........kkHHyyyyyyHHkk',
+        '.........kkyHHyyyyHHHkk',
+        '.........kkyyykkkkyyykk',
+        '..........kkkkkkkkyyykk',
+        '...........kkk..kkyyykk',
+        '.................kkkkk',
+    ]],
+    up: [[
+        '............kkkkkkkk',
+        '.......kkk.kkkkkkkkkk.kkk',
+        '......kkkkkkhhhhhhhHkkkkkk',
+        '.....kkDDDkhhhhhhhhhHkDDDkk',
+        '.....kkDDDhhjjhhhhhhhHDDDkk',
+        '....kkDDDDDhhhhhhhhhhDDDDDkk',
+        '....kkDDDDDhhhhhhhhhhDDDDDkk',
+        '....kkDDDDDhhhhhhhhhhDDDDDkk',
+        '....kkDDDDDhhhhhhhhhhDDDDDkk',
+        '.....kkDDDhhhhhhhhhhhHDDDkk',
+        '.....kkDDDHhhhhhhhhhHHDDDkk',
+        '......kkkkkHHhhhhhHHHkkkkk',
+        '.......kkkkkHHHkkHHHkkkkk',
+        '..........kuuukhhkuuuk',
+        '.........kkHHHkhhkHHHkk',
+        '........kkHHHHkhhkHHHHkk',
+        '.......kkHHHHHkhhkHHHHHkk',
+        '.......kkHHHHHkhhkHHHHHkk',
+        '........kkHHHHkhhkHHHHkk',
+        '.........kkHHHHkkHHHHkk',
+        '.........kkHHHHHHHHHHkk',
+        '.........kkHHHkkkkHHHkk',
+        '.........kkHHHkkkkHHHkk',
+        '.........kkHHHkkkkHHHkk',
+        '..........kkkkk..kkkkk',
+    ], [
+        '............kkkkkkkk',
+        '.......kkk.kkkkkkkkkk.kkk',
+        '......kkkkkkhhhhhhhHkkkkkk',
+        '.....kkDDDkhhhhhhhhhHkDDDkk',
+        '.....kkDDDhhjjhhhhhhhHDDDkk',
+        '....kkDDDDDhhhhhhhhhhDDDDDkk',
+        '....kkDDDDDhhhhhhhhhhDDDDDkk',
+        '....kkDDDDDhhhhhhhhhhDDDDDkk',
+        '....kkDDDDDhhhhhhhhhhDDDDDkk',
+        '.....kkDDDhhhhhhhhhhhHDDDkk',
+        '.....kkDDDHhhhhhhhhhHHDDDkk',
+        '......kkkkkHHhhhhhHHHkkkkk',
+        '.......kkkkkHHHHHkkHkkkkk',
+        '..........kuuuuukhhkuk',
+        '.........kkHHHHHkhhkHkk',
+        '........kkHHHHHHkhhkHHkk',
+        '.......kkHHHHHHHkhhkHHHkk',
+        '.......kkHHHHHHHkhhkHHHkk',
+        '........kkHHHHHHkhhkHHkk',
+        '.........kkHHHHHHkkHHkk',
+        '.........kkHHHHHHHHHHkk',
+        '.........kkHHHkkkkHHHkk',
+        '..........kkkkkkkkHHHkk',
+        '...........kkk..kkHHHkk',
+        '.................kkkkk',
+    ]],
+    left: [[
+        '......kkkkkkk...............k',
+        '.....kkkkkkkkk.............kkk',
+        '....kkHHjjjHHkk...........kkHkk',
+        '...kkHHHHHHHDHkk.........kkHHHkk',
+        '..kkHHHHHHHDDDHkk........kkHHHkk',
+        '..kkHHHWkHDDDDHkk........kkHHHkk',
+        '.kkkyyHkkHDDDDHkk........kkHHHkk',
+        'kWkyyyyHHHDDDDHkk........kkHHHkk',
+        'kkkyyyyyHHDDDDHkkkkkkkkkkkkHHHkk',
+        'kkyyyyyyHHHDDDuukkkkkkkkkkkHHHkk',
+        '.kkkkRHHHHHDDkuuhhhhhhhhhkkkHkk',
+        '..kkkkkkkkkkhhuuhhhhhhhhhhHkkk',
+        '...kkkkkkkkhhhuuhhhhhhhhhhhHkk',
+        '.........kkhhhuuhhhhhhhhhhhHkk',
+        '.........kkhhhohhhhhhhhhhhhHkk',
+        '.........kkHhhhhhhhhhhhhhHHHkk',
+        '..........kkyyyyyyyyyyhHHHHkk',
+        '.........kkHHHyyyyyyyyHHHHkk',
+        '.........kkHHHkkkkkkkkkHHHkk',
+        '.........kkHHHkkkkkkkkkHHHkk',
+        '.........kkHHHkk.....kkHHHkk',
+        '.........kkHHHkk.....kkHHHkk',
+        '.........kkyyykk.....kkyyykk',
+        '.........kkyyykk.....kkyyykk',
+        '..........kkkkk.......kkkkk',
+    ], [
+        '......kkkkkkk...............k',
+        '.....kkkkkkkkk.............kkk',
+        '....kkHHjjjHHkk...........kkHkk',
+        '...kkHHHHHHHDHkk.........kkHHHkk',
+        '..kkHHHHHHHDDDHkk........kkHHHkk',
+        '..kkHHHWkHDDDDHkk........kkHHHkk',
+        '.kkkyyHkkHDDDDHkk........kkHHHkk',
+        'kWkyyyyHHHDDDDHkk........kkHHHkk',
+        'kkkyyyyyHHDDDDHkkkkkkkkkkkkHHHkk',
+        'kkyyyyyyHHHDDDuukkkkkkkkkkkHHHkk',
+        '.kkkkRHHHHHDDkuuhhhhhhhhhkkkHkk',
+        '..kkkkkkkkkkhhuuhhhhhhhhhhHkkk',
+        '...kkkkkkkkhhhuuhhhhhhhhhhhHkk',
+        '.........kkhhhuuhhhhhhhhhhhHkk',
+        '.........kkhhhohhhhhhhhhhhhHkk',
+        '.........kkHhhhhhhhhhhhhhHHHkk',
+        '........kkkkyyyyyyyyyyhHHHHkkk',
+        '.......kkHHHkkyyyyyyyyHHHkHHHkk',
+        '.......kkHHHkkkHHkkkkHHkkkHHHkk',
+        '.......kkHHHkkkHHkkkkHHkkkHHHkk',
+        '.......kkHHHkkkHHkkkkHHkkkHHHkk',
+        '.......kkHHHkkkHHkkkkHHkkkHHHkk',
+        '.......kkyyykkkyykkkkyykkkyyykk',
+        '.......kkyyykkkyykkkkyykkkyyykk',
+        '........kkkkk.kkkk..kkkk.kkkkk',
+    ]],
+    catFrom: 13,
+    cat: [
+      '......kk....kk',
+      '.....kkkk..kkkk',
+      '....kkHHkkkkHHkk',
+      '....kkHHkkkkHHkkkkkkkkkk',
+      '...kkHHRHHHHHRHkkkkkkkkkkk',
+      '...kkHHHHHHHHHhhjjhhhhhHkkkk',
+      '...kkHHHHHHHhhkjhhDhhhDhhHDkk',
+      '...kkHHHHHHhhhhkhhDhhhDhhhDHkk',
+      '...kkHHHHHhhhhhkhDhhhDhhhDhHHkk',
+      '...kkHHkkHhkkhhkhhhhhhhhhhhHHkk',
+      '...kkHHHHyyhhhhkhhhhhhhhhhhHHkk',
+      '....kkHyyRRyyhkhhhhhhhhhhhhHHkk',
+      '.....kkyyyyykkkkkkkkkkkkhhHHHkk',
+      '......kkkkkkDDhhDDhhDDhhkkkkkk',
+      '......kkDDHHDDHHDDhhDDHHDDHHkk',
+      '......kkDDHHDDHHDDHHDDHHDDHHkk',
+      '.......kkkkkDDHHDDHHDDHHkkkkk',
+      '........kkkkkkkkkkkkkkkkkkkk',
+      '............kkkkkkkkkkkk',
+    ],
+  };
+  function renderDog32(look) {
+    const { cat, ...c } = look, out = {};
+    const pal = palette(Object.assign({ H: darker(c.h, 0.25), j: blend(c.h, '#ffffff', 0.35), R: '#f07878', o: '#f0c838', W: '#ffffff' }, c));
+    const make = (rows, y0, flip) => {
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 32; cv.hi = 2;
+      const ctx = cv.getContext('2d'), img = ctx.createImageData(32, 32), b = new Array(1024).fill(null);
+      lay32(b, rows, y0);
+      blit(img, b, 0, 0, pal, flip, 32);
+      ctx.putImageData(img, 0, 0);
+      return cv;
+    };
+    if (cat) {
+      const img = make(DOG32.cat, DOG32.catFrom);
+      for (const d of ['down', 'up', 'left', 'right']) out[d] = [img, img, img];
+      return out;
+    }
+    const f = DOG32.from;
+    out.down = [make(DOG32.down[0], f), make(DOG32.down[1], f), make(DOG32.down[1], f, true)];
+    out.up = [make(DOG32.up[0], f), make(DOG32.up[1], f), make(DOG32.up[1], f, true)];
+    out.left = [make(DOG32.left[0], f), make(DOG32.left[1], f), make(DOG32.left[1], f)];
+    out.right = [make(DOG32.left[0], f, true), make(DOG32.left[1], f, true), make(DOG32.left[1], f, true)];
+    return out;
+  }
+
   // Tiny overview map (1 pixel per tile) for the MAP screen.
   function renderMini(floor) {
     const H = floor.tiles.length, W = floor.tiles[0].length;
@@ -4453,7 +4666,7 @@ window.Art = (function () {
   }
 
   return {
-    LOOKS, UI, COSTUMES, scale2x, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
+    LOOKS, UI, COSTUMES, scale2x, renderFloor, renderSprites, renderCostume, renderDog, renderDog32, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
     LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLook32, renderSprites32, renderLookCostume,
     SWEATERS,
