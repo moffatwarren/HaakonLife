@@ -979,8 +979,10 @@ out from its whole shape, so its corners join up cleanly), and the things standi
 floor that have been redrawn (`OBJ32`: chairs, plants, monitors, papers, the copier,
 printer, fridge, sink, toilet, recycling, shelves, cupboards, the microwave, the coffee
 machine, candy and boxes; the fitness room's treadmill, punching bag, washer, dryer, lockers,
-lat pulldown, dumbbells, ball, trophies and showers). Anything not yet redrawn is today's,
-doubled with Scale2x.
+lat pulldown, dumbbells, ball, trophies and showers; the HVAC kit and tech: the fan, coil,
+dampers, electrical panels, server and computer racks, engraver, parts shelves, junk and
+floor parts, and the plant's forklift). Anything not yet redrawn is today's, doubled with
+Scale2x.
 Add `&hires=0` to a `#play` link to see it all at 16 x 16 as it was, e.g.
 `index.html#play&hires=0`. A look code, as in `&look=m20000000`, is the body, then the
 skin 0 to 7, the hairstyle 0 to 8, the hair colour, the head thing, then the shirt and
