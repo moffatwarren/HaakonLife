@@ -36,8 +36,9 @@ upload again without a push.
 - Walk onto a staircase to change floors, or face the elevator doors and press A.
 - After the title screen, type your name (the game remembers it), then make your
   character: gender, skin, hair and its colour, something on your head (a cap, a toque,
-  a hard hat, a cowboy hat, headphones, glasses, shades or a bow, and a Santa hat once
-  your name has opened its present on Christmas Day: see **Christmas**), and a shirt and
+  a hard hat, a cowboy hat, headphones, glasses, shades or a bow, a Santa hat once
+  your name has opened its present on Christmas Day, and golden antlers if your name won
+  the Christmas Cup: see **Christmas**), and a shirt and
   pants, each in a colour. Up and down pick a part, left and right (or A) change it,
   RANDOM picks for you and DONE (or START) heads into the office. Your character is
   saved with your name (see **Saved characters** below), so typing the same name on
@@ -83,6 +84,7 @@ Walk up to these and press A:
 - **Joe's Lego shelf** (2nd floor, office 146): the same falling bricks as Joe's brick battle, but on your own. Rows of grey bricks push up from the bottom, slowly at first and then faster and faster, so see how many lines you can clear before they reach the top
 - **Elevator**: every ride, a coworker gets in and makes conversation
 - **Hockey** (the parking lot's rink, at Christmas): one on one against a coworker, or live against other players; see Christmas below
+- **Humbug Sweeper** (any office computer, from Christmas 2026 on): clear a big field of snow without digging up a humbug, against the clock; see Christmas below
 - **Winter games** (around the parking lot, at Christmas): chopping wood, toasting marshmallows, decorating the big spruce, building a snowman, working the hot chocolate stand and a snowball fight; see Christmas below
 - **Forklift** (Kingston plant, in the warehouse): Forklift Rush. The truck at the dock
   calls for one kind of pallet at a time (fan, coil, damper or motor); drive the forks
@@ -305,7 +307,17 @@ lower or delete one. The game runs in the browser, so a determined person could 
 send a made-up score or use somebody else's name. To remove a row (or wipe a whole
 board), delete it on the Data tab in the Firebase console: rows are under
 `scores`, then the game, then the name. The games where lowest wins (golf, Damir's
-lights, mummy wrap) are stored as negative numbers.
+lights, mummy wrap, Humbug Sweeper) are stored as negative numbers.
+
+The game stops sending scores to the Christmas Cup's board (`scores/humbug26`) after
+December 31 2026 by the device's date. To have the database hold it to the dates as well
+(so a phone with its clock set wrong can't add to it), change the `$player` rule's
+`.write` line to this (the times are midnight Pacific at the start of November 27 2026 and
+of January 1 2027):
+
+```
+".write": "newData.exists() && (!data.exists() || newData.child('score').val() > data.child('score').val()) && ($game !== 'humbug26' || (now >= 1795766400000 && now < 1798790400000))",
+```
 
 Which games have a board, and their titles, is the `BOARDS` list in `js/game.js`. The two
 quests and Pong are stored the same way, under `scores/linda`, `scores/eotm` and
@@ -777,6 +789,48 @@ From November 27 to December 31 (by your device's date) the office does Christma
   lot is in 3D, so are they: `js/winter3d.js` builds each one a little stage in the lot's
   own look (its renderer, light, outlines and people come from `js/lot3d.js`), with the
   scores, meters and words drawn over it as usual. Otherwise they draw themselves flat.
+- **Humbug Sweeper**: from the day Christmas first starts (`SEASON_FROM`, November 27 2026)
+  every office computer has a second icon on its desktop, **Humbugs**, and it stays there
+  for good, all year round, after the holidays are over.
+  99 humbugs (grumpy little green gremlins out to spoil Christmas) are hiding under a 30
+  by 16 field of snow. Open a square and it shows how many humbugs are in the eight round
+  it; if there are none, those all open too, and so on out. Plant a **candy cane** on a
+  square you know has a humbug under it (the counter on the left is how many canes you've
+  still to plant). Open a number that already has that many canes round it and the rest
+  of the squares round it open in one go. The first square you open never has a humbug in
+  it or next to it. Open every square without a humbug and Christmas is saved; open one
+  with a humbug and it's spoiled. It's all played with the arrows, the D-pad or a
+  controller's D-pad (no mouse or tapping): they move the cursor, the square with the
+  blinking border (hold one and it keeps going), A opens and B plants or picks up a cane.
+  Pick NEW BOARD from the Enter / START menu for a fresh field. The clock runs
+  from the first square you open to the last, by the real clock, and doesn't stop for the
+  menu. Your quickest time, to the tenth of a second, goes on the **HUMBUG SWEEPER**
+  leaderboard on the Christmas page of the Hall of Fame (lowest wins); it comes up once you
+  leave the game, with the quickest board you cleared while you were in it. Every board is
+  the same size with the same 99 humbugs, so the times stand up against each other all
+  season. It's `HumbugGame` in `js/game.js`, with the desktop in `ComputerScreen`.
+- **The Christmas Cup**: Humbug Sweeper's Christmas champion. From November 27 to
+  December 31 2026 (by your device's date), every board you clear goes on a second
+  leaderboard as well, **CHRISTMAS CUP 2026** (`scores/humbug26`), and that's the one that
+  comes up after you play; after New Year's Eve nothing more is sent to it, so it's frozen.
+  The cup itself (gold, with candy canes for handles, on a wooden plinth) stands in
+  reception, under the Hall of Fame board, from the 27th on and for good. Press A on it:
+  over Christmas it says who's leading and offers the standings, and from New Year's Day
+  it has the champion's name and time engraved on its plaque, with the final board. The
+  champion (1st on the cup's board; on a tie, whoever got there first) wins **golden
+  antlers**: chunky cartoon antlers in polished gold that catches the light, with a
+  jingle bell at the foot of each (and a red ribbon bow, in 3D). From New
+  Year's Day they're one of the champion's head things in the character editor, for good,
+  on any phone or computer with the same name, and nobody else can pick them. They go on
+  over the hair like the bow does, drawn in pixels, in the flat parking lot and in 3D.
+  The first time the champion is walking around after New Year's, a message tells them
+  they've won and offers to put the antlers on (once for each name); pressing A on the cup
+  offers them too, until they're wearing them. Everyone else, the first time they're
+  walking around after New Year's, gets a banner across the top of the screen for eight
+  seconds: CHRISTMAS CUP CHAMPION, with the champion's name and time (once in each
+  browser). The cup board
+  isn't in the Hall of Fame (the all-year Humbug Sweeper board is, on the Christmas page).
+  It's "the Christmas Cup" in `js/game.js`.
 - **Hockey**: talk to whoever is minding the rink's gate and they'll take you on, one
   on one, three minutes, no goalies. Arrows skate (diagonals too, and you carry on
   coasting when you let go); a thumbstick (on a phone's screen or a controller) skates
@@ -895,6 +949,9 @@ Add these to the end of the address (after `index.html`) and press Enter.
 - `#christmas=0` switches it off during the holidays.
 - Add `&flat` to see the flat parking lot instead of the 3D one, and `&zoom=2` (or `1`)
   to bring the 3D one's camera in close (or halfway).
+- Add `&champion=Ada` to make the Christmas Cup's season over with Ada as its champion (add
+  `&name=Ada` to be Ada, and you're told you've won and offered the golden antlers; any other name sees the
+  banner instead).
 - Add `&xmasday=1` to make it Christmas Day (the present under the tree can be opened), and
   `&santahat=1` to have the Santa hat already, as if your name had opened it.
 - Add `&sweater=moose` (or `gingerbread`, `reindeer`, `snowflake`, `tree`, `candycane`,
@@ -922,7 +979,7 @@ Add these to the end of the address (after `index.html`) and press Enter.
 | Kingston plant | `forklift`, `paint` (Even Coat) |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`), `fame` (the Hall of Fame) |
 | Halloween | `contest`, `bob`, `mummy`, `carve`, `treat`, `ghosts`, `hsplash` (the closing screen) |
-| Christmas | `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `hockey` (against whoever's minding the gate; add `&yard` to see the rink) |
+| Christmas | `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `humbug` (Humbug Sweeper), `hockey` (against whoever's minding the gate; add `&yard` to see the rink) |
 
 Plain `index.html#play` skips the title screen and drops you at the entrance.
 

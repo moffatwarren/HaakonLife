@@ -108,6 +108,13 @@ window.LOT3D = (function () {
       if (!mats.has(k)) mats.set(k, new T.MeshToonMaterial({ color: col || 0xffffff, map: map || null, gradientMap: GRAD, side: side || T.FrontSide }));
       return mats.get(k);
     }
+    // polished metal (the champion's golden antlers): lit with a hard glint where the light
+    // catches it, instead of the toon bands
+    function shiny(col) {
+      const k = 's' + col;
+      if (!mats.has(k)) mats.set(k, new T.MeshPhongMaterial({ color: col, emissive: mixc(col, '#3a1800', 0.62), specular: '#ffffff', shininess: 70 }));
+      return mats.get(k);
+    }
     const basic = (col) => { const k = 'b' + col; if (!mats.has(k)) mats.set(k, new T.MeshBasicMaterial({ color: col })); return mats.get(k); };
     function mesh(geo, mat, o) {
       o = o || {};
@@ -613,6 +620,35 @@ window.LOT3D = (function () {
         bow.position.set(0.17, 0.26, 0).multiplyScalar(hair === 'curly' || hair === 'spiky' ? 1.15 : 1); bow.rotation.z = -0.5; head.add(bow);
         for (const s of [-1, 1]) { const loop = ball(hatM, s * 0.06, 0, 0, 0.065, 0.045, 0.03); loop.rotation.z = s * 0.3; bow.add(loop); }
         bow.add(ball(hatM, 0, 0, 0, 0.025, 0.03, 0.03));
+      }
+      if (p.wear === 'antlers') {
+        // The Christmas Cup champion's golden antlers: chunky cartoon ones, each a beam curving
+        // up and out with a tine forward and one out to the side, rounded off at the tips, in
+        // polished gold that catches the light (not toon-shaded like everything else, so they
+        // shine). Each comes up out of the hair from well inside the head, whatever the hair's
+        // like, with a red ribbon bow and a gold jingle bell at its foot.
+        const up = hair === 'curly' || hair === 'spiky' ? 0.04 : 0;
+        const gold = shiny('#ffc21e'), red = toon('#c8202a');
+        const branch = (pts, r) => {
+          const curve = new T.CatmullRomCurve3(pts.map(([x, y, z]) => new V3(x, y + up, z)));
+          head.add(mesh(new T.TubeGeometry(curve, 16, r, 8), gold));
+          const tip = pts[pts.length - 1];
+          head.add(ball(gold, tip[0], tip[1] + up, tip[2], r * 1.15));
+        };
+        for (const s of [-1, 1]) {
+          branch([[s * 0.06, 0.1, 0], [s * 0.18, 0.34, -0.02], [s * 0.29, 0.5, -0.03], [s * 0.34, 0.63, 0], [s * 0.31, 0.76, 0.05]], 0.034);
+          branch([[s * 0.26, 0.46, -0.03], [s * 0.25, 0.56, 0.06], [s * 0.21, 0.62, 0.11]], 0.025);
+          branch([[s * 0.32, 0.58, -0.01], [s * 0.42, 0.63, -0.03], [s * 0.47, 0.71, -0.01]], 0.024);
+          // the bow, and the bell hanging under it
+          const bow = new T.Group();
+          bow.position.set(s * 0.17, 0.3 + up, 0.06); bow.rotation.z = -s * 0.5; head.add(bow);
+          for (const k of [-1, 1]) { const loop = ball(red, k * 0.045, 0, 0, 0.045, 0.03, 0.022); loop.rotation.z = k * 0.35; bow.add(loop); }
+          bow.add(ball(red, 0, 0, 0.01, 0.02, 0.024, 0.024));
+          for (const b of [...bow.children]) head.attach(b);
+          bow.removeFromParent();
+          head.add(ball(gold, s * 0.2, 0.235 + up, 0.11, 0.04));
+          head.add(ball(basic('#3a2408'), s * 0.2, 0.215 + up, 0.145, 0.018, 0.006, 0.006, { ol: false, cast: false }));
+        }
       }
 
       // each part that moves as one (the head, a shin, a boot) welded into a mesh per material

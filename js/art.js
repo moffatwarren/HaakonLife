@@ -1014,9 +1014,15 @@ window.Art = (function () {
       down: ['_______kkk_kWWk_', '______krrrkkWWk_', '....krrrrrrRk___', '...kWWWWWWWWk...', '...kWWWWWWWWk...'],
       up: ['_kWWk_kkk_______', '_kWWkkrrrk______', '___kRrrrrrrk....', '...kWWWWWWWWk...', '...kWWWWWWWWk...'],
     },
+    // only for the Christmas Cup's champion, the fastest at Humbug Sweeper over Christmas 2026
+    // (see js/game.js): gold reindeer antlers, with the hair showing
+    {
+      name: 'Golden antlers', hd: 'antlers',
+      down: ['.k...k....k...k.', 'kyk.kyk..kyk.kyk', 'kyoooqk..kyoooqk', '.kkqqk....kqqkk.'],
+    },
   ];
-  // where the crown and the Santa hat are in HATS
-  const CROWN = HATS.findIndex((h) => h.hd === 'crown'), SANTA = HATS.findIndex((h) => h.hd === 'santa');
+  // where the crown, the Santa hat and the golden antlers are in HATS
+  const CROWN = HATS.findIndex((h) => h.hd === 'crown'), SANTA = HATS.findIndex((h) => h.hd === 'santa'), ANTLERS = HATS.findIndex((h) => h.hd === 'antlers');
   // Shirts: rows 10-12 (or from row 9, when `from` says so), looking down, up (the same
   // as down unless it says), left standing and left mid-stride.
   const SHIRTS = [
@@ -2403,7 +2409,7 @@ window.Art = (function () {
   return {
     LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLookCostume,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLookCostume,
     SWEATERS,
   };
 })();

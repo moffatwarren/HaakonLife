@@ -118,9 +118,9 @@ window.HD = (function () {
   const HAIRS = ['short', 'long', 'buzz', 'spiky', 'curly', 'bob', 'ponytail', 'bun', 'bald'];
   const SHIRTS = ['tie', 'blouse', 'tee', 'stripes', 'hoodie', 'suit', 'sweater', 'hivis'];
   const LEGS = ['trousers', 'shorts', 'skirt', 'overalls'];
-  const HATS = ['cap', 'toque', 'hardhat', 'cowboy', 'crown', 'santa'], WORN = ['glasses', 'shades', 'headphones', 'bow'];
+  const HATS = ['cap', 'toque', 'hardhat', 'cowboy', 'crown', 'santa'], WORN = ['glasses', 'shades', 'headphones', 'bow', 'antlers'];
   // the head things' colours, as the editor draws them
-  const HAT_COLOURS = { cap: '#c03a30', toque: '#58a848', hardhat: '#f0b030', cowboy: '#9a6434', crown: '#f0b030', santa: '#c8202a', headphones: '#8890a0', bow: '#d23a40' };
+  const HAT_COLOURS = { cap: '#c03a30', toque: '#58a848', hardhat: '#f0b030', cowboy: '#9a6434', crown: '#f0b030', santa: '#c8202a', headphones: '#8890a0', bow: '#d23a40', antlers: '#ffc21e' };
   const HIVIS = '#f6a524';
   function person(name, body, look, style) {
     const h = hash(name || '?'), st = style || {}, female = body === 'female';
@@ -463,6 +463,20 @@ window.HD = (function () {
       const x = side ? 1.4 : view === 'back' ? -3.2 : 3.2, y = side ? -41.4 : -40.4;
       for (const s of [-1, 1]) part(c, t, (cc) => poly(cc, [[x, y], [x + s * 2.6, y - 1.6], [x + s * 2.8, y + 1.4]]), (cc) => cc.rect(x + (s > 0 ? 0.6 : -3), y + 0.2, 2.4, 2));
       part(c, t, (cc) => ell(cc, x, y, 0.9, 1));
+    } else if (p.wear === 'antlers') {
+      // the Christmas Cup champion's golden antlers, branching up and out off the top of the
+      // head, with a little jingle bell where each one comes out of the hair, and a glint of
+      // light on each like polished gold
+      for (const s of [-1, 1]) {
+        const x = s * (side ? 1.2 : 2.8);
+        limb(c, [[x, -38.6], [x + s * 1.4, -42.4], [x + s * 1.8, -46.6]], 1.1, t);
+        limb(c, [[x + s, -41.4], [x + s * 3.4, -43.4]], 0.9, t);
+        limb(c, [[x + s * 1.6, -44.6], [x + s * 0.2, -46.8]], 0.9, t);
+        part(c, tone('#f0c838'), (cc) => ell(cc, x + s * 0.6, -38.4, 0.9, 0.9));
+        c.fillStyle = '#fffbe8';
+        const gx = x + s * 1.75, gy = -45.2;
+        ell(c, gx, gy, 0.25, 1.3); c.fill(); ell(c, gx, gy, 1.3, 0.25); c.fill();
+      }
     }
   }
 

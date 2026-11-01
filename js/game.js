@@ -989,23 +989,29 @@
       icon(x, y) { if (sdgIcon.complete && sdgIcon.naturalWidth) ctx.drawImage(sdgIcon, x, y, 62, 64); } },
     poker: { label: 'Poker', App: (pc) => PokerApp(pc), icon: (x, y) => drawPokerIcon(x, y) },
     blackjack: { label: 'Blackjack', App: (pc) => BlackjackApp(pc), icon: (x, y) => drawBlackjackIcon(x, y) },
+    humbug: { label: 'Humbugs', App: () => HumbugGame(), icon: (x, y) => drawHumbugIcon(x, y) },
   };
+  // From the first Christmas on (SEASON_FROM), every computer has Humbug Sweeper on its
+  // desktop too, beside its own program, and keeps it for good; &christmas=1 puts it there early.
   function ComputerScreen(program) {
-    const prog = PROGRAMS[program] || PROGRAMS.sdg;
+    const humbugs = CHRISTMAS || Date.now() >= SEASON_FROM.CHRISTMAS;
+    const progs = [PROGRAMS[program] || PROGRAMS.sdg].concat(humbugs ? [PROGRAMS.humbug] : []);
     let sel = 0, state = 'desktop', t = 0;
-    const OPTIONS = ['Open ' + prog.label, 'Exit'];
+    const OPTIONS = progs.map((p) => 'Open ' + p.label).concat('Exit'), EXIT = progs.length;
+    const OPT_X = progs.length > 1 ? [20, 124, 252] : [40, 200], ICON_X = progs.length > 1 ? [83, 175] : [129];
     const self = {
       update() {
         t++;
         if (state === 'loading') {
-          if (t > 90) { state = 'desktop'; ui.push(prog.App(self)); }
+          if (t > 90) { state = 'desktop'; ui.push(progs[sel].App(self)); }
           return;
         }
-        if (['left', 'right', 'up', 'down'].some((k) => pressed.has(k))) { sel ^= 1; sfx('select'); }
+        if (pressed.has('left') || pressed.has('up')) { sel = (sel + OPTIONS.length - 1) % OPTIONS.length; sfx('select'); }
+        if (pressed.has('right') || pressed.has('down')) { sel = (sel + 1) % OPTIONS.length; sfx('select'); }
         if (pressed.has('b')) { sfx('select'); remove(self); return; }
         if (pressed.has('a')) {
           sfx('select');
-          if (sel === 1) remove(self);
+          if (sel === EXIT) remove(self);
           else { state = 'loading'; t = 0; }
         }
       },
@@ -1024,16 +1030,19 @@
         ctx.fillStyle = '#c8ccd8'; ctx.fillRect(36, 168, 248, 12);
         ctx.fillStyle = '#181820'; ctx.fillRect(36, 168, 248, 1);
         text('START', 40, 170); text('9:41', 254, 170);
-        // the program's icon
-        const ix = 129, iy = 54;
-        prog.icon(ix, iy);
-        if (sel === 0 && state === 'desktop' && (tick >> 4) & 1) {
-          ctx.fillStyle = '#f8f8f8'; ring(ix - 3, iy - 3, 68, 70);
-        }
-        text(prog.label, ix + 31 - prog.label.length * 3, iy + 70, 1, '#f8f8f8');
+        // the programs' icons
+        const iy = 54;
+        progs.forEach((p, i) => {
+          const ix = ICON_X[i];
+          p.icon(ix, iy);
+          if (sel === i && state === 'desktop' && (tick >> 4) & 1) {
+            ctx.fillStyle = '#f8f8f8'; ring(ix - 3, iy - 3, 68, 70);
+          }
+          text(p.label, ix + 31 - p.label.length * 3, iy + 70, 1, '#f8f8f8');
+        });
         if (state === 'loading') {
           box(80, 76, 160, 48);
-          const msg = 'Starting ' + prog.label + '...';
+          const msg = 'Starting ' + progs[sel].label + '...';
           text(msg, 160 - msg.length * 3, 88);
           ctx.fillStyle = col.dark; ring(96, 104, 128, 10);
           ctx.fillStyle = '#58a848'; ctx.fillRect(98, 106, Math.round(124 * Math.min(1, t / 80)), 6);
@@ -1041,10 +1050,220 @@
         // options
         box(0, SH - 28, SW, 28);
         OPTIONS.forEach((o, i) => {
-          const x = i === 0 ? 40 : 200;
+          const x = OPT_X[i];
           text(o, x, SH - 18);
           if (sel === i) text('>', x - 10, SH - 18);
         });
+      },
+    };
+    return self;
+  }
+
+  // ---------- Humbug Sweeper: the office computers' Christmas game ----------
+  // 99 humbugs (grumpy little green gremlins out to spoil Christmas) are hiding under a
+  // 30 by 16 field of snow. Open a square and it shows how many humbugs are in the eight
+  // round it (none, and those all open too, and so on out); plant a candy cane where you
+  // know one is. Open a number with that many canes round it and the rest round it open.
+  // The first square you open never has a humbug in it or next to it, so it always opens
+  // up a patch. Open every square without a humbug as fast as you can: your quickest time
+  // goes on the HUMBUG SWEEPER leaderboard. It's timed by the clock on the wall, from the
+  // first square you open to the last, and the menu doesn't stop it.
+  const HB_COLS = 30, HB_ROWS = 16, HB_MINES = 99, HB_CELL = 10;
+  const HB_X = (SW - HB_COLS * HB_CELL) >> 1, HB_Y = 40;
+  // the numbers' colours, 1 to 8, the ones they've always been
+  const HB_INK = [null, '#1838c8', '#18802c', '#c82020', '#102078', '#801818', '#108080', '#181820', '#686878'];
+  const HUMBUG = ['..dddd..', '.dggggd.', 'dkggggkd', 'dgkggkgd', 'dyyggyyd', 'dggggggd', 'dgkkkkgd', '.dkddkd.'];
+  const HUMBUG_PAL = { d: '#204818', g: '#58a838', k: '#181820', y: '#f8e048' };
+  const CANE = ['.####.', '##..##', '##..##', '....##', '....##', '....##', '....##', '....##'];
+  // red and white stripes running diagonally down it
+  const canePal = (ch, i, j) => (((i + j) >> 1) & 1 ? '#f8f8f8' : '#d82828');
+  const SNOW_PAL = { w: '#f8f8f8', k: '#181820', o: '#f08020' };
+  // the snowman on the button for a new board: smiling, in shades once you've won, X-eyed once you've lost
+  function snowFace(state) {
+    const f = ['...wwww...', '.wwwwwwww.', '.wwwwwwww.', 'wwkwwwwkww', 'wwwwwwwwww', 'wwwwoowwww', 'wwwwwoowww', '.wkwwwwkw.', '..wkkkkw..', '...wwww...'];
+    if (state === 'won') { f[2] = '.kkkkkkkk.'; f[3] = 'wkkkwwkkkw'; }
+    if (state === 'lost') { f[2] = '.kwkwwkwk.'; f[3] = 'wwkwwwwkww'; f[4] = 'wkwkwwkwkw'; f[7] = '..wkkkkw..'; f[8] = '.wkwwwwkw.'; }
+    return f;
+  }
+  // A little picture from rows of letters, s pixels to a letter: pal gives each letter's
+  // colour (or is a function of the letter and where it is), and '.' is left clear. With
+  // `edge`, it gets an outline that colour all round.
+  function pixArt(rows, pal, x, y, s, edge) {
+    if (edge) {
+      ctx.fillStyle = edge;
+      rows.forEach((r, j) => [...r].forEach((ch, i) => { if (ch !== '.') ctx.fillRect(x + (i - 1) * s, y + (j - 1) * s, 3 * s, 3 * s); }));
+    }
+    rows.forEach((r, j) => [...r].forEach((ch, i) => {
+      const c = ch !== '.' && (typeof pal === 'function' ? pal(ch, i, j) : pal[ch]);
+      if (c) { ctx.fillStyle = c; ctx.fillRect(x + i * s, y + j * s, s, s); }
+    }));
+  }
+  function drawHumbugIcon(x, y) {
+    pixArt(HUMBUG, HUMBUG_PAL, x + 8, y + 4, 5);
+    pixArt(CANE, canePal, x + 40, y + 37, 3, '#701010');
+  }
+  function HumbugGame() {
+    const N = HB_COLS * HB_ROWS, SAFE = N - HB_MINES;
+    const best = () => +store.get('best.humbug') || 0; // quickest, in tenths of a second
+    // per square: a humbug in it, how many round it, opened, a cane on it
+    let mine, near, open, caned, left, state, started, time, boom, record, t = 0;
+    let cx = HB_COLS >> 1, cy = HB_ROWS >> 1, rep = 0, moved = 0, quickest = 0;
+    function fresh() {
+      mine = new Uint8Array(N); near = new Uint8Array(N); open = new Uint8Array(N); caned = new Uint8Array(N);
+      left = SAFE; state = 'new'; started = 0; time = 0; boom = -1; record = false;
+    }
+    fresh();
+    // the squares round square i (up to eight)
+    function round(i, f) {
+      const x = i % HB_COLS, y = (i / HB_COLS) | 0;
+      for (let ay = Math.max(0, y - 1); ay <= Math.min(HB_ROWS - 1, y + 1); ay++)
+        for (let ax = Math.max(0, x - 1); ax <= Math.min(HB_COLS - 1, x + 1); ax++)
+          if (ax !== x || ay !== y) f(ay * HB_COLS + ax);
+    }
+    // the humbugs go in once you've opened your first square, anywhere but there and round it
+    function lay(first) {
+      const keep = new Set([first]);
+      round(first, (j) => keep.add(j));
+      const free = [];
+      for (let i = 0; i < N; i++) if (!keep.has(i)) free.push(i);
+      for (let k = 0; k < HB_MINES; k++) {
+        const j = k + Math.floor(Math.random() * (free.length - k));
+        [free[k], free[j]] = [free[j], free[k]];
+        mine[free[k]] = 1;
+      }
+      for (let i = 0; i < N; i++) if (mine[i]) round(i, (j) => near[j]++);
+    }
+    const clock = () => Math.max(1, Math.round((performance.now() - started) / 100));
+    // open square i, and if there's nothing round it, everything round that, and so on
+    function dig(i) {
+      if (open[i] || caned[i]) return;
+      if (state === 'new') { lay(i); state = 'play'; started = performance.now(); }
+      if (mine[i]) { state = 'lost'; boom = i; time = clock(); t = 0; sfx('buzz'); return; }
+      const todo = [i];
+      open[i] = 1; left--;
+      while (todo.length) {
+        const j = todo.pop();
+        if (!near[j]) round(j, (k) => { if (!open[k] && !caned[k]) { open[k] = 1; left--; todo.push(k); } });
+      }
+    }
+    // Space (or a click) on square i: open it, or on a number with that many canes round it, open the rest round it
+    function poke(i) {
+      if (state !== 'new' && state !== 'play') return;
+      if (!open[i]) dig(i);
+      else {
+        let canes = 0;
+        round(i, (k) => { canes += caned[k]; });
+        if (!near[i] || canes !== near[i]) return;
+        round(i, (k) => { if (state === 'play') dig(k); });
+      }
+      if (state !== 'play') return;
+      if (left) { sfx('crunch'); return; }
+      state = 'won'; time = clock(); t = 0;
+      for (let k = 0; k < N; k++) if (mine[k]) caned[k] = 1;
+      if (!best() || time < best()) { store.set('best.humbug', time); record = true; }
+      // the quickest of this sitting goes on the leaderboard, which comes up when you leave:
+      // over Christmas 2026, the Christmas Cup's (and every time goes on the all-year one too)
+      quickest = quickest ? Math.min(quickest, time) : time;
+      if (cupSeason()) { boardSend('humbug', playerName || store.get('name') || '', time); boardNote(CUP, quickest); }
+      else boardNote('humbug', quickest);
+      sfx('cup');
+    }
+    function cane(i) {
+      if ((state !== 'new' && state !== 'play') || open[i]) return;
+      caned[i] ^= 1;
+      sfx('blip', caned[i]);
+    }
+    // a press moves the cursor one square; hold it and after a moment it runs
+    function steer() {
+      if (['up', 'down', 'left', 'right'].some((k) => pressed.has(k))) rep = 0;
+      const d = heldDir();
+      if (!d) return;
+      if (rep === 0 || (rep >= 12 && rep % 3 === 0)) {
+        cx = Math.max(0, Math.min(HB_COLS - 1, cx + DIRS[d][0]));
+        cy = Math.max(0, Math.min(HB_ROWS - 1, cy + DIRS[d][1]));
+        moved = tick;
+      }
+      rep++;
+    }
+    function led(x, n) {
+      ctx.fillStyle = INK; ctx.fillRect(x, 18, 40, 16);
+      ctx.fillStyle = '#300808'; ctx.fillRect(x + 1, 19, 38, 14);
+      text(n < 0 ? '-' + String(Math.min(99, -n)).padStart(2, '0') : String(Math.min(999, n)).padStart(3, '0'), x + 3, 19, 2, '#f83030');
+    }
+    // the snowman's button (only for show: NEW BOARD is on the menu)
+    const BTN = { x: 146, y: 17, w: 28, h: 18 };
+    const self = {
+      music: 'jingle', doing: 'humbug', escStart: true, // Esc brings up the menu (B plants a cane)
+      update() {
+        t++;
+        if (state === 'won' || state === 'lost') {
+          if (t < 30) return;
+          if (pressed.has('a')) { sfx('menu'); fresh(); }
+          else if (pressed.has('b') || pressed.has('start')) { sfx('menu'); remove(self); }
+          return;
+        }
+        if (pressed.has('start')) {
+          sfx('menu');
+          ui.push(Choice(['KEEP GOING', 'NEW BOARD', 'LEAVE'], -1, 24, (i) => {
+            if (i === 1) fresh(); else if (i === 2) remove(self);
+          }, { startCloses: true }));
+          return;
+        }
+        steer();
+        if (pressed.has('a')) poke(cy * HB_COLS + cx);
+        if (pressed.has('b')) cane(cy * HB_COLS + cx);
+      },
+      draw() {
+        const over = state === 'won' || state === 'lost';
+        ctx.fillStyle = WIN; ctx.fillRect(0, 0, SW, SH);
+        ctx.fillStyle = '#2c6a34'; ctx.fillRect(0, 0, SW, 14);
+        pixArt(HUMBUG, HUMBUG_PAL, 4, 3, 1);
+        text('Humbug Sweeper', 16, 3, 1, '#f8f8f8');
+        if (best()) { const b = 'Best ' + tenths(best()); text(b, SW - 6 - b.length * 6, 3, 1, '#f8f8f8'); }
+        // the canes you've still to plant, the snowman and the clock
+        let canes = 0;
+        for (let i = 0; i < N; i++) canes += caned[i];
+        led(12, HB_MINES - canes);
+        led(SW - 52, state === 'play' ? Math.floor((performance.now() - started) / 1000) : Math.floor(time / 10));
+        ctx.fillStyle = INK; ctx.fillRect(BTN.x, BTN.y, BTN.w, BTN.h);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(BTN.x + 1, BTN.y + 1, BTN.w - 2, BTN.h - 2);
+        ctx.fillStyle = WIN_DARK; ctx.fillRect(BTN.x + 2, BTN.y + 2, BTN.w - 3, BTN.h - 3);
+        ctx.fillStyle = WIN; ctx.fillRect(BTN.x + 2, BTN.y + 2, BTN.w - 4, BTN.h - 4);
+        pixArt(snowFace(state), SNOW_PAL, 155, 21, 1, INK);
+        // the field: snow on everything you haven't opened
+        ctx.fillStyle = INK; ctx.fillRect(HB_X - 2, HB_Y - 2, HB_COLS * HB_CELL + 4, HB_ROWS * HB_CELL + 4);
+        for (let r = 0; r < HB_ROWS; r++) for (let c = 0; c < HB_COLS; c++) {
+          const i = r * HB_COLS + c, x = HB_X + c * HB_CELL, y = HB_Y + r * HB_CELL;
+          if (open[i] || (state === 'lost' && mine[i] && !caned[i])) {
+            ctx.fillStyle = i === boom ? '#e03030' : '#bcc8d6'; ctx.fillRect(x, y, HB_CELL, HB_CELL);
+            ctx.fillStyle = '#98a4b4'; ctx.fillRect(x + HB_CELL - 1, y, 1, HB_CELL); ctx.fillRect(x, y + HB_CELL - 1, HB_CELL, 1);
+            if (mine[i]) pixArt(HUMBUG, HUMBUG_PAL, x + 1, y + 1, 1);
+            else if (near[i]) text(String(near[i]), x + 2, y + 1, 1, HB_INK[near[i]]);
+            continue;
+          }
+          ctx.fillStyle = '#9aaac0'; ctx.fillRect(x, y, HB_CELL, HB_CELL);
+          ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y, HB_CELL - 1, HB_CELL - 1);
+          ctx.fillStyle = '#e4ecf6'; ctx.fillRect(x + 1, y + 1, HB_CELL - 2, HB_CELL - 2);
+          if (!caned[i]) continue;
+          pixArt(CANE, canePal, x + 2, y + 1, 1, '#701010');
+          // a cane where there wasn't a humbug after all
+          if (state === 'lost' && !mine[i]) {
+            ctx.fillStyle = INK;
+            for (let k = 0; k < 8; k++) { ctx.fillRect(x + 1 + k, y + 1 + k, 1, 1); ctx.fillRect(x + 8 - k, y + 1 + k, 1, 1); }
+          }
+        }
+        // the cursor's border blinks, and shows straight away whenever it moves
+        if (!over && !(((tick - moved) >> 4) & 1)) {
+          const x = HB_X + cx * HB_CELL, y = HB_Y + cy * HB_CELL;
+          ctx.fillStyle = INK; ring(x - 1, y - 1, HB_CELL + 2, HB_CELL + 2);
+          ctx.fillStyle = '#f0b030'; ring(x, y, HB_CELL, HB_CELL);
+        }
+        const lines = state === 'won' ? ['Christmas is saved! ' + tenths(time), record ? 'A new record!' : 'Best ' + tenths(best()), 'Space: new board   X: leave']
+          : state === 'lost' ? ['Bah, humbug! There was one under there.', Math.floor(100 * (SAFE - left) / SAFE) + '% cleared in ' + tenths(time), 'Space: new board   X: leave']
+            : ['Arrows: move  Space: open  X: cane  Enter: menu',
+              'Hold a direction to keep going',
+              'Press Space on a number to open round its canes'];
+        lines.forEach((l, k) => ctext(l, 205 + k * 11, over && !k ? (state === 'won' ? '#2c6a34' : '#c82020') : undefined));
       },
     };
     return self;
@@ -2597,7 +2816,9 @@
     bob: { title: 'BOBBING FOR APPLES' }, carve: { title: 'PUMPKIN CARVING' }, treat: { title: 'TRICK-OR-TREAT' },
     ghosts: { title: 'GHOST IN THE CUPBOARD' }, costume: { title: 'COSTUME CONTEST' },
     golf: { title: 'WADE\'S PUTTING GREEN', low: true }, dark: { title: 'DAMIR\'S LIGHTS', unit: 's', low: true },
-    mummy: { title: 'MUMMY WRAP', unit: tenths, low: true },
+    mummy: { title: 'MUMMY WRAP', unit: tenths, low: true }, humbug: { title: 'HUMBUG SWEEPER', unit: tenths, low: true },
+    // Humbug Sweeper over Christmas 2026 only, for the Christmas Cup (CUP): not in the Hall of Fame
+    humbug26: { title: 'CHRISTMAS CUP 2026', unit: tenths, low: true, unlisted: true },
     forklift: { title: 'FORKLIFT RUSH', unit: ' pallets' }, paint: { title: 'EVEN COAT' },
     chop: { title: 'WOOD CHOPPING', unit: ' logs' }, mallow: { title: 'MARSHMALLOWS' }, spruce: { title: 'DECK THE SPRUCE' },
     snowman: { title: 'SNOWMAN', unit: ' cm' }, cocoa: { title: 'HOT CHOCOLATE STAND', unit: ' stars' }, snowball: { title: 'SNOWBALL FIGHT', unit: ' hits' },
@@ -2674,10 +2895,7 @@
       if (mine) rows.push({ id, name, score: val, t: 99 });
       return Promise.resolve({ rows: boardSort(rows), mine });
     }
-    const sent = !send ? Promise.resolve()
-      : boardFetch(key + '/' + id + '.json', { method: 'PUT', body: JSON.stringify({ name, score: val, t: { '.sv': 'timestamp' } }) })
-        .catch(() => {});
-    return sent.then(() => Promise.all([
+    return (send ? boardSend(key, name, score) : Promise.resolve()).then(() => Promise.all([
       boardFetch(key + '.json?orderBy=%22score%22&limitToLast=10'),
       name ? boardFetch(key + '/' + id + '.json') : null,
     ])).then(([all, mine]) => {
@@ -2687,6 +2905,13 @@
       rows: boardRows(all).slice(0, 10),
       mine: mine && typeof mine.score === 'number' ? mine : null,
     }));
+  }
+  // Send a name's score to a board, with no board to show for it (boardLoad sends the one it
+  // shows the same way). The database only keeps it if it beats that name's row.
+  function boardSend(key, name, score) {
+    if (!name || !(score > 0) || !BOARD_URL || !BOARD_POSTS || boardDemo) return Promise.resolve();
+    return boardFetch(key + '/' + boardKey(name) + '.json', { method: 'PUT', body: JSON.stringify({ name, score: BOARDS[key].low ? -score : score, t: { '.sv': 'timestamp' } }) })
+      .catch(() => {});
   }
   // The top ten at one game, with your own row picked out (and added underneath if you didn't make the list).
   function Leaderboard(p) {
@@ -2742,7 +2967,7 @@
     ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catch']],
     ['KINGSTON PLANT', ['forklift', 'paint']],
     ['HALLOWEEN', ['bob', 'mummy', 'carve', 'treat', 'ghosts', 'costume']],
-    ['CHRISTMAS', ['chop', 'mallow', 'spruce', 'snowman', 'cocoa', 'snowball', 'hockey']],
+    ['CHRISTMAS', ['chop', 'mallow', 'spruce', 'snowman', 'cocoa', 'snowball', 'hockey', 'humbug']],
   ];
   // The holidays' games stay out of the Hall of Fame altogether (their page, the champions'
   // points and the latest scores) until the day that holiday first came round, so scores
@@ -2798,7 +3023,7 @@
   function fameBoards() {
     const SEASON = { HALLOWEEN, CHRISTMAS }, early = (g) => g in SEASON_FROM && !SEASON[g] && Date.now() < SEASON_FROM[g];
     const shown = FAME_GROUPS.filter(([g]) => !early(g)), hidden = new Set(FAME_GROUPS.filter(([g]) => early(g)).flatMap(([, k]) => k));
-    const keys = Object.keys(BOARDS).filter((k) => !hidden.has(k)), games = keys.filter((k) => !BOARDS[k].quest), grouped = new Set(FAME_GROUPS.flatMap(([, k]) => k));
+    const keys = Object.keys(BOARDS).filter((k) => !hidden.has(k) && !BOARDS[k].unlisted), games = keys.filter((k) => !BOARDS[k].quest), grouped = new Set(FAME_GROUPS.flatMap(([, k]) => k));
     return { keys, games, groups: shown.concat([['OTHER', games.filter((k) => !grouped.has(k))]]) };
   }
   // Everyone in the running for Office Champion, best first, from every game's board
@@ -7826,7 +8051,8 @@
     sprites = Art.renderLookCostume(myLook, hw.costume, sdgIcon);
   }
   const propAt = (fi, x, y) => (hw.state === 'party' && fi === hw.floor && hw.props.find((p) => p.x === x && p.y === y))
-    || (CHRISTMAS && xmas.trees.find((t) => fi === t.floor && y === t.y && x >= t.x && x < t.x + 2)) || null;
+    || (CHRISTMAS && xmas.trees.find((t) => fi === t.floor && y === t.y && x >= t.x && x < t.x + 2))
+    || (cup && fi === cup.floor && x === cup.x && y === cup.y && cup) || null;
   const doorShut = (fi, x, y) => hw.state === 'party' && fi === hw.floor && hw.doors.some((d) => d.x === x && d.y === y);
 
   // Who comes: Lam (the MC), eight others at random, each in a different costume, and Linda.
@@ -10251,7 +10477,7 @@
     carve: 'Playing Pumpkin Carving', treat: 'Playing Trick-or-Treat', ghosts: 'Playing Ghost in the Cupboard',
     costume: 'Playing Costume Contest', forklift: 'Playing Forklift Rush', paint: 'Playing Even Coat',
     chop: 'Chopping wood', mallow: 'Roasting marshmallows', spruce: 'Decorating the spruce', snowman: 'Building a snowman',
-    cocoa: 'Pouring hot chocolate', snowball: 'In a snowball fight',
+    cocoa: 'Pouring hot chocolate', snowball: 'In a snowball fight', humbug: 'Playing Humbug Sweeper',
   };
   // the game you've got open, for over your head (or null)
   const mpDoing = () => { for (let i = ui.length - 1; i >= 0; i--) if (ui[i].doing) return ui[i]; return null; };
@@ -10886,6 +11112,115 @@
   const mySweater = () => (CHRISTMAS && !hw.worn && Art.SWEATERS[xmas.sweater] ? xmas.sweater : '');
   const mySprites = () => lookSprites(wornLook(myLook), mySweater());
   if (CHRISTMAS) sprites = mySprites();
+
+  // ---------- the Christmas Cup: Humbug Sweeper's champion for Christmas 2026 ----------
+  // From November 27 to December 31 2026 (by your device's date) every Humbug Sweeper board
+  // you clear goes on a board of its own as well, CUP (left out of the Hall of Fame), and
+  // after that nothing more is sent to it: whoever is 1st on it on New Year's Day is the
+  // Christmas champion, for good. The cup stands on a plinth in reception under the Hall of
+  // Fame from the 27th on (or with &christmas=1), and press A on it: until the New Year it
+  // says who's leading, then it has the champion engraved on it. The champion's prize is
+  // a pair of golden antlers, one of their head things in the character editor from then on, on
+  // any phone or computer with the same name. &champion=Ada makes Christmas over with Ada
+  // the champion, for testing.
+  const CUP = 'humbug26', CUP_END = new Date(2027, 0, 1);
+  const cupTest = (/[#&]champion=([^&]+)/.exec(location.hash) || [])[1];
+  const cupSeason = () => !cupTest && Date.now() >= SEASON_FROM.CHRISTMAS && Date.now() < CUP_END; // (scores go on it)
+  const cupOver = () => !!cupTest || Date.now() >= CUP_END;
+  const cup = (function () {
+    const r = MAPS.floors[0].rooms.find((rm) => /Reception$/.test(rm.name));
+    if (!r || !(CHRISTMAS || cupTest || Date.now() >= SEASON_FROM.CHRISTMAS)) return null;
+    return { floor: 0, x: r.x1, y: r.y2 - 1, img: cupSprite() }; // (in the corner under the Hall of Fame)
+  })();
+  // 1st on the cup's board, as the database last said (the champion's kept in this browser once it's over)
+  let cupLeader = (function () {
+    if (cupTest) { const name = decodeURIComponent(cupTest); return { id: boardKey(name), name, score: -612, t: 0 }; }
+    try { return JSON.parse(store.get('cup.' + CUP)); } catch (e) { return null; }
+  })();
+  function cupCheck() {
+    if (!cup || cupTest || (cupOver() && cupLeader) || !BOARD_URL || boardDemo) return Promise.resolve(cupLeader);
+    return boardFetch(CUP + '.json?orderBy=%22score%22&limitToLast=10').then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((all) => {
+        cupLeader = boardRows(all)[0] || null;
+        if (cupLeader && cupOver()) store.set('cup.' + CUP, JSON.stringify(cupLeader));
+        return cupLeader;
+      }, () => cupLeader);
+  }
+  const cupMine = (name) => cupOver() && !!cupLeader && !!name && cupLeader.id === boardKey(name);
+  cupCheck();
+  // a gold cup with candy canes for handles, on a wooden plinth with a plaque
+  function cupSprite() {
+    const cv = document.createElement('canvas');
+    cv.width = 16; cv.height = 28;
+    const c = cv.getContext('2d'), R = (f, x, y, w, h) => { c.fillStyle = f; c.fillRect(x, y, w, h); };
+    R(INK, 1, 17, 14, 11); R('#9a6434', 2, 18, 12, 9); R('#c89058', 2, 18, 12, 1); R('#5c4c3a', 2, 26, 12, 1);
+    R(INK, 4, 20, 8, 5); R('#e8d8a0', 5, 21, 6, 3); R('#a89058', 6, 22, 4, 1);
+    R(INK, 4, 14, 8, 4); R('#c08818', 5, 15, 6, 2); R(INK, 6, 11, 4, 4); R('#f0b030', 7, 11, 2, 4);
+    R(INK, 2, 0, 12, 10); R(INK, 3, 10, 10, 1); R('#f0b030', 3, 1, 10, 8); R('#f0b030', 4, 9, 8, 1);
+    R('#f8e070', 4, 2, 2, 6); R('#c08818', 11, 2, 1, 7); R(INK, 3, 1, 10, 1);
+    for (let y = 3; y < 8; y++) { const f = y & 1 ? '#d82828' : '#f8f8f8'; R(f, 0, y, 2, 1); R(f, 14, y, 2, 1); }
+    R(INK, 0, 2, 3, 1); R(INK, 13, 2, 3, 1); R(INK, 0, 8, 3, 1); R(INK, 13, 8, 3, 1);
+    return cv;
+  }
+  function cupTalk() {
+    sfx('select');
+    cupCheck(); // (for next time: the board itself is always fetched fresh)
+    const who = cupLeader && cupLeader.name + ' with ' + boardFmt(CUP, cupLeader.score);
+    const board = (label) => [[label, 'OK'], (i) => { if (i === 0) { sfx('menu'); ui.push(Leaderboard({ key: CUP, score: 0 })); } }];
+    if (!cupOver()) {
+      ask('The Christmas Cup: gold, with candy canes for handles. The plaque says "HUMBUG SWEEPER CHAMPION, CHRISTMAS 2026", and under that it\'s blank: whoever is fastest on New Year\'s Day gets their name engraved. '
+        + (who ? 'Leading right now: ' + who + '.' : 'Nobody has cleared a board yet.'), ...board('SEE THE STANDINGS'));
+      return;
+    }
+    if (!cupLeader) { say('The Christmas Cup. The plaque for Christmas 2026 is blank: nobody cleared a Humbug Sweeper board all Christmas.'); return; }
+    const plaque = 'The Christmas Cup. Engraved on the plaque: "HUMBUG SWEEPER CHAMPION, CHRISTMAS 2026: ' + cupLeader.name.toUpperCase() + ', ' + boardFmt(CUP, cupLeader.score) + '".';
+    if (!cupMine(playerName)) { ask(plaque, ...board('SEE THE FINAL BOARD')); return; }
+    if (myLook.hat === Art.ANTLERS) { say(plaque + ' That\'s you! The golden antlers that came with it are on your head.'); return; }
+    cupPrize(plaque + ' That\'s you! A pair of golden antlers hangs off one handle, with your name on the tag.');
+  }
+  // the champion's golden antlers: they're one of your head things now, so put them on?
+  function cupPrize(str) {
+    ask(str + ' They\'re one of your head things in the character editor now, for good. Wear them now?', ['WEAR THEM', 'NOT NOW'], (j) => {
+      if (j !== 0) { say('You leave them on the cup in reception for now. They\'re in the character editor whenever you want them.'); return; }
+      sfx('menu');
+      myLook = Object.assign({}, myLook, { hat: Art.ANTLERS });
+      store.set('avatar', Art.lookCode(myLook));
+      lookSave(playerName, myLook);
+      sprites = mySprites();
+      say(crowned ? 'You try them on, but the Office Champion has to wear the crown. The golden antlers are saved underneath it for when you need them.'
+        : 'You put on the golden antlers. The bells jingle every time you turn your head. Champion!');
+    });
+  }
+  // Once it's over, the first time you're walking around: the champion is told they've won
+  // and offered the antlers (once for each name), and everyone else gets a banner across the
+  // top saying who won (once in each browser). (Called every tick: it's only true once.)
+  let cupNewsDone = false, cupFlag = null;
+  function cupNews() {
+    if (cupNewsDone || !cup || !cupOver() || !cupLeader || !playerName) return false;
+    cupNewsDone = true;
+    const told = 'cup.told.' + CUP + '.' + boardKey(playerName), seen = 'cup.seen.' + CUP;
+    if (cupMine(playerName) && !store.get(told)) {
+      store.set(told, '1'); store.set(seen, '1');
+      sfx('cup');
+      cupPrize('Merry Christmas and a happy New Year! You won the Christmas Cup: nobody cleared Humbug Sweeper faster than your '
+        + boardFmt(CUP, cupLeader.score) + '. Your name is engraved on the cup in reception, and it came with a pair of golden antlers.');
+      return true;
+    }
+    if (!store.get(seen)) { store.set(seen, '1'); cupFlag = { t: 0 }; }
+    return false;
+  }
+  // the banner: who won, slid down from the top for eight seconds
+  const CUP_FLAG = 480;
+  function drawCupFlag() {
+    if (!cupFlag) return;
+    const t = cupFlag.t, LEN = CUP_FLAG;
+    const a = 'CHRISTMAS CUP CHAMPION', b = cupLeader.name + ', ' + boardFmt(CUP, cupLeader.score) + ' at Humbug Sweeper';
+    const w = Math.max(a.length, b.length) * 6 + 40, x = (SW - w) >> 1, y = t < 12 ? -40 + t * 3.5 : t > LEN - 12 ? -(t - LEN + 12) * 3.5 : 2;
+    box(x, y, w, 38);
+    drawCrown(x + 10, y + 9); drawCrown(x + w - 20, y + 9);
+    text(a, (SW - a.length * 6) >> 1, y + 9, 1, GOLD);
+    text(b, (SW - b.length * 6) >> 1, y + 22);
+  }
   // A tree, in three frames so its lights twinkle (gold: the casino's, all tinsel).
   function treeFrame(k, gold) {
     const cv = document.createElement('canvas');
@@ -13660,6 +13995,7 @@
       return;
     }
     if (deskPumpkin && P.floor === deskPumpkin.floor && tx === deskPumpkin.x && ty === deskPumpkin.y) { deskPumpkinTalk(); return; }
+    if (cup && P.floor === cup.floor && tx === cup.x && ty === cup.y) { cupTalk(); return; }
     if (P.floor === cookies.floor && tx === cookies.x && ty === cookies.y) {
       sfx('select');
       say('There is a plate of cookies with a note: "Made with love by Jenn." You take one.\nAs you eat it, you think to yourself: Nik and Dmitriy could never make anything this good.');
@@ -13973,6 +14309,8 @@
       top().update();
     } else if (questQueue.length) {
       say(questQueue.shift());
+    } else if (mode === 'play' && !fade && cupNews()) {
+      // (the Christmas Cup's champion has just been told)
     } else {
       updatePlayer();
       updateNpcs();
@@ -13987,6 +14325,7 @@
       ui.push(Leaderboard(pendingBoard)); pendingBoard = null;
     }
     if (banner && ++banner.t > 150) banner = null;
+    if (cupFlag && ++cupFlag.t > CUP_FLAG) cupFlag = null;
     playMusic(pickMusic());
     pressed.clear();
   }
@@ -14043,7 +14382,7 @@
   // Start on your look (called as the name screen closes), and ask the database for the
   // one saved under your name, which takes over if there is one, and whether you're the
   // Office Champion, which puts the crown on even if the answer's late. It holds on for both.
-  // It asks after your Santa hat too (see "Christmas Day").
+  // It asks after your Santa hat too (see "Christmas Day"), and who won the Christmas Cup.
   function editStart() {
     Object.assign(edit, { row: 0, btn: 1, look: Object.assign({}, myLook), wait: 240 });
     const ask = edit.ask = {}, name = playerName;
@@ -14055,13 +14394,16 @@
     });
     const crown = crownCheck(name).then((on) => { if (playerName === name) setCrowned(on); });
     const gift = giftCheck(name).then((on) => { if (playerName === name && on) santaHat = true; });
-    Promise.all([saved, crown, gift]).then(() => { if (edit.ask === ask) edit.wait = 0; });
+    Promise.all([saved, crown, gift, cupCheck()]).then(() => { if (edit.ask === ask) edit.wait = 0; });
   }
   // the choices a row has, in order: the head things leave out the crown (only ever the
-  // champion's, who can't change it: see crowned) and the Santa hat, unless it's yours
-  // (or you're already wearing it)
+  // champion's, who can't change it: see crowned), the Santa hat and the Christmas Cup's
+  // golden antlers, unless they're yours (or you're already wearing them)
   function editChoices(r) {
-    if (r.key === 'hat') return [...Array(Art.CROWN).keys()].concat(santaHat || edit.look.hat === Art.SANTA ? [Art.SANTA] : []);
+    if (r.key === 'hat') {
+      return [...Array(Art.CROWN).keys()].concat(santaHat || edit.look.hat === Art.SANTA ? [Art.SANTA] : [])
+        .concat(cupMine(playerName) || edit.look.hat === Art.ANTLERS ? [Art.ANTLERS] : []);
+    }
     return [...Array(r.n || LOOK_COUNT[r.key]).keys()];
   }
   const editLocked = (r) => r && r.key === 'hat' && crowned;
@@ -14304,6 +14646,7 @@
     // a Christmas tree sorts in by the row it stands on (z), not by its top
     if (CHRISTMAS) for (const tr of xmas.trees) if (P.floor === tr.floor)
       actors.push({ x: tr.x * 16, y: (tr.y + 1) * 16 - 48, z: tr.y * 16, img: tr.frames[(tick >> 5) % 3] });
+    if (cup && P.floor === cup.floor) actors.push({ x: cup.x * 16, y: (cup.y + 1) * 16 - cup.img.height, z: cup.y * 16, img: cup.img });
     const z = (a) => (a.z === undefined ? a.y : a.z);
     actors.sort((a, b) => z(a) - z(b));
     for (const a of actors) {
@@ -14424,6 +14767,7 @@
       if (outside) { if (!covered) drawYard(); } else drawWorld();
       ctx.restore();
       drawBanner();
+      drawCupFlag();
       ui.forEach((el) => el.draw());
     }
     if (fade) {
@@ -14537,7 +14881,7 @@
       pokertable: () => PokerApp(null, true), pokerlive: LivePoker, bjtable: () => BlackjackApp(null, true),
       hockey: () => HockeyGame(gateKeeper || npcs.find((n) => !n.ghost && !n.extra)), hockey1: () => LiveHockey(2), hockey2: () => LiveHockey(4),
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
-      chop: ChopGame, mallow: MallowGame, spruce: SpruceGame, snowman: SnowmanGame, cocoa: CocoaGame, snowball: SnowballGame,
+      chop: ChopGame, mallow: MallowGame, spruce: SpruceGame, snowman: SnowmanGame, cocoa: CocoaGame, snowball: SnowballGame, humbug: HumbugGame,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
       fame: HallOfFame, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];
     // &vs=1 plays a head-to-head game (a VERSUS key: duel, jar, lego, dance, coffee, run,
