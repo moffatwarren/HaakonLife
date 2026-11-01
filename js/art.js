@@ -3851,6 +3851,16 @@ window.Art = (function () {
       r(x + 1, y + 1, 6, 4, 'o');
       r(x + 2, y + 2, 4, 1, 'k'); r(x + 2, y + 3, 2, 1, 'k');
     },
+    // The rooftop unit's condenser fan, in a round grille, seen from above, centred on (cx, cy).
+    fan(s, r, cx, cy) {
+      for (let j = -10; j <= 10; j++)
+        for (let i = -10; i <= 10; i++) {
+          const d = i * i + j * j;
+          if (d <= 100) s(cx + i, cy + j, d > 81 ? 'k' : (i + j) % 3 === 0 || (i - j) % 3 === 0 ? 'K' : 'k');
+        }
+      for (let k = -7; k <= 7; k++) { s(cx + k, cy + (k >> 1), 'g'); s(cx - (k >> 1), cy + k, 'g'); }
+      r(cx - 1, cy - 1, 3, 3, 'G');
+    },
     // A wooden shipping skid along the bottom.
     skid(W, H, s, r, y) {
       r(0, y, W, H - y - 1, 'D');
@@ -3862,55 +3872,55 @@ window.Art = (function () {
   const SHIP_UNITS = {
     // The unit in the paint booth, still in grey primer. P and p are its paint, so once
     // you've painted it (Even Coat) the game redraws it with those two swapped out.
-    0(W, H, s, r) {
-      const f = ahu.casing(W, H, s, r, 13, H - 5, 'P', 'p', 'g');
-      ahu.door(s, r, 3, f + 1, 12, 12, true, 'P');
-      ahu.door(s, r, 19, f + 1, 10, 12, false, 'P');
-      ahu.louvre(s, r, 34, f + 1, 11, 12);
+    0(W, H, s, r, A = ahu) {
+      const f = A.casing(W, H, s, r, 13, H - 5, 'P', 'p', 'g');
+      A.door(s, r, 3, f + 1, 12, 12, true, 'P');
+      A.door(s, r, 19, f + 1, 10, 12, false, 'P');
+      A.louvre(s, r, 34, f + 1, 11, 12);
     },
     // Like the photo: white casing, a louvred intake on the end, a big fan door and a
     // smaller coil door, both with portholes, and a little panel between them.
-    1(W, H, s, r) {
-      const f = ahu.casing(W, H, s, r, 20, H - 5, 'W', 'w', 'G');
-      ahu.louvre(s, r, 3, f + 14, 10, 17);
-      ahu.door(s, r, 15, f + 3, 17, 31, true);
-      ahu.door(s, r, 34, f + 12, 8, 11, false);
-      ahu.door(s, r, 45, f + 9, 15, 25, true);
+    1(W, H, s, r, A = ahu) {
+      const f = A.casing(W, H, s, r, 20, H - 5, 'W', 'w', 'G');
+      A.louvre(s, r, 3, f + 14, 10, 17);
+      A.door(s, r, 15, f + 3, 17, 31, true);
+      A.door(s, r, 34, f + 12, 8, 11, false);
+      A.door(s, r, 45, f + 9, 15, 25, true);
       r(51, f + 3, 3, 3, 'g'); s(52, f + 4, 'o');       // pressure gauge
-      ahu.tag(s, r, 6, 8);
+      A.tag(s, r, 6, 8);
     },
     // A long, low unit: intake louvre, filter door, coil with its pipe stubs poking
     // out, then the fan section and a discharge opening on the far end.
-    2(W, H, s, r) {
-      const f = ahu.casing(W, H, s, r, 13, H - 5, 'W', 'w', 'G');
-      ahu.louvre(s, r, 3, f + 1, 9, 12);
-      ahu.door(s, r, 15, f + 1, 12, 12, false);
+    2(W, H, s, r, A = ahu) {
+      const f = A.casing(W, H, s, r, 13, H - 5, 'W', 'w', 'G');
+      A.louvre(s, r, 3, f + 1, 9, 12);
+      A.door(s, r, 15, f + 1, 12, 12, false);
       for (const py of [f + 2, f + 8]) { r(31, py, 3, 3, 'n'); s(32, py + 1, 'o'); r(36, py, 3, 3, 'n'); s(37, py + 1, 'o'); }
-      ahu.door(s, r, 46, f + 1, 15, 12, true);
+      A.door(s, r, 46, f + 1, 15, 12, true);
       r(65, f + 1, 12, 12, 'k'); r(66, f + 2, 10, 10, 'K'); r(66, f + 2, 10, 1, 'g');
-      ahu.tag(s, r, 5, 4);
+      A.tag(s, r, 5, 4);
     },
     // A stacked unit: a supply tier on top of a return tier, with a rain hood over the
     // outdoor air intake on the roof and the main disconnect on the bottom tier.
-    3(W, H, s, r) {
-      const f = ahu.casing(W, H, s, r, 34, H - 5, 'W', 'w', 'G'), mid = f + 19;
+    3(W, H, s, r, A = ahu) {
+      const f = A.casing(W, H, s, r, 34, H - 5, 'W', 'w', 'G'), mid = f + 19;
       r(2, mid, W - 4, 2, 'g'); r(2, mid + 2, W - 4, 1, 'G');
-      ahu.door(s, r, 6, f + 2, 14, 15, true);
-      ahu.door(s, r, 36, f + 2, 14, 15, true);
-      ahu.louvre(s, r, 60, f + 3, 14, 13);
-      ahu.door(s, r, 6, mid + 4, 14, 17, true);
-      ahu.door(s, r, 24, mid + 4, 9, 17, false);
+      A.door(s, r, 6, f + 2, 14, 15, true);
+      A.door(s, r, 36, f + 2, 14, 15, true);
+      A.louvre(s, r, 60, f + 3, 14, 13);
+      A.door(s, r, 6, mid + 4, 14, 17, true);
+      A.door(s, r, 24, mid + 4, 9, 17, false);
       r(52, mid + 6, 10, 13, 'k'); r(53, mid + 7, 8, 11, 'K');   // disconnect switch
       r(55, mid + 9, 4, 2, 'r'); r(56, mid + 11, 2, 4, 'r');
       r(4, 6, 24, 18, 'k'); r(5, 7, 22, 16, 'g');               // rain hood on the roof
       for (let j = 9; j < 22; j += 3) r(6, j, 20, 1, 'K');
       r(5, 7, 22, 1, 'G');
-      ahu.tag(s, r, 66, 8);
+      A.tag(s, r, 66, 8);
     },
     // Shrink-wrapped and strapped down to a skid, ready to go on the truck.
-    4(W, H, s, r) {
+    4(W, H, s, r, A = ahu) {
       const base = H - 8;
-      ahu.skid(W, H, s, r, base);
+      A.skid(W, H, s, r, base);
       r(1, 2, W - 2, base - 2, 'k');
       r(2, 3, W - 4, 18, 'i');
       r(2, 21, W - 4, 1, 'U');
@@ -3922,21 +3932,14 @@ window.Art = (function () {
     },
     // A rooftop unit: grey casing with the condenser fan in a grille on top, and its
     // access doors along the front.
-    5(W, H, s, r) {
-      const f = ahu.casing(W, H, s, r, 27, H - 5, 'G', 'W', 'g');
-      const cx = 40, cy = 14;
-      for (let j = -10; j <= 10; j++)
-        for (let i = -10; i <= 10; i++) {
-          const d = i * i + j * j;
-          if (d <= 100) s(cx + i, cy + j, d > 81 ? 'k' : (i + j) % 3 === 0 || (i - j) % 3 === 0 ? 'K' : 'k');
-        }
-      for (let k = -7; k <= 7; k++) { s(cx + k, cy + (k >> 1), 'g'); s(cx - (k >> 1), cy + k, 'g'); }
-      r(cx - 1, cy - 1, 3, 3, 'G');
+    5(W, H, s, r, A = ahu) {
+      const f = A.casing(W, H, s, r, 27, H - 5, 'G', 'W', 'g');
+      A.fan(s, r, 40, 14);
       r(5, 6, 14, 16, 'k'); for (let j = 7; j < 21; j += 2) r(6, j, 12, 1, 'g');   // condenser coil
-      ahu.door(s, r, 4, f + 1, 14, 13, false);
-      ahu.door(s, r, 22, f + 1, 14, 13, true);
-      ahu.louvre(s, r, 42, f + 1, 18, 13);
-      ahu.tag(s, r, 54, 4);
+      A.door(s, r, 4, f + 1, 14, 13, false);
+      A.door(s, r, 22, f + 1, 14, 13, true);
+      A.louvre(s, r, 42, f + 1, 18, 13);
+      A.tag(s, r, 54, 4);
     },
   };
 
@@ -4200,8 +4203,8 @@ window.Art = (function () {
       case '%': block(b, con('dm%!'), 'N', 'n', 'y'); paint32('%', () => paintLegoDesk(b, x, y)); break;
       case '!': block(b, con('dm%!'), 'N', 'n', 'y'); break; // the phone itself is drawn by the game, so it can ring
       case '+': if (!objOnly) paintWorkTable(b, con('+')); break; // (at 32 x 32 a desk like any other: see BLOCKS32)
-      case '0': case '1': case '2': case '3': case '4': case '5': paintShipUnit(b, get, x, y, t); break;
-      case '[': case ']': paintWhole(b, get, x, y, t, CASINO_TABLES[t]); break;
+      case '0': case '1': case '2': case '3': case '4': case '5': paint32(t, () => paintShipUnit(b, get, x, y, t)); break;
+      case '[': case ']': paint32(t, () => paintWhole(b, get, x, y, t, CASINO_TABLES[t])); break;
       case '7': stamp(b, get(x, y + 1) === '7' ? ART.slotTop : ART.slotBottom); break;
       case '^': stamp(b, ART.forklift); break;
       case '&': paint32('&', () => paintLegoShelf(b, get, x, y)); break;
@@ -5710,6 +5713,127 @@ window.Art = (function () {
   };
   const ART_KEY = new Map(Object.entries(ART).map(([k, v]) => [v, k]));
 
+  // ---------- the plant's finished units and the casino's tables at 32 x 32 ----------
+  // A thing several tiles big, at 32 x 32: drawn whole into a buffer twice the size and the
+  // tile's own piece cut out, as paintWhole does at 16. draw(W, H, s, r, S, R): s and r take
+  // the 16 x 16 picture's own coordinates (each pixel drawn 2 x 2), S and R the 32 x 32's.
+  function paintWhole32(b, get, x, y, t, draw) {
+    let x0 = x, y0 = y, x1 = x, y1 = y;
+    while (get(x0 - 1, y) === t) x0--;
+    while (get(x, y0 - 1) === t) y0--;
+    while (get(x1 + 1, y) === t) x1++;
+    while (get(x, y1 + 1) === t) y1++;
+    const W = (x1 - x0 + 1) * 32, H = (y1 - y0 + 1) * 32, u = new Array(W * H).fill(null);
+    const S = (px, py, c) => { px = Math.round(px); py = Math.round(py); if (px >= 0 && px < W && py >= 0 && py < H) u[py * W + px] = c; };
+    const R = (px, py, w, h, c) => { for (let j = py; j < py + h; j++) for (let i = px; i < px + w; i++) S(i, j, c); };
+    draw(W / 2, H / 2, (px, py, c) => R(px * 2, py * 2, 2, 2, c), (px, py, w, h, c) => R(px * 2, py * 2, w * 2, h * 2, c), S, R);
+    const ox = (x - x0) * 32, oy = (y - y0) * 32;
+    for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) { const c = u[(oy + j) * W + ox + i]; if (c) b[j * 32 + i] = c; }
+  }
+  // the units' parts at 32 x 32: the same calls as ahu's (in the 16 x 16 picture's
+  // coordinates), drawn with 2-pixel outlines, rivets, hinges, a glint on the portholes
+  const ahu32 = (S, R) => ({
+    casing(W, H, s, r, roof, base, top, face, seam) {
+      R(2, 4, W * 2 - 4, base * 2 - 4, 'k');
+      R(4, 6, W * 2 - 8, roof * 2 - 6, top); R(4, 6, W * 2 - 8, 1, 'w');
+      R(4, roof * 2, W * 2 - 8, 2, 'g');
+      R(4, roof * 2 + 2, W * 2 - 8, base * 2 - roof * 2 - 4, face); R(4, roof * 2 + 2, W * 2 - 8, 1, 'w');
+      for (let i = 32; i < W * 2 - 16; i += 32) {
+        R(i, 8, 1, roof * 2 - 8, seam); R(i, roof * 2 + 2, 1, base * 2 - roof * 2 - 4, seam);
+        for (let j = roof * 2 + 6; j < base * 2 - 4; j += 8) S(i + 2, j, seam);   // rivets
+      }
+      R(2, base * 2, W * 2 - 4, H * 2 - base * 2 - 2, 'k');
+      R(4, base * 2 + 2, W * 2 - 8, H * 2 - base * 2 - 6, 'K'); R(4, base * 2 + 2, W * 2 - 8, 1, 'g');
+      for (let i = 12; i < W * 2 - 12; i += 24) { R(i, base * 2 + 3, 6, H * 2 - base * 2 - 8, 'k'); R(i + 1, base * 2 + 3, 4, 1, 'K'); }
+      return roof + 1;
+    },
+    porthole(s, r, x, y) {
+      const cx = x * 2 + 6, cy = y * 2 + 6;
+      for (let j = -7; j <= 7; j++)
+        for (let i = -7; i <= 7; i++) {
+          const d = Math.hypot(i + 0.5, j + 0.5);
+          if (d <= 6.2) S(cx + i, cy + j, d > 5.2 ? 'k' : d > 3.8 ? 'g' : 'k');
+        }
+      R(cx - 3, cy - 3, 2, 2, 'i'); S(cx + 1, cy + 2, 'u'); S(cx + 2, cy + 1, 'u');
+    },
+    door(s, r, x, y, w, h, window, fill = 'w') {
+      R(x * 2, y * 2, w * 2, h * 2, 'k'); R(x * 2 + 1, y * 2 + 1, w * 2 - 2, h * 2 - 2, 'g');
+      R(x * 2 + 2, y * 2 + 2, w * 2 - 4, h * 2 - 4, fill);
+      R(x * 2 + 2, y * 2 + h * 2 - 3, w * 2 - 4, 1, 'G'); R(x * 2 + w * 2 - 3, y * 2 + 2, 1, h * 2 - 4, 'G');
+      for (const hy of [y * 2 + 4, y * 2 + h * 2 - 8]) { R(x * 2 - 1, hy, 4, 4, 'k'); R(x * 2, hy + 1, 2, 2, 'g'); }   // hinges
+      for (const ly of h > 14 ? [y * 2 + 6, y * 2 + h * 2 - 10] : [y * 2 + h - 2]) {   // lever latches
+        R(x * 2 + w * 2 - 8, ly, 6, 3, 'k'); R(x * 2 + w * 2 - 7, ly + 1, 4, 1, 'K'); R(x * 2 + w * 2 - 8, ly + 3, 2, 3, 'k');
+      }
+      if (window) this.porthole(s, r, x + (w >> 1) - 4, y + 3);
+    },
+    louvre(s, r, x, y, w, h) {
+      R(x * 2, y * 2, w * 2, h * 2, 'k'); R(x * 2 + 2, y * 2 + 2, w * 2 - 4, h * 2 - 4, 'G');
+      for (let j = y * 2 + 3; j < y * 2 + h * 2 - 3; j += 4) { R(x * 2 + 3, j, w * 2 - 6, 1, 'w'); R(x * 2 + 3, j + 1, w * 2 - 6, 1, 'g'); R(x * 2 + 3, j + 2, w * 2 - 6, 1, 'K'); }
+    },
+    tag(s, r, x, y) {
+      R(x * 2, y * 2, 16, 12, 'k'); R(x * 2 + 1, y * 2 + 1, 14, 10, 'o'); R(x * 2 + 1, y * 2 + 1, 14, 1, 'y');
+      S(x * 2 + 3, y * 2 + 3, 'k');                                                   // the string hole
+      R(x * 2 + 6, y * 2 + 4, 7, 1, 'k'); R(x * 2 + 5, y * 2 + 6, 5, 1, 'k'); R(x * 2 + 5, y * 2 + 8, 7, 1, 'D');
+    },
+    skid(W, H, s, r, y) {
+      R(0, y * 2, W * 2, H * 2 - y * 2 - 2, 'D'); R(0, y * 2, W * 2, 3, 'N'); R(0, y * 2, W * 2, 1, 'y');
+      for (let i = 4; i < W * 2 - 8; i += 20) { R(i, y * 2 + 3, 12, H * 2 - y * 2 - 5, 'n'); S(i + 2, y * 2 + 5, 'k'); S(i + 9, y * 2 + 5, 'k'); }
+    },
+    fan(s, r, cx, cy) {
+      const X = cx * 2 + 1, Y = cy * 2 + 1;
+      for (let j = -21; j <= 21; j++)
+        for (let i = -21; i <= 21; i++) {
+          const d = Math.hypot(i, j), a = Math.atan2(j, i);
+          if (d > 21) continue;
+          if (d > 19) S(X + i, Y + j, 'k');
+          else if (d > 17.5) S(X + i, Y + j, 'g');
+          else if (d < 3) S(X + i, Y + j, d < 1.6 ? 'w' : 'G');
+          else S(X + i, Y + j, Math.round(d) % 4 === 0 ? 'g' : ((a * 5 / Math.PI + d * 0.12) % 2 + 2) % 2 < 1 ? 'K' : 'k');
+        }
+    },
+  });
+  // the casino's tables at 32 x 32, as CASINO_TABLES at 16 (W and H the 32 x 32 size)
+  const CASINO_TABLES32 = {
+    '['(W, H, S, R) {
+      const cx = W / 2, rx = W / 2 - 1, ry = H - 7;
+      const inside = (i, j, k) => ((i + 0.5 - cx) / (rx - k)) ** 2 + ((j + 0.5 - 4) / (ry - k)) ** 2 <= 1;
+      for (let j = 4; j < H; j++)
+        for (let i = 0; i < W; i++) {
+          if (!inside(i, j, 0)) continue;
+          let c = 'k';
+          if (inside(i, j, 2) && j > 5) c = inside(i, j, 4) && j > 7 ? (inside(i, j, 6) ? 'T' : 'N') : 'N';
+          if (inside(i, j, 8) && j > 11) c = inside(i, j, 18) && !inside(i, j, 19.5) ? 'F' : 'Q';
+          if (c === 'T' && !inside(i, j - 2, 4)) c = 'N';
+          S(i, j, c);
+        }
+      R(cx - 18, 12, 36, 8, 'k'); ['r', 'w', 'u', 'o', 'r', 'w', 'u', 'o'].forEach((c, k) => { R(cx - 16 + k * 4, 14, 3, 4, c); S(cx - 16 + k * 4, 14, 'w'); });
+      for (const dx of [-10, 2]) { R(cx + dx, 24, 10, 14, 'k'); R(cx + dx + 1, 25, 8, 12, 'w'); R(cx + dx + 3, 28, 2, 2, 'r'); R(cx + dx + 5, 32, 2, 2, 'r'); }
+      for (const a of [0.5, 1.57, 2.64]) {
+        const px = Math.round(cx + Math.cos(a) * (rx - 14)), py = Math.round(4 + Math.sin(a) * (ry - 14));
+        for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) { const d = Math.hypot(i, j); if (d <= 4) S(px + i, py + j, d > 3 ? 'F' : 'Q'); }
+      }
+    },
+    ']'(W, H, S, R) {
+      const Rr = 29, cy = 33, half = W / 2 - Rr - 1;
+      const dist = (i, j) => Math.hypot(Math.max(0, Math.abs(i + 0.5 - W / 2) - half), j + 0.5 - cy);
+      for (let j = 0; j < H; j++)
+        for (let i = 0; i < W; i++) {
+          const d = dist(i, j);
+          if (d > Rr) continue;
+          S(i, j, d > Rr - 2 ? 'k' : d > Rr - 4 ? 'N' : d > Rr - 8 ? (d > Rr - 5 ? 'N' : 'T') : d > Rr - 13 && d <= Rr - 11.5 ? 'F' : 'Q');
+        }
+      for (let k = 0; k < 5; k++) {
+        const x = W / 2 - 30 + k * 12;
+        R(x, 26, 10, 14, 'k'); R(x + 1, 27, 8, 12, 'w');
+        const c = k & 1 ? 'r' : 'k'; R(x + 2, 28, 2, 2, c); R(x + 4, 31, 2, 3, c); R(x + 6, 35, 2, 2, c);
+      }
+      [[24, 30, 'r'], [128, 30, 'u'], [56, 14, 'o'], [96, 14, 'r'], [56, 46, 'u'], [96, 46, 'o']].forEach(([x, y, c]) => {
+        R(x, y, 8, 6, 'k'); R(x + 1, y + 1, 6, 1, c); R(x + 1, y + 3, 6, 1, c); R(x + 1, y + 2, 6, 1, 'k');
+      });
+      R(114, 18, 6, 6, 'k'); R(115, 19, 4, 4, 'w'); R(116, 20, 2, 2, 'k'); // the dealer button
+    },
+  };
+
   // ---------- things drawn by code, at 32 x 32 ----------
   // Each takes a 32 x 32 buffer and the same (get, x, y, t) as its painter at 16, and draws
   // what stands on the tile (renderFloor32 lays it over the floor and the rest).
@@ -5894,6 +6018,9 @@ window.Art = (function () {
     },
   };
   PAINT32['~'] = PAINT32.C; // (open curtains: the same painter, which looks at t)
+  // the plant's finished units (their layouts as at 16, drawn with the 32 x 32 parts) and the casino's tables
+  for (const t of '012345') PAINT32[t] = (b, get, x, y) => paintWhole32(b, get, x, y, t, (W, H, s, r, S, R) => SHIP_UNITS[t](W, H, s, r, ahu32(S, R)));
+  for (const t of '[]') PAINT32[t] = (b, get, x, y) => paintWhole32(b, get, x, y, t, (W, H, s, r, S, R) => CASINO_TABLES32[t](W * 2, H * 2, S, R));
 
   // ---------- the office at 32 x 32 ----------
   // A floor at double resolution (renderFloor32): the floors, walls, doors, desks and
