@@ -963,24 +963,20 @@ Add these to the end of the address (after `index.html`) and press Enter.
   everything still (still drawing): for a screenshot of a snowball in mid-air, say, or a
   snow angel.
 
-**Double resolution (work in progress)**
+**Double resolution**
 
 The screen is drawn at twice the resolution (640 x 480 pixels for the same 320 x 240
-view), and the characters are being redrawn at 32 x 32 a part at a time. Until they're
-done it only shows with `&hires` in a `#play` link: your character is drawn at 32 x 32
-(`renderLook32` in `js/art.js`), with any part that hasn't been redrawn yet doubled from
-today's with Scale2x, and the floors and everyone else are Scale2x'd too. So far the head
-and face (`HEAD32`), all nine hairstyles (`HAIR32`), all eleven head things (`HAT32`) and
-all eight shirts (`SHIRT32`) and all four pants (`PANTS32`) are redrawn, so every look is
-drawn fully at 32 x 32, ugly Christmas sweaters (`SWEATER32`) too, and so are the
-coworkers (`renderSprites32`: the same parts, short hair, shirt and tie and trousers for a
-man, long hair and a blouse for a woman, in their own colours), and the dogs and the cat
-(`renderDog32`), and the Halloween costumes and ghosts (`COSTUME32`, `GHOST32`). Every
-person and animal is drawn at 32 x 32; only the office itself (floors, walls, furniture)
-is still today's, doubled with Scale2x, e.g.
-`index.html#play&hires&look=m20000000` (the look code is the body, then the skin 0 to 7,
-the hairstyle 0 to 8, the hair colour, the head thing, then the shirt and pants and their
-colours).
+view), and every person and animal is drawn at 32 x 32: your character (`renderLook32` in
+`js/art.js`: the head and face `HEAD32`, the hairstyles `HAIR32`, head things `HAT32`,
+shirts `SHIRT32`, pants `PANTS32` and ugly Christmas sweaters `SWEATER32`), the coworkers
+(`renderSprites32`: the same parts, short hair, shirt and tie and trousers for a man, long
+hair and a blouse for a woman, in their own colours), the dogs and the cat
+(`renderDog32`), and the Halloween costumes and ghosts (`COSTUME32`, `GHOST32`). The
+office itself (floors, walls, furniture) is still drawn at 16 x 16, doubled with Scale2x.
+Add `&hires=0` to a `#play` link to see everyone at 16 x 16 as they were, e.g.
+`index.html#play&hires=0`. A look code, as in `&look=m20000000`, is the body, then the
+skin 0 to 7, the hairstyle 0 to 8, the hair colour, the head thing, then the shirt and
+pants and their colours.
 
 **Straight into a mini-game**
 

@@ -23,11 +23,10 @@
     if (a.length === 2) return drawImage1(img, a[0], a[1], img.width / k, img.height / k);
     return drawImage1(img, a[0] * k, a[1] * k, a[2] * k, a[3] * k, a[4], a[5], a[6], a[7]);
   };
-  // &hires: a look at the office in double resolution, while the characters are redrawn
-  // at 32 x 32 (see "32 x 32 characters" in js/art.js): players, coworkers, costumes, the
-  // ghosts and the dogs are all drawn that way, and the floors are made double with Scale2x
-  // (Art.scale2x).
-  const HIRES = /[#&]hires/.test(location.hash);
+  // Everyone is drawn at 32 x 32 (see "32 x 32 characters" in js/art.js): players,
+  // coworkers, costumes, the ghosts and the dogs, and the floors are made double with
+  // Scale2x (Art.scale2x). &hires=0 in a #play link draws them all at 16 x 16 as they were.
+  const HIRES = !/[#&]hires=0/.test(location.hash);
   if (HIRES) {
     const floor = Art.renderFloor;
     Art.renderLook = Art.renderLook32;
