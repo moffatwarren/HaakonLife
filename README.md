@@ -992,6 +992,17 @@ jack-o'-lanterns and bats, the Christmas Cup, the Christmas lights, wreaths, tre
 stockings, mistletoe, poinsettias, candy canes, the gingerbread house and the ribbons and
 bows, and the Halloween party's bunting, cobwebs, spider, candy, candles, apple tub, toilet
 rolls and the rest.
+The text is drawn with smoothed letters (`FONT.glyphs2` in `js/font.js`), and the
+mini-games keep their layouts and sizes (so nothing about how they play, or what
+multiplayer sends, changes) but add finer detail under `if (HIRES)` with `fine()` (a
+rectangle that can be half a pixel across), `fineDisc()` and `roundBox()`. Done so far: the
+locker, Linda's and Kiki's lists, the Employee of the Month certificate, coffee, paper toss,
+the copier, lunch, candy, lights, punch, treadmill, squat, golf, snake, pong, fan, coil,
+dampers, filters, parts, patch panel, CPR, engraving, pulldown, balance ball, battle, front
+desk, paper jam, laundry and forms. Still to do: dark, dance, Nathan's trophies, Wade's golf,
+Lego, wok, carrot, candy jar, poker, blackjack, slots, forklift, paint, the costume contest,
+the Halloween games (bob, mummy, carve, treat, ghosts), catch, Humbug Sweeper, the SDG app,
+the elevator, the winter games' and hockey's flat fallbacks, and the menus and title screen.
 Add `&hires=0` to a `#play` link to see it all at 16 x 16 as it was, e.g.
 `index.html#play&hires=0`. A look code, as in `&look=m20000000`, is the body, then the
 skin 0 to 7, the hairstyle 0 to 8, the hair colour, the head thing, then the shirt and
