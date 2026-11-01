@@ -35,8 +35,8 @@ Map glyphs
   walkable:  j computer parts scattered on the floor
 
 The parking lot (behind the fitness room) is a fifth map, only open for Christmas
-(Nov 27 to Dec 31): its glyphs mean something of their own, since js/hd.js draws it
-in the smoother style rather than from tiles:
+(Nov 27 to Dec 31): its glyphs mean something of their own, since js/lot.js paints it
+all in one go rather than from tiles:
   walkable:  , plowed asphalt   . snow   ~ ice (you skate on it)
   solid:     # the office   X the fitness room's side doors   B rink boards   n hockey net
              c parked car (2 wide, 3 tall)   L lamp post   b bench   h hot chocolate stand

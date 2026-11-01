@@ -1,7 +1,7 @@
 // Pond hockey on the parking lot's rink: one on one against a coworker, or one on one or two
 // on two against other players. This is the rules, the skating, the puck and how the players
 // nobody's playing play; nothing in here draws or reads keys (js/game.js's HockeyGame and
-// LiveHockey do that, and js/lot3d.js draws the players and the puck), so the game server
+// LiveHockey do that, and drawYard draws the players and the puck), so the game server
 // runs it as it is for a live game (server/tables/hockey.js).
 //
 //   const g = HOCKEY.create(floor, { players: [{ name, team, ai, hand }], seed })
@@ -22,7 +22,7 @@
 //   this tick, for the sounds)
 //
 // Everything is in tiles (a metre each) from the map's top-left corner. Facing is an angle,
-// 0 toward the bottom of the map and π/2 toward the right, as in js/lot3d.js. Team 0
+// 0 toward the bottom of the map and π/2 toward the right, as in drawYard. Team 0
 // attacks the net at the top of the rink and team 1 the one at the bottom.
 //
 // A: with the puck, tap it to shoot, or hold it to wind up a slapshot (harder, but less

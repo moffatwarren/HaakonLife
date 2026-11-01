@@ -21,7 +21,7 @@ upload again without a push.
 
 | Action | Keyboard | Touch | Controller (Xbox / PlayStation) |
 | --- | --- | --- | --- |
-| Move | Arrows / WASD | D-pad (a thumbstick for walking round the parking lot, for hockey and for rolling snowballs) | Left stick or D-pad |
+| Move | Arrows / WASD | Thumbstick (a D-pad in menus and most mini-games) | Left stick or D-pad |
 | A: interact, confirm | E / Space | A | A / ✕ |
 | B: back, cancel (out in the parking lot at Christmas, throw a snowball) | Esc / X / Shift | B | B or X / ○ or □ |
 | Start menu (map, edit your character, sound, music) | Enter (or Esc while walking) | START | Menu / Options |
@@ -33,6 +33,11 @@ upload again without a push.
   the hints in the game name its buttons, and a phone tucks its on-screen buttons away
   for a bigger screen (touch the screen to bring them back). Browsers won't let a
   controller start the sound, so it starts with your first click, tap or key.
+- You aren't kept to the floor's tiles, on any map: you go whichever way you push,
+  diagonals too (two arrows at once, or a thumbstick, as fast as you push it), and slip
+  round a corner you only just catch, so doorways and the gaps between desks are easy to
+  get through. Press A to talk to whoever is in front of you, or to use what you're
+  facing, without having to line up with it first.
 - Walk onto a staircase to change floors, or face the elevator doors and press A.
 - After the title screen, type your name (the game remembers it), then make your
   character: gender, skin, hair and its colour, something on your head (a cap, a toque,
@@ -355,9 +360,13 @@ around, with your names over your heads, looking like the characters you made (i
 whatever Halloween costume you picked). Somebody on a copy from before the character
 editor sees you as one of the old characters until they update. They're red dots on the
 map, and **Who's here** in the Start menu lists everyone and the room they're in. Other
-players don't block your way, so nobody can stand in a doorway and trap you.
+players don't block your way, so nobody can stand in a doorway and trap you. You see them
+where they really are, going any way, unless they're on an older copy, which only says
+which tile they're on (and has them walking from tile to tile).
 
-- **Say something**: from the Start menu, or walk up to another player and press A.
+- **Say something**: from the Start menu, or walk up to another player and press A
+  (anywhere within about a tile and a half in front of you will do, or right on top of
+  you, and you turn to face them).
   Pick **Small talk** (Hi!, Follow me!, Good game! and so on) or **Shop talk** (Check
   the CFM!, Coil's frozen!, Is that REV C? and so on), then a line, and it pops up over
   your head for everyone near you. Or pick **Custom** and type your own, up to 32
@@ -421,7 +430,7 @@ players don't block your way, so nobody can stand in a doorway and trap you.
     wall where they'll land. Getting hit splatters snow over your screen, and for a moment
     afterwards the next one only brushes you. Three hits and you're out; otherwise
     whoever has been hit fewer times when the 90 seconds are up wins (the same is a draw).
-    Out in the lot it's drawn in 3D (and flat anywhere else). It's in the list from
+    It's in the list from
     November 27 2026 on, for good (`SEASON_FROM`, as for the Hall of Fame), or early with
     `#christmas=1` on the address (which is how to try it on the live site: only the one
     challenging needs it). The game
@@ -686,7 +695,7 @@ From November 27 to December 31 (by your device's date) the office does Christma
 - After the character editor you pick an **ugly Christmas sweater**: Gingerbread,
   Reindeer, Snowflakes, Xmas tree, Candy cane, Santa suit, Snowman, Moose or Ho Ho HVAC (or
   NONE, for the shirt you made). It goes on over your look in place of your shirt (your
-  hair, head thing and pants stay), and you wear it all game, indoors and out, in 3D too.
+  hair, head thing and pants stay), and you wear it all game, indoors and out.
   Other players see it, and the game remembers it. About half your coworkers come in
   wearing one too (a random half each time the game loads, separate from who wears one
   out in the parking lot).
@@ -701,20 +710,14 @@ From November 27 to December 31 (by your device's date) the office does Christma
 - The music changes too: indoors the office tune gives way to Deck the Halls, outside
   it's Jingle Bells, and out on the ice a slow skating waltz.
 - The fitness room's side doors (on its left wall) open onto the **parking lot**, a map
-  of its own drawn in a rough, cel-shaded cartoon style instead of pixels (thick black
-  outlines, flat colour, a hard shadow and highlight): snow falling, lights strung over
-  the lot, the office's brick front along the top, a rink running down the middle, and
-  room to spare all round. Walk back into the doors to go inside again. Out here you
-  aren't kept to the tiles: you go whichever way you push, diagonals too (two arrows at
-  once, or a thumbstick, as fast as you push it), and slip round a corner you only just
-  catch, so the gaps between the cars and the rink's gate are easy to get through.
+  of its own in the same pixels as the office: snow falling, lights strung round the rink,
+  the office's brick front along the top, a rink running down the middle, and room to
+  spare all round. Walk back into the doors to go inside again.
 - **Skating**: step onto the ice and you're on skates, and skate the way you do in
   hockey. Push to pick up speed (up to twice walking pace), turn and you lose some (turn
   right round and you brake first), let go and you glide on, slowing down little by
   little until you come to a stop (about 10 tiles from full speed). The boards stop you
-  dead. In 3D you crouch and push off one skate then the
-  other, toe turned out, swaying over the one you're gliding on with your arms swinging
-  across, and coast with both skates side by side.
+  dead.
 - **Out in the snow**: anyone walking through the deep snow (the park east of the lot,
   not the plowed lot itself) leaves footprints, which the falling snow fills back in over
   a minute and a half. **B throws a snowball** the way you're facing; it flies about eight
@@ -726,8 +729,7 @@ From November 27 to December 31 (by your device's date) the office does Christma
   and the angel stays behind you for a few minutes. Other players see your snowballs and
   snow angels and you see theirs (a snowball hits whoever it hits on each screen, so a near
   miss can look different to the person it missed). It's "out in the snow" in
-  `js/game.js`, drawn by `js/lot3d.js` (or by `drawYard` when the lot is flat), and the
-  snow angel's shape is `snowAngel` in `js/hd.js`.
+  `js/game.js`, drawn by `drawYard`, and the snow angel's shape is `ANGEL` in `js/lot.js`.
 - Eleven coworkers, picked at random each time the game loads, have gone out there and
   stand around the lot: one minding the gate in the rink's boards, at the fire pit, the
   hot chocolate stand, a car, the snowman and the big spruce, and two pacing along the
@@ -792,10 +794,7 @@ From November 27 to December 31 (by your device's date) the office does Christma
     player instead, challenge them (see **Playing together**).
 
   They're in `js/game.js` after `yardTalk` (ChopGame, MallowGame, SpruceGame, SnowmanGame,
-  CocoaGame and SnowballGame), and `YARD_GAMES` says which prop starts which. When the
-  lot is in 3D, so are they: `js/winter3d.js` builds each one a little stage in the lot's
-  own look (its renderer, light, outlines and people come from `js/lot3d.js`), with the
-  scores, meters and words drawn over it as usual. Otherwise they draw themselves flat.
+  CocoaGame and SnowballGame), and `YARD_GAMES` says which prop starts which.
 - **Humbug Sweeper**: from the day Christmas first starts (`SEASON_FROM`, November 27 2026)
   every office computer has a second icon on its desktop, **Humbugs**, and it stays there
   for good, all year round, after the holidays are over.
@@ -826,10 +825,10 @@ From November 27 to December 31 (by your device's date) the office does Christma
   it has the champion's name and time engraved on its plaque, with the final board. The
   champion (1st on the cup's board; on a tie, whoever got there first) wins **golden
   antlers**: chunky cartoon antlers in polished gold that catches the light, with a
-  jingle bell at the foot of each (and a red ribbon bow, in 3D). From New
+  jingle bell at the foot of each. From New
   Year's Day they're one of the champion's head things in the character editor, for good,
   on any phone or computer with the same name, and nobody else can pick them. They go on
-  over the hair like the bow does, drawn in pixels, in the flat parking lot and in 3D.
+  over the hair like the bow does.
   The first time the champion is walking around after New Year's, a message tells them
   they've won and offers to put the antlers on (once for each name); pressing A on the cup
   offers them too, until they're wearing them. Everyone else, the first time they're
@@ -853,8 +852,8 @@ From November 27 to December 31 (by your device's date) the office does Christma
   either side of the puck, racing for it when it drops. Enter (or Esc) pauses,
   and you can give up from there. Tied at the buzzer, it goes to overtime, next goal
   wins. You're the yellow ring, they're the red, and whoever has the puck has theirs
-  filled in. The ice is 14 by 30 metres. In 3D the camera drops low behind the rink's
-  near end, looking up the ice at the net you're shooting at. The most goals you've
+  filled in. The ice is 14 by 30 metres, and the view follows the play (mostly the
+  puck). The most goals you've
   scored in one game (played to the end, win or lose) go on the **HOCKEY GOALS**
   leaderboard, on the Christmas page of the Hall of Fame.
 - **Live hockey**: with a game server, go up to the rink itself (its boards, a net, or
@@ -884,45 +883,27 @@ From November 27 to December 31 (by your device's date) the office does Christma
   one lobby each for one on one and two on two, so while a game is on, anyone else is
   told to try again once it's over.
 
-The parking lot is drawn in 3D by `js/lot3d.js`: the same cel-shaded look (three flat
-bands of light and a black outline on everything), seen from high up to the south like
-an old Diablo game, with the camera following you. It's laid out from the Parking Lot's
-rows in `js/maps.js` at a metre to a tile, so moving a car or a lamp post there moves it
-in 3D too, and the controls and everything that happens out there are the same as ever.
-**ZOOM** in the Start menu (only while you're out there in 3D) brings the camera in from
-FAR to MID to CLOSE; it's remembered on that device.
-It runs on Three.js (`js/vendor/three.min.js`, MIT licensed), which is only fetched at
-Christmas, in the background once the game has loaded. It's always dusk out there, with
-the sun low in the west, the windows, lamps and strings of lights all on, and snow
-coming down.
-To keep it light on the computer, it's drawn at most about a hundred times a second
-(every second or third refresh on a fast screen), and once it's built, everything that
-never moves is welded into a few big meshes, as is each part of a person that moves as
-one (a head, a shin). Anything added later that has to move or flicker on its own, like
-the fire's flames and embers, needs keeping out of that welding.
+The parking lot is painted by `js/lot.js`, in the same pixels as the office: 16 to a tile
+(32 at double resolution), a 2-pixel outline round everything and the light from the top
+left. It's laid out from the Parking Lot's rows in `js/maps.js`, so moving a car or a lamp
+post there moves it here too. It's all painted once, the first time you go out. Everything
+lying flat or no taller than its own tiles goes on one big picture (the snow, the asphalt,
+the office, the rink, the cars), and anything you can walk behind (the lamp posts, the
+trees, the snowman, the hot chocolate stand, the flames) is a picture of its own that
+`drawYard` in `js/game.js` sorts in with the people by where their feet are. It's always
+dusk out there, with the windows, lamps and strings of lights all on, and snow coming down.
 
-Until Three.js is in, or on a device that can't do 3D (including a browser that can
-only draw on the processor, as Chrome on Windows can after a graphics driver update
-until it's restarted), the lot is drawn flat by
-`js/hd.js`, on a canvas four times the size of the game screen that sits under it (the
-game screen goes see-through outside, so menus and dialogs still draw on top as usual).
-In 3D that canvas only carries other players' names and speech bubbles. Everyone in it
-is the same size. Coworkers look just as they do in the office, in the colours they
-already have (`js/people.js`): short hair with a shirt and tie, or long hair with a
-blouse and necklace, over trousers. Set `style: { hair, hat, shirt, pants }` on someone
-in `PEOPLE` to dress them in anything else from the character editor (the options are
-listed at the top of `js/people.js`). Players wear just what they made
-in the character editor: the same hair, head thing, shirt and pants, in the same
-colours (each part's `hd` in `js/art.js` names its match in `js/hd.js` and `js/lot3d.js`),
-with their ugly sweater over the top. The sweaters are `SWEATERS` in `js/art.js` (each one's
-colours, and its pattern in the pixel art), and what's knitted on the front of each is
-`sweaterArt` in `js/hd.js`, which `js/lot3d.js` paints on the 3D sweater too. What they say out there is
+Everyone is drawn with the same sprites as in the office, each placed from where they
+really are, to the nearest real pixel, and on the ice they're on skates (`onSkates` paints white boots and steel over their feet). Coworkers
+look just as they do in the office, in the colours they already have (`js/people.js`).
+Players wear just what they made in the character editor, with their ugly sweater over the
+top. The sweaters are `SWEATERS` in `js/art.js`. What they say out there is
 `CHRISTMAS_LINES` at the bottom of `js/people.js`, and anyone in `PEOPLE` can have a
 `christmas:` line of their own. The rink's layout is in `tools/build_maps.py`.
 
 The hockey game's rules, skating, puck and the coworker you play against are in
 `js/hockey.js`, which only works out what happens (`js/game.js` reads your keys into it,
-plays the sounds and puts up the score, and `js/lot3d.js` or `js/hd.js` draws it). It's
+plays the sounds and puts up the score, and `drawYard` draws it). It's
 the same every time from the same seed and never reads keys or draws, so the game server
 runs it as it is for live hockey (`server/tables/hockey.js`, drawn by `LiveHockey` in
 `js/game.js`), and a game saved part way through (`save()`, `load()`) carries on exactly
@@ -954,8 +935,6 @@ Add these to the end of the address (after `index.html`) and press Enter.
 - `index.html#christmas=1`: the whole game with Christmas switched on.
 - `index.html#play&christmas=1&yard=1`: start outside the parking lot's doors.
 - `#christmas=0` switches it off during the holidays.
-- Add `&flat` to see the flat parking lot instead of the 3D one, and `&zoom=2` (or `1`)
-  to bring the 3D one's camera in close (or halfway).
 - Add `&champion=Ada` to make the Christmas Cup's season over with Ada as its champion (add
   `&name=Ada` to be Ada, and you're told you've won and offered the golden antlers; any other name sees the
   banner instead).
@@ -1009,7 +988,7 @@ dampers, filters, parts, patch panel, CPR, engraving, pulldown, balance ball, ba
 desk, paper jam, laundry, forms, Nathan's trophies, wok, carrot, Wade's golf, dance, dark, Lego,
 candy jar, poker, blackjack, slots, forklift, paint, the costume contest and the Halloween
 games (bob, mummy, carve, treat, ghosts), catch, Humbug Sweeper, the SDG app and desktop,
-the elevator, the winter games' and hockey's flat fallbacks, and the menus and title screen.
+the elevator, the winter games, the parking lot and hockey, and the menus and title screen.
 Add `&hires=0` to a `#play` link to see it all at 16 x 16 as it was, e.g.
 `index.html#play&hires=0`. A look code, as in `&look=m20000000`, is the body, then the
 skin 0 to 7, the hairstyle 0 to 8, the hair colour, the head thing, then the shirt and

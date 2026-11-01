@@ -905,7 +905,7 @@ window.Art = (function () {
   ];
   // Hair: the whole head, from row 0, looking down (at you), up (away) and left (right is
   // the same flipped). Rows past the chin (row 9) are laid over the shirt, where '.'
-  // leaves the shirt showing. `hd` is the parking lot's nearest hairdo (js/hd.js).
+  // leaves the shirt showing. `hd` is its name in the 32 x 32 tables below.
   const HAIRS = [
     { name: 'Short', hd: 'short', down: HEAD_DOWN, up: HEAD_UP, left: HEAD_LEFT },
     {
@@ -958,8 +958,7 @@ window.Art = (function () {
     },
   ];
   // Head things: laid over the hair, from row 0 ('.' leaves it, '_' rubs it out).
-  // `hd` names the same thing out in the parking lot (js/hd.js), as it does for the hair,
-  // shirts and pants.
+  // `hd` is its name in the 32 x 32 tables below, as it is for the hair, shirts and pants.
   const HATS = [
     { name: 'Nothing', hd: 'none' },
     {
@@ -1168,14 +1167,11 @@ window.Art = (function () {
     const c = hexRGB(hex), k = hexRGB(COLORS.k);
     return '#' + c.map((v, i) => Math.round(v + (k[i] - v) * f).toString(16).padStart(2, '0')).join('');
   }
-  // a look's colours, the way the rest of the game (and js/hd.js) names them
+  // a look's colours, the way the rest of the game names them
   function lookColours(look) {
     const sc = SHIRT_COLOURS[look.shirtC];
     return { h: HAIR_COLOURS[look.hairC][1], s: SKINS[look.skin], w: sc[1], u: sc[2], K: PANTS_COLOURS[look.pantsC][1] };
   }
-  // how a look dresses in the parking lot's smoother style (js/hd.js): just as it is here,
-  // in an ugly sweater (SWEATERS) if it names one
-  const lookStyle = (look, sweater) => ({ hair: HAIRS[look.hair].hd, hat: HATS[look.hat].hd, shirt: SHIRTS[look.shirt].hd, pants: PANTS[look.pants].hd, sweater: sweaterStyle(sweater) });
 
   // lay rows over a buffer from row y0: '.' (or past a row's end) leaves what's there, '_' rubs it out
   function lay(b, rows, y0) {
@@ -3585,7 +3581,7 @@ window.Art = (function () {
   // `cols` are the sweater's
   // colours, the knit first: in the rows they're '1' to '5'. `front` and `back` are the
   // chest across rows 10-12 (six pixels wide, between the arms); the side view has the
-  // back's pattern. js/hd.js and js/lot3d.js knit the same sweater by its key, bigger.
+  // back's pattern.
   const SWEATERS = {
     gingerbread: { name: 'Gingerbread', cols: ['#efe2c4', '#a8642e', '#f8f8f8', '#d03a3a'], front: ['112211', '224422', '121121'], back: ['111111', '212121', '111111'] },
     reindeer: { name: 'Reindeer', cols: ['#2e6b3a', '#d23a3a', '#f4f1ea', '#8a5a34'], front: ['141141', '114411', '132231'], back: ['111111', '323232', '111111'] },
@@ -3606,8 +3602,6 @@ window.Art = (function () {
   });
   // (and '0', the knit in shadow, for 32 x 32)
   const sweaterPal = (sw) => { const o = { 0: darker(sw.cols[0], 0.25) }; sw.cols.forEach((c, i) => { o[i + 1] = c; }); return o; };
-  // how a sweater dresses someone in the parking lot (js/hd.js, js/lot3d.js)
-  const sweaterStyle = (key) => (SWEATERS[key] ? { key, cols: SWEATERS[key].cols } : null);
   // (and each one's 32 x 32 knit: see SWEATER32)
   for (const k in SWEATERS) if (SWEATER32[k]) SWEATERS[k].hi = SWEATER32[k];
 
@@ -7613,7 +7607,7 @@ window.Art = (function () {
   return {
     LOOKS, UI, COSTUMES, scale2x, renderFloor, renderFloor32, renderTileAs32, renderSprites, renderCostume, renderDog, renderDog32, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLook32, renderSprites32, renderLookCostume, renderLookCostume32, renderCostume32, renderGhost32,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLook32, renderSprites32, renderLookCostume, renderLookCostume32, renderCostume32, renderGhost32,
     SWEATERS,
   };
 })();

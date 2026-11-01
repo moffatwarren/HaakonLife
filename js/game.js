@@ -36,7 +36,7 @@
     Art.renderFloor = Art.renderFloor32;
     Art.renderTileAs = Art.renderTileAs32;
   }
-  // Touch screens get the on-screen D-pad (a thumbstick out in the parking lot) and A/B/START
+  // Touch screens get the on-screen thumbstick (a D-pad in menus) and A/B/START
   // buttons (see layout), and the control hints drawn in the game name those buttons
   // instead of keyboard keys.
   const isTouch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 || /[#&]touch/.test(location.hash);
@@ -58,7 +58,7 @@
   // ---------- art ----------
   const GENDERS = ['male', 'female'];
   const col = Art.UI;
-  // (the parking lot is drawn by js/hd.js instead: see "Christmas")
+  // (the parking lot is painted by js/lot.js the first time you go out: see drawYard)
   const floorCanvas = MAPS.floors.map((f) => (f.outdoor ? null : Art.renderFloor(f)));
   const miniCanvas = MAPS.floors.map((f) => Art.renderMini(f));
   const charSprites = {};
@@ -222,10 +222,10 @@
   }
   function playerAt(x, y) {
     if (P.free) return Math.abs(P.fx - x) < 0.5 + FREE_R && Math.abs(P.fy - y) < 0.5 + FREE_R; // any tile you're partly on
-    return (P.x === x && P.y === y) || (P.moving && P.x + P.mdx === x && P.y + P.mdy === y);
+    return P.x === x && P.y === y;
   }
   // At Christmas about half of them come in wearing an ugly sweater (a random half each
-  // time the game loads, apart from who wears one out in the parking lot: see knits).
+  // time the game loads, apart from who wears one out in the parking lot: see sendOutside).
   (function spawnNpcs() {
     const placed = new Set(), SWEATERS = Object.keys(Art.SWEATERS);
     const knit = (body) => (CHRISTMAS && body !== 'ghost' && Math.random() < 0.5 ? SWEATERS[Math.floor(Math.random() * SWEATERS.length)] : '');
@@ -720,11 +720,10 @@
     el.addEventListener('pointercancel', up);
     el.addEventListener('lostpointercapture', up);
   });
-  // The direction control is a D-pad, except out in the parking lot, where it's a
-  // thumbstick for walking round and for the games that want one (hockey and the snowman:
-  // stick on their screens); menus and everything else there are easier with the D-pad
-  // (setPadMode). The stick still holds one of the four directions down, for walking, and
-  // also says which way it's pushed and how far (stick), for skating in hockey.
+  // The direction control is a thumbstick for walking round and for the games that want one
+  // (hockey and the snowman: stick on their screens); menus and everything else are easier
+  // with a D-pad (setPadMode). The stick still holds one of the four directions down, for
+  // whatever goes by those, and also says which way it's pushed and how far (stick).
   // It's the same element either way, so a thumb held down through the door carries on.
   let padMode = 'dpad', setPadMode = () => {};
   const dpad = document.getElementById('dpad');
@@ -844,8 +843,8 @@
 
   // ---------- drawing helpers ----------
   // Keyboard hints -> touch button hints ("Space: punch" -> "A: punch", "Esc: give up" ->
-  // "B: give up", "Arrows: steer" -> "D-pad: steer", or "Stick: steer" out in the parking
-  // lot), on a touch screen or with a controller in hand (buttonHints). Only hint-shaped
+  // "B: give up", "Arrows: steer" -> "D-pad: steer", or "Stick: steer" where the thumbstick
+  // is up), on a touch screen or with a controller in hand (buttonHints). Only hint-shaped
   // text is touched, so an SDG "Space" component or a printout stays as it is.
   const TOUCH_HINTS = [
     // (no lookbehind for "Hold Space": Safari before iOS 16.4 can't parse one, and the
@@ -3558,7 +3557,7 @@
   // crown), a short path of gold glints is left on the ground behind them, twinkling as it
   // fades in half a second. Places are in pixels, where people are drawn (x and y as their
   // sprite's), with jx and jy scattering each glint a little either side of the path and s
-  // setting when it twinkles. drawWorld, drawYard and js/lot3d.js draw it (see glowScene).
+  // setting when it twinkles. drawWorld and drawYard draw it (drawGlowPix).
   const GLOW = { pts: [], me: {} }, GLOW_LIFE = 30;
   const glint = (g) => ((tick + Math.floor(g.s * 24)) >> 2) % 5 === 0;
   function glowTick() {
@@ -3572,14 +3571,11 @@
         Object.assign(last, { x, y });
       }
     };
-    if (crowned && !out(P.floor)) {
-      if (P.floor === YARD) drop(GLOW.me, YARD, (P.free ? P.fx : P.x) * 16, (P.free ? P.fy : P.y) * 16);
-      else drop(GLOW.me, P.floor, P.x * 16 + (P.moving ? P.mdx * P.prog : 0), P.y * 16 + (P.moving ? P.mdy * P.prog : 0));
-    }
+    if (crowned && !out(P.floor)) drop(GLOW.me, P.floor, ...mePx());
     for (const o of mpHere()) if (o.look.hat === Art.CROWN && !out(o.f)) drop(o.glow || (o.glow = {}), o.f, o.px, o.py);
     while (GLOW.pts.length && tick - GLOW.pts[0].t >= GLOW_LIFE) GLOW.pts.shift();
   }
-  // in the office: a pixel of gold under each glint, a little yellow sparkle while it twinkles
+  // a pixel of gold under each glint, a little yellow sparkle while it twinkles
   const GLOW_COLS = ['#e09a10', '#f0b828', '#ffd850'];
   function drawGlowPix(cx, cy) {
     for (const g of GLOW.pts) {
@@ -3599,26 +3595,6 @@
     }
     ctx.globalAlpha = 1;
   }
-  // in the flat parking lot: a soft gold spot under each glint, and a four-pointed star
-  // over it while it twinkles
-  function glowGround(c) {
-    for (const g of GLOW.pts) {
-      if (g.f !== YARD) continue;
-      const k = (tick - g.t + drawAlpha) / GLOW_LIFE, x = g.x + 8 + g.jx, y = g.y + 12 + g.jy;
-      c.globalAlpha = 0.85 * (1 - k);
-      c.fillStyle = GLOW_COLS[1];
-      c.beginPath(); c.ellipse(x, y, 2.2 - k, 1.1 - k * 0.5, 0, 0, Math.PI * 2); c.fill();
-      if (!glint(g)) continue;
-      const s = 2.6 * (1 - k * 0.5), sy = y - k * 3;
-      c.globalAlpha = 1 - k;
-      c.fillStyle = GLOW_COLS[2];
-      c.beginPath(); c.ellipse(x, sy, s, s * 0.22, 0, 0, Math.PI * 2); c.ellipse(x, sy, s * 0.22, s, 0, 0, Math.PI * 2); c.fill();
-    }
-    c.globalAlpha = 1;
-  }
-  // and in the 3D lot (in pixels like a person's px and py, k 0 to 1 through fading away)
-  const glowScene = () => GLOW.pts.filter((g) => g.f === YARD)
-    .map((g) => ({ x: g.x + g.jx, y: g.y + g.jy, k: Math.min(1, (tick - g.t + drawAlpha) / GLOW_LIFE), on: glint(g) }));
   function HallOfFame() {
     const name = playerName || store.get('name') || '', me = name ? boardKey(name) : null;
     const { keys, games, groups } = fameBoards();
@@ -9375,7 +9351,7 @@
   function endParty() {
     for (let i = npcs.length - 1; i >= 0; i--) if (npcs[i].guest) npcs.splice(i, 1);
     hw.guests = [];
-    if (hw.back) Object.assign(P, hw.back, { floor: hw.floor, moving: false, prog: 0, walked: false, bump: 0 });
+    if (hw.back) Object.assign(P, hw.back, { floor: hw.floor, bump: 0 });
     hw.back = null;
     hw.state = 'done';
     curRoom = roomAt(P.floor, P.x, P.y);
@@ -11563,13 +11539,6 @@
       .concat([['MAP', () => ui.push(MapView())]])
       .concat(MP_ON ? [['WHO\'S HERE', (self) => { remove(self); mpWho(); }], ['SAY SOMETHING', (self) => { remove(self); mpSayMenu(); }]] : [])
       .concat(mp.newer ? [['UPDATE GAME', () => location.reload()]] : [])
-      .concat(P.floor === YARD && hd && hd.gl ? [[LOT_ZOOMS[lotZoom], (self) => {
-        lotZoom = (lotZoom + 1) % LOT_ZOOMS.length;
-        store.set('zoom', lotZoom);
-        hd.gl.setZoom(lotZoom);
-        self.options = items().map((o) => o[0]);
-        sfx('select');
-      }]] : [])
       .concat(quest ? [['LINDA\'S LIST', () => ui.push(LindaList())]] : [])
       .concat(kikiList ? [['KIKI\'S LIST', () => ui.push(KikiList())]] : [])
       .concat([
@@ -12319,8 +12288,8 @@
   }
   const mpLive = (o) => !!o && Date.now() - o.seen < MP_LIVE;
   const mpHere = () => Object.values(mp.others).filter(mpLive);
-  // where someone is, in pixels: out in the parking lot exactly (from a copy that says), or the tile they're on
-  const mpTarget = (o) => (o.f === YARD && typeof o.fx === 'number' && typeof o.fy === 'number' ? [o.fx, o.fy] : [o.x * 16, o.y * 16]);
+  // where someone is, in pixels: exactly (from a copy that says), or the tile they're on
+  const mpTarget = (o) => (typeof o.fx === 'number' && typeof o.fy === 'number' ? [o.fx, o.fy] : [o.x * 16, o.y * 16]);
   function mpAt(fi, x, y) {
     return mpHere().find((o) => o.f === fi && ((o.x === x && o.y === y) || (Math.round(o.px / 16) === x && Math.round(o.py / 16) === y))) || null;
   }
@@ -12467,7 +12436,7 @@
         // someone already here when you arrive counts if their record is recent (by this
         // device's clock); otherwise they show up as soon as their next update arrives
         const [px, py] = mpTarget(rec);
-        o = mp.others[id] = { id, px, py, dir: rec.d, dist: 0, seen: now - rec.t < 30000 ? now : 0, said: 0 };
+        o = mp.others[id] = { id, px, py, dir: rec.d, dist: 0, idle: 0, seen: now - rec.t < 30000 ? now : 0, said: 0 };
         Object.assign(o, rec);
         o.sn0 = rec.sn; // what they'd said before you got here stays unsaid
         continue;
@@ -12531,16 +12500,17 @@
       // (a copy from before the character editor goes by g and l, so it sees one of its own
       // characters in your place)
       n: playerName || 'New Hire', a: Art.lookCode(wornLook(myLook)), g: myLook.g, l: 0, c: hw.worn ? hw.costume : '', f: P.floor,
-      x: P.x + (P.moving ? P.mdx : 0), y: P.y + (P.moving ? P.mdy : 0), d: P.dir, b: ui.length || fade || mode !== 'play' ? 1 : 0,
+      x: P.x, y: P.y, d: P.dir, b: ui.length || fade || mode !== 'play' ? 1 : 0,
       s: mp.say, sn: mp.sayN, v: MP_VER, p: MP_PROTO, tc: isTouch ? 1 : 0,
     };
     if (mp.sayText) { rec.w0 = mp.sayText.slice(0, 16); if (mp.sayText.length > 16) rec.w1 = mp.sayText.slice(16); }
     // what you're playing (see MP_DOING), and at a live table how many are at it
     const game = rec.b && mpDoing();
     if (game) { rec.do = game.doing; if (game.seated) rec.dn = game.seated; }
-    // out in the parking lot, exactly where you are (pixels) and which way you face, so
-    // everyone else sees you go any way there (a copy from before only goes by x, y)
-    if (P.free) { rec.fx = Math.round(P.fx * 16); rec.fy = Math.round(P.fy * 16); rec.fa = Math.round(P.face * 20) / 20; }
+    // exactly where you are (pixels) and which way you face, so everyone else sees you go
+    // any way (a copy from before only goes by x, y)
+    const [fx, fy] = mePx();
+    rec.fx = Math.round(fx); rec.fy = Math.round(fy); rec.fa = Math.round(P.face * 20) / 20;
     // your ugly sweater, and your last snowball and snow angel out there
     if (mySweater()) rec.xs = mySweater();
     snowRec(rec);
@@ -12677,24 +12647,30 @@
     }
     if (mp.bubble && ++mp.bubble.t > mpSayFor(mp.bubble.str)) mp.bubble = null;
     for (const o of Object.values(mp.others)) {
-      const [tx, ty] = mpTarget(o), dx = tx - o.px, dy = ty - o.py, free = o.f === YARD && o.fa !== null;
-      // (which way they face, out in the lot)
+      const [tx, ty] = mpTarget(o), dx = tx - o.px, dy = ty - o.py, free = o.fa !== null;
+      // (which way they face)
       o.face = free ? o.fa : undefined;
       // a floor change, or falling more than a few tiles behind, jumps straight there
-      if (o.f !== o.drawnF || Math.abs(dx) + Math.abs(dy) > 64) { o.px = tx; o.py = ty; o.drawnF = o.f; o.dir = o.d; continue; }
-      if (!dx && !dy) { o.dir = o.d; o.dist = 0; continue; }
-      // walk at your pace, a little quicker when lagging (a lot quicker when they're
-      // skating), one axis at a time like the player, or out in the lot straight there
-      const far = Math.abs(dx) + Math.abs(dy);
-      const sp = far <= 16 ? 2 : o.f === YARD ? Math.min(5, far / 8) : 3;
-      if (free) { const k = Math.min(1, sp / Math.hypot(dx, dy)); o.px += dx * k; o.py += dy * k; o.dir = o.d; }
-      else if (dx) { o.px += Math.sign(dx) * Math.min(sp, Math.abs(dx)); o.dir = dx < 0 ? 'left' : 'right'; }
+      if (o.f !== o.drawnF || Math.abs(dx) + Math.abs(dy) > 64) { o.px = tx; o.py = ty; o.drawnF = o.f; o.dir = o.d; o.dist = 0; continue; }
+      // (a moment waiting for their next update isn't stopping: their legs stay as they were)
+      if (!dx && !dy) { o.dir = o.d; if (++o.idle > 15) o.dist = 0; continue; }
+      o.idle = 0;
+      // Ease toward where they last said they were, settling about one update behind them
+      // at any speed, so an update that comes late slows them a little instead of stopping them.
+      if (free) {
+        const far = Math.hypot(dx, dy), sp = Math.min(5, Math.max(0.5, far / 7)), k = Math.min(1, sp / far);
+        o.px += dx * k; o.py += dy * k; o.dir = o.d; o.dist += sp;
+        continue;
+      }
+      // a copy that only goes by tiles: at your pace, a little quicker when lagging, one axis at a time
+      const sp = Math.abs(dx) + Math.abs(dy) <= 16 ? 2 : 3;
+      if (dx) { o.px += Math.sign(dx) * Math.min(sp, Math.abs(dx)); o.dir = dx < 0 ? 'left' : 'right'; }
       else { o.py += Math.sign(dy) * Math.min(sp, Math.abs(dy)); o.dir = dy < 0 ? 'up' : 'down'; }
       o.dist += sp;
     }
   }
   // the same step cycle as yours: a foot forward, stand, the other foot, stand
-  const mpFrame = (o) => (o.px === o.x * 16 && o.py === o.y * 16 ? 0 : [1, 0, 2, 0][(o.dist >> 3) & 3]);
+  const mpFrame = (o) => (o.dist ? [1, 0, 2, 0][(o.dist >> 3) & 3] : 0);
 
   // Names over everyone's heads, and whatever they've just said in a bubble above that.
   function mpBubble(str, x, y) {
@@ -12714,15 +12690,19 @@
     const doing = MP_DOING[o.do];
     return typeof doing === 'function' ? doing(o.dn) : doing || '.'.repeat(1 + ((tick >> 4) % 3)).padEnd(3);
   }
+  // someone's name, with the middle of its bottom edge at sx, sy
+  function mpTag(name, sx, sy) {
+    const w = name.length * 6 + 3;
+    ctx.globalAlpha = 0.7; ctx.fillStyle = col.dark; ctx.fillRect(sx - (w >> 1), sy - 11, w, 10); ctx.globalAlpha = 1;
+    text(name, sx - (w >> 1) + 2, sy - 10, 1, '#f8f8f8');
+  }
   function mpDrawTags(cx, cy, px, py) {
     const now = Date.now();
     for (const o of mpHere()) {
       if (o.f !== P.floor) continue;
-      const sx = o.px - cx + 8, sy = o.py - cy - 4;
+      const sx = Math.round(o.px - cx + 8), sy = Math.round(o.py - cy - 4);
       if (sx < -40 || sx > SW + 40 || sy < -30 || sy > SH + 10) continue;
-      const w = o.n.length * 6 + 3;
-      ctx.globalAlpha = 0.7; ctx.fillStyle = col.dark; ctx.fillRect(sx - (w >> 1), sy - 11, w, 10); ctx.globalAlpha = 1;
-      text(o.n, sx - (w >> 1) + 2, sy - 10, 1, '#f8f8f8');
+      mpTag(o.n, sx, sy);
       const said = mpSaying(o, now);
       if (said) mpBubble(said, sx, sy - 28);
     }
@@ -12849,9 +12829,8 @@
   // poinsettias sit along the counters, the candy table has candy canes and the lunch room
   // has a gingerbread house; at the plant the finished units in shipping are tied up in
   // red ribbon, and in the casino so are the slot machines. And the fitness room's side
-  // doors open onto the parking lot (YARD), drawn in js/hd.js's smoother style on a canvas
-  // of its own under the game screen: a rink with coworkers skating laps of it, a fire pit,
-  // a hot chocolate stand and falling snow.
+  // doors open onto the parking lot (YARD), painted by js/lot.js: a rink, a fire pit, a hot
+  // chocolate stand and falling snow.
   const xmas = (function () {
     const office = (fi) => fi !== PLANT && fi !== CASINO && fi !== YARD;
     const each = (test, where) => MAPS.floors.map((f, fi) => {
@@ -13316,10 +13295,9 @@
   // snowman and the spruce, and a couple pacing along the rink's boards. The ice is left
   // for you. Who goes out is picked afresh every time the game loads; anyone with a part
   // to play indoors stays in. About half of them have an ugly sweater on over their office
-  // clothes (knits: name to a key in Art.SWEATERS), no two the same where it can be helped.
+  // clothes, no two the same where it can be helped.
   const STAY_IN = ['Lam', 'Linda', 'Jenn', 'Cody', 'Zin', 'Eugene'];
   let gateKeeper = null;
-  const knits = {};
   (function sendOutside() {
     if (!CHRISTMAS) return;
     const f = MAPS.floors[YARD], rink = f.rooms.find((r) => r.name === 'Ice Rink');
@@ -13340,7 +13318,8 @@
     const sweaters = shuffled(Object.keys(Art.SWEATERS));
     pool.slice(0, spots.length).forEach((n, i) => {
       const [x, y, dir, k, pace] = spots[i], own = personOf(n.name).christmas;
-      if (i % 2 === 0) knits[n.name] = sweaters[(i / 2) % sweaters.length];
+      const look = lookFor(n.name);
+      n.sprites = Art.renderSprites(look.body, look.look, i % 2 === 0 ? sweaters[(i / 2) % sweaters.length] : '');
       Object.assign(n, { floor: YARD, moving: false, prog: 0, wait: 30 + Math.floor(Math.random() * 90),
         x, y, dir, look: dir, room: { x1: x - (pace || 0), y1: y, x2: x + (pace || 0), y2: y },
         lines: (own ? [own] : []).concat(lines[k] || ['Happy holidays!']) });
@@ -13352,7 +13331,7 @@
   const YARD_INFO = {
     c: ['A car under a foot of snow. Somebody is going to be scraping for a while.', 'Somebody has written HAAKON in the snow on this car\'s back window.',
       'A car with its wipers frozen standing straight up.'],
-    L: ['A lamp post with a wreath on it. Strings of lights run from it out over the rink.'],
+    L: ['A lamp post with a wreath on it. Strings of lights run from it round the rink.'],
     B: ['The boards around the rink. HAAKON, HAAKON, HAPPY HOLIDAYS.'],
     n: ['A hockey net. Whoever is minding the gate has the pucks.'],
     b: ['A bench. Someone has left their skate guards on it.'],
@@ -13396,7 +13375,8 @@
       return;
     }
     const msgs = YARD_INFO[t];
-    if (msgs) { sfx('select'); say(msgs[(tx * 3 + ty * 5) % msgs.length]); }
+    if (!msgs) return false;
+    sfx('select'); say(msgs[(tx * 3 + ty * 5) % msgs.length]);
   }
 
   // ---------- out in the snow: footprints, snowballs and snow angels ----------
@@ -13409,7 +13389,7 @@
   // last throw and your last angel: see snowRecord) and you see theirs. Whoever a snowball
   // hits on your screen is hit on your screen, so a near miss can look different from where
   // they're standing. Places are in tiles (a tile's middle a whole number, like P.fx),
-  // heights in metres; js/lot3d.js and drawYard draw it all from snowScene().
+  // heights in metres; drawYard draws it all.
   const SNOW = { prints: [], angels: [], balls: [], puffs: [], ver: 0, steps: new Map(), hitMe: -999, fight: 1200, thrown: null, angel: null };
   const BALL_V = 0.2, BALL_G = 0.0045, BALL_Z = 1.5; // tiles a tick across, metres a tick per tick down, metres up out of the hand
   const THROW_T = 24, RELEASE = 13, ANGEL_T = 200, PRINT_LIFE = 5400, ANGEL_LIFE = 21600; // all in ticks
@@ -13550,8 +13530,7 @@
     while (SNOW.prints.length && (tick - SNOW.prints[0].t > PRINT_LIFE || SNOW.prints.length > 900)) { SNOW.prints.shift(); SNOW.ver++; }
     while (SNOW.angels.length && (tick - SNOW.angels[0].t > ANGEL_LIFE || SNOW.angels.length > 30)) { SNOW.angels.shift(); SNOW.ver++; }
   }
-  const snowScene = () => ({ ver: SNOW.ver, t: tick, prints: SNOW.prints, angels: SNOW.angels, life: [PRINT_LIFE, ANGEL_LIFE], balls: SNOW.balls, puffs: SNOW.puffs });
-  // how someone is posed for it, as drawYard passes them on: throw (0 to 1 through a throw) and angel
+  // how far through a throw someone is (0 to 1), for drawing them
   const throwPose = (t) => (t === null || t === undefined || tick - t >= THROW_T ? 0 : (tick - t) / THROW_T);
 
   // ---------- winter games around the parking lot ----------
@@ -13559,12 +13538,21 @@
   // the fire pit (MallowGame), the big spruce (SpruceGame), the snowman (SnowmanGame), the
   // hot chocolate stand (CocoaGame) and the snowbanks (SnowballGame). They fill the screen
   // like the games indoors (cover tells draw it needn't draw the lot underneath them).
-  // When the lot is in 3D they are too (js/winter3d.js draws them, in the lot's own look),
-  // with their words and meters drawn over them as usual; otherwise they draw themselves
-  // flat.
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   function disc(x, y, r, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
   function oval(x, y, rx, ry, color) { ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); }
+  // light thrown on things: ovals one inside the other, a row of real pixels at a time, so it
+  // comes in steps with hard edges like everything else
+  function glow(x, y, rx, ry, rgb, a) {
+    const step = HIRES ? 0.5 : 1;
+    ctx.fillStyle = 'rgba(' + rgb + ', ' + a + ')';
+    for (const k of [1, 0.7, 0.42]) {
+      for (let j = -Math.round(ry * k); j < ry * k; j += step) {
+        const u = (j + step / 2) / (ry * k), w = Math.round(rx * k * Math.sqrt(Math.max(0, 1 - u * u)) / step) * step;
+        if (w) ctx.fillRect(x - w, y + j, w * 2, step);
+      }
+    }
+  }
   // the sky at dusk from y0 down to y1, with the woods along the bottom of it
   function duskSky(y0, y1) {
     const BANDS = ['#141a38', '#1c2448', '#28305a', '#3a3866', '#54426c', '#704e70'], h = (y1 - y0) / BANDS.length;
@@ -13600,15 +13588,15 @@
     }
   }
   // snow falling over everything
-  function snowfall(t, n) {
+  function snowfall(t, n, ox, oy) {
     ctx.fillStyle = 'rgba(248, 250, 255, 0.85)';
     for (let i = 0; i < n; i++) {
       const s = i % 3 ? 1 : 2;
-      const x = Math.round(((i * 97 + t * 0.2 + Math.sin(t / 50 + i) * 5) % SW + SW) % SW), y = Math.round((i * 53 + t * (0.3 + (i % 5) * 0.1)) % SH);
+      const dx = ox || 0, dy = oy || 0, x = Math.round(((i * 97 + t * 0.2 + Math.sin(t / 50 + i) * 5 - dx) % SW + SW) % SW), y = Math.round((((i * 53 + t * (0.3 + (i % 5) * 0.1) - dy) % SH) + SH) % SH);
       if (!HIRES) ctx.fillRect(x, y, s, s);
       // (round flakes, moving by half pixels)
       else {
-        const fx = Math.round(((i * 97 + t * 0.2 + Math.sin(t / 50 + i) * 5) % SW + SW) % SW * 2) / 2, fy = Math.round((i * 53 + t * (0.3 + (i % 5) * 0.1)) % SH * 2) / 2;
+        const fx = Math.round(((i * 97 + t * 0.2 + Math.sin(t / 50 + i) * 5 - dx) % SW + SW) % SW * 2) / 2, fy = Math.round((((i * 53 + t * (0.3 + (i % 5) * 0.1) - dy) % SH) + SH) % SH * 2) / 2;
         if (s === 2) { ctx.fillRect(fx + 0.5, fy, 1, 0.5); ctx.fillRect(fx, fy + 0.5, 2, 1); ctx.fillRect(fx + 0.5, fy + 1.5, 1, 0.5); }
         else { ctx.fillRect(fx + 0.5, fy, 0.5, 0.5); ctx.fillRect(fx, fy + 0.5, 1.5, 0.5); ctx.fillRect(fx + 0.5, fy + 1, 0.5, 0.5); }
       }
@@ -13669,43 +13657,10 @@
     const ok = (p) => !p.ghost && !p.extra && !p.guest;
     return shuffled(npcs.filter((p) => ok(p) && p.floor === YARD)).concat(shuffled(npcs.filter((p) => ok(p) && p.floor !== YARD))).slice(0, n);
   }
-  // A game drawn in 3D, when the lot is: f() says where everything is for its stage. Hands
-  // back the stage (to put the game's words and meters on), or null for the game to draw
-  // itself flat. Like the flat game, it covers whatever's under it: the game screen is
-  // cleared for its words, and the lot's flat canvas (names and speech bubbles) too. A
-  // stage that ever goes wrong is left for the flat game from then on.
-  const broken3D = {};
-  function draw3D(kind, f) {
-    if (!hd || !hd.shown || !window.WINTER3D || broken3D[kind]) return null;
-    const gl = hdGL();
-    if (!gl || !gl.drawGame) return null;
-    // (as in the lot, drawn once every 9 ms at most)
-    const ms = performance.now();
-    if (!hd.game || hd.game.kind !== kind || ms - (hd.drawn || 0) >= 9) {
-      hd.drawn = ms;
-      let st = null;
-      try { st = gl.drawGame(kind, f()); } catch (e) { broken3D[kind] = true; console.error(e); }
-      hd.game = st && { kind, st };
-      hd.c.setTransform(1, 0, 0, 1, 0, 0);
-      hd.c.clearRect(0, 0, hd.cv.width, hd.cv.height);
-    }
-    if (!hd.game) return null;
-    ctx.clearRect(0, 0, SW, SH);
-    return hd.game.st;
-  }
-  // a dark band across the screen, so words read over a game drawn in 3D
-  function shade(y, h) { ctx.fillStyle = 'rgba(12, 14, 32, 0.55)'; ctx.fillRect(0, y, SW, h); }
-  // the small words by a game's meters: colour c (dark grey if none) on the flat game, or
-  // white with a shadow over one drawn in 3D
-  function label(st, str, x, y, c) {
-    if (st) text(str, x + 1, y + 1, 1, '#181820');
-    text(str, x, y, 1, st ? '#f8f8f8' : c || '#40485a');
-  }
-  // the controls along the bottom, in colour c on the flat game (on a dark band, over one in 3D)
-  function hint(st, str, x, y, c) {
-    if (st) shade(y - 4, SH - y + 4);
-    text(str, x, y, 1, st ? '#c8ccd8' : c);
-  }
+  // the small words by a game's meters, dark grey unless it says
+  function label(str, x, y, c) { text(str, x, y, 1, c || '#40485a'); }
+  // the controls along the bottom
+  function hint(str, x, y, c) { text(str, x, y, 1, c); }
 
   // Wood chopping: split each log down the crack across its top. Slide the axe over the
   // crack, hold A to heft it and let go to bring it down. The higher it goes the harder it
@@ -13856,115 +13811,112 @@
           const up = top - 22 - hit.power * 62, down = !log || Math.abs(hit.x - CX) > log.w / 2 + 2 ? BLOCK + 2 : top + 3;
           ax = hit.x; ay = swing && swing < 6 ? up + (down - up) * swing / 6 : down;
         }
-        const st = draw3D('chop', () => ({ log, drop, ax, ay, sway: hit ? 0 : sway(), power: winding ? power : 0, pile, pieces, shake }));
-        if (!st) {
-          duskSky(0, 128);
-          if (HIRES) fineSnow(128, '#e8eef8');
-          else {
-            ctx.fillStyle = '#e8eef8'; ctx.fillRect(0, 128, SW, SH - 128);
-            ctx.fillStyle = '#c8d4e8'; ctx.fillRect(0, 128, SW, 3);
-          }
-          snowfall(t, 30);
-          ctx.save();
-          if (shake > 0.5) ctx.translate(Math.round((Math.random() - 0.5) * shake), Math.round((Math.random() - 0.5) * shake));
-          // the woodpile, growing as you go
-          for (let i = 0; i < pile; i++) {
-            const row = Math.floor(i / 5), x = 256 + (i % 5) * 11 + (row & 1) * 5, y = 210 - row * 9;
-            if (HIRES) {
-              // (each end sawn: its bark, rings and a check, with the light on its top left)
-              ctx.drawImage(finePic('logEnd', 24, 24, (c) => {
-                const ring = (r, co, w, a0, a1) => { c.strokeStyle = co; c.lineWidth = w; c.beginPath(); c.arc(0, 0, r, a0, a1); c.stroke(); };
-                c.scale(2, 2); c.translate(6, 6);
-                c.fillStyle = '#4a2c14'; c.beginPath(); c.arc(0, 0, 5.5, 0, 7); c.fill();
-                c.fillStyle = '#d8b070'; c.beginPath(); c.arc(0, 0, 4.5, 0, 7); c.fill();
-                ring(3.3, '#b88c50', 0.5, 0, 7); ring(2, '#a87840', 0.6, 0, 7); ring(1, '#b88c50', 0.5, 0, 7);
-                ring(4.1, '#f0d8a0', 0.6, Math.PI, Math.PI * 1.6);
-                c.strokeStyle = '#70481e'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(0.3, 0.3); c.lineTo(2.9, 2.5); c.stroke();
-                crispEdges(c, 24, 24);
-              }), x - 6, y - 6);
-            } else { disc(x, y, 5.5, '#4a2c14'); disc(x, y, 4.5, '#d8b070'); disc(x, y, 2, '#a87840'); }
-          }
-          // the chopping block
+        duskSky(0, 128);
+        if (HIRES) fineSnow(128, '#e8eef8');
+        else {
+          ctx.fillStyle = '#e8eef8'; ctx.fillRect(0, 128, SW, SH - 128);
+          ctx.fillStyle = '#c8d4e8'; ctx.fillRect(0, 128, SW, 3);
+        }
+        snowfall(t, 30);
+        ctx.save();
+        if (shake > 0.5) ctx.translate(Math.round((Math.random() - 0.5) * shake), Math.round((Math.random() - 0.5) * shake));
+        // the woodpile, growing as you go
+        for (let i = 0; i < pile; i++) {
+          const row = Math.floor(i / 5), x = 256 + (i % 5) * 11 + (row & 1) * 5, y = 210 - row * 9;
           if (HIRES) {
-            // (a round of wood lit from the left, in broken ridges of bark, its top scarred by the axe)
-            ctx.drawImage(finePic('chopBlock', 164, 88, (c) => {
-              const ell = (rx, ry, co) => { c.fillStyle = co; c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, 7); c.fill(); };
-              c.scale(2, 2); c.translate(41, 8);
-              c.fillStyle = '#4a2c14'; c.fillRect(-41, 0, 82, 36);
-              const g = c.createLinearGradient(-40, 0, 40, 0);
-              g.addColorStop(0, '#5a3a20'); g.addColorStop(0.22, '#805636'); g.addColorStop(0.6, '#5e3a20'); g.addColorStop(1, '#38200e');
-              c.fillStyle = g; c.fillRect(-40, 0, 80, 36);
-              for (let i = 0; i < 17; i++) {
-                const x = -37 + i * 4.5;
-                for (let y = 6 + (i * 7) % 6; y < 35; y += 9 + (i * 5) % 7) {
-                  c.fillStyle = i & 1 ? 'rgba(30, 16, 6, 0.5)' : 'rgba(176, 128, 88, 0.32)';
-                  c.fillRect(x, y, 0.5, Math.min(5 + (i * 3 + y) % 7, 36 - y));
-                }
-              }
-              ell(40.5, 7.5, '#3a2410'); ell(40, 7, '#c89860');
-              c.lineWidth = 0.5;
-              [[34, 5.9, '#a87840'], [28, 5, '#a87840'], [21, 3.8, '#b08048'], [14, 2.6, '#a87840'], [7, 1.3, '#a87840']].forEach(([rx, ry, co]) => { c.strokeStyle = co; c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, 7); c.stroke(); });
-              c.strokeStyle = '#e4bc84'; c.beginPath(); c.ellipse(0, 0, 38.5, 6.4, 0, Math.PI * 1.02, Math.PI * 1.55); c.stroke();
-              c.strokeStyle = '#6e4620'; c.lineWidth = 0.7;
-              for (const [x, y, dx, dy] of [[-31, 1, 7, -2.5], [24, 2.5, 8, -2], [-24, -3.5, 5, 2.4], [29, -2.4, -4, 2.2]]) { c.beginPath(); c.moveTo(x, y); c.lineTo(x + dx, y + dy); c.stroke(); }
-            }), CX - 41, BLOCK - 8);
-          } else {
-            ctx.fillStyle = '#4a2c14'; ctx.fillRect(CX - 41, BLOCK, 82, 36);
-            ctx.fillStyle = '#5e3a20'; ctx.fillRect(CX - 40, BLOCK, 80, 36);
-            ctx.fillStyle = '#6e4628'; for (let x = CX - 36; x < CX + 38; x += 9) ctx.fillRect(x, BLOCK + 5, 2, 31);
-            oval(CX, BLOCK, 40, 7, '#c89860'); oval(CX, BLOCK, 28, 5, '#b08048'); oval(CX, BLOCK, 14, 3, '#c89860');
-          }
-          if (log) {
-            const half = log.w / 2, ty = top - drop * drop * 0.6, x0 = CX - half;
-            ctx.fillStyle = '#3a2410'; ctx.fillRect(x0 - 1, ty, log.w + 2, BLOCK - ty + 1);
-            ctx.fillStyle = '#6a4224'; ctx.fillRect(x0, ty, log.w, BLOCK - ty);
-            if (HIRES) {
-              // round: lit from the left, dark to the right, its bark in long broken ridges
-              const lh = BLOCK - ty;
-              fine(x0, ty, 3, lh, 'rgba(255, 220, 170, 0.1)'); fine(x0 + 3, ty, half * 0.5, lh, 'rgba(255, 220, 170, 0.14)');
-              fine(x0 + log.w - half * 0.7, ty, half * 0.35, lh, 'rgba(20, 10, 0, 0.12)'); fine(x0 + log.w - half * 0.35, ty, half * 0.35, lh, 'rgba(20, 10, 0, 0.26)');
-              for (let i = 0, x = x0 + 2.5; x < x0 + log.w - 2; i++, x += 3.5) {
-                for (let y = ty + 7 + (i * 5) % 7; y < BLOCK - 2; y += 8 + (i * 3) % 6) {
-                  const len = Math.min(4 + (i * 7) % 8, BLOCK - y);
-                  fine(x, y, 0.5, len, i & 1 ? 'rgba(36, 20, 8, 0.5)' : 'rgba(170, 124, 84, 0.45)');
-                }
-              }
-            } else { ctx.fillStyle = '#7e5432'; for (let x = x0 + 3; x < x0 + log.w - 2; x += 7) ctx.fillRect(x, ty + 4, 2, BLOCK - ty - 7); }
-            // its top: the rings, the crack (wider as it opens up) and any knot
-            oval(CX, ty, half + 1, 6, '#3a2410'); oval(CX, ty, half, 5, '#e0b878'); oval(CX, ty, half * 0.66, 3.4, '#c89858'); oval(CX, ty, half * 0.33, 1.7, '#e0b878');
-            if (HIRES) {
-              ctx.lineWidth = 0.5;
-              ctx.strokeStyle = '#b08848'; for (const k of [0.84, 0.5, 0.17]) { ctx.beginPath(); ctx.ellipse(CX, ty, half * k, 5 * k, 0, 0, Math.PI * 2); ctx.stroke(); }
-              ctx.strokeStyle = '#f4dca8'; ctx.beginPath(); ctx.ellipse(CX, ty, half * 0.93, 4.6, 0, Math.PI * 1.05, Math.PI * 1.55); ctx.stroke();
-            }
-            const cw = Math.max(1, Math.round((log.tol - 3) / 2)), cx = Math.round(CX + log.crack - cw / 2);
-            ctx.fillStyle = '#2a180c'; ctx.fillRect(cx, Math.round(ty - 4), cw, 9); ctx.fillRect(cx, Math.round(ty + 5), Math.max(1, cw - 1), 4 + (log.tol - 5) * 2);
-            if (HIRES) { fine(cx - 0.5, Math.round(ty - 4), 0.5, 9, '#a87840'); fine(cx + cw, Math.round(ty - 4), 0.5, 9, '#f4dca8'); }
-            if (log.knot !== null) {
-              oval(CX + log.knot, ty, 3.5, 2.2, '#5a3418'); oval(CX + log.knot, ty, 1.5, 1, '#2a180c');
-              if (HIRES) { ctx.lineWidth = 0.5; ctx.strokeStyle = '#8a5c30'; ctx.beginPath(); ctx.ellipse(CX + log.knot, ty, 2.6, 1.6, 0, 0, Math.PI * 2); ctx.stroke(); }
-            }
-          }
-          for (const p of pieces) {
-            ctx.save(); ctx.translate(Math.round(p.x), Math.round(p.y)); ctx.rotate(p.a);
-            const ph = p.h || LOG_H;
-            ctx.fillStyle = '#3a2410'; ctx.fillRect(-p.w / 2 - 1, -ph / 2 - 1, p.w + 2, ph + 2);
-            ctx.fillStyle = p.chip ? '#c89858' : '#6a4224'; ctx.fillRect(-p.w / 2, -ph / 2, p.w, ph);
-            if (!p.chip) { ctx.fillStyle = '#e0b878'; ctx.fillRect(p.vx < 0 ? p.w / 2 - 4 : -p.w / 2, -ph / 2, 4, ph); } // the fresh split face
-            if (HIRES) {
-              if (p.chip) { ctx.fillStyle = '#e8c088'; ctx.fillRect(-p.w / 2, -ph / 2, 1, ph); }
-              else {
-                // (grain up the split face, and ridges of bark on the rest)
-                const fx = p.vx < 0 ? p.w / 2 - 4 : -p.w / 2, bx = p.vx < 0 ? -p.w / 2 : -p.w / 2 + 4;
-                ctx.fillStyle = '#c89858'; ctx.fillRect(fx + 1, -ph / 2 + 2, 0.5, ph - 4); ctx.fillRect(fx + 2.5, -ph / 2 + 6, 0.5, ph - 12);
-                ctx.fillStyle = 'rgba(170, 124, 84, 0.45)'; for (let x = bx + 2; x < bx + p.w - 5; x += 5) ctx.fillRect(x, -ph / 2 + 6, 0.5, ph - 12);
+            // (each end sawn: its bark, rings and a check, with the light on its top left)
+            ctx.drawImage(finePic('logEnd', 24, 24, (c) => {
+              const ring = (r, co, w, a0, a1) => { c.strokeStyle = co; c.lineWidth = w; c.beginPath(); c.arc(0, 0, r, a0, a1); c.stroke(); };
+              c.scale(2, 2); c.translate(6, 6);
+              c.fillStyle = '#4a2c14'; c.beginPath(); c.arc(0, 0, 5.5, 0, 7); c.fill();
+              c.fillStyle = '#d8b070'; c.beginPath(); c.arc(0, 0, 4.5, 0, 7); c.fill();
+              ring(3.3, '#b88c50', 0.5, 0, 7); ring(2, '#a87840', 0.6, 0, 7); ring(1, '#b88c50', 0.5, 0, 7);
+              ring(4.1, '#f0d8a0', 0.6, Math.PI, Math.PI * 1.6);
+              c.strokeStyle = '#70481e'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(0.3, 0.3); c.lineTo(2.9, 2.5); c.stroke();
+              crispEdges(c, 24, 24);
+            }), x - 6, y - 6);
+          } else { disc(x, y, 5.5, '#4a2c14'); disc(x, y, 4.5, '#d8b070'); disc(x, y, 2, '#a87840'); }
+        }
+        // the chopping block
+        if (HIRES) {
+          // (a round of wood lit from the left, in broken ridges of bark, its top scarred by the axe)
+          ctx.drawImage(finePic('chopBlock', 164, 88, (c) => {
+            const ell = (rx, ry, co) => { c.fillStyle = co; c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, 7); c.fill(); };
+            c.scale(2, 2); c.translate(41, 8);
+            c.fillStyle = '#4a2c14'; c.fillRect(-41, 0, 82, 36);
+            const g = c.createLinearGradient(-40, 0, 40, 0);
+            g.addColorStop(0, '#5a3a20'); g.addColorStop(0.22, '#805636'); g.addColorStop(0.6, '#5e3a20'); g.addColorStop(1, '#38200e');
+            c.fillStyle = g; c.fillRect(-40, 0, 80, 36);
+            for (let i = 0; i < 17; i++) {
+              const x = -37 + i * 4.5;
+              for (let y = 6 + (i * 7) % 6; y < 35; y += 9 + (i * 5) % 7) {
+                c.fillStyle = i & 1 ? 'rgba(30, 16, 6, 0.5)' : 'rgba(176, 128, 88, 0.32)';
+                c.fillRect(x, y, 0.5, Math.min(5 + (i * 3 + y) % 7, 36 - y));
               }
             }
-            ctx.restore();
+            ell(40.5, 7.5, '#3a2410'); ell(40, 7, '#c89860');
+            c.lineWidth = 0.5;
+            [[34, 5.9, '#a87840'], [28, 5, '#a87840'], [21, 3.8, '#b08048'], [14, 2.6, '#a87840'], [7, 1.3, '#a87840']].forEach(([rx, ry, co]) => { c.strokeStyle = co; c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, 7); c.stroke(); });
+            c.strokeStyle = '#e4bc84'; c.beginPath(); c.ellipse(0, 0, 38.5, 6.4, 0, Math.PI * 1.02, Math.PI * 1.55); c.stroke();
+            c.strokeStyle = '#6e4620'; c.lineWidth = 0.7;
+            for (const [x, y, dx, dy] of [[-31, 1, 7, -2.5], [24, 2.5, 8, -2], [-24, -3.5, 5, 2.4], [29, -2.4, -4, 2.2]]) { c.beginPath(); c.moveTo(x, y); c.lineTo(x + dx, y + dy); c.stroke(); }
+          }), CX - 41, BLOCK - 8);
+        } else {
+          ctx.fillStyle = '#4a2c14'; ctx.fillRect(CX - 41, BLOCK, 82, 36);
+          ctx.fillStyle = '#5e3a20'; ctx.fillRect(CX - 40, BLOCK, 80, 36);
+          ctx.fillStyle = '#6e4628'; for (let x = CX - 36; x < CX + 38; x += 9) ctx.fillRect(x, BLOCK + 5, 2, 31);
+          oval(CX, BLOCK, 40, 7, '#c89860'); oval(CX, BLOCK, 28, 5, '#b08048'); oval(CX, BLOCK, 14, 3, '#c89860');
+        }
+        if (log) {
+          const half = log.w / 2, ty = top - drop * drop * 0.6, x0 = CX - half;
+          ctx.fillStyle = '#3a2410'; ctx.fillRect(x0 - 1, ty, log.w + 2, BLOCK - ty + 1);
+          ctx.fillStyle = '#6a4224'; ctx.fillRect(x0, ty, log.w, BLOCK - ty);
+          if (HIRES) {
+            // round: lit from the left, dark to the right, its bark in long broken ridges
+            const lh = BLOCK - ty;
+            fine(x0, ty, 3, lh, 'rgba(255, 220, 170, 0.1)'); fine(x0 + 3, ty, half * 0.5, lh, 'rgba(255, 220, 170, 0.14)');
+            fine(x0 + log.w - half * 0.7, ty, half * 0.35, lh, 'rgba(20, 10, 0, 0.12)'); fine(x0 + log.w - half * 0.35, ty, half * 0.35, lh, 'rgba(20, 10, 0, 0.26)');
+            for (let i = 0, x = x0 + 2.5; x < x0 + log.w - 2; i++, x += 3.5) {
+              for (let y = ty + 7 + (i * 5) % 7; y < BLOCK - 2; y += 8 + (i * 3) % 6) {
+                const len = Math.min(4 + (i * 7) % 8, BLOCK - y);
+                fine(x, y, 0.5, len, i & 1 ? 'rgba(36, 20, 8, 0.5)' : 'rgba(170, 124, 84, 0.45)');
+              }
+            }
+          } else { ctx.fillStyle = '#7e5432'; for (let x = x0 + 3; x < x0 + log.w - 2; x += 7) ctx.fillRect(x, ty + 4, 2, BLOCK - ty - 7); }
+          // its top: the rings, the crack (wider as it opens up) and any knot
+          oval(CX, ty, half + 1, 6, '#3a2410'); oval(CX, ty, half, 5, '#e0b878'); oval(CX, ty, half * 0.66, 3.4, '#c89858'); oval(CX, ty, half * 0.33, 1.7, '#e0b878');
+          if (HIRES) {
+            ctx.lineWidth = 0.5;
+            ctx.strokeStyle = '#b08848'; for (const k of [0.84, 0.5, 0.17]) { ctx.beginPath(); ctx.ellipse(CX, ty, half * k, 5 * k, 0, 0, Math.PI * 2); ctx.stroke(); }
+            ctx.strokeStyle = '#f4dca8'; ctx.beginPath(); ctx.ellipse(CX, ty, half * 0.93, 4.6, 0, Math.PI * 1.05, Math.PI * 1.55); ctx.stroke();
           }
-          drawAxe(ax, ay);
+          const cw = Math.max(1, Math.round((log.tol - 3) / 2)), cx = Math.round(CX + log.crack - cw / 2);
+          ctx.fillStyle = '#2a180c'; ctx.fillRect(cx, Math.round(ty - 4), cw, 9); ctx.fillRect(cx, Math.round(ty + 5), Math.max(1, cw - 1), 4 + (log.tol - 5) * 2);
+          if (HIRES) { fine(cx - 0.5, Math.round(ty - 4), 0.5, 9, '#a87840'); fine(cx + cw, Math.round(ty - 4), 0.5, 9, '#f4dca8'); }
+          if (log.knot !== null) {
+            oval(CX + log.knot, ty, 3.5, 2.2, '#5a3418'); oval(CX + log.knot, ty, 1.5, 1, '#2a180c');
+            if (HIRES) { ctx.lineWidth = 0.5; ctx.strokeStyle = '#8a5c30'; ctx.beginPath(); ctx.ellipse(CX + log.knot, ty, 2.6, 1.6, 0, 0, Math.PI * 2); ctx.stroke(); }
+          }
+        }
+        for (const p of pieces) {
+          ctx.save(); ctx.translate(Math.round(p.x), Math.round(p.y)); ctx.rotate(p.a);
+          const ph = p.h || LOG_H;
+          ctx.fillStyle = '#3a2410'; ctx.fillRect(-p.w / 2 - 1, -ph / 2 - 1, p.w + 2, ph + 2);
+          ctx.fillStyle = p.chip ? '#c89858' : '#6a4224'; ctx.fillRect(-p.w / 2, -ph / 2, p.w, ph);
+          if (!p.chip) { ctx.fillStyle = '#e0b878'; ctx.fillRect(p.vx < 0 ? p.w / 2 - 4 : -p.w / 2, -ph / 2, 4, ph); } // the fresh split face
+          if (HIRES) {
+            if (p.chip) { ctx.fillStyle = '#e8c088'; ctx.fillRect(-p.w / 2, -ph / 2, 1, ph); }
+            else {
+              // (grain up the split face, and ridges of bark on the rest)
+              const fx = p.vx < 0 ? p.w / 2 - 4 : -p.w / 2, bx = p.vx < 0 ? -p.w / 2 : -p.w / 2 + 4;
+              ctx.fillStyle = '#c89858'; ctx.fillRect(fx + 1, -ph / 2 + 2, 0.5, ph - 4); ctx.fillRect(fx + 2.5, -ph / 2 + 6, 0.5, ph - 12);
+              ctx.fillStyle = 'rgba(170, 124, 84, 0.45)'; for (let x = bx + 2; x < bx + p.w - 5; x += 5) ctx.fillRect(x, -ph / 2 + 6, 0.5, ph - 12);
+            }
+          }
           ctx.restore();
-        } else shade(0, 36);
+        }
+        drawAxe(ax, ay);
+        ctx.restore();
         winterHud('Wood chopping', 'Logs ' + logs, 'Best ' + getBest('chop'), left);
         // how hard it'll come down, and (between the gold marks) how hard this log wants it:
         // orange is too soft, green just right, red too hard
@@ -13982,12 +13934,12 @@
           ctx.fillStyle = '#f8e040'; ctx.fillRect(MX - 4, my(log.hi) - 1, 16, 2); ctx.fillRect(MX - 4, my(log.lo) - 1, 16, 2);
           if (HIRES) { fine(MX - 4, my(log.hi) - 1, 16, 0.5, '#fff8b0'); fine(MX - 4, my(log.lo) - 1, 16, 0.5, '#fff8b0'); }
         }
-        label(st, 'Power', MX - 8, MY + MH + 6);
+        label('Power', MX - 8, MY + MH + 6);
         if (stuck) ctext('Stuck! Mash Space to work it free', 44, '#f05040');
         else if (msgT > 0) ctext(msg, 44, '#f8e040');
         if (state === 'ready') readyBox(t, 'Let go between the gold marks');
         else if (state === 'done') doneBox(['Time!', 'Logs split: ' + logs, record ? 'New record!' : 'Best ' + getBest('chop')], t);
-        else hint(st, 'Arrows: aim   Hold Space: heft   Esc: give up', 12, SH - 14, '#40485a');
+        else hint('Arrows: aim   Hold Space: heft   Esc: give up', 12, SH - 14, '#40485a');
       },
     };
     return self;
@@ -14080,84 +14032,79 @@
         if (--left <= 0) serve();
       },
       draw() {
-        const st = draw3D('mallow', () => ({ t, fire, warn: surge && retarget < 24, embers, y, roll, sides, turn, burning }));
-        if (!st) {
-          duskSky(0, 150);
-          if (HIRES) fineSnow(150, '#dfe6f2');
-          else {
-            ctx.fillStyle = '#dfe6f2'; ctx.fillRect(0, 150, SW, SH - 150);
-            ctx.fillStyle = '#c4cfe2'; ctx.fillRect(0, 150, SW, 3);
-          }
-          // the glow of the fire on the snow
-          oval(MX, 208, 130, 36, 'rgba(248, 160, 60, ' + (0.08 + fire * 0.1 + Math.sin(t * 0.3) * 0.03) + ')');
-          snowfall(t, 24);
-          // the fire pit: stones round the back, logs, the flames (as big as the fire is), then the stones in front
-          const stone = (a) => {
-            const x = MX + Math.cos(a) * 54, sy = 206 + Math.sin(a) * 13;
-            oval(x, sy, 9, 6, '#383c48'); oval(x - 1, sy - 1, 7, 4, '#7a808e');
-            if (HIRES) {
-              // (a light on its top, and the fire on the ones facing it)
-              oval(x - 2.5, sy - 2.2, 3.5, 1.5, '#a0a6b2'); oval(x - 3.5, sy - 2.8, 1.2, 0.5, '#d0d4dc');
-              if (sy < 206) oval(x, sy + 2.5, 5.5, 1.6, 'rgba(240, 130, 50, 0.3)');
-            }
-          };
-          for (let i = 0; i < 9; i++) stone(Math.PI + i * Math.PI / 8);
+        duskSky(0, 150);
+        if (HIRES) fineSnow(150, '#dfe6f2');
+        else {
+          ctx.fillStyle = '#dfe6f2'; ctx.fillRect(0, 150, SW, SH - 150);
+          ctx.fillStyle = '#c4cfe2'; ctx.fillRect(0, 150, SW, 3);
+        }
+        // the glow of the fire on the snow
+        glow(MX, 208, 130, 36, '248, 160, 60', (0.04 + fire * 0.04 + Math.sin(t >> 4) * 0.012).toFixed(3));
+        snowfall(t, 24);
+        // the fire pit: stones round the back, logs, the flames (as big as the fire is), then the stones in front
+        const stone = (a) => {
+          const x = MX + Math.cos(a) * 54, sy = 206 + Math.sin(a) * 13;
+          oval(x, sy, 9, 6, '#383c48'); oval(x - 1, sy - 1, 7, 4, '#7a808e');
           if (HIRES) {
-            // a log with its sawn ends showing, in bark, with the coals along the bottom of it
-            roundBox(MX - 34, 198, 68, 8, 3, '#3a2410'); roundBox(MX - 33, 198.5, 66, 7, 2.5, '#5a3820');
-            fine(MX - 28, 199, 56, 1, '#744c2c');
-            for (let i = 0; i < 9; i++) fine(MX - 26 + i * 6.5, 200.5 + (i & 1), 3 + (i * 3) % 3, 0.5, 'rgba(30, 16, 6, 0.5)');
-            for (const ex of [-30.5, 30.5]) { fineDisc(MX + ex, 202, 3, '#c89858'); fineDisc(MX + ex, 202, 1.5, '#a87840'); fine(MX + ex - 1.5, 200, 1.5, 0.5, '#f0d8a0'); }
-            fine(MX - 26, 204, 52, 1, 'rgba(240, 110, 30, ' + (0.45 + Math.min(1, fire) * 0.4) + ')');
-            // ...and the light of the fire in the air over it
-            const g = ctx.createRadialGradient(MX, 192, 4, MX, 192, 52 + fire * 28);
-            g.addColorStop(0, 'rgba(248, 176, 72, ' + (0.2 + fire * 0.1) + ')'); g.addColorStop(1, 'rgba(248, 176, 72, 0)');
-            ctx.fillStyle = g; ctx.fillRect(MX - 84, 108, 168, 104);
-          } else {
-            ctx.fillStyle = '#3a2410'; ctx.fillRect(MX - 34, 198, 68, 8);
-            ctx.fillStyle = '#5a3820'; ctx.fillRect(MX - 32, 199, 64, 6);
+            // (a light on its top, and the fire on the ones facing it)
+            oval(x - 2.5, sy - 2.2, 3.5, 1.5, '#a0a6b2'); oval(x - 3.5, sy - 2.8, 1.2, 0.5, '#d0d4dc');
+            if (sy < 206) oval(x, sy + 2.5, 5.5, 1.6, 'rgba(240, 130, 50, 0.3)');
           }
-          const fh = 8 + fire * 26 + (surge && retarget < 24 ? 6 : 0);
-          for (let i = 0; i < 7; i++) {
-            const fx = MX - 36 + i * 12, hh = fh * (0.55 + 0.45 * Math.abs(Math.sin(t * 0.17 + i * 1.7))) * (i === 0 || i === 6 ? 0.6 : 1);
-            tongue(fx, 202, 9, hh, '#d84818'); tongue(fx, 202, 6, hh * 0.7, '#f89828'); tongue(fx, 202, 3, hh * 0.4, '#f8e870');
-          }
-          for (const e of embers) {
-            if (HIRES) {
-              // (the bright ones glow, and they shrink as they cool)
-              const ex = Math.round(e.x * 2) / 2, ey = Math.round(e.y * 2) / 2;
-              if (e.life > 30) { fine(ex - 0.5, ey - 0.5, 2, 2, 'rgba(248, 150, 50, 0.3)'); fine(ex, ey, 1, 1, '#f8c048'); }
-              else fine(ex, ey, 0.5, 0.5, '#c05020');
-            } else { ctx.fillStyle = e.life > 30 ? '#f8c048' : '#c05020'; ctx.fillRect(Math.round(e.x), Math.round(e.y), 1, 1); }
-          }
-          for (let i = 1; i < 8; i++) stone(i * Math.PI / 8);
-          // the stick, then the marshmallow on the end of it: the top, the side facing you, and the side facing the fire
-          const my = Math.round(y);
-          ctx.strokeStyle = '#3a2410'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(MX - 20, my); ctx.lineTo(SW + 10, my + 46); ctx.stroke();
-          ctx.strokeStyle = '#8a6038'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(MX - 20, my); ctx.lineTo(SW + 10, my + 46); ctx.stroke();
+        };
+        for (let i = 0; i < 9; i++) stone(Math.PI + i * Math.PI / 8);
+        if (HIRES) {
+          // a log with its sawn ends showing, in bark, with the coals along the bottom of it
+          roundBox(MX - 34, 198, 68, 8, 3, '#3a2410'); roundBox(MX - 33, 198.5, 66, 7, 2.5, '#5a3820');
+          fine(MX - 28, 199, 56, 1, '#744c2c');
+          for (let i = 0; i < 9; i++) fine(MX - 26 + i * 6.5, 200.5 + (i & 1), 3 + (i * 3) % 3, 0.5, 'rgba(30, 16, 6, 0.5)');
+          for (const ex of [-30.5, 30.5]) { fineDisc(MX + ex, 202, 3, '#c89858'); fineDisc(MX + ex, 202, 1.5, '#a87840'); fine(MX + ex - 1.5, 200, 1.5, 0.5, '#f0d8a0'); }
+          fine(MX - 26, 204, 52, 1, 'rgba(240, 110, 30, ' + (0.45 + Math.min(1, fire) * 0.4) + ')');
+          // ...and the light of the fire in the air over it
+          glow(MX, 192, Math.round(52 + fire * 28), Math.round(44 + fire * 22), '248, 176, 72', (0.05 + fire * 0.03).toFixed(3));
+        } else {
+          ctx.fillStyle = '#3a2410'; ctx.fillRect(MX - 34, 198, 68, 8);
+          ctx.fillStyle = '#5a3820'; ctx.fillRect(MX - 32, 199, 64, 6);
+        }
+        const fh = 8 + fire * 26 + (surge && retarget < 24 ? 6 : 0);
+        for (let i = 0; i < 7; i++) {
+          const fx = MX - 36 + i * 12, hh = fh * (0.55 + 0.45 * Math.abs(Math.sin(t * 0.17 + i * 1.7))) * (i === 0 || i === 6 ? 0.6 : 1);
+          tongue(fx, 202, 9, hh, '#d84818'); tongue(fx, 202, 6, hh * 0.7, '#f89828'); tongue(fx, 202, 3, hh * 0.4, '#f8e870');
+        }
+        for (const e of embers) {
           if (HIRES) {
-            ctx.strokeStyle = '#b88c58'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(MX - 20, my - 0.5); ctx.lineTo(SW + 10, my + 45.5); ctx.stroke();
-            // puffy, in half-pixel rows so its corners come out round, with the edges between its sides catching the light
-            const edge = sides[(turn + 2) % 4], face = sides[(turn + 1) % 4], under = sides[turn];
-            roundBox(MX - 16, my - 14, 32, 28, 6, '#2a201a');
-            for (let i = 0; i < 52; i++) {
-              const d = Math.min(i + 0.5, 51.5 - i) / 2, k = d < 5 ? Math.round((5 - Math.sqrt(25 - (5 - d) * (5 - d))) * 2) / 2 : 0;
-              fine(MX - 15 + k, my - 13 + i / 2, 30 - k * 2, 0.5, toast(i < 12 ? edge : i < 40 ? face : under));
-            }
-            fine(MX - 14, my - 7, 28, 0.5, 'rgba(255, 255, 255, 0.28)'); fine(MX - 14, my + 6.5, 28, 0.5, 'rgba(60, 30, 10, 0.18)');
-            fine(MX + 10, my - 6.5, 2, 13, 'rgba(70, 40, 20, 0.07)'); fine(MX + 12, my - 6.5, 2.5, 13, 'rgba(70, 40, 20, 0.12)');
-            roundBox(MX - 12, my - 5, 3, 9, 1.5, 'rgba(255, 255, 255, 0.35)'); fine(MX - 11.5, my - 4, 1, 2, 'rgba(255, 255, 255, 0.5)');
-          } else {
-            ctx.fillStyle = '#2a201a'; ctx.fillRect(MX - 16, my - 13, 32, 26); ctx.fillRect(MX - 15, my - 14, 30, 28);
-            const band = (by, bh, v) => { ctx.fillStyle = toast(v); ctx.fillRect(MX - 15, by, 30, bh); };
-            band(my - 13, 6, sides[(turn + 2) % 4]); band(my - 7, 14, sides[(turn + 1) % 4]); band(my + 7, 6, sides[turn]);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; ctx.fillRect(MX - 12, my - 5, 3, 9);
+            // (the bright ones glow, and they shrink as they cool)
+            const ex = Math.round(e.x * 2) / 2, ey = Math.round(e.y * 2) / 2;
+            if (e.life > 30) { fine(ex - 0.5, ey - 0.5, 2, 2, 'rgba(248, 150, 50, 0.3)'); fine(ex, ey, 1, 1, '#f8c048'); }
+            else fine(ex, ey, 0.5, 0.5, '#c05020');
+          } else { ctx.fillStyle = e.life > 30 ? '#f8c048' : '#c05020'; ctx.fillRect(Math.round(e.x), Math.round(e.y), 1, 1); }
+        }
+        for (let i = 1; i < 8; i++) stone(i * Math.PI / 8);
+        // the stick, then the marshmallow on the end of it: the top, the side facing you, and the side facing the fire
+        const my = Math.round(y);
+        ctx.strokeStyle = '#3a2410'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(MX - 20, my); ctx.lineTo(SW + 10, my + 46); ctx.stroke();
+        ctx.strokeStyle = '#8a6038'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(MX - 20, my); ctx.lineTo(SW + 10, my + 46); ctx.stroke();
+        if (HIRES) {
+          ctx.strokeStyle = '#b88c58'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(MX - 20, my - 0.5); ctx.lineTo(SW + 10, my + 45.5); ctx.stroke();
+          // puffy, in half-pixel rows so its corners come out round, with the edges between its sides catching the light
+          const edge = sides[(turn + 2) % 4], face = sides[(turn + 1) % 4], under = sides[turn];
+          roundBox(MX - 16, my - 14, 32, 28, 6, '#2a201a');
+          for (let i = 0; i < 52; i++) {
+            const d = Math.min(i + 0.5, 51.5 - i) / 2, k = d < 5 ? Math.round((5 - Math.sqrt(25 - (5 - d) * (5 - d))) * 2) / 2 : 0;
+            fine(MX - 15 + k, my - 13 + i / 2, 30 - k * 2, 0.5, toast(i < 12 ? edge : i < 40 ? face : under));
           }
-          if (burning) for (let i = 0; i < 4; i++) {
-            const fx = MX - 12 + i * 8, hh = 10 + Math.abs(Math.sin(t * 0.3 + i * 2)) * 10;
-            tongue(fx, my - 8, 5, hh, '#e05018'); tongue(fx, my - 8, 3, hh * 0.6, '#f8c040');
-          }
-        } else shade(0, 36);
+          fine(MX - 14, my - 7, 28, 0.5, 'rgba(255, 255, 255, 0.28)'); fine(MX - 14, my + 6.5, 28, 0.5, 'rgba(60, 30, 10, 0.18)');
+          fine(MX + 10, my - 6.5, 2, 13, 'rgba(70, 40, 20, 0.07)'); fine(MX + 12, my - 6.5, 2.5, 13, 'rgba(70, 40, 20, 0.12)');
+          roundBox(MX - 12, my - 5, 3, 9, 1.5, 'rgba(255, 255, 255, 0.35)'); fine(MX - 11.5, my - 4, 1, 2, 'rgba(255, 255, 255, 0.5)');
+        } else {
+          ctx.fillStyle = '#2a201a'; ctx.fillRect(MX - 16, my - 13, 32, 26); ctx.fillRect(MX - 15, my - 14, 30, 28);
+          const band = (by, bh, v) => { ctx.fillStyle = toast(v); ctx.fillRect(MX - 15, by, 30, bh); };
+          band(my - 13, 6, sides[(turn + 2) % 4]); band(my - 7, 14, sides[(turn + 1) % 4]); band(my + 7, 6, sides[turn]);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.35)'; ctx.fillRect(MX - 12, my - 5, 3, 9);
+        }
+        if (burning) for (let i = 0; i < 4; i++) {
+          const fx = MX - 12 + i * 8, hh = 10 + Math.abs(Math.sin(t * 0.3 + i * 2)) * 10;
+          tongue(fx, my - 8, 5, hh, '#e05018'); tongue(fx, my - 8, 3, hh * 0.6, '#f8c040');
+        }
         winterHud('Marshmallow ' + Math.max(1, Math.min(n, N)) + '/' + N, 'Score ' + total, 'Best ' + getBest('mallow'), left);
         // the marshmallow seen end on: its four sides, the bottom one facing the fire
         const IX = 284, IY = 84, rot = -roll / 8 * Math.PI / 2;
@@ -14168,7 +14115,7 @@
           ctx.arc(IX, IY, 15, a - Math.PI / 4 + 0.06, a + Math.PI / 4 - 0.06); ctx.fill();
         }
         if (HIRES) { ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.arc(IX, IY, 16, Math.PI * 1.05, Math.PI * 1.5); ctx.stroke(); }
-        label(st, 'Sides', IX - 15, IY - 30, '#f8f8f8');
+        label('Sides', IX - 15, IY - 30, '#f8f8f8');
         tongue(IX, IY + 30, 4, 8, '#f89828');
         if (HIRES) tongue(IX, IY + 30, 2, 4.5, '#f8e870');
         // how hot it is where you're holding it
@@ -14181,13 +14128,13 @@
         ctx.fillStyle = hv > 0.55 ? '#e84828' : hv > 0.25 ? '#f0a030' : '#f0d860';
         ctx.fillRect(HX, HY + HH - Math.round(hv * HH), 8, Math.round(hv * HH));
         if (HIRES) meterGlass(HX, HY, HH);
-        label(st, 'Heat', HX - 5, HY + HH + 6);
+        label('Heat', HX - 5, HY + HH + 6);
         if (burning) ctext('ON FIRE! Space: blow it out', 44, '#f05040');
         else if (state === 'eat') ctext(last.line + '  +' + last.s, 44, last.s >= 70 ? '#58e048' : '#f8e040');
         else if (flaring()) ctext('The fire flares up!', 44, '#f8a040');
         if (state === 'ready') readyBox(t, 'Golden brown on every side');
         else if (state === 'done') doneBox(['All eaten!', 'Score: ' + total + ' / ' + N * 100, record ? 'New record!' : 'Best ' + getBest('mallow')], t);
-        else hint(st, 'Up/Down: height  Left/Right: turn  Space: eat', 12, SH - 12, '#40485a');
+        else hint('Up/Down: height  Left/Right: turn  Space: eat', 12, SH - 12, '#40485a');
       },
     };
     return self;
@@ -14389,81 +14336,74 @@
         if (--left <= 0) { left = 0; state = 'star'; star = { x: CX, y: 10, vy: 0, t: 0, drop: false }; msg = 'Now the star! Space: drop it'; msgT = 999; }
       },
       draw() {
-        const st = draw3D('spruce', () => ({ t, tiers: TIERS, rAt, bulbs, rot, hy, hung, falling, cur, star, state }));
         // where something on the tree is on the screen now, and whether it's round the front
-        const at = st ? (o) => st.at(o.a, o.y) : (o) => [CX + rAt(o.y) * Math.sin(o.a + rot), o.y, Math.cos(o.a + rot) > 0];
-        if (!st) {
-          duskSky(0, 176);
-          if (HIRES) fineSnow(176, '#e4eaf4');
-          else {
-            ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 176, SW, SH - 176);
-            ctx.fillStyle = '#c8d2e4'; ctx.fillRect(0, 176, SW, 3);
+        const at = (o) => [CX + rAt(o.y) * Math.sin(o.a + rot), o.y, Math.cos(o.a + rot) > 0];
+        duskSky(0, 176);
+        if (HIRES) fineSnow(176, '#e4eaf4');
+        else {
+          ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 176, SW, SH - 176);
+          ctx.fillStyle = '#c8d2e4'; ctx.fillRect(0, 176, SW, 3);
+        }
+        snowfall(t, 30);
+        // the trunk, the branches (with snow on the tips) and the lights on the front of it
+        if (HIRES) ctx.drawImage(treePic(), CX - 104, APEX - 2);
+        else {
+          ctx.fillStyle = '#3a2410'; ctx.fillRect(CX - 9, 196, 18, 18);
+          ctx.fillStyle = '#5a3820'; ctx.fillRect(CX - 8, 196, 16, 17);
+          for (const [y0, y1, hw] of TIERS) {
+            tier(y0, y1, hw, '#10301c'); tier(y0 + 3, y1 - 2, hw - 3, '#24603a'); tier(y0 + 6, y1 - 6, (hw - 3) * 0.45, '#2e7444');
+            ctx.fillStyle = '#f0f4fa';
+            for (let x = hw - 10; x > -hw + 4; x -= 20) ctx.fillRect(CX + x - 2, y1 - 3, 5, 2);
           }
-          snowfall(t, 30);
-          // the trunk, the branches (with snow on the tips) and the lights on the front of it
-          if (HIRES) ctx.drawImage(treePic(), CX - 104, APEX - 2);
-          else {
-            ctx.fillStyle = '#3a2410'; ctx.fillRect(CX - 9, 196, 18, 18);
-            ctx.fillStyle = '#5a3820'; ctx.fillRect(CX - 8, 196, 16, 17);
-            for (const [y0, y1, hw] of TIERS) {
-              tier(y0, y1, hw, '#10301c'); tier(y0 + 3, y1 - 2, hw - 3, '#24603a'); tier(y0 + 6, y1 - 6, (hw - 3) * 0.45, '#2e7444');
-              ctx.fillStyle = '#f0f4fa';
-              for (let x = hw - 10; x > -hw + 4; x -= 20) ctx.fillRect(CX + x - 2, y1 - 3, 5, 2);
-            }
+        }
+        const BULB = ['#f8f040', '#f05050', '#60e070', '#60b0f8'];
+        bulbs.forEach((b, i) => {
+          const [x, y, front] = at(b);
+          if (!front) return;
+          const lit = ((t >> 4) + i) % 5, co = lit ? BULB[i % 4] : '#183a20';
+          if (HIRES) ctx.drawImage(bulbPic(co, lit), Math.round(x) - 1, Math.round(y) - 1);
+          else { ctx.fillStyle = co; ctx.fillRect(Math.round(x), Math.round(y), 2, 2); }
+        });
+        // what's hung round the front, nearest last
+        const front = hung.concat(falling).filter((o) => Math.cos(o.a + rot) > 0).sort((a, b) => Math.cos(a.a + rot) - Math.cos(b.a + rot));
+        for (const o of front) deco(CX + rAt(o.y0 || o.y) * Math.sin(o.a + rot), o.y, o.k);
+        if (star) {
+          starShape(star.x, star.y, 11, '#181820'); starShape(star.x, star.y, 9, '#f8d840'); starShape(star.x - 1, star.y - 1, 4, '#fff8c0');
+          if (HIRES) {
+            // (a crease out to each point)
+            ctx.strokeStyle = '#c89818'; ctx.lineWidth = 0.5; ctx.beginPath();
+            for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * Math.PI * 2 / 5; ctx.moveTo(star.x + Math.cos(a) * 3, star.y + Math.sin(a) * 3); ctx.lineTo(star.x + Math.cos(a) * 8, star.y + Math.sin(a) * 8); }
+            ctx.stroke();
           }
-          const BULB = ['#f8f040', '#f05050', '#60e070', '#60b0f8'];
-          bulbs.forEach((b, i) => {
-            const [x, y, front] = at(b);
-            if (!front) return;
-            const lit = ((t >> 4) + i) % 5, co = lit ? BULB[i % 4] : '#183a20';
-            if (HIRES) ctx.drawImage(bulbPic(co, lit), Math.round(x) - 1, Math.round(y) - 1);
-            else { ctx.fillStyle = co; ctx.fillRect(Math.round(x), Math.round(y), 2, 2); }
-          });
-          // what's hung round the front, nearest last
-          const front = hung.concat(falling).filter((o) => Math.cos(o.a + rot) > 0).sort((a, b) => Math.cos(a.a + rot) - Math.cos(b.a + rot));
-          for (const o of front) deco(CX + rAt(o.y0 || o.y) * Math.sin(o.a + rot), o.y, o.k);
-          if (star) {
-            starShape(star.x, star.y, 11, '#181820'); starShape(star.x, star.y, 9, '#f8d840'); starShape(star.x - 1, star.y - 1, 4, '#fff8c0');
-            if (HIRES) {
-              // (a crease out to each point)
-              ctx.strokeStyle = '#c89818'; ctx.lineWidth = 0.5; ctx.beginPath();
-              for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * Math.PI * 2 / 5; ctx.moveTo(star.x + Math.cos(a) * 3, star.y + Math.sin(a) * 3); ctx.lineTo(star.x + Math.cos(a) * 8, star.y + Math.sin(a) * 8); }
-              ctx.stroke();
-            }
-            if (!star.drop) { ctx.fillStyle = 'rgba(248, 216, 64, 0.5)'; ctx.fillRect(Math.round(star.x), Math.round(star.y) + 12, 1, APEX - 18 - Math.round(star.y)); }
-          } else starShape(CX, APEX - 6, 5, '#686048'); // where it goes
-        } else shade(0, 36);
+          if (!star.drop) { ctx.fillStyle = 'rgba(248, 216, 64, 0.5)'; ctx.fillRect(Math.round(star.x), Math.round(star.y) + 12, 1, APEX - 18 - Math.round(star.y)); }
+        } else starShape(CX, APEX - 6, 5, '#686048'); // where it goes
         winterHud('Deck the spruce', 'Score ' + score, 'Best ' + getBest('spruce'), left);
-        const hand = (y) => (st ? st.hand(y) : [CX, y]);
-        for (const p of pops) { const [x, y] = hand(p.y); text(p.s, Math.round(x - p.s.length * 3), Math.round(y), 1, p.s === '+20' ? '#f8e040' : '#f8f8f8'); }
+        for (const p of pops) text(p.s, Math.round(CX - p.s.length * 3), Math.round(p.y), 1, p.s === '+20' ? '#f8e040' : '#f8f8f8');
         if (state === 'play') {
           // your hand with the next decoration, in its circle coloured by what it'd be worth,
           // with whatever's in the circle outlined (red if it's the same)
-          const { pts, inside } = worth(hy, cur), [hx, sy] = hand(hy), k = st ? st.scale(hy) : 1;
+          const { pts, inside } = worth(hy, cur);
           ctx.lineWidth = 1;
           for (const o of inside) {
             const [x, y, front] = at(o);
             if (!front) continue;
             ctx.strokeStyle = o.k === cur ? '#f04040' : '#f8f8f8';
-            ctx.beginPath(); ctx.arc(x + 0.5, y, 8 * k, 0, Math.PI * 2); ctx.stroke();
+            ctx.beginPath(); ctx.arc(x + 0.5, y, 8, 0, Math.PI * 2); ctx.stroke();
           }
           ctx.strokeStyle = WORTH[pts]; ctx.setLineDash([3, 3]);
-          ctx.beginPath(); ctx.arc(hx, sy, ROOM * k, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.arc(CX, hy, ROOM, 0, Math.PI * 2); ctx.stroke();
           ctx.setLineDash([]);
-          const tag = pts < 0 ? 'slips!' : '+' + pts, lx = Math.round(hx + ROOM * k * 0.36), ly = Math.round(sy - ROOM * k * 0.93);
+          const tag = pts < 0 ? 'slips!' : '+' + pts, lx = Math.round(CX + ROOM * 0.36), ly = Math.round(hy - ROOM * 0.93);
           text(tag, lx + 1, ly + 1, 1, '#181820'); text(tag, lx, ly, 1, WORTH[pts]);
-          if (!st) {
-            // (in 3D the mitten is out there, holding it up)
-            deco(CX, hy, cur);
-            const my = Math.round(hy) - 12;
-            if (HIRES) {
-              roundBox(CX + 3.5, my - 6.5, 4, 4, 1.5, '#181820'); roundBox(CX - 5, my - 9, 11, 10, 3, '#181820');
-              roundBox(CX - 4, my - 8, 9, 8, 2.5, '#c84030'); roundBox(CX + 4, my - 6, 3, 3, 1, '#c84030');
-              roundBox(CX - 3, my - 7.5, 3, 2, 1, '#e86050'); fine(CX - 3.5, my - 1.5, 8, 1, '#f0e8dc');
-            } else {
-              ctx.fillStyle = '#181820'; ctx.fillRect(CX - 5, my - 9, 11, 10);
-              ctx.fillStyle = '#c84030'; ctx.fillRect(CX - 4, my - 8, 9, 8); ctx.fillRect(CX + 4, my - 6, 3, 3);
-            }
+          deco(CX, hy, cur);
+          const my = Math.round(hy) - 12;
+          if (HIRES) {
+            roundBox(CX + 3.5, my - 6.5, 4, 4, 1.5, '#181820'); roundBox(CX - 5, my - 9, 11, 10, 3, '#181820');
+            roundBox(CX - 4, my - 8, 9, 8, 2.5, '#c84030'); roundBox(CX + 4, my - 6, 3, 3, 1, '#c84030');
+            roundBox(CX - 3, my - 7.5, 3, 2, 1, '#e86050'); fine(CX - 3.5, my - 1.5, 8, 1, '#f0e8dc');
+          } else {
+            ctx.fillStyle = '#181820'; ctx.fillRect(CX - 5, my - 9, 11, 10);
+            ctx.fillStyle = '#c84030'; ctx.fillRect(CX - 4, my - 8, 9, 8); ctx.fillRect(CX + 4, my - 6, 3, 3);
           }
           // what the box hands you after this one
           if (HIRES) {
@@ -14481,7 +14421,7 @@
         if (state === 'ready') readyBox(t, 'Aim for the green circle');
         else if (state === 'done') doneBox(['All decorated! Score: ' + score, '+20 x' + tally[20] + '  +15 x' + tally[15] + '  +10 x' + tally[10] + '  Slipped ' + tally[-5],
           record ? 'New record!' : 'Best ' + getBest('spruce')], t);
-        else if (state === 'play') hint(st, 'Left/Right: turn  Up/Down: move  Space: hang it', 12, SH - 12, '#40485a');
+        else if (state === 'play') hint('Left/Right: turn  Up/Down: move  Space: hang it', 12, SH - 12, '#40485a');
       },
     };
     return self;
@@ -14671,65 +14611,57 @@
         if (state === 'build' || (state === 'done' && made.length)) { drawBuilt(); return; }
         // you, pushing from behind it
         const r = rOf(ball.v), [dx, dy] = DIRS[dir], px = ball.x - dx * (r + 6), py = ball.y - dy * (r + 6);
-        const st = draw3D('snowman', () => ({ phase: 'field', GW, GH, CELL, X0, Y0, snow, trees, ball, r, rolling: state === 'play' || state === 'ready', made,
-          me: meSpec(), you: { x: px, y: py, dir } }));
-        if (!st) {
-          ctx.fillStyle = '#1c2448'; ctx.fillRect(0, 0, SW, SH);
-          // the snow, and the ground where it's been rolled up
-          if (HIRES) {
-            roundBox(X0 - 2, Y0 - 2, GW * CELL + 4, GH * CELL + 4, 3, '#181820');
-            drawField();
-          } else {
-            ctx.fillStyle = '#181820'; ctx.fillRect(X0 - 2, Y0 - 2, GW * CELL + 4, GH * CELL + 4);
-            ctx.fillStyle = '#7d8c6a'; ctx.fillRect(X0, Y0, GW * CELL, GH * CELL);
-            for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
-              const x = X0 + gx * CELL, y = Y0 + gy * CELL;
-              if (snow[gy * GW + gx]) { ctx.fillStyle = '#f2f6fc'; ctx.fillRect(x, y, CELL, CELL); }
-              else { ctx.fillStyle = '#6a7858'; ctx.fillRect(x + (gx * 3 + gy * 5) % 7, y + (gx * 5 + gy) % 7, 1, 1); }
-            }
-          }
-          for (const o of trees) {
-            if (HIRES) {
-              // (seen from above: rings of boughs, lit from the top left, with snow on them)
-              ctx.drawImage(finePic('fieldTree', 60, 60, (c) => {
-                const dot = (x, y, r, co) => { c.fillStyle = co; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); };
-                c.scale(2, 2); c.translate(15, 15);
-                dot(3, 3, 11, 'rgba(40, 50, 80, 0.35)'); dot(0, 0, 12, '#10301c'); dot(0, 0, 10, '#1d5431');
-                for (const [n, rr, lr] of [[10, 7.6, 2.9], [7, 4.2, 2.6]]) {
-                  for (let i = 0; i < n; i++) {
-                    const a = i / n * Math.PI * 2 + (rr < 5 ? 0.3 : 0), lit = Math.cos(a + Math.PI * 0.75);
-                    dot(Math.cos(a) * rr, Math.sin(a) * rr, lr, lit > 0.3 ? '#347c4a' : lit > -0.3 ? '#2a6a40' : '#1f5a34');
-                  }
-                }
-                dot(-0.5, -0.5, 2.2, '#3e8a56');
-                c.fillStyle = '#f0f4fa';
-                for (const [x, y, w] of [[-5.5, -3, 3], [3.8, 2.6, 2.6], [-0.2, -7.5, 2.2]]) { c.beginPath(); c.ellipse(x, y, w / 1.4, 1.1, 0, 0, 7); c.fill(); }
-              }), Math.round(o.x * 2) / 2 - 15, Math.round(o.y * 2) / 2 - 15);
-            } else {
-              disc(o.x + 3, o.y + 3, o.r, 'rgba(40, 50, 80, 0.35)'); disc(o.x, o.y, o.r + 1, '#10301c'); disc(o.x, o.y, o.r - 1, '#24603a'); disc(o.x - 2, o.y - 2, o.r * 0.5, '#2e7444');
-              ctx.fillStyle = '#f0f4fa'; ctx.fillRect(o.x - 6, o.y - 3, 3, 2); ctx.fillRect(o.x + 3, o.y + 2, 3, 2); ctx.fillRect(o.x - 1, o.y - 8, 2, 2);
-            }
-          }
-          made.forEach((b, i) => { snowball(b.x, b.y, b.r); text(String(i + 1), Math.round(b.x) - 2, Math.round(b.y) - 3, 1, '#8890a0'); });
-          const you = () => ctx.drawImage(sprites[dir][moving ? 1 + ((t >> 3) & 1) : 0], Math.round(px) - 12, Math.round(py) - 16, 24, 24);
-          if (py < ball.y) you();
-          if (state === 'play' || state === 'ready') {
-            snowball(ball.x, ball.y, r);
-            // a couple of flecks going round as it rolls
-            for (let k = 0; k < 2; k++) {
-              const a = ball.spin + k * Math.PI;
-              const fx = Math.round(ball.x + Math.cos(a) * r * 0.55 * Math.abs(dy || 1)), fy = Math.round(ball.y + Math.sin(a) * r * 0.55 * Math.abs(dx || 1));
-              if (HIRES) fineDisc(fx + 1, fy + 1, 1, '#b8c4d8');
-              else { ctx.fillStyle = '#b8c4d8'; ctx.fillRect(fx, fy, 2, 2); }
-            }
-          }
-          if (py >= ball.y) you();
-          ctx.fillStyle = '#1c2448'; ctx.fillRect(0, 0, SW, Y0 - 2);
+        ctx.fillStyle = '#1c2448'; ctx.fillRect(0, 0, SW, SH);
+        // the snow, and the ground where it's been rolled up
+        if (HIRES) {
+          roundBox(X0 - 2, Y0 - 2, GW * CELL + 4, GH * CELL + 4, 3, '#181820');
+          drawField();
         } else {
-          // which ball is which, over each one stood up
-          made.forEach((b, i) => { const [x, y] = st.at(b.x, b.y, b.r * 2); label(st, String(i + 1), Math.round(x) - 2, Math.round(y) - 10); });
-          shade(0, Y0 - 2);
+          ctx.fillStyle = '#181820'; ctx.fillRect(X0 - 2, Y0 - 2, GW * CELL + 4, GH * CELL + 4);
+          ctx.fillStyle = '#7d8c6a'; ctx.fillRect(X0, Y0, GW * CELL, GH * CELL);
+          for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
+            const x = X0 + gx * CELL, y = Y0 + gy * CELL;
+            if (snow[gy * GW + gx]) { ctx.fillStyle = '#f2f6fc'; ctx.fillRect(x, y, CELL, CELL); }
+            else { ctx.fillStyle = '#6a7858'; ctx.fillRect(x + (gx * 3 + gy * 5) % 7, y + (gx * 5 + gy) % 7, 1, 1); }
+          }
         }
+        for (const o of trees) {
+          if (HIRES) {
+            // (seen from above: rings of boughs, lit from the top left, with snow on them)
+            ctx.drawImage(finePic('fieldTree', 60, 60, (c) => {
+              const dot = (x, y, r, co) => { c.fillStyle = co; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); };
+              c.scale(2, 2); c.translate(15, 15);
+              dot(3, 3, 11, 'rgba(40, 50, 80, 0.35)'); dot(0, 0, 12, '#10301c'); dot(0, 0, 10, '#1d5431');
+              for (const [n, rr, lr] of [[10, 7.6, 2.9], [7, 4.2, 2.6]]) {
+                for (let i = 0; i < n; i++) {
+                  const a = i / n * Math.PI * 2 + (rr < 5 ? 0.3 : 0), lit = Math.cos(a + Math.PI * 0.75);
+                  dot(Math.cos(a) * rr, Math.sin(a) * rr, lr, lit > 0.3 ? '#347c4a' : lit > -0.3 ? '#2a6a40' : '#1f5a34');
+                }
+              }
+              dot(-0.5, -0.5, 2.2, '#3e8a56');
+              c.fillStyle = '#f0f4fa';
+              for (const [x, y, w] of [[-5.5, -3, 3], [3.8, 2.6, 2.6], [-0.2, -7.5, 2.2]]) { c.beginPath(); c.ellipse(x, y, w / 1.4, 1.1, 0, 0, 7); c.fill(); }
+            }), Math.round(o.x * 2) / 2 - 15, Math.round(o.y * 2) / 2 - 15);
+          } else {
+            disc(o.x + 3, o.y + 3, o.r, 'rgba(40, 50, 80, 0.35)'); disc(o.x, o.y, o.r + 1, '#10301c'); disc(o.x, o.y, o.r - 1, '#24603a'); disc(o.x - 2, o.y - 2, o.r * 0.5, '#2e7444');
+            ctx.fillStyle = '#f0f4fa'; ctx.fillRect(o.x - 6, o.y - 3, 3, 2); ctx.fillRect(o.x + 3, o.y + 2, 3, 2); ctx.fillRect(o.x - 1, o.y - 8, 2, 2);
+          }
+        }
+        made.forEach((b, i) => { snowball(b.x, b.y, b.r); text(String(i + 1), Math.round(b.x) - 2, Math.round(b.y) - 3, 1, '#8890a0'); });
+        const you = () => ctx.drawImage(sprites[dir][moving ? 1 + ((t >> 3) & 1) : 0], Math.round(px) - 8, Math.round(py) - 12);
+        if (py < ball.y) you();
+        if (state === 'play' || state === 'ready') {
+          snowball(ball.x, ball.y, r);
+          // a couple of flecks going round as it rolls
+          for (let k = 0; k < 2; k++) {
+            const a = ball.spin + k * Math.PI;
+            const fx = Math.round(ball.x + Math.cos(a) * r * 0.55 * Math.abs(dy || 1)), fy = Math.round(ball.y + Math.sin(a) * r * 0.55 * Math.abs(dx || 1));
+            if (HIRES) fineDisc(fx + 1, fy + 1, 1, '#b8c4d8');
+            else { ctx.fillStyle = '#b8c4d8'; ctx.fillRect(fx, fy, 2, 2); }
+          }
+        }
+        if (py >= ball.y) you();
+        ctx.fillStyle = '#1c2448'; ctx.fillRect(0, 0, SW, Y0 - 2);
         const under = made.length ? topR() : 0, now = NAMES[Math.min(2, made.length)] + ' ' + cm(r) + ' cm';
         text('Snowman', 12, 10, 1, '#f8e8a0');
         text(now, 12, 24, 1, under && r >= under ? '#f05040' : '#f8f8f8');
@@ -14737,11 +14669,8 @@
         const tm = 'Time ' + Math.ceil(left / 60), bs = 'Best ' + getBest('snowman') + ' cm';
         text(tm, SW - 12 - tm.length * 6, 10, 1, left < 300 ? '#f05040' : '#f8f8f8');
         text(bs, SW - 12 - bs.length * 6, 24, 1, '#c8ccd8');
-        if (msgT > 0) {
-          if (st) shade(Y0 + 2, 13);
-          ctext(msg, Y0 + 6, st ? '#f8e040' : '#2a3450');
-        }
-        hint(st, 'Arrows: roll   Space: stand it up   Esc: give up', 12, SH - 10, '#c8ccd8');
+        if (msgT > 0) ctext(msg, Y0 + 6, '#2a3450');
+        hint('Arrows: roll   Space: stand it up   Esc: give up', 12, SH - 10, '#c8ccd8');
         if (state === 'ready') readyBox(t, 'Bottom, middle, then the head');
         else if (state === 'done') doneBox(['Time!', 'Not enough for a snowman.', 'Best ' + getBest('snowman') + ' cm'], t);
       },
@@ -14750,92 +14679,85 @@
     // how you did on the right (where it doesn't hide the snowman)
     function drawBuilt() {
       const tt = state === 'build' ? t : 999, SX = 110;
-      const st = draw3D('snowman', () => ({ phase: 'built', made, tower, height, tt }));
-      if (st) {
-        // the marks on the measuring stick, and how tall it stands once it's finished
-        for (let c = 50; c < 262; c += 50) { const [x, y] = st.mark(c); label(st, String(c), Math.round(x) - String(c).length * 6 - 2, Math.round(y) - 3); }
-        if (tt > made.length * 40) { const [x, y] = st.mark(height); label(st, height + ' cm', Math.round(x) + 12, Math.round(y) - 11); }
+      duskSky(0, 176);
+      if (HIRES) fineSnow(176, '#e4eaf4');
+      else {
+        ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 176, SW, SH - 176);
+        ctx.fillStyle = '#c8d2e4'; ctx.fillRect(0, 176, SW, 3);
+      }
+      snowfall(state === 'build' ? t : tick, 30);
+      // the measuring stick, every 50 cm
+      if (HIRES) {
+        // (planed, with the light down its left side, marked off every 10 cm)
+        roundBox(37, 40, 6, 165, 1.5, '#181820');
+        fine(38, 41, 4, 163, '#f0d860'); fine(38, 41, 1, 163, '#f8ec98'); fine(41, 41, 1, 163, '#c8b040');
+        for (let c = 10; 204 - c / CM > 41; c += 10) fine(38, Math.round((204 - c / CM) * 2) / 2, 2, 0.5, '#8a7830');
+        // ...and the snowman's shadow on the snow
+        oval(SX + 5, 203, made[0].r * 1.15, 4, 'rgba(90, 105, 140, 0.32)');
       } else {
-        duskSky(0, 176);
-        if (HIRES) fineSnow(176, '#e4eaf4');
-        else {
-          ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 176, SW, SH - 176);
-          ctx.fillStyle = '#c8d2e4'; ctx.fillRect(0, 176, SW, 3);
+        ctx.fillStyle = '#181820'; ctx.fillRect(37, 40, 6, 165);
+        ctx.fillStyle = '#f0d860'; ctx.fillRect(38, 41, 4, 163);
+      }
+      for (let c = 50; 204 - c / CM > 40; c += 50) {
+        const y = Math.round(204 - c / CM);
+        ctx.fillStyle = '#181820'; ctx.fillRect(34, y, 12, 1);
+        text(String(c), 31 - String(c).length * 6, y - 3, 1, '#f8f8f8');
+      }
+      let off = 0;
+      made.forEach((b, i) => {
+        const at = i * 40;
+        if (tt < at) return;
+        let x = SX, y = b.ty - (1 - Math.min(1, (tt - at) / 10)) * 60;
+        if (!b.stand && tt > at + 10) {
+          // too big for the one under it: it rolls off and lands beside the snowman
+          const k = Math.min(1, (tt - at - 10) / 20);
+          x += k * (made[0].r + b.r + 16 + off); y += k * (204 - b.r - y);
+          off += b.r * 2 + 6;
         }
-        snowfall(state === 'build' ? t : tick, 30);
-        // the measuring stick, every 50 cm
+        snowball(x, y, b.r);
+      });
+      if (tt > made.length * 40) {
+        // a face, buttons, arms and a hat on whatever is still standing
+        const head = tower[tower.length - 1], hy = head.ty, hr = head.r;
+        const half = (v) => Math.round(v * 2) / 2, coal = (x, y, r) => { disc(x, y, r, '#181820'); fine(half(x - r * 0.5), half(y - r * 0.5), 0.5, 0.5, '#8890a0'); };
+        if (HIRES) { coal(SX - hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1)); coal(SX + hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1)); }
+        else { disc(SX - hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1), '#181820'); disc(SX + hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1), '#181820'); }
+        ctx.fillStyle = '#f07820'; ctx.beginPath(); ctx.moveTo(SX, hy - 1); ctx.lineTo(SX + hr * 0.7, hy + 2); ctx.lineTo(SX, hy + 4); ctx.fill();
         if (HIRES) {
-          // (planed, with the light down its left side, marked off every 10 cm)
-          roundBox(37, 40, 6, 165, 1.5, '#181820');
-          fine(38, 41, 4, 163, '#f0d860'); fine(38, 41, 1, 163, '#f8ec98'); fine(41, 41, 1, 163, '#c8b040');
-          for (let c = 10; 204 - c / CM > 41; c += 10) fine(38, Math.round((204 - c / CM) * 2) / 2, 2, 0.5, '#8a7830');
-          // ...and the snowman's shadow on the snow
-          oval(SX + 5, 203, made[0].r * 1.15, 4, 'rgba(90, 105, 140, 0.32)');
+          // (the carrot's top catching the light, and a ridge or two; the hat's brim and crown rounded, with a sheen)
+          ctx.fillStyle = '#f8a050'; ctx.beginPath(); ctx.moveTo(SX, hy - 1); ctx.lineTo(SX + hr * 0.7, hy + 2); ctx.lineTo(SX, hy + 1); ctx.fill();
+          fine(SX + 1.5, hy, 0.5, 2.5, '#c05c14'); fine(SX + hr * 0.3, hy + 0.5, 0.5, 1.5, '#c05c14');
+          const crown = half(hr * 0.9), brim = half(hr * 1.4), cy = half(hy - hr * 1.9), ch = half(hr * 0.95);
+          roundBox(SX - crown / 2, cy, crown, ch, 1.5, '#181820');
+          roundBox(SX - brim / 2, half(hy - hr - 3), brim, 4, 1.5, '#181820');
+          fine(SX - crown / 2 + 1, cy + 1, 1, ch - 2, '#4a4e5c'); fine(SX - brim / 2 + 1, half(hy - hr - 3) + 0.5, brim - 2, 0.5, '#4a4e5c');
+          fine(SX - crown / 2, half(hy - hr - 6), crown, 3, '#c02828'); fine(SX - crown / 2, half(hy - hr - 6), crown, 0.5, '#e86050'); fine(SX - crown / 2, half(hy - hr - 6) + 2.5, crown, 0.5, '#901c1c');
         } else {
-          ctx.fillStyle = '#181820'; ctx.fillRect(37, 40, 6, 165);
-          ctx.fillStyle = '#f0d860'; ctx.fillRect(38, 41, 4, 163);
+          ctx.fillStyle = '#181820'; ctx.fillRect(SX - hr * 0.7, hy - hr - 3, hr * 1.4, 4); ctx.fillRect(SX - hr * 0.45, hy - hr * 1.9, hr * 0.9, hr * 0.95);
+          ctx.fillStyle = '#c02828'; ctx.fillRect(SX - hr * 0.45, hy - hr - 6, hr * 0.9, 3);
         }
-        for (let c = 50; 204 - c / CM > 40; c += 50) {
-          const y = Math.round(204 - c / CM);
-          ctx.fillStyle = '#181820'; ctx.fillRect(34, y, 12, 1);
-          text(String(c), 31 - String(c).length * 6, y - 3, 1, '#f8f8f8');
-        }
-        let off = 0;
-        made.forEach((b, i) => {
-          const at = i * 40;
-          if (tt < at) return;
-          let x = SX, y = b.ty - (1 - Math.min(1, (tt - at) / 10)) * 60;
-          if (!b.stand && tt > at + 10) {
-            // too big for the one under it: it rolls off and lands beside the snowman
-            const k = Math.min(1, (tt - at - 10) / 20);
-            x += k * (made[0].r + b.r + 16 + off); y += k * (204 - b.r - y);
-            off += b.r * 2 + 6;
+        if (tower.length >= 2) {
+          const body = tower[tower.length - 2], by = body.ty, br = body.r;
+          for (let k = -1; k <= 1; k++) {
+            if (HIRES) coal(SX, by + k * br * 0.35, Math.max(1.5, br * 0.07));
+            else disc(SX, by + k * br * 0.35, Math.max(1.5, br * 0.07), '#181820');
           }
-          snowball(x, y, b.r);
-        });
-        if (tt > made.length * 40) {
-          // a face, buttons, arms and a hat on whatever is still standing
-          const head = tower[tower.length - 1], hy = head.ty, hr = head.r;
-          const half = (v) => Math.round(v * 2) / 2, coal = (x, y, r) => { disc(x, y, r, '#181820'); fine(half(x - r * 0.5), half(y - r * 0.5), 0.5, 0.5, '#8890a0'); };
-          if (HIRES) { coal(SX - hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1)); coal(SX + hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1)); }
-          else { disc(SX - hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1), '#181820'); disc(SX + hr * 0.35, hy - hr * 0.2, Math.max(1.5, hr * 0.1), '#181820'); }
-          ctx.fillStyle = '#f07820'; ctx.beginPath(); ctx.moveTo(SX, hy - 1); ctx.lineTo(SX + hr * 0.7, hy + 2); ctx.lineTo(SX, hy + 4); ctx.fill();
+          ctx.strokeStyle = '#4a2c14'; ctx.lineWidth = 2; ctx.beginPath();
+          ctx.moveTo(SX - br * 0.8, by - br * 0.2); ctx.lineTo(SX - br * 1.6, by - br * 0.8);
+          ctx.moveTo(SX + br * 0.8, by - br * 0.2); ctx.lineTo(SX + br * 1.6, by - br * 0.9); ctx.stroke();
           if (HIRES) {
-            // (the carrot's top catching the light, and a ridge or two; the hat's brim and crown rounded, with a sheen)
-            ctx.fillStyle = '#f8a050'; ctx.beginPath(); ctx.moveTo(SX, hy - 1); ctx.lineTo(SX + hr * 0.7, hy + 2); ctx.lineTo(SX, hy + 1); ctx.fill();
-            fine(SX + 1.5, hy, 0.5, 2.5, '#c05c14'); fine(SX + hr * 0.3, hy + 0.5, 0.5, 1.5, '#c05c14');
-            const crown = half(hr * 0.9), brim = half(hr * 1.4), cy = half(hy - hr * 1.9), ch = half(hr * 0.95);
-            roundBox(SX - crown / 2, cy, crown, ch, 1.5, '#181820');
-            roundBox(SX - brim / 2, half(hy - hr - 3), brim, 4, 1.5, '#181820');
-            fine(SX - crown / 2 + 1, cy + 1, 1, ch - 2, '#4a4e5c'); fine(SX - brim / 2 + 1, half(hy - hr - 3) + 0.5, brim - 2, 0.5, '#4a4e5c');
-            fine(SX - crown / 2, half(hy - hr - 6), crown, 3, '#c02828'); fine(SX - crown / 2, half(hy - hr - 6), crown, 0.5, '#e86050'); fine(SX - crown / 2, half(hy - hr - 6) + 2.5, crown, 0.5, '#901c1c');
-          } else {
-            ctx.fillStyle = '#181820'; ctx.fillRect(SX - hr * 0.7, hy - hr - 3, hr * 1.4, 4); ctx.fillRect(SX - hr * 0.45, hy - hr * 1.9, hr * 0.9, hr * 0.95);
-            ctx.fillStyle = '#c02828'; ctx.fillRect(SX - hr * 0.45, hy - hr - 6, hr * 0.9, 3);
-          }
-          if (tower.length >= 2) {
-            const body = tower[tower.length - 2], by = body.ty, br = body.r;
-            for (let k = -1; k <= 1; k++) {
-              if (HIRES) coal(SX, by + k * br * 0.35, Math.max(1.5, br * 0.07));
-              else disc(SX, by + k * br * 0.35, Math.max(1.5, br * 0.07), '#181820');
-            }
-            ctx.strokeStyle = '#4a2c14'; ctx.lineWidth = 2; ctx.beginPath();
-            ctx.moveTo(SX - br * 0.8, by - br * 0.2); ctx.lineTo(SX - br * 1.6, by - br * 0.8);
-            ctx.moveTo(SX + br * 0.8, by - br * 0.2); ctx.lineTo(SX + br * 1.6, by - br * 0.9); ctx.stroke();
-            if (HIRES) {
-              // (twigs forking off the arms, and the scarf rounded, with a fold and its end hanging down)
-              ctx.lineWidth = 1; ctx.beginPath();
-              ctx.moveTo(SX - br * 1.25, by - br * 0.54); ctx.lineTo(SX - br * 1.3, by - br * 0.9);
-              ctx.moveTo(SX + br * 1.25, by - br * 0.58); ctx.lineTo(SX + br * 1.55, by - br * 0.55); ctx.stroke();
-              const sw = half(br * 1.2), sy = half(by - br - 2);
-              roundBox(SX + sw * 0.15, sy + 2, 4, 8, 1, '#a02020'); fine(SX + sw * 0.15 + 0.5, sy + 8, 3, 1, '#e86050');
-              roundBox(SX - sw / 2, sy, sw, 4, 1.5, '#c02828'); fine(SX - sw / 2 + 1, sy + 0.5, sw - 2, 0.5, '#e86050'); fine(SX - sw / 2 + 1, sy + 3, sw - 2, 0.5, '#901c1c');
-            } else { ctx.fillStyle = '#c02828'; ctx.fillRect(SX - br * 0.6, by - br - 2, br * 1.2, 4); }
-          }
-          const top = Math.round(204 - height / CM);
-          ctx.fillStyle = '#f8e040'; for (let x = 46; x < SX; x += 4) ctx.fillRect(x, top, 2, 1);
-          text(height + ' cm', 48, top - 10, 1, '#f8e040');
+            // (twigs forking off the arms, and the scarf rounded, with a fold and its end hanging down)
+            ctx.lineWidth = 1; ctx.beginPath();
+            ctx.moveTo(SX - br * 1.25, by - br * 0.54); ctx.lineTo(SX - br * 1.3, by - br * 0.9);
+            ctx.moveTo(SX + br * 1.25, by - br * 0.58); ctx.lineTo(SX + br * 1.55, by - br * 0.55); ctx.stroke();
+            const sw = half(br * 1.2), sy = half(by - br - 2);
+            roundBox(SX + sw * 0.15, sy + 2, 4, 8, 1, '#a02020'); fine(SX + sw * 0.15 + 0.5, sy + 8, 3, 1, '#e86050');
+            roundBox(SX - sw / 2, sy, sw, 4, 1.5, '#c02828'); fine(SX - sw / 2 + 1, sy + 0.5, sw - 2, 0.5, '#e86050'); fine(SX - sw / 2 + 1, sy + 3, sw - 2, 0.5, '#901c1c');
+          } else { ctx.fillStyle = '#c02828'; ctx.fillRect(SX - br * 0.6, by - br - 2, br * 1.2, 4); }
         }
+        const top = Math.round(204 - height / CM);
+        ctx.fillStyle = '#f8e040'; for (let x = 46; x < SX; x += 4) ctx.fillRect(x, top, 2, 1);
+        text(height + ' cm', 48, top - 10, 1, '#f8e040');
       }
       if (state === 'done') {
         const lines = [tower.length < made.length ? 'Some rolled off!' : 'Snowman built!', 'Height ' + height + ' cm', record ? 'New record!' : 'Best ' + getBest('snowman') + ' cm'];
@@ -14984,131 +14906,121 @@
       },
       draw() {
         const c = line[0];
-        const st = draw3D('cocoa', () => ({ line: line.slice(0, 3), who: npcSpec, mug, order: c && !verdict ? c.order : null, pouring, drip, verdict }));
-        if (!st) {
-          duskSky(0, 150);
-          if (HIRES) fineSnow(150, '#e4eaf4');
-          else { ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 150, SW, SH - 150); }
-          snowfall(t, 24);
-          // the stand's awning
-          for (let x = 0; x < SW; x += 20) { ctx.fillStyle = (x / 20) & 1 ? '#f8f8f8' : '#d02828'; ctx.fillRect(x, 34, 20, 12); }
-          ctx.fillStyle = '#181820'; ctx.fillRect(0, 46, SW, 2);
-          // (it throws a shadow, at double resolution)
-          if (HIRES) { ctx.fillStyle = 'rgba(12, 14, 32, 0.3)'; for (let x = 0; x < SW; x += 20) { ctx.beginPath(); ctx.arc(x + 10, 49.5, 10, 0, Math.PI); ctx.fill(); } }
-          for (let x = 0; x < SW; x += 20) { ctx.fillStyle = (x / 20) & 1 ? '#f8f8f8' : '#d02828'; ctx.beginPath(); ctx.arc(x + 10, 48, 10, 0, Math.PI); ctx.fill(); }
-          if (HIRES) {
-            // ...the cloth folds down each stripe, and the hem has a stitched edge
-            fine(0, 34, SW, 0.5, 'rgba(255, 255, 255, 0.45)');
-            for (let x = 0; x < SW; x += 20) {
-              fine(x, 34, 2.5, 12, 'rgba(255, 255, 255, 0.16)'); fine(x + 15, 34, 5, 12, 'rgba(0, 0, 0, 0.1)');
-              ctx.fillStyle = 'rgba(0, 0, 0, 0.09)'; ctx.beginPath(); ctx.arc(x + 11.5, 48, 8.5, 0, Math.PI); ctx.fill();
-              ctx.strokeStyle = 'rgba(24, 24, 32, 0.55)'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.arc(x + 10, 48, 9.75, 0, Math.PI); ctx.stroke();
+        duskSky(0, 150);
+        if (HIRES) fineSnow(150, '#e4eaf4');
+        else { ctx.fillStyle = '#e4eaf4'; ctx.fillRect(0, 150, SW, SH - 150); }
+        snowfall(t, 24);
+        // the stand's awning
+        for (let x = 0; x < SW; x += 20) { ctx.fillStyle = (x / 20) & 1 ? '#f8f8f8' : '#d02828'; ctx.fillRect(x, 34, 20, 12); }
+        ctx.fillStyle = '#181820'; ctx.fillRect(0, 46, SW, 2);
+        // (it throws a shadow, at double resolution)
+        if (HIRES) { ctx.fillStyle = 'rgba(12, 14, 32, 0.3)'; for (let x = 0; x < SW; x += 20) { ctx.beginPath(); ctx.arc(x + 10, 49.5, 10, 0, Math.PI); ctx.fill(); } }
+        for (let x = 0; x < SW; x += 20) { ctx.fillStyle = (x / 20) & 1 ? '#f8f8f8' : '#d02828'; ctx.beginPath(); ctx.arc(x + 10, 48, 10, 0, Math.PI); ctx.fill(); }
+        if (HIRES) {
+          // ...the cloth folds down each stripe, and the hem has a stitched edge
+          fine(0, 34, SW, 0.5, 'rgba(255, 255, 255, 0.45)');
+          for (let x = 0; x < SW; x += 20) {
+            fine(x, 34, 2.5, 12, 'rgba(255, 255, 255, 0.16)'); fine(x + 15, 34, 5, 12, 'rgba(0, 0, 0, 0.1)');
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.09)'; ctx.beginPath(); ctx.arc(x + 11.5, 48, 8.5, 0, Math.PI); ctx.fill();
+            ctx.strokeStyle = 'rgba(24, 24, 32, 0.55)'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.arc(x + 10, 48, 9.75, 0, Math.PI); ctx.stroke();
+          }
+          fine(0, 46, SW, 0.5, '#50505c');
+        }
+        // the line, the one at the front biggest
+        for (let i = Math.min(line.length, 3) - 1; i >= 1; i--) ctx.drawImage(line[i].sprites.down[0], 76 + i * 24, 132, 32, 32);
+        if (c) ctx.drawImage(c.sprites.down[verdict && !verdict.s ? 0 : (t >> 5) & 1 ? 1 : 0], 30, 118, 48, 48);
+        // the urn and its tap
+        if (HIRES) {
+          // (brushed steel, curving away to the right, with a lid, two seams and a brass-railed tap)
+          ctx.drawImage(finePic('urn', 104, 142, (c2) => {
+            const rr = (x, y, w, h, r, co) => { c2.fillStyle = co; c2.beginPath(); rrPath(c2, x, y, w, h, r); c2.fill(); };
+            c2.scale(2, 2); c2.translate(-188, -49);
+            rr(189, 54, 50, 56, 4, '#20242c'); rr(193, 50, 42, 6, 2.5, '#20242c');
+            const g = c2.createLinearGradient(190, 0, 238, 0);
+            g.addColorStop(0, '#c4ccd6'); g.addColorStop(0.14, '#f0f4f8'); g.addColorStop(0.36, '#c4ccd6'); g.addColorStop(0.8, '#98a0ae'); g.addColorStop(1, '#7c8492');
+            rr(190, 56, 48, 53, 3, g);
+            rr(194, 51, 40, 4, 1.5, '#c8d0da'); c2.fillStyle = '#eef2f6'; c2.fillRect(197, 51.5, 12, 0.5);
+            c2.fillStyle = '#20242c'; c2.fillRect(190, 56, 48, 0.5);
+            for (const y of [62, 100]) { c2.fillStyle = '#7c8492'; c2.fillRect(190, y, 48, 0.5); c2.fillStyle = '#f0f4f8'; c2.fillRect(190, y + 0.5, 48, 0.5); }
+            rr(196, 72, 36, 12, 1.5, '#7a3a1c'); c2.strokeStyle = '#a86838'; c2.lineWidth = 0.5; c2.beginPath(); rrPath(c2, 196.75, 72.75, 34.5, 10.5, 1); c2.stroke();
+            rr(210, 109, 8, 10, 1, '#20242c'); rr(204, 108, 20, 3, 1.5, '#20242c');
+            c2.fillStyle = '#c8a050'; c2.fillRect(205.5, 108.5, 17, 0.5); c2.fillStyle = '#505868'; c2.fillRect(211, 111, 1, 7);
+          }), 188, 49);
+          text('COCOA', 199, 74, 1, '#f8e8c8');
+        } else {
+          ctx.fillStyle = '#20242c'; ctx.fillRect(189, 54, 50, 56); ctx.fillRect(193, 50, 42, 6);
+          ctx.fillStyle = '#b8c0cc'; ctx.fillRect(190, 56, 48, 53); ctx.fillStyle = '#e0e6ee'; ctx.fillRect(194, 58, 6, 49);
+          ctx.fillStyle = '#7a3a1c'; ctx.fillRect(196, 72, 36, 12); text('COCOA', 199, 74, 1, '#f8e8c8');
+          ctx.fillStyle = '#20242c'; ctx.fillRect(210, 109, 8, 10); ctx.fillRect(204, 108, 20, 3);
+        }
+        if (pouring || drip > 0) {
+          const sh = Math.max(0, Math.round(MUG.bottom - mug.level * MUG.h) - 119);
+          ctx.fillStyle = '#6a3a1c'; ctx.fillRect(212, 119, pouring ? 4 : 2, sh);
+          if (HIRES) fine(212.5, 119, 0.5, sh, '#a0683c');
+        }
+        // the counter and the toppings
+        if (HIRES) {
+          // (a planed top with a rounded front edge throwing a shadow, over panels of grain)
+          ctx.drawImage(finePic('counter', SW * 2, 148, (c2) => {
+            c2.scale(2, 2); c2.translate(0, -166);
+            const g = c2.createLinearGradient(0, 172, 0, 240);
+            g.addColorStop(0, '#62391b'); g.addColorStop(1, '#4e2c13');
+            c2.fillStyle = g; c2.fillRect(0, 168, SW, 72);
+            for (let x = 0; x < SW; x += 40) {
+              c2.fillStyle = '#3a2210'; c2.fillRect(x, 172, 1, 68); c2.fillStyle = '#6e4626'; c2.fillRect(x + 1, 172, 0.5, 68);
+              for (let i = 0; i < 4; i++) { c2.fillStyle = 'rgba(30, 16, 6, 0.25)'; c2.fillRect(x + 6 + i * 9, 178 + ((x / 40 + i) * 23) % 40, 0.5, 18 + (i * 7) % 12); }
             }
-            fine(0, 46, SW, 0.5, '#50505c');
-          }
-          // the line, the one at the front biggest
-          for (let i = Math.min(line.length, 3) - 1; i >= 1; i--) ctx.drawImage(line[i].sprites.down[0], 76 + i * 24, 132, 32, 32);
-          if (c) ctx.drawImage(c.sprites.down[verdict && !verdict.s ? 0 : (t >> 5) & 1 ? 1 : 0], 30, 118, 48, 48);
-          // the urn and its tap
-          if (HIRES) {
-            // (brushed steel, curving away to the right, with a lid, two seams and a brass-railed tap)
-            ctx.drawImage(finePic('urn', 104, 142, (c2) => {
-              const rr = (x, y, w, h, r, co) => { c2.fillStyle = co; c2.beginPath(); rrPath(c2, x, y, w, h, r); c2.fill(); };
-              c2.scale(2, 2); c2.translate(-188, -49);
-              rr(189, 54, 50, 56, 4, '#20242c'); rr(193, 50, 42, 6, 2.5, '#20242c');
-              const g = c2.createLinearGradient(190, 0, 238, 0);
-              g.addColorStop(0, '#c4ccd6'); g.addColorStop(0.14, '#f0f4f8'); g.addColorStop(0.36, '#c4ccd6'); g.addColorStop(0.8, '#98a0ae'); g.addColorStop(1, '#7c8492');
-              rr(190, 56, 48, 53, 3, g);
-              rr(194, 51, 40, 4, 1.5, '#c8d0da'); c2.fillStyle = '#eef2f6'; c2.fillRect(197, 51.5, 12, 0.5);
-              c2.fillStyle = '#20242c'; c2.fillRect(190, 56, 48, 0.5);
-              for (const y of [62, 100]) { c2.fillStyle = '#7c8492'; c2.fillRect(190, y, 48, 0.5); c2.fillStyle = '#f0f4f8'; c2.fillRect(190, y + 0.5, 48, 0.5); }
-              rr(196, 72, 36, 12, 1.5, '#7a3a1c'); c2.strokeStyle = '#a86838'; c2.lineWidth = 0.5; c2.beginPath(); rrPath(c2, 196.75, 72.75, 34.5, 10.5, 1); c2.stroke();
-              rr(210, 109, 8, 10, 1, '#20242c'); rr(204, 108, 20, 3, 1.5, '#20242c');
-              c2.fillStyle = '#c8a050'; c2.fillRect(205.5, 108.5, 17, 0.5); c2.fillStyle = '#505868'; c2.fillRect(211, 111, 1, 7);
-            }), 188, 49);
-            text('COCOA', 199, 74, 1, '#f8e8c8');
-          } else {
-            ctx.fillStyle = '#20242c'; ctx.fillRect(189, 54, 50, 56); ctx.fillRect(193, 50, 42, 6);
-            ctx.fillStyle = '#b8c0cc'; ctx.fillRect(190, 56, 48, 53); ctx.fillStyle = '#e0e6ee'; ctx.fillRect(194, 58, 6, 49);
-            ctx.fillStyle = '#7a3a1c'; ctx.fillRect(196, 72, 36, 12); text('COCOA', 199, 74, 1, '#f8e8c8');
-            ctx.fillStyle = '#20242c'; ctx.fillRect(210, 109, 8, 10); ctx.fillRect(204, 108, 20, 3);
-          }
-          if (pouring || drip > 0) {
-            const sh = Math.max(0, Math.round(MUG.bottom - mug.level * MUG.h) - 119);
-            ctx.fillStyle = '#6a3a1c'; ctx.fillRect(212, 119, pouring ? 4 : 2, sh);
-            if (HIRES) fine(212.5, 119, 0.5, sh, '#a0683c');
-          }
-          // the counter and the toppings
-          if (HIRES) {
-            // (a planed top with a rounded front edge throwing a shadow, over panels of grain)
-            ctx.drawImage(finePic('counter', SW * 2, 148, (c2) => {
-              c2.scale(2, 2); c2.translate(0, -166);
-              const g = c2.createLinearGradient(0, 172, 0, 240);
-              g.addColorStop(0, '#62391b'); g.addColorStop(1, '#4e2c13');
-              c2.fillStyle = g; c2.fillRect(0, 168, SW, 72);
-              for (let x = 0; x < SW; x += 40) {
-                c2.fillStyle = '#3a2210'; c2.fillRect(x, 172, 1, 68); c2.fillStyle = '#6e4626'; c2.fillRect(x + 1, 172, 0.5, 68);
-                for (let i = 0; i < 4; i++) { c2.fillStyle = 'rgba(30, 16, 6, 0.25)'; c2.fillRect(x + 6 + i * 9, 178 + ((x / 40 + i) * 23) % 40, 0.5, 18 + (i * 7) % 12); }
-              }
-              c2.fillStyle = 'rgba(20, 8, 0, 0.35)'; c2.fillRect(0, 172, SW, 1.5);
-              c2.fillStyle = '#c89060'; c2.fillRect(0, 166, SW, 6);
-              c2.fillStyle = '#ecc090'; c2.fillRect(0, 166, SW, 0.5);
-              c2.fillStyle = '#a87040'; c2.fillRect(0, 170.5, SW, 1.5);
-            }), 0, 166);
-          } else {
-            ctx.fillStyle = '#5a3418'; ctx.fillRect(0, 168, SW, 72);
-            ctx.fillStyle = '#c89060'; ctx.fillRect(0, 166, SW, 6);
-            ctx.fillStyle = '#4a2c14'; for (let x = 0; x < SW; x += 40) ctx.fillRect(x, 172, 2, 68);
-          }
-          if (mug && !mug.spilled) drawMug(c && !verdict ? c.order : null);
-          else if (mug) { oval(MUG.x, 168, 26, 4, '#6a3a1c'); }
-          if (HIRES) {
-            // the bag, folded over at the top, with its marshmallows showing through
-            roundBox(254, 132, 20, 34, 2, '#181820'); roundBox(255, 133, 18, 32, 1.5, '#f0e8e0');
-            fine(255, 137, 18, 0.5, '#c8c0b4'); fine(255, 137.5, 18, 0.5, '#fff8f0'); fine(255.5, 134, 1, 30, '#fff8f0'); fine(271, 138, 2, 26, '#d8d0c4');
-            for (let i = 0; i < 4; i++) { const mx = 257 + (i & 1) * 8, my = 140 + (i >> 1) * 8; roundBox(mx, my, 6, 5, 1.5, '#f8f8f8'); fine(mx + 0.5, my + 4, 5, 0.5, '#d0c8c0'); fine(mx + 1, my + 0.5, 2, 0.5, '#ffffff'); }
-            // the can of cream, a rounded metal can with a red cap
-            roundBox(278, 128, 12, 38, 2, '#181820'); roundBox(279, 136, 10, 29, 1, '#d8dce4');
-            fine(280, 136, 2, 29, '#f4f6fa'); fine(286.5, 136, 2.5, 29, '#a8aebc');
-            fine(279, 136, 10, 0.5, '#7c8492'); fine(279, 141, 10, 0.5, '#a8aebc');
-            roundBox(281, 129, 6, 7, 1.5, '#d02828'); fine(282, 130, 1, 5, '#f07070');
-            // the jar of canes, glass with a shine down it
-            roundBox(294, 140, 20, 26, 2, '#181820');
-          } else {
-            ctx.fillStyle = '#181820'; ctx.fillRect(254, 132, 20, 34); ctx.fillStyle = '#f0e8e0'; ctx.fillRect(255, 133, 18, 32);
-            ctx.fillStyle = '#f8f8f8'; for (let i = 0; i < 4; i++) ctx.fillRect(257 + (i & 1) * 8, 140 + (i >> 1) * 8, 6, 5);
-            ctx.fillStyle = '#181820'; ctx.fillRect(278, 128, 12, 38); ctx.fillStyle = '#d8dce4'; ctx.fillRect(279, 136, 10, 29);
-            ctx.fillStyle = '#d02828'; ctx.fillRect(281, 129, 6, 7);
-            ctx.fillStyle = '#181820'; ctx.fillRect(294, 140, 20, 26);
-          }
-          ctx.fillStyle = '#a8d0e8'; ctx.fillRect(295, 141, 18, 24);
-          for (let i = 0; i < 3; i++) { ctx.fillStyle = '#f8f8f8'; ctx.fillRect(298 + i * 5, 130, 2, 14); ctx.fillStyle = '#e03030'; ctx.fillRect(298 + i * 5, 132, 2, 2); ctx.fillRect(298 + i * 5, 137, 2, 2); }
-          if (HIRES) { fine(296, 142, 1.5, 22, 'rgba(255, 255, 255, 0.55)'); fine(310.5, 142, 2, 22, 'rgba(40, 90, 130, 0.25)'); fine(295, 141, 18, 0.5, '#e4f2fa'); }
-          text('L', 261, 156, 1, '#181820'); text('U', 282, 156, 1, '#181820'); text('R', 302, 156, 1, '#181820');
+            c2.fillStyle = 'rgba(20, 8, 0, 0.35)'; c2.fillRect(0, 172, SW, 1.5);
+            c2.fillStyle = '#c89060'; c2.fillRect(0, 166, SW, 6);
+            c2.fillStyle = '#ecc090'; c2.fillRect(0, 166, SW, 0.5);
+            c2.fillStyle = '#a87040'; c2.fillRect(0, 170.5, SW, 1.5);
+          }), 0, 166);
+        } else {
+          ctx.fillStyle = '#5a3418'; ctx.fillRect(0, 168, SW, 72);
+          ctx.fillStyle = '#c89060'; ctx.fillRect(0, 166, SW, 6);
+          ctx.fillStyle = '#4a2c14'; for (let x = 0; x < SW; x += 40) ctx.fillRect(x, 172, 2, 68);
         }
-        // (in 3D: which button each topping is, under it on the counter, and where the one at the front's head is)
-        const pts = st && st.pts();
-        if (st) {
-          [['L', pts.bag], ['U', pts.can], ['R', pts.jar]].forEach(([k, [x, y]]) => label(st, k, Math.round(x) - 2, Math.round(y) + 2));
-          shade(0, 36);
+        if (mug && !mug.spilled) drawMug(c && !verdict ? c.order : null);
+        else if (mug) { oval(MUG.x, 168, 26, 4, '#6a3a1c'); }
+        if (HIRES) {
+          // the bag, folded over at the top, with its marshmallows showing through
+          roundBox(254, 132, 20, 34, 2, '#181820'); roundBox(255, 133, 18, 32, 1.5, '#f0e8e0');
+          fine(255, 137, 18, 0.5, '#c8c0b4'); fine(255, 137.5, 18, 0.5, '#fff8f0'); fine(255.5, 134, 1, 30, '#fff8f0'); fine(271, 138, 2, 26, '#d8d0c4');
+          for (let i = 0; i < 4; i++) { const mx = 257 + (i & 1) * 8, my = 140 + (i >> 1) * 8; roundBox(mx, my, 6, 5, 1.5, '#f8f8f8'); fine(mx + 0.5, my + 4, 5, 0.5, '#d0c8c0'); fine(mx + 1, my + 0.5, 2, 0.5, '#ffffff'); }
+          // the can of cream, a rounded metal can with a red cap
+          roundBox(278, 128, 12, 38, 2, '#181820'); roundBox(279, 136, 10, 29, 1, '#d8dce4');
+          fine(280, 136, 2, 29, '#f4f6fa'); fine(286.5, 136, 2.5, 29, '#a8aebc');
+          fine(279, 136, 10, 0.5, '#7c8492'); fine(279, 141, 10, 0.5, '#a8aebc');
+          roundBox(281, 129, 6, 7, 1.5, '#d02828'); fine(282, 130, 1, 5, '#f07070');
+          // the jar of canes, glass with a shine down it
+          roundBox(294, 140, 20, 26, 2, '#181820');
+        } else {
+          ctx.fillStyle = '#181820'; ctx.fillRect(254, 132, 20, 34); ctx.fillStyle = '#f0e8e0'; ctx.fillRect(255, 133, 18, 32);
+          ctx.fillStyle = '#f8f8f8'; for (let i = 0; i < 4; i++) ctx.fillRect(257 + (i & 1) * 8, 140 + (i >> 1) * 8, 6, 5);
+          ctx.fillStyle = '#181820'; ctx.fillRect(278, 128, 12, 38); ctx.fillStyle = '#d8dce4'; ctx.fillRect(279, 136, 10, 29);
+          ctx.fillStyle = '#d02828'; ctx.fillRect(281, 129, 6, 7);
+          ctx.fillStyle = '#181820'; ctx.fillRect(294, 140, 20, 26);
         }
+        ctx.fillStyle = '#a8d0e8'; ctx.fillRect(295, 141, 18, 24);
+        for (let i = 0; i < 3; i++) { ctx.fillStyle = '#f8f8f8'; ctx.fillRect(298 + i * 5, 130, 2, 14); ctx.fillStyle = '#e03030'; ctx.fillRect(298 + i * 5, 132, 2, 2); ctx.fillRect(298 + i * 5, 137, 2, 2); }
+        if (HIRES) { fine(296, 142, 1.5, 22, 'rgba(255, 255, 255, 0.55)'); fine(310.5, 142, 2, 22, 'rgba(40, 90, 130, 0.25)'); fine(295, 141, 18, 0.5, '#e4f2fa'); }
+        text('L', 261, 156, 1, '#181820'); text('U', 282, 156, 1, '#181820'); text('R', 302, 156, 1, '#181820');
         winterHud('Hot chocolate stand', 'Stars ' + stars + '   Walk-offs ' + walked, 'Best ' + getBest('cocoa'), left);
-        // the order of whoever's at the front (or what they think of it), in a bubble over
-        // them (under their face, in 3D, pointing up at it)
+        // the order of whoever's at the front (or what they think of it), in a bubble over them
         if (c) {
-          const by = st ? 116 : 56, tx = st && pts.head ? Math.round(clamp(pts.head[0], 20, 148)) - 4 : 48, ty = st ? by - 6 : by + 54;
+          const by = 56, tx = 48, ty = by + 54;
           if (HIRES) {
             // a rounded bubble, its tail narrowing to a point
             roundBox(8, by, 152, 54, 4.5, '#181820'); roundBox(9, by + 1, 150, 52, 3.5, '#f8f8f8');
             for (let i = 0; i < 12; i++) {
-              const w = 8 - i * 0.5, ry = st ? by - 0.5 - i / 2 : by + 53.5 + i / 2, lx = tx + (8 - w) / 2;
+              const w = 8 - i * 0.5, ry = by + 53.5 + i / 2, lx = tx + (8 - w) / 2;
               fine(lx, ry, w, 0.5, '#181820');
               if (w > 2) fine(lx + 1, ry, w - 2, 0.5, '#f8f8f8');
             }
             fine(13, by + 1, 142, 0.5, '#ffffff'); fine(13, by + 52.5, 142, 0.5, '#d8dce4');
           } else {
             ctx.fillStyle = '#181820'; ctx.fillRect(8, by, 152, 54); ctx.fillRect(tx, ty, 8, 6);
-            ctx.fillStyle = '#f8f8f8'; ctx.fillRect(9, by + 1, 150, 52); ctx.fillRect(tx + 1, st ? ty + 1 : ty - 1, 6, 6);
+            ctx.fillStyle = '#f8f8f8'; ctx.fillRect(9, by + 1, 150, 52); ctx.fillRect(tx + 1, ty - 1, 6, 6);
           }
           text(c.name, 14, by + 5, 1, '#2858a8');
           if (verdict) {
@@ -15136,9 +15048,9 @@
         if (state === 'ready') readyBox(t, 'Pour to the red line');
         else if (state === 'done') doneBox([why, 'Stars: ' + stars, record ? 'New record!' : 'Best ' + getBest('cocoa')], t);
         else {
-          hint(st, 'Hold Space: pour   Down: hand it over', 12, 204, '#f0d8b8');
-          text('Left: marshmallow  Up: cream  Right: cane', 12, 216, 1, st ? '#c8ccd8' : '#f0d8b8');
-          text('Esc: give up', 12, 228, 1, st ? '#c8ccd8' : '#f0d8b8');
+          hint('Hold Space: pour   Down: hand it over', 12, 204, '#f0d8b8');
+          text('Left: marshmallow  Up: cream  Right: cane', 12, 216, 1, '#f0d8b8');
+          text('Esc: give up', 12, 228, 1, '#f0d8b8');
         }
       },
     };
@@ -15427,72 +15339,64 @@
         theirs = theirs.filter((b) => !b.dead);
       },
       draw() {
-        // (another player as they made themselves in the character editor)
-        const who = vs ? () => (vs.look ? hdLook('mp:' + foe + ':' + vs.code + ':' + (vs.xs || ''), foe, vs.look, vs.xs) : npcSpec(foe)) : npcSpec;
-        const st = draw3D('snowball', () => ({ forts, who, me: meSpec(), px, duck, cool, pack, mine, theirs }));
-        if (!st) {
-          duskSky(0, 62);
-          if (HIRES) fineSnow(62, '#e6ecf6');
-          else {
-            ctx.fillStyle = '#e6ecf6'; ctx.fillRect(0, 62, SW, SH - 62);
-            ctx.fillStyle = '#d4dcec'; for (let y = 70; y < SH; y += 18) ctx.fillRect(0, y, SW, 1);
-          }
-          // a couple of cars under the snow at the back
-          for (const [x, c] of [[40, '#8a2a2a'], [270, '#2a4a8a']]) {
-            if (HIRES) {
-              // (rounded, a shine along the door, tail lights and wheels, and the snow in a soft heap on top)
-              roundBox(x - 21, 57, 42, 12, 3, '#181820'); roundBox(x - 20, 59, 40, 9, 2.5, c);
-              fine(x - 17, 63, 34, 0.5, 'rgba(255, 255, 255, 0.3)'); fine(x + 17.5, 62, 2, 1.5, '#f05040'); fine(x - 19.5, 62, 2, 1.5, '#f8e8a0');
-              for (const wx of [-12, 12]) { fineDisc(x + wx, 67, 3, '#181820'); fineDisc(x + wx, 67, 1.25, '#8890a0'); }
-              roundBox(x - 13, 52, 26, 8, 3.5, '#f4f8fc'); roundBox(x - 20, 56, 40, 5, 2.5, '#f4f8fc');
-              fine(x - 18, 60.5, 36, 0.5, '#c0cce0'); fine(x - 11, 52.5, 14, 0.5, '#ffffff');
-            } else {
-              ctx.fillStyle = '#181820'; ctx.fillRect(x - 21, 57, 42, 12);
-              ctx.fillStyle = c; ctx.fillRect(x - 20, 60, 40, 8);
-              ctx.fillStyle = '#f4f8fc'; ctx.fillRect(x - 20, 56, 40, 5); ctx.fillRect(x - 12, 52, 24, 5);
-            }
-          }
-          snowfall(t, 24);
-          // the forts, back to front, with whoever is behind each one
-          for (const f of forts.slice().sort((a, b) => a.y - b.y)) {
-            const size = f.far ? 24 : 32, fh = f.far ? 10 : 14, top = f.y - fh, ex = Math.round(f.x + f.dx - size / 2);
-            if (f.up > 0) {
-              ctx.save(); ctx.beginPath(); ctx.rect(0, 0, SW, top + 2); ctx.clip();
-              const ey = Math.round(top + 2 - f.up * size * 0.75);
-              ctx.drawImage(f.sprites.down[0], ex, ey, size, size);
-              if (f.state === 'wind') ball(ex + size * 0.85, ey + size * 0.15 + Math.sin(f.st / 3), f.far ? 2.5 : 3.5);
-              if (f.state === 'hit') { disc(ex + size / 2, ey + size * 0.3, size * 0.22, '#f8fbff'); disc(ex + size * 0.4, ey + size * 0.25, size * 0.12, '#ffffff'); }
-              ctx.restore();
-            }
-            if (HIRES) snowWall(f.x - f.hw, top, f.hw * 2, fh, f.far ? 8 : 10);
-            else {
-              ctx.fillStyle = '#5a6478'; ctx.fillRect(f.x - f.hw - 1, top - 1, f.hw * 2 + 2, fh + 6);
-              ctx.fillStyle = '#f4f8fc'; ctx.fillRect(f.x - f.hw, top, f.hw * 2, fh + 4);
-              ctx.fillStyle = '#c8d4e6'; ctx.fillRect(f.x - f.hw, top + fh, f.hw * 2, 4);
-              for (let x = f.x - f.hw + 8; x < f.x + f.hw - 2; x += 10) ctx.fillRect(x, top + 2, 1, fh - 3);
-              ctx.fillRect(f.x - f.hw, top + Math.round(fh / 2), f.hw * 2, 1);
-            }
-          }
-          for (const b of mine) {
-            const p = (b.y0 - b.y) / (b.y0 - (b.y1 || 50)), y = b.y - Math.sin(Math.min(1, p) * Math.PI) * 14;
-            ball(b.x, y, 4 - p * 2);
-          }
-          // you, behind your wall
-          const yt = WALL - 46 + (duck ? 26 : 0);
-          ctx.drawImage(sprites.up[!duck && (held.left || held.right) ? 1 + ((t >> 3) & 1) : 0], Math.round(px) - 20, yt, 40, 40);
-          if (!duck && cool > 6) ball(px + 14, yt + 8, 3.5);
+        duskSky(0, 62);
+        if (HIRES) fineSnow(62, '#e6ecf6');
+        else {
+          ctx.fillStyle = '#e6ecf6'; ctx.fillRect(0, 62, SW, SH - 62);
+          ctx.fillStyle = '#d4dcec'; for (let y = 70; y < SH; y += 18) ctx.fillRect(0, y, SW, 1);
+        }
+        // a couple of cars under the snow at the back
+        for (const [x, c] of [[40, '#8a2a2a'], [270, '#2a4a8a']]) {
           if (HIRES) {
-            snowWall(-3, WALL - 10, SW + 6, 14, 16);
-            fine(0, WALL + 8, SW, SH - WALL - 8, '#4a5468'); fine(0, WALL + 8, SW, 1, '#384052'); fine(0, WALL + 9, SW, 0.5, '#5a6478');
+            // (rounded, a shine along the door, tail lights and wheels, and the snow in a soft heap on top)
+            roundBox(x - 21, 57, 42, 12, 3, '#181820'); roundBox(x - 20, 59, 40, 9, 2.5, c);
+            fine(x - 17, 63, 34, 0.5, 'rgba(255, 255, 255, 0.3)'); fine(x + 17.5, 62, 2, 1.5, '#f05040'); fine(x - 19.5, 62, 2, 1.5, '#f8e8a0');
+            for (const wx of [-12, 12]) { fineDisc(x + wx, 67, 3, '#181820'); fineDisc(x + wx, 67, 1.25, '#8890a0'); }
+            roundBox(x - 13, 52, 26, 8, 3.5, '#f4f8fc'); roundBox(x - 20, 56, 40, 5, 2.5, '#f4f8fc');
+            fine(x - 18, 60.5, 36, 0.5, '#c0cce0'); fine(x - 11, 52.5, 14, 0.5, '#ffffff');
           } else {
-            ctx.fillStyle = '#5a6478'; ctx.fillRect(0, WALL - 11, SW, 24);
-            ctx.fillStyle = '#f4f8fc'; ctx.fillRect(0, WALL - 10, SW, 18);
-            ctx.fillStyle = '#c8d4e6'; ctx.fillRect(0, WALL + 4, SW, 4); for (let x = 6; x < SW; x += 16) ctx.fillRect(x, WALL - 8, 1, 12);
-            ctx.fillStyle = '#4a5468'; ctx.fillRect(0, WALL + 8, SW, SH - WALL - 8);
+            ctx.fillStyle = '#181820'; ctx.fillRect(x - 21, 57, 42, 12);
+            ctx.fillStyle = c; ctx.fillRect(x - 20, 60, 40, 8);
+            ctx.fillStyle = '#f4f8fc'; ctx.fillRect(x - 20, 56, 40, 5); ctx.fillRect(x - 12, 52, 24, 5);
           }
+        }
+        snowfall(t, 24);
+        // the forts, back to front, with whoever is behind each one
+        for (const f of forts.slice().sort((a, b) => a.y - b.y)) {
+          const size = f.far ? 24 : 32, fh = f.far ? 10 : 14, top = f.y - fh, ex = Math.round(f.x + f.dx - size / 2);
+          if (f.up > 0) {
+            ctx.save(); ctx.beginPath(); ctx.rect(0, 0, SW, top + 2); ctx.clip();
+            const ey = Math.round(top + 2 - f.up * size * 0.75);
+            ctx.drawImage(f.sprites.down[0], ex, ey, size, size);
+            if (f.state === 'wind') ball(ex + size * 0.85, ey + size * 0.15 + Math.sin(f.st / 3), f.far ? 2.5 : 3.5);
+            if (f.state === 'hit') { disc(ex + size / 2, ey + size * 0.3, size * 0.22, '#f8fbff'); disc(ex + size * 0.4, ey + size * 0.25, size * 0.12, '#ffffff'); }
+            ctx.restore();
+          }
+          if (HIRES) snowWall(f.x - f.hw, top, f.hw * 2, fh, f.far ? 8 : 10);
+          else {
+            ctx.fillStyle = '#5a6478'; ctx.fillRect(f.x - f.hw - 1, top - 1, f.hw * 2 + 2, fh + 6);
+            ctx.fillStyle = '#f4f8fc'; ctx.fillRect(f.x - f.hw, top, f.hw * 2, fh + 4);
+            ctx.fillStyle = '#c8d4e6'; ctx.fillRect(f.x - f.hw, top + fh, f.hw * 2, 4);
+            for (let x = f.x - f.hw + 8; x < f.x + f.hw - 2; x += 10) ctx.fillRect(x, top + 2, 1, fh - 3);
+            ctx.fillRect(f.x - f.hw, top + Math.round(fh / 2), f.hw * 2, 1);
+          }
+        }
+        for (const b of mine) {
+          const p = (b.y0 - b.y) / (b.y0 - (b.y1 || 50)), y = b.y - Math.sin(Math.min(1, p) * Math.PI) * 14;
+          ball(b.x, y, 4 - p * 2);
+        }
+        // you, behind your wall
+        const yt = WALL - 46 + (duck ? 26 : 0);
+        ctx.drawImage(sprites.up[!duck && (held.left || held.right) ? 1 + ((t >> 3) & 1) : 0], Math.round(px) - 24, yt - 8, 48, 48);
+        if (!duck && cool > 6) ball(px + 14, yt + 8, 3.5);
+        if (HIRES) {
+          snowWall(-3, WALL - 10, SW + 6, 14, 16);
+          fine(0, WALL + 8, SW, SH - WALL - 8, '#4a5468'); fine(0, WALL + 8, SW, 1, '#384052'); fine(0, WALL + 9, SW, 0.5, '#5a6478');
         } else {
-          shade(0, 36);
-          shade(WALL + 6, SH - WALL - 6);
+          ctx.fillStyle = '#5a6478'; ctx.fillRect(0, WALL - 11, SW, 24);
+          ctx.fillStyle = '#f4f8fc'; ctx.fillRect(0, WALL - 10, SW, 18);
+          ctx.fillStyle = '#c8d4e6'; ctx.fillRect(0, WALL + 4, SW, 4); for (let x = 6; x < SW; x += 16) ctx.fillRect(x, WALL - 8, 1, 12);
+          ctx.fillStyle = '#4a5468'; ctx.fillRect(0, WALL + 8, SW, SH - WALL - 8);
         }
         // what you've got left, after your hits: a heart goes each time you're hit, flashing
         // white and shaking as it goes (against a player, after "You", with theirs by their
@@ -15514,15 +15418,14 @@
         }
         // theirs on the way (coming at you, so in front of everything), each with a mark on
         // your wall where it will land
-        if (!st) for (const b of theirs) {
+        for (const b of theirs) {
           const p = b.t / b.dur, x = b.x0 + (b.tx - b.x0) * p, y = b.y0 + (WALL - 26 - b.y0) * p - Math.sin(p * Math.PI) * 34;
           oval(b.tx, WALL - 10, 4 + p * 7, 1.5 + p * 1.5, p > 0.6 ? 'rgba(210, 50, 50, 0.75)' : 'rgba(60, 70, 100, 0.45)');
           ball(x, y, 2 + p * 4);
         }
         for (const p of pops) {
-          // (over the head of whoever got it, in 3D)
-          const [x, y] = st ? st.over(p.x, p.z) : [p.x, p.y + p.t * 0.4], w = p.s.length * 6;
-          text(p.s, Math.round(clamp(x - w / 2, 4, SW - 4 - w)), Math.round(y - p.t * 0.4 - (st ? 12 : 0)), 1, '#f8e040');
+          const w = p.s.length * 6;
+          text(p.s, Math.round(clamp(p.x - w / 2, 4, SW - 4 - w)), Math.round(p.y), 1, '#f8e040');
         }
         for (const b of blobs) { ctx.globalAlpha = Math.min(1, b.life / 40); disc(b.x, b.y, b.r, '#f8fbff'); disc(b.x + b.r * 0.6, b.y + b.r * 0.5, b.r * 0.45, '#f8fbff'); ctx.globalAlpha = 1; }
         if (msgT > 0 && state === 'play') ctext(msg, 46, '#f8e040');
@@ -15545,7 +15448,6 @@
   // clock up, while drawYard draws the two of you out on the ice (hockey) with the camera
   // down low at the end of the rink. With a game server, the rink itself (its boards, its
   // ice or a net) puts you in a live game against other players (LiveHockey, below).
-  const HOCKEY_VIEW = { dist: 17, pitch: 0.55 };
   const HOCKEY_RINGS = ['#f8d040', '#e84848']; // round your skates and theirs, to tell you apart
   const HOCKEY_SFX = { go: 'whistle', lunge: 'dash', pass: 'tap', steal: 'tap', block: 'tap', post: 'post', net: 'mesh', goal: 'horn', buzzer: 'buzz', bump: 'bump' };
   // a team's colour on the scoreboard (at double resolution, a round chip with a light on it)
@@ -15670,7 +15572,7 @@
         else if (g.phase === 'play' && go < 40) msg([], 'GO!');
         else if (g.phase === 'goal') msg([scored === 0 ? 'You score!' : foe + ' scores!'], 'GOAL!');
         else if (g.phase === 'buzzer') msg([g.score[0] === g.score[1] ? 'Tied: overtime!' : ''], 'TIME!');
-        text('Enter: pause', 4, SH - 10, 1, '#f8f8f8');
+        text('Enter: pause', 5, SH - 9, 1, col.dark); text('Enter: pause', 4, SH - 10, 1, '#f8f8f8');
       },
     };
     return self;
@@ -16031,7 +15933,7 @@
           box(SW - 118, 24, 118, 40);
           ['KEEP PLAYING', 'LEAVE GAME'].forEach((o, i) => { text(o, SW - 102, 32 + i * 16); if (i === menu) text('>', SW - 110, 32 + i * 16); });
         }
-        text('Enter: menu', 4, SH - 10, 1, '#f8f8f8');
+        text('Enter: menu', 5, SH - 9, 1, col.dark); text('Enter: menu', 4, SH - 10, 1, '#f8f8f8');
       },
     };
 
@@ -16089,271 +15991,299 @@
     return self;
   }
 
-  // The parking lot's own canvas: K times the game screen's size, under it, shown only
-  // while you're outside (the game screen goes see-through so it shows, with any menus
-  // and dialogs still drawn on top in the usual pixels).
-  // The lot is drawn in 3D (js/lot3d.js) under that canvas when it can be: Three.js is
-  // fetched in the background once the game has loaded at Christmas, and until it's in (or
-  // on a device without WebGL, or where the browser could only draw it in software, or with
-  // &flat in the link) js/hd.js draws it flat instead.
-  // In 3D the flat canvas only carries the names over people's heads and speech bubbles.
-  let hd = null, three = 'idle';
-  // how close the 3D lot's camera is (Start menu > ZOOM), kept between visits
-  const LOT_ZOOMS = ['ZOOM: FAR', 'ZOOM: MID', 'ZOOM: CLOSE'];
-  let lotZoom = Math.min(LOT_ZOOMS.length - 1, Math.max(0, +store.get('zoom') || 0));
-  // how far the screen is into the next update (0 to 1), so the 3D lot can draw between them
+  // The parking lot: js/lot.js paints it the first time you go out, in the office's pixels,
+  // and it's drawn with the same sprites as the office. Everyone is drawn from where they
+  // really are (see updatePlayer), each to the nearest real pixel, and anything taller than
+  // its own tiles sorts in with them.
+  let lotArt = null;
+  // how far the screen is into the next update (0 to 1), so a snowball can be drawn between them
   let drawAlpha = 0;
-  function loadThree() {
-    if (three !== 'idle' || !window.LOT3D || /[#&]flat/.test(location.hash)) return;
-    three = 'loading';
-    const s = document.createElement('script');
-    s.src = 'js/vendor/three.min.js';
-    s.onload = () => { three = window.THREE ? 'ready' : 'failed'; };
-    s.onerror = () => { three = 'failed'; };
-    document.body.appendChild(s);
-  }
-  if (CHRISTMAS) setTimeout(loadThree, 1500);
-  function hdScreen() {
-    if (hd) return hd;
-    const cv = document.createElement('canvas');
-    cv.width = SW * HD.K; cv.height = SH * HD.K;
-    cv.style.position = 'absolute'; cv.style.borderRadius = '2px';
-    canvas.parentNode.style.position = 'relative';
-    canvas.style.position = 'relative'; canvas.style.zIndex = '1';
-    canvas.parentNode.insertBefore(cv, canvas);
-    hd = { cv, c: cv.getContext('2d'), lot: null, gl: null, people: {}, shown: false };
-    hdPlace();
-    return hd;
-  }
-  // the 3D lot, made the first time it's wanted after Three.js is in
-  function hdGL() {
-    if (hd.gl || three !== 'ready') return hd.gl;
-    try {
-      hd.gl = LOT3D.create(MAPS.floors[YARD], { touch: isTouch });
-      hd.gl.setZoom(lotZoom, true);
-    } catch (e) {
-      three = 'failed';
-      return null;
-    }
-    const g = hd.gl.canvas;
-    g.style.position = 'absolute'; g.style.borderRadius = '2px'; g.style.display = hd.shown ? 'block' : 'none';
-    canvas.parentNode.insertBefore(g, hd.cv);
-    hdPlace();
-    return hd.gl;
-  }
-  function hdPlace() {
-    if (!hd) return;
-    const box = { left: canvas.offsetLeft + 'px', top: canvas.offsetTop + 'px', width: canvas.style.width, height: canvas.style.height };
-    Object.assign(hd.cv.style, box);
-    if (hd.gl) {
-      Object.assign(hd.gl.canvas.style, box);
-      hd.gl.resize(canvas.clientWidth, canvas.clientHeight);
-    }
-  }
-  function hdShow(on) {
-    if ((hd ? hd.shown : false) === on) return;
-    hdScreen().shown = on;
-    hd.cv.style.display = on ? 'block' : 'none';
-    if (hd.gl) hd.gl.canvas.style.display = on ? 'block' : 'none';
-    canvas.style.background = on ? 'transparent' : '';
-  }
-  // someone's look in the smoother style, made once
-  const hdPerson = (key, name, body, look, style) => hd.people[key] || (hd.people[key] = HD.person(name, body, look, style));
-  // a player, dressed just as they made themselves in the character editor (in their ugly
-  // sweater, at Christmas: the key has to say which)
-  const hdLook = (key, name, look, sweater) => hdPerson(key, name, look.g, Art.lookColours(look), Art.lookStyle(look, sweater));
-  // you as you're dressed now, and a coworker
-  function meSpec() {
-    const mine = wornLook(myLook), key = 'me:' + playerName + ':' + Art.lookCode(mine) + ':' + mySweater();
-    return { key, spec: hdLook(key, playerName || 'New Hire', mine, mySweater()) };
-  }
-  const npcSpec = (name) => {
-    const { body, look } = lookFor(name), knit = knits[name];
-    const style = knit ? Object.assign({}, personOf(name).style, { sweater: { key: knit, cols: Art.SWEATERS[knit].cols } }) : personOf(name).style;
-    return hdPerson('npc:' + name, name, body, look, style);
-  };
+  const realPx = (v) => Math.round(v * 2) / 2;
   const iceAt = (px, py) => tileAt(YARD, Math.round(px / 16), Math.round(py / 16)) === '~';
-  // how far through a stride someone is (two steps to a stride), or -1 standing still
-  const stride = (moving, step, prog) => (moving ? ((step ? 1 : 0) + prog / 16) / 2 : -1);
+  // which of their three pictures someone's on, w through a stride (two steps), or -1 standing still
+  const strideFrame = (w) => (w < 0 ? 0 : [1, 0, 2, 0][Math.floor(w * 4) & 3]);
+  // The same picture on skates: white boots with steel along the bottom row, wherever there's a
+  // foot in it. Made once for each.
+  const skatePics = new WeakMap();
+  function onSkates(img) {
+    let cv = skatePics.get(img);
+    if (cv) return cv;
+    cv = document.createElement('canvas');
+    cv.width = img.width; cv.height = img.height; cv.hi = img.hi;
+    const c = cv.getContext('2d');
+    c.drawImage(img, 0, 0);
+    const k = img.hi || 1, w = img.width, h = img.height, im = c.getImageData(0, h - k, w, k), d = im.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 128 || d[i] + d[i + 1] + d[i + 2] < 90) continue; // (the outline stays)
+      const row = Math.floor(i / 4 / w);
+      const [r, g, b] = row === k - 1 ? [176, 188, 204] : [244, 246, 250];
+      d[i] = r; d[i + 1] = g; d[i + 2] = b;
+    }
+    c.putImageData(im, 0, h - k);
+    skatePics.set(img, cv);
+    return cv;
+  }
+  // the colour of someone's sleeves, from their picture (for their arms in a snow angel)
+  const sleevePics = new WeakMap();
+  function sleeveOf(img) {
+    if (sleevePics.has(img)) return sleevePics.get(img);
+    // (the first thing across that row, from the left, that isn't their outline)
+    const k = img.hi || 1, d = img.getContext('2d').getImageData(0, 11 * k, 8 * k, 1).data;
+    let c = '#c8ccd8';
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 128 && d[i] + d[i + 1] + d[i + 2] > 90) { c = 'rgb(' + d[i] + ', ' + d[i + 1] + ', ' + d[i + 2] + ')'; break; }
+    sleevePics.set(img, c);
+    return c;
+  }
+  // a line at double resolution, a square w across at each real pixel along it
+  function pixLine(x0, y0, x1, y1, w, c) {
+    const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 2));
+    ctx.fillStyle = c;
+    for (let i = 0; i <= n; i++) ctx.fillRect(realPx(x0 + (x1 - x0) * i / n - w / 2), realPx(y0 + (y1 - y0) * i / n - w / 2), w, w);
+  }
+
+  // Someone out in the lot: it.x, it.y is the top-left of their tile, as people go indoors.
+  // it.throw: how far through throwing a snowball. it.angel: lying in the snow ({ lie, flap }, see
+  // angelPose): they go over backwards, sweeping their arms, and the angel shows in the snow.
+  function drawOutside(it, cx, cy) {
+    const x = realPx(it.x - cx), an = it.angel;
+    const y = realPx(it.y - cy - 4 - (an ? an.lie * 11 : 0));
+    let img = it.sheet[it.dir][it.frame];
+    if (it.skate) img = onSkates(img);
+    if (an) {
+      ctx.globalAlpha = 0.6 * an.lie;
+      ctx.drawImage(angelPic(), x - 4, y - 1, 24, 22);
+      ctx.globalAlpha = 1;
+      const a = (0.25 + an.flap * 1.75) * an.lie, sl = sleeveOf(it.sheet.down[0]);
+      for (const s of [-1, 1]) {
+        const ax = x + 8 + s * 5.5, ay = y + 9.5, bx = ax + s * Math.sin(a) * 7, by = ay + Math.cos(a) * 7;
+        pixLine(ax, ay, bx, by, 2.5, col.dark); pixLine(ax, ay, bx, by, 1.5, sl);
+      }
+    }
+    ctx.drawImage(img, x, y);
+    if (it.throw && it.throw < RELEASE / THROW_T) {
+      // the snowball in their hand, drawn back before it goes
+      const k = it.throw / (RELEASE / THROW_T), [hx, hy] = { down: [14, 8], up: [14, 4], left: [1, 7], right: [15, 7] }[it.dir];
+      fineDisc(x + hx, y + hy - Math.sin(k * Math.PI) * 5, 2, col.dark); fineDisc(x + hx, y + hy - Math.sin(k * Math.PI) * 5, 1.5, '#f6f8fc');
+    }
+  }
+  const angelPic = () => finePic('angel', 24, 22, (c) => c.drawImage(LotArt.angel(), 0, 0));
+
+  // A hockey stick (st: { k, a, p, hand }, see js/hockey.js): for each thing they do with it,
+  // where the blade's heel and the top hand go, each [to their left, up, ahead] in metres, for
+  // a left shot; a right shot is the mirror image.
+  const ease = (k) => k * k * (3 - 2 * k);
+  const mixPose = (A, B, k) => A.map((pt, i) => pt.map((v, j) => v + (B[i][j] - v) * k));
+  const ST_READY = [[0.24, 0.02, 0.62], [-0.04, 0.92, 0.2]], ST_WOUND = [[0.62, 1.45, -0.3], [-0.05, 1, 0.18]], ST_STRIKE = [[0.2, 0.02, 0.55], [0, 0.9, 0.25]];
+  // (a swing from `from` through the strike and on to `to`, then back to the ready)
+  const stickSwing = (from, to, a) => (a < 0.25 ? mixPose(from, ST_STRIKE, ease(a / 0.25)) : a < 0.7 ? mixPose(ST_STRIKE, to, ease((a - 0.25) / 0.45)) : mixPose(to, ST_READY, ease((a - 0.7) / 0.3)));
+  function stickPose(k, a, p) {
+    switch (k) {
+      case 'carry': return [[0.19 + Math.sin(a) * 0.13, 0.02, 0.5 + Math.cos(2 * a) * 0.04], [-0.04 + Math.sin(a) * 0.05, 0.92, 0.2]]; // (a is how far through the side-to-side)
+      case 'wind': return mixPose(ST_READY, ST_WOUND, ease(a));
+      case 'shot': return stickSwing(mixPose(ST_READY, ST_WOUND, p || 0), [[-0.35, 0.75, 0.85], [-0.25, 1.05, 0.35]], a);
+      case 'pass': return stickSwing(ST_READY, [[-0.1, 0.12, 0.85], [-0.05, 0.95, 0.3]], a);
+      case 'poke': return mixPose(ST_READY, [[0.12, 0.02, 1.15], [0, 0.9, 0.6]], Math.sin(Math.PI * a));
+      case 'check': return mixPose(ST_READY, [[0.55, 0.3, 0.3], [-0.12, 1.05, 0.3]], Math.sin(Math.PI * a));
+      case 'cheer': return mixPose(ST_READY, [[0.15, 2.05, 0.15], [0.05, 1.45, 0.15]], ease(Math.min(1, a * 4)));
+      case 'down': return [[0.7, 0.03, 0.35], [0.45, 0.03, -0.65]];
+      default: return ST_READY;
+    }
+  }
+  // the stick on the screen, from their feet (fx, fy): 16 pixels to a metre along the ice, so the
+  // blade's where the puck is, and fewer up, as tall as people are drawn
+  function drawStick(st, ang, fx, fy) {
+    const [heel, top] = stickPose(st.k, st.a, st.p), S = Math.sin(ang), C = Math.cos(ang), hand = st.hand || 1;
+    const ground = ([u, , f]) => [S * f + C * u * hand, C * f - S * u * hand];
+    const [hx, hy] = ground(heel), [tx, ty] = ground(top);
+    const x0 = fx + hx * 16, y0 = fy + hy * 16 - heel[1] * 9, x1 = fx + tx * 16, y1 = fy + ty * 16 - top[1] * 9;
+    // the blade lies flat, pointing away from the hands
+    const bl = Math.hypot(hx - tx, hy - ty) || 1, bx = x0 + (hx - tx) / bl * 4.5, by = y0 + (hy - ty) / bl * 4.5;
+    pixLine(x0, y0, x1, y1, 2, col.dark); pixLine(x0, y0, bx, by, 2.5, col.dark);
+    pixLine(x0, y0, x1, y1, 1, '#d8b07a'); pixLine(x1 + (x0 - x1) * 0.1, y1 + (y0 - y1) * 0.1, x1, y1, 1, '#22222a');
+    pixLine(x0, y0, bx, by, 1.5, '#303038'); pixLine(bx + (x0 - bx) * 0.5, by + (y0 - by) * 0.5, bx, by, 1, '#f4f6fa');
+  }
+  // their team's ring on the ice, filled in while they have the puck
+  const ringPic = (c, full) => finePic('ring' + c + full, 40, 24, (g) => {
+    g.fillStyle = c;
+    for (let y = 0; y < 24; y++) for (let x = 0; x < 40; x++) {
+      const d = Math.hypot((x - 19.5) / 19, (y - 11.5) / 11);
+      if (d <= 1 && (full || d >= 0.72)) g.fillRect(x, y, 1, 1);
+    }
+  });
+  // A skater in a hockey game. s.x, s.y (in tiles from the map's corner) is under their feet,
+  // so they're as near the boards, the net and the puck on the screen as they are in js/hockey.js.
+  function drawSkater(s, cx, cy) {
+    const fx = s.x * 16 - cx, fy = s.y * 16 - cy, sheet = skaterSheet(s), dir = ['down', 'right', 'up', 'left'][(Math.round(s.ang / (Math.PI / 2)) + 4) % 4];
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(ringPic(s.ring, !!s.full), realPx(fx - 10), realPx(fy - 6));
+    ctx.globalAlpha = 1;
+    if (s.down > 0.4) {
+      // knocked flat, stick and all, seeing stars
+      drawStick(s.stick, s.ang, fx, fy);
+      ctx.save();
+      ctx.translate(realPx(fx), realPx(fy - 3));
+      ctx.rotate((s.fall || 1) * Math.PI / 2);
+      ctx.drawImage(onSkates(sheet.down[0]), -8, -8);
+      ctx.restore();
+      for (let i = 0; i < 3; i++) {
+        const a = tick / 9 + i * 2.1, sx = realPx(fx + Math.cos(a) * 7), sy = realPx(fy - 11 + Math.sin(a) * 2);
+        fine(sx - 1, sy, 2.5, 0.5, '#f8d840'); fine(sx, sy - 1, 0.5, 2.5, '#f8d840');
+      }
+      return;
+    }
+    const behind = Math.cos(s.ang) < -0.3; // (going away from you, the stick's the far side of them)
+    if (behind) drawStick(s.stick, s.ang, fx, fy);
+    const f = s.push ? [1, 0, 2, 0][(tick >> 4) & 3] : 0;
+    ctx.drawImage(onSkates(sheet[dir][f]), realPx(fx - 8), realPx(fy - 15));
+    if (!behind) drawStick(s.stick, s.ang, fx, fy);
+  }
+  // who a skater is: you, a coworker, or another player
+  const skaterSheet = (s) => (s.me ? sprites : s.npc ? s.npc.sprites : lookSprites(s.look.look, s.look.xs));
 
   function drawYard() {
-    const h = hdScreen(), c = h.c, K = HD.K;
+    const lot = lotArt || (lotArt = LotArt.paint(MAPS.floors[YARD]));
     // (you're only not P.free for a moment, coming out of the doors)
-    const px = (P.free ? P.fx : P.x) * 16, py = (P.free ? P.fy : P.y) * 16;
-    const { key: me, spec: mySpec } = meSpec();
-    // everyone out here: you, coworkers and other players (in a hockey game, you and
-    // whoever you're playing are out on the ice instead)
+    const [px, py] = mePx();
     const sc = hockey && hockey.scene();
-    // (anyone throwing a snowball or lying in the snow making an angel is posed for it: see
-    // "out in the snow")
-    const people = sc ? [] : [{ key: me, spec: mySpec, px, py, dir: P.dir, face: P.free ? P.face : undefined,
-      walk: P.glide || !(P.vx || P.vy) ? -1 : (P.dist / 32) % 1, skate: iceAt(px, py),
-      throw: P.throwing ? throwPose(P.throwing.t) : 0, angel: P.angel ? angelPose(P.angel.t) : null }];
-    const npcsOut = [];
+    // the view follows you, or in a hockey game the play (mostly the puck, and leaning a
+    // little toward the net you're shooting at), stopping at the edges of the lot
+    const fx = sc ? (sc.puck.x * 0.65 + sc.you.x * 0.35) * 16 : px + 8, fy = sc ? (sc.puck.y * 0.65 + sc.you.y * 0.35 - 1) * 16 : py + 8;
+    const cx = realPx(clamp(fx - SW / 2, 0, lot.w - SW)), cy = realPx(clamp(fy - SH / 2, 0, lot.h - SH));
+    ctx.drawImage(lot.ground, cx, cy, SW, SH, 0, 0, SW, SH);
+    if (sc && lot.gate) ctx.drawImage(lot.gate.img, lot.gate.x - cx, lot.gate.y - cy);
+    if (!sc) snowGround(cx, cy);
+    drawGlowPix(cx, cy);
+
+    // everyone and everything standing up, back to front by where their feet are (z: as a
+    // person's y, whose feet are 12 pixels down from it)
+    const items = [];
+    for (const p of lot.props) {
+      const im = p.img || p.frames[0];
+      if (p.x < cx + SW && p.x + im.width / 2 > cx && p.y < cy + SH && p.y + im.height / 2 > cy) items.push(p);
+    }
+    const seen = (x, y) => x > cx - 32 && x < cx + SW + 16 && y > cy - 16 && y < cy + SH + 32;
+    const person = (it) => { if (seen(it.x, it.y)) items.push(Object.assign(it, { z: it.y })); };
+    // (in a hockey game, you and whoever you're playing are out on the ice instead)
+    if (!sc) person({ sheet: sprites, x: px, y: py, dir: P.dir, frame: P.glide ? 0 : frameIndex(), skate: iceAt(px, py),
+      throw: P.throwing ? throwPose(P.throwing.t) : 0, angel: P.angel ? angelPose(P.angel.t) : null });
+    const said = [];
     for (const n of npcs) {
       if (n.floor !== YARD || (sc && (n === hockey.npc || (hockey.npcs && hockey.npcs.includes(n))))) continue;
-      const nx = n.x * 16 + (n.moving ? n.mdx * n.prog : 0), ny = n.y * 16 + (n.moving ? n.mdy * n.prog : 0);
-      people.push({ key: 'npc:' + n.name, spec: npcSpec(n.name), px: nx, py: ny, dir: n.dir, walk: stride(n.moving, n.step, n.prog), skate: iceAt(nx, ny),
-        throw: n.throwing ? throwPose(n.throwing.t) : 0 });
-      if (n.bubble) npcsOut.push([n.bubble.str, nx, ny]);
+      const x = n.x * 16 + (n.moving ? n.mdx * n.prog : 0), y = n.y * 16 + (n.moving ? n.mdy * n.prog : 0);
+      person({ sheet: n.sprites, x, y, dir: n.dir, frame: n.throwing ? 1 : n.moving && n.prog < 8 ? (n.step ? 1 : 2) : 0, skate: iceAt(x, y), throw: n.throwing ? throwPose(n.throwing.t) : 0 });
+      if (n.bubble) said.push([n.bubble.str, x, y]);
     }
     const others = mpHere().filter((o) => o.f === YARD && !(sc && hockey.ids && hockey.ids.includes(o.id)));
     for (const o of others) {
-      const [tx, ty] = mpTarget(o), mv = o.px !== tx || o.py !== ty, key = 'mp:' + o.n + ':' + o.a + ':' + o.xs;
       // (their throw went out as they let go, so their arm is already partway through it)
-      people.push({ key, spec: hdLook(key, o.n, o.look, o.xs), px: o.px, py: o.py, dir: o.angel ? 'down' : o.dir, face: o.angel ? 0 : o.face,
-        walk: mv ? (o.dist / 32) % 1 : -1, skate: iceAt(o.px, o.py),
+      person({ sheet: mpSprites(o), x: o.px, y: o.py, dir: o.angel ? 'down' : o.dir, frame: o.angel ? 0 : mpFrame(o), skate: iceAt(o.px, o.py),
         throw: o.throwT !== undefined ? throwPose(o.throwT - RELEASE) : 0, angel: o.angel ? angelPose(tick - o.angel.t) : null });
     }
-    // the view follows you, or in a hockey game the play (mostly the puck, and leaning a
-    // little toward the net you're shooting at); hockey's places are in tiles from the map's
-    // corner, so a tile's middle is at a whole number and a half
-    let focus = [px, py], puck = null;
     if (sc) {
-      const at = (x, y) => [x * 16 - 8, y * 16 - 8];
-      sc.skaters.forEach((p, i) => {
-        const lk = p.look, key = p.me ? me : p.npc ? 'npc:' + p.npc.name : 'mp:' + lk.n + ':' + Art.lookCode(lk.look) + ':' + (lk.xs || '');
-        const spec = p.me ? mySpec : p.npc ? npcSpec(p.npc.name) : hdLook(key, lk.n, lk.look, lk.xs);
-        // (another player on the ice gets a figure of their own, apart from the one out in the lot)
-        people.push({ key: p.look ? 'ice:' + i + ':' + key : key, spec, px: p.x * 16 - 8, py: p.y * 16 - 8,
-          dir: ['down', 'right', 'up', 'left'][(Math.round(p.ang / (Math.PI / 2)) + 4) % 4], face: p.ang, walk: p.push ? (tick / 40) % 1 : -1, skate: true,
-          stick: p.stick, down: p.down, fall: p.fall, ring: p.ring, full: p.full, tag: p.tag });
-      });
-      puck = at(sc.puck.x, sc.puck.y);
-      focus = at(sc.puck.x * 0.65 + sc.you.x * 0.35, sc.puck.y * 0.65 + sc.you.y * 0.35 - 1);
+      for (const s of sc.skaters) items.push({ z: s.y * 16 - 12, skater: s });
+      items.push({ z: sc.puck.y * 16 - 12, puck: true });
     }
-    const now = Date.now();
-
-    const gl = hdGL();
-    if (gl) {
-      // the 3D lot is heavy work for the browser, so on a fast screen it's drawn only every
-      // second or third refresh (still more often than the game's 60 ticks a second)
-      const ms = performance.now();
-      if (ms - (h.drawn || 0) < 9) return;
-      h.drawn = ms;
-      gl.draw({ t: tick, alpha: drawAlpha, focus, people, view: sc ? HOCKEY_VIEW : null, puck, snow: sc ? null : snowScene(), glow: glowScene() });
-      // names and speech bubbles, flat, over the 3D
-      c.setTransform(1, 0, 0, 1, 0, 0);
-      c.clearRect(0, 0, h.cv.width, h.cv.height);
-      c.setTransform(K, 0, 0, K, 0, 0);
-      for (const o of others) {
-        HD.tag(c, o.n, ...gl.toScreen(o.px, o.py, 2.35));
-        const said = mpSaying(o, now);
-        if (said) HD.bubble(c, said, ...gl.toScreen(o.px, o.py, 2.65), 0, SW);
-      }
-      for (const it of people) if (it.tag) HD.tag(c, it.tag, ...gl.toScreen(it.px, it.py, 2.35)); // other players on the ice
-      if (mp.bubble) HD.bubble(c, mp.bubble.str, ...gl.toScreen(px, py, 2.5), 0, SW);
-      for (const [str, nx, ny] of npcsOut) HD.bubble(c, str, ...gl.toScreen(nx, ny, 2.5), 0, SW);
-      snowSplat(c);
-      return;
-    }
-
-    const lot = h.lot || (h.lot = HD.paintLot(MAPS.floors[YARD]));
-    // (stopping at the edges of the lot)
-    const cx = Math.max(0, Math.min(lot.w - SW, focus[0] + 8 - SW / 2)), cy = Math.max(0, Math.min(lot.h - SH, focus[1] + 8 - SH / 2));
-    c.setTransform(1, 0, 0, 1, 0, 0);
-    c.drawImage(lot.ground, cx * K, cy * K, SW * K, SH * K, 0, 0, SW * K, SH * K);
-    c.setTransform(K, 0, 0, K, -cx * K, -cy * K);
-    // in a hockey game, each player's ring on the ice (filled in for whoever has the puck)
-    // and the puck, bigger than life so it can be seen
-    for (const it of people) {
-      if (!it.ring) continue;
-      c.beginPath(); c.ellipse(it.px + 8, it.py + 12, 7, 3.5, 0, 0, Math.PI * 2);
-      if (it.full) { c.fillStyle = it.ring; c.fill(); } else { c.strokeStyle = it.ring; c.lineWidth = 1.5; c.stroke(); }
-    }
-    if (puck) {
-      c.fillStyle = '#18181e'; c.beginPath(); c.ellipse(puck[0] + 8, puck[1] + 8, 2.2, 1.4, 0, 0, Math.PI * 2); c.fill();
-      // (its top face, and a shine on it)
-      if (HIRES) {
-        c.fillStyle = '#30303c'; c.beginPath(); c.ellipse(puck[0] + 8, puck[1] + 7.7, 1.9, 1, 0, 0, Math.PI * 2); c.fill();
-        c.fillStyle = '#7a7a88'; c.beginPath(); c.ellipse(puck[0] + 7.3, puck[1] + 7.4, 0.7, 0.3, 0, 0, Math.PI * 2); c.fill();
-      }
-    }
-    if (!sc) snowGround(c, cx, cy);
-    glowGround(c);
-    // everyone and everything standing up, back to front by where their feet are
-    const items = lot.props.filter((p) => !p.img || (p.x < cx + SW && p.x + p.w > cx && p.y < cy + SH && p.y + p.h > cy));
-    for (const it of people) {
-      if (it.px < cx - 32 || it.px > cx + SW + 16 || it.py < cy - 16 || it.py > cy + SH + 48) continue;
-      items.push({ base: it.py + 13, x: it.px + 8, spec: it.spec, dir: it.dir, walk: it.walk, skate: it.skate, lie: it.angel ? it.angel.lie : 0, flap: it.angel ? it.angel.flap : 0 });
-    }
-    items.sort((a, b) => a.base - b.base);
+    items.sort((a, b) => a.z - b.z);
     for (const it of items) {
-      if (it.spec) HD.drawPerson(c, it.spec, it.x, it.base, { dir: it.dir, t: tick, walk: it.walk, skate: it.skate, lie: it.lie, flap: it.flap });
-      else HD.drawProp(c, it, tick);
+      if (it.skater) drawSkater(it.skater, cx, cy);
+      else if (it.puck) ctx.drawImage(puckPic(), realPx(sc.puck.x * 16 - cx - 3), realPx(sc.puck.y * 16 - cy - 2.5));
+      else if (it.sheet) drawOutside(it, cx, cy);
+      else ctx.drawImage(it.img || it.frames[Math.floor(tick / it.every) % it.frames.length], it.x - cx, it.y - cy);
     }
-    if (!sc) snowAir(c);
-    HD.overlay(c, lot, tick, cx, cy, SW, SH);
+    if (!sc) snowAir(cx, cy);
+    lotLights(lot, cx, cy);
+    snowfall(tick, sc ? 24 : 44, cx, cy);
     // names over other players' heads, and what anyone's saying
-    c.setTransform(K, 0, 0, K, -cx * K, -cy * K);
+    const now = Date.now();
     for (const o of others) {
-      HD.tag(c, o.n, o.px + 8, o.py - 29);
-      const said = mpSaying(o, now);
-      if (said) HD.bubble(c, said, o.px + 8, o.py - 34, cx, cx + SW);
+      const sx = o.px - cx + 8, sy = o.py - cy - 4;
+      if (sx < -40 || sx > SW + 40 || sy < -30 || sy > SH + 10) continue;
+      mpTag(o.n, Math.round(sx), Math.round(sy));
+      const words = mpSaying(o, now);
+      if (words) mpBubble(words, Math.round(sx), Math.round(sy) - 28);
     }
-    for (const it of people) if (it.tag) HD.tag(c, it.tag, it.px + 8, it.py - 29); // other players on the ice
-    if (mp.bubble) HD.bubble(c, mp.bubble.str, px + 8, py - 30, cx, cx + SW);
-    for (const [str, nx, ny] of npcsOut) HD.bubble(c, str, nx + 8, ny - 30, cx, cx + SW);
-    c.setTransform(K, 0, 0, K, 0, 0);
-    snowSplat(c);
+    if (sc) for (const s of sc.skaters) if (s.tag) mpTag(s.tag, Math.round(s.x * 16 - cx), Math.round(s.y * 16 - cy - 15));
+    if (mp.bubble) mpBubble(mp.bubble.str, Math.round(px - cx + 8), Math.round(py - cy - 22));
+    for (const [str, x, y] of said) mpBubble(str, Math.round(x - cx + 8), Math.round(y - cy - 22));
+    snowSplat();
   }
-  // The flat lot's footprints and snow angels, on the ground under everyone (a tile's middle
-  // is 8 pixels in from its corner)...
-  function snowGround(c, cx, cy) {
+  const puckPic = () => finePic('puck', 12, 10, (c) => {
+    const px = (x, y, w, h, co) => { c.fillStyle = co; c.fillRect(x, y, w, h); };
+    px(2, 1, 8, 8, '#14141a'); px(0, 2, 12, 6, '#14141a'); px(2, 2, 8, 4, '#30303c'); px(1, 3, 10, 2, '#30303c'); px(3, 2, 3, 1, '#7a7a88');
+  });
+  // the lights: along the roof of the office, and the strings round the rink
+  function lotLights(lot, cx, cy) {
+    if (lot.roof - cy > -8) {
+      for (let x = Math.floor(cx / 16); x * 16 < cx + SW; x++) {
+        const sx = x * 16 - cx, sy = lot.roof - cy;
+        ctx.drawImage(pic('wire'), sx, sy - 0.5);
+        for (let i = 0; i < 2; i++) {
+          const k = x * 2 + i, lit = ((tick >> 5) + k * 3) % 4 !== 0;
+          ctx.drawImage(pic('bulb', lit ? { b: XMAS_LIGHTS[k % 4] } : { b: '#484850', w: '#686878' }), sx + 3 + i * 8, sy + 1.5);
+        }
+      }
+    }
+    ctx.fillStyle = '#16121c';
+    for (const [x, y] of lot.wires) if (x > cx - 1 && x < cx + SW && y > cy - 1 && y < cy + SH) ctx.fillRect(x - cx, y - cy, 0.5, 0.5);
+    lot.bulbs.forEach(([x, y, k], i) => {
+      if (x < cx - 4 || x > cx + SW || y < cy - 4 || y > cy + SH) return;
+      const lit = ((tick >> 5) + i * 3) % 4 !== 0;
+      ctx.drawImage(pic('bulb', lit ? { b: XMAS_LIGHTS[k] } : { b: '#484850', w: '#686878' }), x - cx - 1, y - cy);
+    });
+  }
+  // The footprints and snow angels, on the ground under everyone (a tile's middle is 8 pixels
+  // in from its corner)...
+  function snowGround(cx, cy) {
     const fade = (age, life) => Math.max(0, Math.min(1, (life - age) / (life * 0.35)));
     const seen = (x, y, m) => x * 16 > cx - m && x * 16 < cx + SW + m && y * 16 > cy - m && y * 16 < cy + SH + m;
     for (const an of SNOW.angels) {
       if (!seen(an.x, an.y, 24)) continue;
-      c.save(); c.translate(an.x * 16 + 8, an.y * 16 + 8); c.scale(16, 16);
-      HD.snowAngel(c); c.fillStyle = 'rgba(118, 136, 180, ' + (0.5 * fade(tick - an.t, ANGEL_LIFE)).toFixed(3) + ')'; c.fill();
-      c.restore();
+      ctx.globalAlpha = 0.75 * fade(tick - an.t, ANGEL_LIFE);
+      ctx.drawImage(angelPic(), realPx(an.x * 16 + 8 - 12 - cx), realPx(an.y * 16 + 8 - 11 - cy), 24, 22);
     }
     for (const p of SNOW.prints) {
       if (!seen(p.x, p.y, 8)) continue;
-      c.fillStyle = 'rgba(112, 130, 172, ' + (0.6 * fade(tick - p.t, PRINT_LIFE)).toFixed(3) + ')';
-      c.beginPath(); c.ellipse(p.x * 16 + 8, p.y * 16 + 8, 1.7, 0.9, p.a, 0, Math.PI * 2); c.fill();
+      ctx.globalAlpha = 0.7 * fade(tick - p.t, PRINT_LIFE);
+      fine(realPx(p.x * 16 + 7 - cx), realPx(p.y * 16 + 10 - cy), 2, 1, '#8a9cc0');
     }
+    ctx.globalAlpha = 1;
   }
   // ...and the snowballs in the air (each with its shadow) and the puffs where they burst, over them
-  function snowAir(c) {
-    const UP = 22; // pixels to a metre, near enough, the way people are drawn here
+  function snowAir(cx, cy) {
+    const UP = 10; // pixels to a metre, near enough, the way people are drawn here
     for (const b of SNOW.balls) {
-      const x = (b.px + (b.x - b.px) * drawAlpha) * 16 + 8, y = (b.py + (b.y - b.py) * drawAlpha) * 16 + 8, z = b.pz + (b.z - b.pz) * drawAlpha;
-      c.fillStyle = 'rgba(40, 50, 90, 0.28)'; c.beginPath(); c.ellipse(x, y, 1.8, 0.9, 0, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#f6f8fc'; c.strokeStyle = '#16121c'; c.lineWidth = 0.6;
-      c.beginPath(); c.arc(x, y - z * UP, 1.7, 0, Math.PI * 2); c.fill(); c.stroke();
+      const x = (b.px + (b.x - b.px) * drawAlpha) * 16 + 8 - cx, y = (b.py + (b.y - b.py) * drawAlpha) * 16 + 10 - cy, z = b.pz + (b.z - b.pz) * drawAlpha;
+      fine(realPx(x - 1.5), realPx(y), 3, 1, 'rgba(40, 50, 90, 0.3)');
+      fineDisc(realPx(x), realPx(y - z * UP), 2, col.dark); fineDisc(realPx(x), realPx(y - z * UP), 1.5, '#f6f8fc');
     }
-    c.fillStyle = '#f6f8fc';
     for (const f of SNOW.puffs) {
       const age = tick - f.t + drawAlpha, k = age / 40;
+      ctx.globalAlpha = 1 - k;
       for (let j = 0; j < 7; j++) {
-        const a = f.seed + j * Math.PI * 2 / 7, sp = 0.4 + 0.2 * (j % 3);
-        c.globalAlpha = 1 - k;
-        c.beginPath(); c.arc(f.x * 16 + 8 + Math.cos(a) * sp * age, f.y * 16 + 8 + Math.sin(a) * sp * age * 0.5 - Math.max(0, f.z * UP + (0.8 - 0.035 * age) * age), 1.2 * (1 - k * 0.6), 0, Math.PI * 2); c.fill();
+        const a = f.seed + j * Math.PI * 2 / 7, sp = 0.2 + 0.1 * (j % 3);
+        fine(realPx(f.x * 16 + 8 - cx + Math.cos(a) * sp * age), realPx(f.y * 16 + 10 - cy + Math.sin(a) * sp * age * 0.5 - Math.max(0, f.z * UP + (0.4 - 0.018 * age) * age)), 1.5, 1.5, '#f6f8fc');
       }
     }
-    c.globalAlpha = 1;
+    ctx.globalAlpha = 1;
   }
   // Snow on the screen for a moment when a snowball gets you.
-  function snowSplat(c) {
+  function snowSplat() {
     const age = tick - SNOW.hitMe;
     if (age < 0 || age > 70) return;
-    c.save();
-    c.globalAlpha = Math.min(1, (70 - age) / 30) * 0.92;
-    c.fillStyle = '#f4f8fc';
-    for (const [x, y, r] of [[18, 26, 22], [40, 12, 14], [8, 52, 12], [302, 214, 20], [282, 230, 14], [310, 188, 10], [44, 40, 7], [276, 204, 7]]) {
-      c.beginPath(); c.arc(x, y + age * 0.25, r, 0, Math.PI * 2); c.fill();
-    }
-    c.restore();
+    ctx.globalAlpha = Math.min(1, (70 - age) / 30) * 0.92;
+    for (const [x, y, r] of [[18, 26, 22], [40, 12, 14], [8, 52, 12], [302, 214, 20], [282, 230, 14], [310, 188, 10], [44, 40, 7], [276, 204, 7]]) fineDisc(x, realPx(y + age * 0.25), r, '#f4f8fc');
+    ctx.globalAlpha = 1;
   }
 
   // ---------- player / world ----------
   const S0 = MAPS.start;
-  // free, fx, fy, vx, vy, face, dist, stride, glide: going any way out in the parking lot
-  // (see updateFree); throwing, angel: partway through a snowball or a snow angel (see "out
-  // in the snow")
-  const P = { floor: S0.floor, x: S0.x, y: S0.y, dir: S0.dir, moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, turnWait: 0, walked: false, bump: 0,
+  // free, fx, fy, vx, vy, face, dist, stride, glide: going any way (see updatePlayer; free
+  // says whether fx, fy are up to date yet); throwing, angel: partway through a snowball or a
+  // snow angel (see "out in the snow")
+  const P = { floor: S0.floor, x: S0.x, y: S0.y, dir: S0.dir, bump: 0,
     free: false, fx: 0, fy: 0, vx: 0, vy: 0, face: 0, dist: 0, stride: 0, glide: false, throwing: null, angel: null };
+  // where you are, in pixels (the middle of your tile, if you've only just been put there)
+  const mePx = () => (P.free && Math.round(P.fx) === P.x && Math.round(P.fy) === P.y ? [P.fx * 16, P.fy * 16] : [P.x * 16, P.y * 16]);
   let mode = 'title', tick = 0, roomName = null, curRoom = null, banner = null;
   let fade = null; // {t, cb, color}
 
@@ -16371,7 +16301,7 @@
 
   function startFade(cb, color) { fade = { t: 0, cb, color }; }
   function placePlayer(fi, x, y, dir) {
-    Object.assign(P, { floor: fi, x, y, dir, moving: false, walked: false, bump: 0, free: false });
+    Object.assign(P, { floor: fi, x, y, dir, bump: 0, free: false });
     curRoom = roomAt(fi, x, y);
     roomName = curRoom ? curRoom.name : null;
   }
@@ -16418,97 +16348,111 @@
     return WALKABLE.includes(t) || (t === 'C' && curtainOpen === fi) || (t === '$' && !eotm);
   }
 
-  function tryMove(d) {
-    const [dx, dy] = DIRS[d];
-    if (sideDoor(P.floor, P.x + dx, P.y + dy)) return;
-    const blocked = genderBlock(P.x + dx, P.y + dy, dx, dy);
-    if (blocked) { P.walked = false; say(blocked); return; }
-    if (walkable(P.floor, P.x + dx, P.y + dy) && !npcAt(P.floor, P.x + dx, P.y + dy)) {
-      Object.assign(P, { moving: true, prog: 0, mdx: dx, mdy: dy, bump: 0 });
-      P.step ^= 1;
-    } else {
-      if (P.bump % 24 === 0) sfx('bump');
-      P.bump++;
-      P.walked = false;
+  // Whoever you'd be talking to: another player or a coworker, going by where they really are
+  // and not what tile they're on, if they're within reach in front of you (a little to either
+  // side will do) or all but on top of you.
+  function personAhead() {
+    const s = Math.sin(P.face), c = Math.cos(P.face);
+    let best = null, least = Infinity;
+    const consider = (who, x, y) => {
+      const dx = x - P.fx, dy = y - P.fy, d = Math.hypot(dx, dy);
+      const along = s * dx + c * dy, side = Math.abs(c * dx - s * dy);
+      if (!(d < 0.5 || (along > 0 && along < 1.5 && side < 0.8)) || d + side >= least) return;
+      best = { ...who, dx, dy }; least = d + side;
+    };
+    for (const o of mpHere()) if (o.f === P.floor) consider({ other: o }, o.px / 16, o.py / 16);
+    for (const n of npcs.concat(dogs)) {
+      if (n.floor !== P.floor || (visit && n === visit.npc && visit.a < 1)) continue; // (halfway through the portal)
+      consider({ npc: n }, n.x + (n.moving ? n.mdx * n.prog / 16 : 0), n.y + (n.moving ? n.mdy * n.prog / 16 : 0));
     }
+    return best;
   }
 
-  // The tile you're facing: the next one the way you face, or out in the parking lot (where
-  // you face any way) the one just in front of you, or someone just to one side of it.
-  function facingTile() {
-    if (!P.free) return [P.x + DIRS[P.dir][0], P.y + DIRS[P.dir][1]];
+  // The tiles you might mean: the next one the way you face, the one just in front of you
+  // going by your exact angle, and either side of it, anything solid before bare floor.
+  function tilesAhead() {
     const s = Math.sin(P.face), c = Math.cos(P.face);
     const at = (side) => [Math.round(P.fx + s + c * side), Math.round(P.fy + c - s * side)]; // a tile ahead
-    const spots = [at(0), at(-FREE_R), at(FREE_R)];
+    const spots = [[P.x + DIRS[P.dir][0], P.y + DIRS[P.dir][1]], at(0), at(-FREE_R), at(FREE_R)];
     // a spruce you're up against and more or less facing, though its trunk is further off
     const tree = P.floor === YARD && spruces.find(([x, y]) => Math.hypot(x - P.fx, y - P.fy) < SPRUCE_R + 0.5
       && (s * (x - P.fx) + c * (y - P.fy)) / Math.hypot(x - P.fx, y - P.fy) > 0.6);
-    return spots.find(([x, y]) => npcAt(P.floor, x, y) || mpAt(P.floor, x, y)) || tree || spots[0];
+    if (tree) spots.unshift(tree);
+    return spots.sort((a, b) => walkable(P.floor, ...a) - walkable(P.floor, ...b));
   }
 
+  // Pressing A: turn to whoever is in front of you, or use the first thing there that does
+  // anything.
   function interact() {
-    const [tx, ty] = facingTile(), t = tileAt(P.floor, tx, ty);
-    const other = mpAt(P.floor, tx, ty);
-    if (other) { mpTalk(other); return; }
-    let npc = npcAt(P.floor, tx, ty);
-    if (npc && visit && npc === visit.npc && visit.a < 1) npc = null; // halfway through the portal
-    if (npc) {
-      if (!npc.moving && !(visit && npc === visit.npc && visit.phase !== 'stay')) npc.dir = OPPOSITE[P.dir];
-      sfx('select');
-      // Everyone speaks as "Name: ...", including the offers below and whatever
-      // they say when you turn them down, so you always know who is talking.
-      const says = (line) => npc.name + ': ' + line;
-      if (npc.dog) { dogTalk(npc); return; }
-      if (npc.guest) { guestTalk(npc, says); return; }
-      if (npc === gateKeeper) { hockeyTalk(npc, says); return; }
-      if (npc.name === 'Damir') {
-        say(says('Do you feel safe in the dark?'), () => ui.push(DarkGame()));
-        return;
-      }
-      if (npc.name === 'Kiki' && !eotm && helped.size === COWORKERS.length) {
-        sfx('ding');
-        say(says('Everyone has been talking about you. You helped every single person in this office!'), () =>
-          say(says('So this month\'s Employee of the Month is... YOU! I\'ll put your picture up by the entrance.'), () => {
-            eotm = true; sfx('cup'); ui.push(EmployeeOfMonth()); questBoard('eotm');
-          }));
-        return;
-      }
-      if (npc.name === 'Kiki' && !kikiList && !eotm) {
-        sfx('select');
-        say(says('Want to be Employee of the Month? Help out everyone on this list and it\'s yours!'), () => {
-          kikiList = true; sfx('menu'); ui.push(KikiList(true));
-        });
-        return;
-      }
-      // name: [what they offer (or a list of lines, the last one asked), yes label, the game,
-      //        what they say if you decline, no label]
-      const OFFERS = {
-        Nathan: ['Have you seen all of my trophies? Go on, grab one.', 'GRAB ONE', NathanGame, 'Your loss. They are lovely.'],
-        Wade: ['Fancy a quick three holes?', 'YOU ARE ON', WadeGolfGame, 'Another time, then.'],
-        Kiki: ['Bet you cannot guess how many sweets are in that jar.', 'TAKE THE BET', CandyJarGame, 'Offer stands all week!'],
-        Jhonna: ['Have you done your Manulife dependant forms?', 'DO THEM NOW', FormsGame, 'They are not going to fill themselves in.', 'NOT YET'],
-        Richard: ['Do you want to test your air handling knowledge?', 'YES', BattleGame, 'Come back when you are ready.', 'NO'],
-        Patrick: ['Dance-off! Think you can keep up with me?', 'BRING IT', DanceGame, 'Suit yourself. More floor for me.'],
-        Nik: [['Dmitriy\'s my younger brother. I taught him all he knows about being a chef.', 'Here, I\'ll show you.'], 'HAND ME THE WOK', WokGame, 'Your loss. My fried rice is legendary.', 'NOT NOW'],
-        Dmitriy: ['Nik says he taught me to cook? I ran the line, not him. Let\'s see your knife skills.', 'PICK UP THE KNIFE', CarrotGame, 'Keep your fingers, then.', 'NOT NOW'],
-        Joe: ['Lego brick battle! Winner is the office master builder. You in?', 'CHALLENGE ACCEPTED', LegoGame, 'Scared of a few bricks? My baseplate is always open.', 'NOT TODAY'],
-      };
-      if (OFFERS[npc.name]) {
-        const [msg, yes, Game, no, noLabel] = OFFERS[npc.name];
-        const lines = [].concat(msg);
-        const offer = (k) => {
-          if (k < lines.length - 1) { say(says(lines[k]), () => offer(k + 1)); return; }
-          ask(says(lines[k]), [yes, noLabel || 'NO THANKS'], (i) => {
-            if (i === 0) { sfx('menu'); ui.push(Game()); } else say(says(no));
-          });
-        };
-        offer(0);
-        return;
-      }
-      if (npc.ghost) { lindaTalk(npc, says); return; } // Linda, her list and her stapler
-      say(says(npc.lines[Math.floor(Math.random() * npc.lines.length)]));
+    const near = personAhead();
+    if (near) {
+      if (near.dx || near.dy) { P.face = Math.atan2(near.dx, near.dy); P.dir = wayOf(near.dx, near.dy); }
+      if (near.npc) talkTo(near.npc); else mpTalk(near.other);
       return;
     }
+    for (const [x, y] of tilesAhead()) if (useTile(x, y) !== false) return;
+  }
+
+  function talkTo(npc) {
+    if (!npc.moving && !(visit && npc === visit.npc && visit.phase !== 'stay')) npc.dir = OPPOSITE[P.dir];
+    sfx('select');
+    // Everyone speaks as "Name: ...", including the offers below and whatever
+    // they say when you turn them down, so you always know who is talking.
+    const says = (line) => npc.name + ': ' + line;
+    if (npc.dog) { dogTalk(npc); return; }
+    if (npc.guest) { guestTalk(npc, says); return; }
+    if (npc === gateKeeper) { hockeyTalk(npc, says); return; }
+    if (npc.name === 'Damir') {
+      say(says('Do you feel safe in the dark?'), () => ui.push(DarkGame()));
+      return;
+    }
+    if (npc.name === 'Kiki' && !eotm && helped.size === COWORKERS.length) {
+      sfx('ding');
+      say(says('Everyone has been talking about you. You helped every single person in this office!'), () =>
+        say(says('So this month\'s Employee of the Month is... YOU! I\'ll put your picture up by the entrance.'), () => {
+          eotm = true; sfx('cup'); ui.push(EmployeeOfMonth()); questBoard('eotm');
+        }));
+      return;
+    }
+    if (npc.name === 'Kiki' && !kikiList && !eotm) {
+      sfx('select');
+      say(says('Want to be Employee of the Month? Help out everyone on this list and it\'s yours!'), () => {
+        kikiList = true; sfx('menu'); ui.push(KikiList(true));
+      });
+      return;
+    }
+    // name: [what they offer (or a list of lines, the last one asked), yes label, the game,
+    //        what they say if you decline, no label]
+    const OFFERS = {
+      Nathan: ['Have you seen all of my trophies? Go on, grab one.', 'GRAB ONE', NathanGame, 'Your loss. They are lovely.'],
+      Wade: ['Fancy a quick three holes?', 'YOU ARE ON', WadeGolfGame, 'Another time, then.'],
+      Kiki: ['Bet you cannot guess how many sweets are in that jar.', 'TAKE THE BET', CandyJarGame, 'Offer stands all week!'],
+      Jhonna: ['Have you done your Manulife dependant forms?', 'DO THEM NOW', FormsGame, 'They are not going to fill themselves in.', 'NOT YET'],
+      Richard: ['Do you want to test your air handling knowledge?', 'YES', BattleGame, 'Come back when you are ready.', 'NO'],
+      Patrick: ['Dance-off! Think you can keep up with me?', 'BRING IT', DanceGame, 'Suit yourself. More floor for me.'],
+      Nik: [['Dmitriy\'s my younger brother. I taught him all he knows about being a chef.', 'Here, I\'ll show you.'], 'HAND ME THE WOK', WokGame, 'Your loss. My fried rice is legendary.', 'NOT NOW'],
+      Dmitriy: ['Nik says he taught me to cook? I ran the line, not him. Let\'s see your knife skills.', 'PICK UP THE KNIFE', CarrotGame, 'Keep your fingers, then.', 'NOT NOW'],
+      Joe: ['Lego brick battle! Winner is the office master builder. You in?', 'CHALLENGE ACCEPTED', LegoGame, 'Scared of a few bricks? My baseplate is always open.', 'NOT TODAY'],
+    };
+    if (OFFERS[npc.name]) {
+      const [msg, yes, Game, no, noLabel] = OFFERS[npc.name];
+      const lines = [].concat(msg);
+      const offer = (k) => {
+        if (k < lines.length - 1) { say(says(lines[k]), () => offer(k + 1)); return; }
+        ask(says(lines[k]), [yes, noLabel || 'NO THANKS'], (i) => {
+          if (i === 0) { sfx('menu'); ui.push(Game()); } else say(says(no));
+        });
+      };
+      offer(0);
+      return;
+    }
+    if (npc.ghost) { lindaTalk(npc, says); return; } // Linda, her list and her stapler
+    say(says(npc.lines[Math.floor(Math.random() * npc.lines.length)]));
+  }
+
+  // Using what's on the tile at tx, ty, or false if there's nothing there to use.
+  function useTile(tx, ty) {
+    const t = tileAt(P.floor, tx, ty);
     if (deskPumpkin && P.floor === deskPumpkin.floor && tx === deskPumpkin.x && ty === deskPumpkin.y) { deskPumpkinTalk(); return; }
     if (cup && P.floor === cup.floor && tx === cup.x && ty === cup.y) { cupTalk(); return; }
     if (P.floor === cookies.floor && tx === cookies.x && ty === cookies.y) {
@@ -16534,7 +16478,7 @@
       return;
     }
     if (t === 'X' && sideDoor(P.floor, tx, ty)) return;
-    if (P.floor === YARD) { yardTalk(t, tx, ty); return; }
+    if (P.floor === YARD) return yardTalk(t, tx, ty);
     const tree = CHRISTMAS && xmas.trees.find((tr) => propAt(P.floor, tx, ty) === tr);
     if (tree) { treeTalk(tree); return; }
     const partyGame = partyGameAt(tx, ty, t);
@@ -16647,7 +16591,7 @@
       return;
     }
     if (t === 'C') {
-      if (curtainOpen === P.floor) return;
+      if (curtainOpen === P.floor) return false;
       sfx('select');
       ask('Peek around the curtain?', ['YES', 'NO'], (i) => {
         if (i === 0) { curtainOpen = P.floor; sfx('menu'); }
@@ -16656,20 +16600,22 @@
     }
     const here = P.floor === PLANT && roomAt(P.floor, tx, ty);
     const msgs = (here && (PLANT_ROOM_INFO[here.name] || {})[t]) || (P.floor === PLANT && PLANT_INFO[t]) || INFO[t];
-    if (msgs) { sfx('select'); say(msgs[(tx * 3 + ty * 5) % msgs.length]); }
+    if (!msgs) return false;
+    sfx('select'); say(msgs[(tx * 3 + ty * 5) % msgs.length]);
   }
 
-  // ---------- out in the parking lot: going any way ----------
-  // Out in the lot you aren't kept to the tiles. You walk whichever way you push, diagonals
-  // and all (as fast as you push a thumbstick), and on the ice you skate the way you do in
+  // ---------- walking: going any way ----------
+  // You aren't kept to the tiles. You walk whichever way you push, diagonals and all (as fast
+  // as you push a thumbstick), and on the parking lot's ice you skate the way you do in
   // hockey: push to pick up speed (up to twice walking pace), turn and you lose some, let
   // go and you glide on, slowing down little by little until you stop (about 10 tiles from
   // full speed). You're a small square (FREE_R either side of your middle) that stops
-  // against whatever you can't walk through and slips round a corner it only just catches.
+  // against whatever you can't walk through and slips round a corner it only just catches,
+  // which is what gets you through a doorway you aren't quite lined up with.
   // P.x, P.y stay the tile you're on and P.dir the way you face nearest, so everything that
   // goes by tiles still works; P.fx, P.fy are exactly where you are (in tiles), P.vx, P.vy
   // how fast you're going (pixels a tick), P.face which way you face (an angle, as in
-  // js/lot3d.js: 0 down the map, π/2 to the right), P.dist how far you've gone (pixels, for
+  // js/hockey.js: 0 down the map, π/2 to the right), P.dist how far you've gone (pixels, for
   // your legs) and P.glide whether you're coasting on your skates.
   const FREE_R = 0.3, SLIP = 0.35; // and how far round a corner you can be and still slip past it
   const WALK = 2, ICE = 4; // top speeds, pixels a tick: your running pace, and flat out on skates
@@ -16678,7 +16624,7 @@
   const ICE_ACC = 0.12, ICE_BRAKE = 1.4, ICE_DRAG = 0.05;
   const FACE = { down: 0, right: Math.PI / 2, up: Math.PI, left: -Math.PI / 2 };
   // The big spruce stands on one tile, but its branches spread nearly two metres all round
-  // (in js/lot3d.js and js/hd.js alike), so you're kept this far from its middle rather than
+  // (see js/lot.js), so you're kept this far from its middle rather than
   // walking in under them.
   const SPRUCE_R = 1.8;
   const spruces = YARD < 0 ? [] : MAPS.floors[YARD].tiles.flatMap((row, y) => [...row].flatMap((ch, x) => (ch === 'Y' ? [[x, y]] : [])));
@@ -16707,7 +16653,11 @@
     // the tiles across your width, in the row you're going into
     const a = Math.round(P[o] - FREE_R + 1e-6), b = Math.round(P[o] + FREE_R - 1e-6);
     for (let c = a; c <= b; c++) if (sideDoor(P.floor, ...at(to, c))) return 2;
-    const stop = (c) => !walkable(P.floor, ...at(to, c)) || !!npcAt(P.floor, ...at(to, c));
+    // the other bathroom: you're told so if you walk right at its door
+    const barred = (c) => genderBlock(...at(to, c), ax === 'x' ? s : 0, ax === 'y' ? s : 0);
+    const no = barred(Math.round(P[o]));
+    if (no) { if (!ui.length) say(no); return 2; }
+    const stop = (c) => !walkable(P.floor, ...at(to, c)) || !!npcAt(P.floor, ...at(to, c)) || !!barred(c);
     const hitA = stop(a), hitB = b !== a && stop(b);
     if (!hitA && !hitB) { P[k] += d; return 0; }
     P[k] = s > 0 ? to - 0.5 - FREE_R : to + 0.5 + FREE_R; // up against it
@@ -16718,8 +16668,8 @@
     }
     return 2;
   }
-  function updateFree() {
-    // just come out here (or been put somewhere new): from the middle of the tile, standing still
+  function updatePlayer() {
+    // just been put somewhere new: from the middle of the tile, standing still
     if (!P.free || Math.round(P.fx) !== P.x || Math.round(P.fy) !== P.y) {
       Object.assign(P, { free: true, fx: P.x, fy: P.y, vx: 0, vy: 0, face: FACE[P.dir], stride: 0, bump: 0, glide: false });
     }
@@ -16732,7 +16682,7 @@
     const act = pressed.has('start') ? openStartMenu : pressed.has('map') ? () => { sfx('menu'); ui.push(MapView()); } : pressed.has('a') ? interact : null;
     if (act) { P.vx = P.vy = 0; P.glide = false; act(); return; }
     // B throws a snowball the way you're facing (snowTick lets it go)
-    if (pressed.has('b') && !P.throwing) P.throwing = { t: tick, a: P.face };
+    if (P.floor === YARD && pressed.has('b') && !P.throwing) P.throwing = { t: tick, a: P.face };
     let { x: ix, y: iy } = steer();
     const push = Math.hypot(ix, iy);
     if (push > 1) { ix /= push; iy /= push; }
@@ -16759,43 +16709,18 @@
       if (fade) return; // through the doors
       if (r === 2) { hit = Math.max(hit, Math.abs(P[v]) || 0.01); P[v] = 0; }
     }
-    const branches = offBranches();
+    const branches = P.floor === YARD ? offBranches() : 0;
     if (branches > 0.3) hit = Math.max(hit, branches);
-    // into the boards at speed, or walking into a wall
-    if (hit > 2.5 && ice) sfx('boards');
-    else if (hit && pushing) { if (P.bump % 24 === 0) sfx('bump'); P.bump++; }
-    else if (!hit) P.bump = 0;
     const moved = Math.hypot(P.fx - fx, P.fy - fy) * 16;
+    // into the boards at speed, or walking into a wall (and not just along it)
+    if (hit > 2.5 && ice) sfx('boards');
+    else if (hit && pushing && moved < 0.5) { if (P.bump % 24 === 0) sfx('bump'); P.bump++; }
+    else P.bump = 0;
     P.dist += moved;
     P.glide = ice && !pushing && moved > 0;
     if (ice && pushing && (P.stride += moved) > 32) { P.stride = 0; sfx('skate'); }
     const tx = Math.round(P.fx), ty = Math.round(P.fy);
     if (tx !== P.x || ty !== P.y) { P.x = tx; P.y = ty; onArrive(); }
-  }
-
-  function updatePlayer() {
-    if (P.floor === YARD) { updateFree(); return; }
-    P.free = false;
-    if (P.moving) {
-      P.prog = Math.min(16, P.prog + 2); // always at running pace
-      if (P.prog < 16) return;
-      P.moving = false; P.prog = 0;
-      P.x += P.mdx; P.y += P.mdy;
-      P.walked = true;
-      onArrive();
-      if (fade) return;
-    }
-    const d = heldDir();
-    if (pressed.has('start')) { openStartMenu(); return; }
-    if (pressed.has('map')) { sfx('menu'); ui.push(MapView()); return; }
-    if (pressed.has('a')) { interact(); return; }
-    if (!d) { P.walked = false; P.turnWait = 0; P.bump = 0; return; }
-    if (d !== P.dir) {
-      P.dir = d; P.bump = 0;
-      if (!P.walked) { P.turnWait = 6; return; }
-    }
-    if (P.turnWait > 0) { P.turnWait--; return; }
-    tryMove(d);
   }
 
   function update() {
@@ -17084,10 +17009,8 @@
 
   // ---------- render ----------
   function frameIndex() {
-    const walkFrame = P.step ? 1 : 2;
-    if (P.moving) return P.prog < 8 ? walkFrame : 0;
-    if (P.bump) return (P.bump >> 3) & 1 ? walkFrame : 0;
-    return 0;
+    if (P.bump) return (P.bump >> 3) & 1 ? 1 : 0;
+    return P.vx || P.vy ? strideFrame((P.dist / 32) % 1) : 0;
   }
 
   // The visitor office portal: a disc of light on the floor, two arms spiralling
@@ -17117,8 +17040,9 @@
   }
 
   function drawWorld() {
-    const px = P.x * 16 + (P.moving ? P.mdx * P.prog : 0);
-    const py = P.y * 16 + (P.moving ? P.mdy * P.prog : 0);
+    // (to the nearest real pixel, as out in the lot, so nothing goes soft walking round)
+    const snap = HIRES ? realPx : Math.round;
+    const [mx, my] = mePx(), px = snap(mx), py = snap(my);
     const ox = (SW - 16) >> 1, oy = (SH - 16) >> 1;
     const cx = px - ox, cy = py - oy;
     const cv = floorCanvas[P.floor];
@@ -17194,7 +17118,7 @@
     const z = (a) => (a.z === undefined ? a.y : a.z);
     actors.sort((a, b) => z(a) - z(b));
     for (const a of actors) {
-      const sx = a.x - cx, sy = a.y - cy - 4;
+      const sx = snap(a.x - cx), sy = snap(a.y - cy - 4);
       if (!(sx > -a.img.width && sx < SW && sy > -a.img.height - 4 && sy < SH)) continue;
       if (a.freeing) drawFreeing(sx, sy, a.img);
       else if (a.ghost) {
@@ -17297,14 +17221,11 @@
   }
 
   function draw() {
-    // outside, the screen is see-through over the parking lot's own canvas
-    const outside = !['title', 'edit', 'name', 'costume', 'sweater'].includes(mode) && P.floor === YARD;
+    const world = !['title', 'edit', 'name', 'costume', 'sweater'].includes(mode), outside = world && P.floor === YARD;
     const covered = outside && ui.some((el) => el.cover);
-    hdShow(outside);
-    // the thumbstick for walking round the lot, and for what's on top if it wants one
-    setPadMode(outside && (!ui.length || top().stick) ? 'stick' : 'dpad');
-    if (outside) ctx.clearRect(0, 0, SW, SH);
-    else { ctx.fillStyle = col.dark; ctx.fillRect(0, 0, SW, SH); }
+    // the thumbstick for walking round, and for what's on top if it wants one
+    setPadMode(world && (!ui.length || top().stick) ? 'stick' : 'dpad');
+    ctx.fillStyle = col.dark; ctx.fillRect(0, 0, SW, SH);
     if (mode === 'title') drawTitle();
     else if (mode === 'edit') drawEdit();
     else if (mode === 'name') drawName();
@@ -17347,7 +17268,6 @@
     s = Math.max(0.5, s);
     canvas.style.width = SW * s + 'px';
     canvas.style.height = SH * s + 'px';
-    hdPlace();
   }
   addEventListener('resize', layout);
   addEventListener('orientationchange', layout);
@@ -17363,8 +17283,6 @@
     if (Art.lookFrom(q.get('look'))) myLook = Art.lookFrom(q.get('look'));
     // &crown=1 wears the Office Champion's crown, whoever you are
     if (q.has('crown')) crowned = q.get('crown') !== '0';
-    // &zoom=2 brings the 3D parking lot's camera in close (0 far, 1 mid), as ZOOM in the Start menu does
-    if (q.has('zoom')) lotZoom = Math.min(LOT_ZOOMS.length - 1, Math.max(0, +q.get('zoom') || 0));
     // &sweater=moose wears that ugly sweater (&sweater=none, none), at Christmas
     if (q.has('sweater')) xmas.sweater = q.get('sweater');
     sprites = mySprites();
