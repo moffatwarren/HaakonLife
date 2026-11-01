@@ -2388,6 +2388,31 @@ window.Art = (function () {
     return out;
   }
 
+  // A picture at double resolution, by Scale2x: each pixel becomes four, and where two
+  // neighbours of the same colour meet at a corner that corner takes their colour, so
+  // diagonals and curves come out smoother instead of just blockier. The canvas it gives
+  // back is marked hi: 2, so the game draws it at the original's size (see js/game.js).
+  function scale2x(src) {
+    const w = src.width, h = src.height;
+    const inp = new Uint32Array(src.getContext('2d').getImageData(0, 0, w, h).data.buffer);
+    const cv = document.createElement('canvas');
+    cv.width = w * 2; cv.height = h * 2;
+    const c = cv.getContext('2d'), img = c.createImageData(w * 2, h * 2), out = new Uint32Array(img.data.buffer);
+    const at = (x, y) => inp[Math.min(h - 1, Math.max(0, y)) * w + Math.min(w - 1, Math.max(0, x))];
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const p = at(x, y), a = at(x, y - 1), b = at(x + 1, y), l = at(x - 1, y), d = at(x, y + 1), o = (y * 2 * w + x) * 2;
+        const edge = a !== d && l !== b;
+        out[o] = edge && l === a ? l : p;
+        out[o + 1] = edge && a === b ? b : p;
+        out[o + w * 2] = edge && l === d ? l : p;
+        out[o + w * 2 + 1] = edge && d === b ? b : p;
+      }
+    c.putImageData(img, 0, 0);
+    cv.hi = 2;
+    return cv;
+  }
+
   // Tiny overview map (1 pixel per tile) for the MAP screen.
   function renderMini(floor) {
     const H = floor.tiles.length, W = floor.tiles[0].length;
@@ -2407,7 +2432,7 @@ window.Art = (function () {
   }
 
   return {
-    LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
+    LOOKS, UI, COSTUMES, scale2x, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
     LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLookCostume,
     SWEATERS,

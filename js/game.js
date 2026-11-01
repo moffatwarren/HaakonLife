@@ -5,10 +5,76 @@
   const WALKABLE = '.,:_;DSj-~';
   const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
+  // The screen has twice as many pixels each way as the view (RES), and everything is
+  // drawn through a matching scale, so it's all still laid out in the view's 320 x 240.
+  // Ordinary pictures come out the same as ever, each pixel a 2 x 2 block; a picture made
+  // at double resolution (a canvas marked hi: 2) is drawn at its ordinary size, with all of
+  // its pixels showing.
+  const RES = 2;
   const canvas = document.getElementById('screen');
-  canvas.width = SW; canvas.height = SH;
+  canvas.width = SW * RES; canvas.height = SH * RES;
   const ctx = canvas.getContext('2d');
+  ctx.scale(RES, RES);
   ctx.imageSmoothingEnabled = false;
+  const drawImage1 = ctx.drawImage.bind(ctx);
+  ctx.drawImage = (img, ...a) => {
+    const k = img.hi;
+    if (!k || a.length === 4) return drawImage1(img, ...a);
+    if (a.length === 2) return drawImage1(img, a[0], a[1], img.width / k, img.height / k);
+    return drawImage1(img, a[0] * k, a[1] * k, a[2] * k, a[3] * k, a[4], a[5], a[6], a[7]);
+  };
+  // &hires: a look at the office in double resolution. The floors and everyone in them are
+  // made double with Scale2x (Art.scale2x), and anyone wearing the golden antlers, standing
+  // facing down, is the hand-drawn 32 x 32 test picture (HI_TEST) instead, its outline
+  // doubled on the outside so it's as heavy as everything else's.
+  const HIRES = /[#&]hires/.test(location.hash);
+  if (HIRES) {
+    const HI_TEST = [
+      '.kkOkkkWkkOkk......kkOkkWkkkOkk.',
+      '.kkOokkOokOkkkkkkkkkkOkoOkkoOkk.',
+      '..kkOooOookkkkkkkkkkkkooOooOkk..',
+      '...kkkooOokkkjjhhhjjkkoOookkk...',
+      '....kkkkOokjjhhhhhhhjkoOkkkk....',
+      '......kkkOqkhhhhhhhhkqOkkk......',
+      '......kkhkoqkhhhhhhkqokHkk......',
+      '.....kkhhhkkhhhhhHHHsssshkk.....',
+      '.....kkhhhhhhhHHHssssssshkk.....',
+      '.....kkhhhhHHHsssssssssshkk.....',
+      '....kkhhHHHssssssssssssshhkk....',
+      '....kkhhsssssssssssssssshhkk....',
+      '...kkshhsssssssssssssssshhskk...',
+      '...kkShhsssWkssssssWkssshhSkk...',
+      '...kksssssskksssssskksssssskk...',
+      '...kksksssskksssssskksssskskk...',
+      '....kkkscccsssssssssscccskkk....',
+      '.....kksssssssSmmSssssssskk.....',
+      '......kksssssssssssssssskk......',
+      '.......kksssssssssssssskk.......',
+      '.......kkkkSSSSSSSSSSkkkk.......',
+      '......kkkwwwwsssssswwwwkkk......',
+      '.....kkwwvwwwwwUuwwwwwvwwkk.....',
+      '.....kkwwvwwwwwUuwwwwwvwwkk.....',
+      '.....kkwwvwwwwwuuwwwwwvwwkk.....',
+      '.....kkwwvwwwwwuuwwwwwvwwkk.....',
+      '.....kkssvwwwwwuuwwwwwvsskk.....',
+      '.....kksskbbbbbOobbbbbksskk.....',
+      '......kkkkLKKKKKKKKKKLkkkk......',
+      '.......kkkLKKKKkkKKKKLkkk.......',
+      '........kkLKKKKkkKKKKLkk........',
+      '.......kkbbbbbbkkbbbbbbkk.......',
+    ];
+    const HI_PAL = { k: '#181820', h: '#5a3420', H: '#3c2010', j: '#7a4a2c', s: '#f8d0a8', S: '#e0a880', c: '#f09080', W: '#ffffff', w: '#f8f8f8', v: '#c8ccd8',
+      u: '#3050a8', U: '#6890e0', K: '#484858', L: '#303040', b: '#282830', o: '#f0b030', O: '#f8e070', q: '#b07818', m: '#a04040' };
+    const test = document.createElement('canvas');
+    test.width = test.height = 32; test.hi = 2;
+    const tc = test.getContext('2d');
+    HI_TEST.forEach((r, y) => [...r].forEach((ch, x) => { if (HI_PAL[ch]) { tc.fillStyle = HI_PAL[ch]; tc.fillRect(x, y, 1, 1); } }));
+    const up = (sheet) => { const out = {}; for (const d in sheet) out[d] = sheet[d].map((cv) => Art.scale2x(cv)); return out; };
+    for (const k of ['renderSprites', 'renderCostume', 'renderLookCostume', 'renderDog']) { const f = Art[k]; Art[k] = (...a) => up(f(...a)); }
+    const look = Art.renderLook, floor = Art.renderFloor;
+    Art.renderLook = (l, sw) => { const out = up(look(l, sw)); if (l.hat === Art.ANTLERS) out.down[0] = test; return out; };
+    Art.renderFloor = (f) => Art.scale2x(floor(f));
+  }
   // Touch screens get the on-screen D-pad (a thumbstick out in the parking lot) and A/B/START
   // buttons (see layout), and the control hints drawn in the game name those buttons
   // instead of keyboard keys.
@@ -14584,7 +14650,7 @@
     let sx = cx, sy = cy, dx = 0, dy = 0, w = SW, h = SH;
     if (sx < 0) { dx = -sx; w += sx; sx = 0; }
     if (sy < 0) { dy = -sy; h += sy; sy = 0; }
-    w = Math.min(w, cv.width - sx); h = Math.min(h, cv.height - sy);
+    w = Math.min(w, cv.width / (cv.hi || 1) - sx); h = Math.min(h, cv.height / (cv.hi || 1) - sy);
     if (w > 0 && h > 0) ctx.drawImage(cv, sx, sy, w, h, dx, dy, w, h);
     if (curtainOpen === P.floor)
       for (const c of curtains[P.floor]) ctx.drawImage(c.open, c.x * 16 - cx, c.y * 16 - cy);
