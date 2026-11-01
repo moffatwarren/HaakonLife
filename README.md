@@ -975,7 +975,9 @@ all eight shirts (`SHIRT32`) and all four pants (`PANTS32`) are redrawn, so ever
 drawn fully at 32 x 32, ugly Christmas sweaters (`SWEATER32`) too, and so are the
 coworkers (`renderSprites32`: the same parts, short hair, shirt and tie and trousers for a
 man, long hair and a blouse for a woman, in their own colours), and the dogs and the cat
-(`renderDog32`). Only the Halloween costumes and the ghosts are still doubled, e.g.
+(`renderDog32`), and the Halloween costumes and ghosts (`COSTUME32`, `GHOST32`). Every
+person and animal is drawn at 32 x 32; only the office itself (floors, walls, furniture)
+is still today's, doubled with Scale2x, e.g.
 `index.html#play&hires&look=m20000000` (the look code is the body, then the skin 0 to 7,
 the hairstyle 0 to 8, the hair colour, the head thing, then the shirt and pants and their
 colours).
