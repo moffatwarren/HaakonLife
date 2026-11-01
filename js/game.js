@@ -863,6 +863,19 @@
   // Detail the mini-games add at double resolution (each draw() only calls it when HIRES):
   // a rectangle that can be half a pixel across, as fine as the screen goes.
   const fine = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+  // ...a disc of radius r round (cx, cy), in half-pixel rows with crisp edges...
+  const fineDisc = (cx, cy, r, c) => {
+    ctx.fillStyle = c;
+    for (let y = -r + 0.25; y < r; y += 0.5) { const w = Math.round(Math.sqrt(r * r - y * y) * 2) / 2; if (w) ctx.fillRect(cx - w, cy + y - 0.25, w * 2, 0.5); }
+  };
+  // ...and a box with corners rounded to radius r.
+  const roundBox = (x, y, w, h, r, c) => {
+    ctx.fillStyle = c;
+    for (let i = 0; i < h * 2; i++) {
+      const d = Math.min(i + 0.5, h * 2 - i - 0.5) / 2, k = d < r ? Math.round((r - Math.sqrt(r * r - (r - d) * (r - d))) * 2) / 2 : 0;
+      ctx.fillRect(x + k, y + i / 2, w - k * 2, 0.5);
+    }
+  };
   // At double resolution each letter is FONT.glyphs2 (smoothed), made into a picture once
   // for each colour and drawn at the letter's size, every pixel showing.
   const glyphPics = new Map();
@@ -6097,6 +6110,7 @@
         for (let i = 0; i < LIVES; i++) {
           ctx.fillStyle = i < lives ? '#c03030' : '#c8ccd8';
           ctx.fillRect(200 + i * 14, 24, 10, 10);
+          if (HIRES) { fine(200 + i * 14, 24, 10, 1, i < lives ? '#e86060' : '#e0e2ea'); fine(201 + i * 14, 25, 1, 8, i < lives ? '#e86060' : '#e0e2ea'); fine(200 + i * 14, 33, 10, 1, i < lives ? '#802020' : '#a8acb8'); }
         }
         // three bins, each on its own arrow key
         KINDS.forEach((k, i) => {
@@ -6105,6 +6119,10 @@
           ctx.fillStyle = col.dark; ctx.fillRect(x, 52, 86, 54);
           ctx.fillStyle = lit; ctx.fillRect(x + 2, 54, 82, 50);
           ctx.fillStyle = k.c; ctx.fillRect(x + 2, 54, 82, 8);
+          if (HIRES) { // the bin's lip and shine, and its shade
+            fine(x + 2, 54, 82, 1, 'rgba(255,255,255,0.35)'); fine(x + 2, 61.5, 82, 0.5, 'rgba(0,0,0,0.3)');
+            fine(x + 2, 62, 1, 42, 'rgba(255,255,255,0.6)'); fine(x + 83, 62, 1, 42, 'rgba(0,0,0,0.12)'); fine(x + 2, 103, 82, 1, 'rgba(0,0,0,0.12)');
+          }
           text(k.name, x + 16, 72, 1, col.dark);
           const hint = { left: 'LEFT', up: 'UP', right: 'RIGHT' }[k.key];
           text(hint, x + 43 - hint.length * 3, 88, 1, col.dark);
@@ -6114,12 +6132,23 @@
         ctx.fillStyle = '#585868'; ctx.fillRect(9, BELT_Y + 1, SW - 18, 20);
         ctx.fillStyle = '#8890a0';
         for (let x = 10 - (tick * 2) % 12; x < SW - 10; x += 12) ctx.fillRect(x, BELT_Y + 1, 2, 20);
+        if (HIRES) {
+          for (let x = 10 - (tick * 2) % 12; x < SW - 10; x += 12) { fine(x, BELT_Y + 1, 0.5, 20, '#b8bcc8'); fine(x + 2, BELT_Y + 1, 0.5, 20, '#383848'); }
+          fine(9, BELT_Y + 1, SW - 18, 1, '#787888'); fine(9, BELT_Y + 19.5, SW - 18, 1.5, '#383848');
+        }
         ctx.fillStyle = '#f0b030'; ctx.fillRect(GATE - 15, BELT_Y - 4, 2, 30); ctx.fillRect(GATE + 15, BELT_Y - 4, 2, 30);
         for (const it of items) {
           const k = KINDS[it.k];
           ctx.fillStyle = col.dark; ctx.fillRect(Math.round(it.x) - 9, BELT_Y - 10, 18, 16);
           ctx.fillStyle = k.c; ctx.fillRect(Math.round(it.x) - 8, BELT_Y - 9, 16, 14);
           ctx.fillStyle = '#f8f8f8'; ctx.fillRect(Math.round(it.x) - 5, BELT_Y - 6, 10, 3);
+          if (HIRES) { // what's in each box: a coil of cable, a circuit board, a screw
+            const ix = Math.round(it.x) - 8, iy = BELT_Y - 9;
+            fine(ix, iy, 16, 0.5, 'rgba(255,255,255,0.4)'); fine(ix, iy + 13.5, 16, 0.5, 'rgba(0,0,0,0.3)');
+            if (it.k === 0) { for (let a = 0; a < 24; a++) { const an = a / 24 * Math.PI * 2; fine(ix + 8 + Math.cos(an) * 3 - 0.25, iy + 9.5 + Math.sin(an) * 2 - 0.25, 0.5, 0.5, '#f8f8f8'); } fine(ix + 11, iy + 9, 3, 0.5, '#f8f8f8'); }
+            else if (it.k === 1) { fine(ix + 4, iy + 8, 4, 3, col.dark); fine(ix + 9, iy + 8.5, 4, 0.5, '#f0c040'); fine(ix + 9, iy + 10, 3, 0.5, '#f0c040'); fine(ix + 3, iy + 12, 10, 0.5, '#f0c040'); }
+            else { fine(ix + 4, iy + 8, 8, 1, '#f8f8f8'); for (let k = 0; k < 4; k++) fine(ix + 6 + k * 1.5, iy + 9.5, 0.5, 2, '#585868'); fine(ix + 5, iy + 11.5, 6, 0.5, '#f8f8f8'); }
+          }
         }
         if (state === 'ready') readyBox(t, 'Arrows: bin the part at the gate');
         else if (state === 'done') doneBox(['The floor wins!', 'Parts sorted: ' + sorted,
@@ -6191,6 +6220,10 @@
         for (const [x, lbl] of [[LX, 'IN'], [RX, 'OUT']]) {
           ctx.fillStyle = col.dark; ctx.fillRect(x - 22, Y0 - 14, 44, N * DY + 12);
           ctx.fillStyle = '#484858'; ctx.fillRect(x - 20, Y0 - 12, 40, N * DY + 8);
+          if (HIRES) { // the rail's bevel and its rack screws
+            fine(x - 20, Y0 - 12, 40, 1, '#686878'); fine(x - 20, Y0 - 12, 1, N * DY + 8, '#686878'); fine(x - 20, Y0 + N * DY - 5, 40, 1, '#383844');
+            for (const sy of [Y0 - 9, Y0 + N * DY - 8]) for (const sx of [x - 17, x + 15]) { fine(sx, sy, 2, 2, '#a8acb8'); fine(sx + 0.5, sy + 0.75, 1, 0.5, '#383844'); }
+          }
           text(lbl, x - 9, Y0 - 28);
         }
         // cables already run
@@ -6200,6 +6233,14 @@
           ctx.moveTo(LX + 20, Y0 + d.l * DY + 7);
           ctx.bezierCurveTo(LX + 90, Y0 + d.l * DY + 7, RX - 90, Y0 + d.r * DY + 7, RX - 20, Y0 + d.r * DY + 7);
           ctx.stroke();
+          if (HIRES) { // a shine along the cable
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 0.75;
+            ctx.beginPath();
+            ctx.moveTo(LX + 20, Y0 + d.l * DY + 6);
+            ctx.bezierCurveTo(LX + 90, Y0 + d.l * DY + 6, RX - 90, Y0 + d.r * DY + 6, RX - 20, Y0 + d.r * DY + 6);
+            ctx.stroke();
+            ctx.lineWidth = 3;
+          }
         }
         ctx.lineWidth = 1;
         for (let i = 0; i < N; i++) {
@@ -6208,6 +6249,11 @@
           ctx.fillStyle = lUsed ? '#585868' : WIRE[i]; ctx.fillRect(LX - 10, y + 2, 20, 10);
           ctx.fillStyle = col.dark; ctx.fillRect(RX - 12, y, 24, 14);
           ctx.fillStyle = rUsed ? '#585868' : WIRE[right[i]]; ctx.fillRect(RX - 10, y + 2, 20, 10);
+          if (HIRES) for (const [px, used] of [[LX, lUsed], [RX, rUsed]]) { // each port's jack and shine
+            fine(px - 10, y + 2, 20, 1, 'rgba(255,255,255,0.35)'); fine(px - 10, y + 11, 20, 1, 'rgba(0,0,0,0.25)');
+            fine(px - 4, y + 4.5, 8, 5, used ? '#383844' : col.dark); fine(px - 3, y + 5.5, 6, 0.5, '#a8a070'); fine(px - 3, y + 7, 6, 0.5, '#a8a070');
+            if (used) fine(px - 5, y + 4, 10, 6, '#c8ccd8'), fine(px - 5, y + 4, 10, 1, '#f8f8f8'), fine(px - 1, y + 5, 2, 4, '#686878');
+          }
           if (pickLeft === i) { ctx.fillStyle = '#f8f8f8'; ring(LX - 16, y - 4, 32, 22); }
         }
         // the cursor sits on whichever rail you are choosing from
@@ -6269,16 +6315,40 @@
         const dip = push > 4 ? 4 : push > 0 ? 2 : 0;
         ctx.fillStyle = col.dark; ctx.fillRect(40, CY + 34, 240, 10);
         ctx.fillStyle = '#585868'; ctx.fillRect(42, CY + 36, 236, 6);
-        ctx.fillStyle = col.dark; ctx.fillRect(56, CY - 4, 208, 40);
-        ctx.fillStyle = '#f0c098'; ctx.fillRect(58, CY - 2, 204, 36);
-        ctx.fillStyle = col.dark; ctx.fillRect(40, CY - 14, 30, 30);
-        ctx.fillStyle = '#f0c098'; ctx.fillRect(42, CY - 12, 26, 26);
-        ctx.fillStyle = col.dark; ctx.fillRect(48, CY - 4, 3, 3); ctx.fillRect(58, CY - 4, 3, 3);
-        ctx.fillRect(50, CY + 6, 12, 2);
-        ctx.fillStyle = '#3868c8'; ctx.fillRect(100, CY - 2 + dip, 92, 34 - dip);
+        if (HIRES) {
+          // a rounded manikin: the stretcher's legs and pad, body, a head with closed eyes, a vest
+          fine(42, CY + 36, 236, 1, '#787888'); fine(60, CY + 42, 4, 6, col.dark); fine(256, CY + 42, 4, 6, col.dark);
+          roundBox(56, CY - 4, 208, 40, 8, col.dark); roundBox(58, CY - 2, 204, 36, 6.5, '#f0c098');
+          fine(62, CY + 28, 196, 4, '#d8a478'); fine(64, CY, 192, 1, '#f8dcc0');
+          fine(200, CY + 2, 0.5, 26, '#d8a478'); fine(214, CY + 2, 0.5, 26, '#d8a478');
+          roundBox(100, CY - 2 + dip, 92, 34 - dip, 4, '#3868c8');
+          fine(102, CY + dip, 88, 1, '#6890e0'); fine(102, CY + 28, 88, 3, '#2850a0');
+          fine(145.5, CY - 2 + dip, 1, 34 - dip, '#2850a0'); for (let zy = CY + 1 + dip; zy < CY + 30; zy += 2) fine(146.5, zy, 0.5, 1, '#a8acb8');
+          fineDisc(55, CY + 1, 16, col.dark); fineDisc(55, CY + 1, 14, '#d8a478'); fineDisc(54.5, CY - 0.5, 12.5, '#f0c098'); fine(48, CY - 9, 8, 1.5, '#f8dcc0');
+          fine(47, CY - 3, 4, 1, col.dark); fine(46.5, CY - 3.5, 0.5, 0.5, col.dark); fine(58, CY - 3, 4, 1, col.dark); fine(62, CY - 3.5, 0.5, 0.5, col.dark);
+          fine(53.5, CY - 1, 1.5, 4, '#d8a478'); fine(53.5, CY + 3, 2.5, 0.5, '#c08a60');
+          fine(51, CY + 7, 9, 1, '#a86a50'); fine(51, CY + 8, 9, 0.5, '#d89070');
+        } else {
+          ctx.fillStyle = col.dark; ctx.fillRect(56, CY - 4, 208, 40);
+          ctx.fillStyle = '#f0c098'; ctx.fillRect(58, CY - 2, 204, 36);
+          ctx.fillStyle = col.dark; ctx.fillRect(40, CY - 14, 30, 30);
+          ctx.fillStyle = '#f0c098'; ctx.fillRect(42, CY - 12, 26, 26);
+          ctx.fillStyle = col.dark; ctx.fillRect(48, CY - 4, 3, 3); ctx.fillRect(58, CY - 4, 3, 3);
+          ctx.fillRect(50, CY + 6, 12, 2);
+          ctx.fillStyle = '#3868c8'; ctx.fillRect(100, CY - 2 + dip, 92, 34 - dip);
+        }
         // your hands
-        ctx.fillStyle = col.dark; ctx.fillRect(CX - 16, CY - 16 + dip, 32, 22);
-        ctx.fillStyle = '#f8d0a8'; ctx.fillRect(CX - 14, CY - 14 + dip, 28, 18);
+        if (HIRES) { // one hand over the other, fingers laced, sleeves above
+          const hy = CY - 16 + dip;
+          roundBox(CX - 16, hy, 32, 22, 6, col.dark); roundBox(CX - 14, hy + 2, 28, 18, 4.5, '#f8d0a8');
+          for (const fx of [-8, -3, 2, 7]) fine(CX + fx, hy + 3, 0.5, 9, '#d8a478');
+          fine(CX - 12, hy + 12, 24, 0.5, '#d8a478'); fine(CX - 11, hy + 3, 18, 1, '#ffe8d0');
+          fine(CX - 13, hy + 15, 26, 4, '#e8b890');
+          for (const ax of [CX - 10, CX + 2]) { fine(ax, hy - 7, 8, 8, col.dark); fine(ax + 1.5, hy - 7, 5, 8, '#f8d0a8'); fine(ax + 1.5, hy - 7, 1, 8, '#ffe8d0'); }
+        } else {
+          ctx.fillStyle = col.dark; ctx.fillRect(CX - 16, CY - 16 + dip, 32, 22);
+          ctx.fillStyle = '#f8d0a8'; ctx.fillRect(CX - 14, CY - 14 + dip, 28, 18);
+        }
         // the metronome: a bar that sweeps and a ring that pulses on the beat
         const p = ((beat + BEAT / 2) % BEAT) / BEAT;   // beat 0 sits dead centre
         ctx.fillStyle = col.dark; ctx.fillRect(40, 56, 240, 14);
@@ -6286,7 +6356,9 @@
         const gw = Math.round(238 * GOOD / BEAT), pw = Math.round(238 * PERFECT / BEAT);
         ctx.fillStyle = '#b8e8b8'; ctx.fillRect(160 - gw, 57, gw * 2, 12);
         ctx.fillStyle = '#58b058'; ctx.fillRect(160 - pw, 57, pw * 2, 12);
+        if (HIRES) { fine(41, 57, 238, 1, 'rgba(255,255,255,0.5)'); fine(41, 67.5, 238, 1.5, 'rgba(0,0,0,0.1)'); }
         ctx.fillStyle = col.dark; ctx.fillRect(40 + Math.round(238 * p), 54, 3, 18);
+        if (HIRES) fine(40.5 + Math.round(238 * p), 55, 0.5, 16, '#888898');
         if (beat < 5) { ctx.fillStyle = '#f0b030'; ring(150, 50, 20, 26); }
         text('PUSH ON THE BEAT', 70, 38);
         if (last && last.t < 40) text(last.s, (SW - last.s.length * 6) >> 1, 200, 1, last.c);
@@ -6348,9 +6420,18 @@
         // the blank plate
         ctx.fillStyle = col.dark; ctx.fillRect(X0 - 12, MID - AMP - 30, X1 - X0 + 24, (AMP + 30) * 2);
         ctx.fillStyle = '#d8b878'; ctx.fillRect(X0 - 9, MID - AMP - 27, X1 - X0 + 18, (AMP + 27) * 2);
+        if (HIRES) { // brushed brass, a bevel, and a screw in each corner
+          const px = X0 - 9, py = MID - AMP - 27, pw = X1 - X0 + 18, ph = (AMP + 27) * 2;
+          for (let yy = py + 2; yy < py + ph - 2; yy += 1.5) { const o = (yy * 7) % 11; fine(px + 2 + o, yy, pw - 4 - o - ((yy * 5) % 17), 0.5, (yy * 2) % 3 ? '#d0b070' : '#e0c488'); }
+          fine(px, py, pw, 1.5, '#f0dca8'); fine(px, py, 1.5, ph, '#f0dca8'); fine(px, py + ph - 1.5, pw, 1.5, '#a88850'); fine(px + pw - 1.5, py, 1.5, ph, '#a88850');
+          for (const [sx, sy] of [[px + 6, py + 6], [px + pw - 9, py + 6], [px + 6, py + ph - 9], [px + pw - 9, py + ph - 9]]) {
+            fineDisc(sx + 1.5, sy + 1.5, 2.5, '#9a7a40'); fineDisc(sx + 1.5, sy + 1.5, 1.75, '#e8d098'); fine(sx, sy + 1.25, 3, 0.5, '#7a5a28');
+          }
+        }
         // the groove you are meant to follow
         ctx.fillStyle = '#9a7a40';
-        for (let xx = X0; xx < X1; xx += 2) ctx.fillRect(xx, Math.round(lineAt(xx)) - 1, 2, 3);
+        if (HIRES) for (let xx = X0; xx < X1; xx += 0.5) { const yy = Math.round(lineAt(xx) * 2) / 2; fine(xx, yy - 1, 0.5, 2.5, '#9a7a40'); fine(xx, yy + 1.5, 0.5, 0.5, '#f0dca8'); }
+        else for (let xx = X0; xx < X1; xx += 2) ctx.fillRect(xx, Math.round(lineAt(xx)) - 1, 2, 3);
         // what you actually cut
         for (const c of cut) {
           ctx.fillStyle = c.on ? '#f8f8f8' : '#b83028';
@@ -6362,6 +6443,12 @@
           ctx.fillStyle = col.dark; ctx.fillRect(Math.round(x) - 4, Math.round(real) - 18, 9, 16);
           ctx.fillStyle = '#8890a0'; ctx.fillRect(Math.round(x) - 3, Math.round(real) - 17, 7, 14);
           ctx.fillStyle = col.dark; ctx.fillRect(Math.round(x) - 1, Math.round(real) - 3, 3, 5);
+          if (HIRES) { // the tool's shine and grip, and a sharp bit
+            const hx = Math.round(x), hy = Math.round(real);
+            fine(hx - 2.5, hy - 17, 1, 14, '#c8ccd8'); fine(hx + 2.5, hy - 17, 1, 14, '#686878');
+            for (let gy = hy - 15; gy < hy - 9; gy += 1.5) fine(hx - 3, gy, 7, 0.5, '#686878');
+            fine(hx - 0.5, hy + 1, 2, 1, '#c8ccd8'); fine(hx, hy + 2, 1, 1, '#f8f8f8');
+          }
         }
         if (state === 'ready') readyBox(t, 'Up/Down: steer the head');
         else if (state === 'done') doneBox(['Plate finished!', 'On the line: ' + Math.round(100 * hits / n) + '%',
@@ -6423,17 +6510,35 @@
         ctx.fillStyle = col.dark; ctx.fillRect(60, 44, 200, 8); ctx.fillRect(66, 52, 8, 150); ctx.fillRect(246, 52, 8, 150);
         ctx.fillStyle = '#8890a0'; ctx.fillRect(68, 54, 4, 146); ctx.fillRect(248, 54, 4, 146);
         const by = 70 + Math.round(bar * 56);
+        if (HIRES) { // the frame's shine and bolts, and a pulley the cable runs over
+          fine(68.5, 54, 1, 146, '#c8ccd8'); fine(248.5, 54, 1, 146, '#c8ccd8'); fine(61, 45, 198, 0.5, '#585868');
+          for (const bx of [69, 249]) fine(bx, 47, 2, 2, '#a8acb8');
+          fineDisc(160, 56, 6, col.dark); fineDisc(160, 56, 4.5, '#8890a0'); fineDisc(160, 56, 1.5, col.dark); fine(157, 52.5, 3, 0.5, '#c8ccd8');
+          fine(158, 60, 4, by - 60, col.dark); fine(159, 60, 1, by - 60, '#686878');
+        }
         ctx.fillStyle = col.dark; ctx.fillRect(158, 52, 4, by - 52);
+        if (HIRES) fine(159, 62, 0.5, by - 62, '#686878');
         ctx.fillRect(96, by, 128, 7);
         ctx.fillStyle = '#c8ccd8'; ctx.fillRect(98, by + 1, 124, 5);
+        if (HIRES) { // the bar's shine, and rubber grips at each end
+          fine(98, by + 1, 124, 1, '#f8f8f8'); fine(98, by + 5, 124, 1, '#a8acb8');
+          for (const gx of [98, 198]) { fine(gx, by + 1, 24, 5, '#383848'); for (let k = 1; k < 24; k += 2) fine(gx + k, by + 1, 0.5, 5, '#585868'); }
+        }
         // you, pulling
         ctx.drawImage(sprites.down[0], 132, by + 14, 56, 56);
         // the weight stack rises as the bar comes down
         const st = Math.round(bar * 40);
         ctx.fillStyle = col.dark; ctx.fillRect(272, 60, 34, 142);
+        if (HIRES) { fine(282, 60, 1, 142, '#585868'); fine(295, 60, 1, 142, '#585868'); }
         for (let i = 0; i < 7; i++) {
           ctx.fillStyle = i < 4 ? '#585868' : '#c03838';
           ctx.fillRect(274, 170 - i * 16 - st, 30, 14);
+          if (HIRES) { // each plate's lit edge, its shade, the guide rods through it and the pin
+            const y = 170 - i * 16 - st, lt = i < 4 ? '#888898' : '#e06060', dk = i < 4 ? '#404050' : '#902828';
+            fine(274, y, 30, 1, lt); fine(274, y + 13, 30, 1, dk);
+            fine(281.5, y + 1, 2, 12, dk); fine(294.5, y + 1, 2, 12, dk);
+            if (i === 3) { fine(286, y + 6, 6, 2, '#c8ccd8'); fine(286, y + 6, 6, 0.5, '#f8f8f8'); }
+          }
         }
         // the meter: press as the marker crosses the green sweet spot
         const p = markerAt();
@@ -6441,6 +6546,7 @@
         ctx.fillStyle = '#e8e8e8'; ctx.fillRect(41, 209, 238, 10);
         ctx.fillStyle = '#b8e8b8';
         ctx.fillRect(40 + Math.round(238 * (0.5 - SPOT)), 209, Math.round(238 * SPOT * 2), 10);
+        if (HIRES) { fine(41, 209, 238, 1, 'rgba(255,255,255,0.5)'); fine(41, 217.5, 238, 1.5, 'rgba(0,0,0,0.1)'); }
         ctx.fillStyle = tried ? '#8890a0' : col.dark; ctx.fillRect(40 + Math.round(238 * p), 206, 3, 16);
         text(want === 'down' ? 'PULL (Down)' : 'RELEASE (Up)', 100, 192);
         if (last && last.t < 30) text(last.s, (SW - last.s.length * 6) >> 1, 38, 1, last.c);
@@ -6520,20 +6626,29 @@
         ctx.fillStyle = '#f0b030'; ctx.fillRect(171, 24, Math.round(132 * into / 12), 8);
         const edge = edgeOf(level);
         // the ball, with the band you are allowed on shrinking as the levels climb
-        for (let rr = R - 2; rr > 0; rr -= 2) {
-          ctx.fillStyle = rr > edge ? '#9aa0b0' : rr > edge - 10 ? '#f8d8d8'
-            : rr > edge * 0.45 ? '#dfe8f8' : '#b8e8b8';
-          for (let a = 0; a < 80; a++) {
-            const an = a / 80 * Math.PI * 2;
-            ctx.fillRect(CX + Math.round(Math.cos(an) * rr) - 1, CY + Math.round(Math.sin(an) * rr) - 1, 3, 3);
+        if (HIRES) {
+          // smooth bands, solid edges, and the ball's sheen and seams
+          fineDisc(CX, CY, R + 1.5, col.dark); fineDisc(CX, CY, R - 1, '#9aa0b0');
+          for (let k = 0; k < 6; k++) { const an = k * Math.PI / 3; for (let r = edge + 2; r < R - 1; r += 0.5) fine(CX + Math.cos(an) * r - 0.25, CY + Math.sin(an) * r - 0.25, 0.5, 0.5, '#7a8090'); }
+          fineDisc(CX, CY, edge + 1.5, col.dark); fineDisc(CX, CY, edge - 1, '#f8d8d8');
+          fineDisc(CX, CY, edge - 10, '#dfe8f8'); fineDisc(CX, CY, edge * 0.45, '#b8e8b8');
+          for (let a = 0; a < 40; a++) { const an = Math.PI * (1.05 + a / 80); fine(CX + Math.cos(an) * (R - 4) - 0.5, CY + Math.sin(an) * (R - 4) - 0.5, 1, 1, '#c8ccd8'); }
+        } else {
+          for (let rr = R - 2; rr > 0; rr -= 2) {
+            ctx.fillStyle = rr > edge ? '#9aa0b0' : rr > edge - 10 ? '#f8d8d8'
+              : rr > edge * 0.45 ? '#dfe8f8' : '#b8e8b8';
+            for (let a = 0; a < 80; a++) {
+              const an = a / 80 * Math.PI * 2;
+              ctx.fillRect(CX + Math.round(Math.cos(an) * rr) - 1, CY + Math.round(Math.sin(an) * rr) - 1, 3, 3);
+            }
           }
-        }
-        // the edge you must not cross, drawn solid so the shrink is unmistakable
-        ctx.fillStyle = col.dark;
-        for (const rad of [R, edge]) {
-          for (let a = 0; a < 80; a++) {
-            const an = a / 80 * Math.PI * 2;
-            ctx.fillRect(CX + Math.round(Math.cos(an) * rad) - 1, CY + Math.round(Math.sin(an) * rad) - 1, 3, 3);
+          // the edge you must not cross, drawn solid so the shrink is unmistakable
+          ctx.fillStyle = col.dark;
+          for (const rad of [R, edge]) {
+            for (let a = 0; a < 80; a++) {
+              const an = a / 80 * Math.PI * 2;
+              ctx.fillRect(CX + Math.round(Math.cos(an) * rad) - 1, CY + Math.round(Math.sin(an) * rad) - 1, 3, 3);
+            }
           }
         }
         // a gust, shown blowing in from the side it came from
@@ -6546,10 +6661,15 @@
           }
         }
         // where your weight is
-        ctx.fillStyle = col.dark;
-        ctx.fillRect(CX + Math.round(px) - 5, CY + Math.round(py) - 5, 11, 11);
-        ctx.fillStyle = '#f0b030';
-        ctx.fillRect(CX + Math.round(px) - 3, CY + Math.round(py) - 3, 7, 7);
+        if (HIRES) {
+          const wx = CX + Math.round(px) + 0.5, wy = CY + Math.round(py) + 0.5;
+          fineDisc(wx, wy, 5.5, col.dark); fineDisc(wx, wy, 4, '#f0b030'); fineDisc(wx - 1, wy - 1, 1.5, '#f8d880');
+        } else {
+          ctx.fillStyle = col.dark;
+          ctx.fillRect(CX + Math.round(px) - 5, CY + Math.round(py) - 5, 11, 11);
+          ctx.fillStyle = '#f0b030';
+          ctx.fillRect(CX + Math.round(px) - 3, CY + Math.round(py) - 3, 7, 7);
+        }
         ctx.fillStyle = col.dark;
         ctx.fillRect(CX - 1, CY - 7, 3, 3); ctx.fillRect(CX - 1, CY + 5, 3, 3);
         ctx.fillRect(CX - 7, CY - 1, 3, 3); ctx.fillRect(CX + 5, CY - 1, 3, 3);
