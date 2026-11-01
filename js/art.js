@@ -1202,8 +1202,9 @@ window.Art = (function () {
   function lookPalette(look, over) {
     const c = lookColours(look);
     // (and for 32 x 32: S, skin in shadow, f, the cheeks, j, a shine on the hair, and O and
-    // Y, light and dark gold, for the crown and the golden antlers)
-    return palette(Object.assign({ H: darker(c.h, 0.35), v: darker(c.w, 0.25), S: darker(c.s, 0.2), f: blend(c.s, '#e04848', 0.4), j: blend(c.h, '#ffffff', 0.3), O: '#f8e070', Y: '#a87018' }, c, over));
+    // Y, light and dark gold, for the crown and the golden antlers, L, the pants in shadow,
+    // and b, shoes)
+    return palette(Object.assign({ H: darker(c.h, 0.35), v: darker(c.w, 0.25), S: darker(c.s, 0.2), f: blend(c.s, '#e04848', 0.4), j: blend(c.h, '#ffffff', 0.3), O: '#f8e070', Y: '#a87018', L: darker(c.K, 0.3), b: '#383040' }, c, over));
   }
   // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look, the same
   // shape renderSprites gives, in an ugly sweater if `sweater` names one.
@@ -2643,6 +2644,184 @@ window.Art = (function () {
     },
   };
   for (const s of SHIRTS) if (SHIRT32[s.hd]) s.hi = SHIRT32[s.hd];
+  // The pants, by their hd name: hips, legs and shoes, rows 26-31, looking down (up is the
+  // same), down mid-stride (the other stride is the same mirrored), left and left
+  // mid-stride; overalls' `top` is laid over the shirt from row 20. L is the pants' shade
+  // and b the shoes (see lookPalette).
+  const PANTS32 = {
+    trousers: {
+      down: [
+        '........kkLLLLLqqLLLLLkk',
+        '........kkKKKKKKKKKKLLkk',
+        '........kkKKKKLkkKKKLLkk',
+        '........kkKKKKLkkKKKLLkk',
+        '........kkgbbgbkkgbgbbkk',
+        '........kkbbbbbkkbbbbbkk',
+      ],
+      downWalk: [
+        '........kkLLLLLqqLLLLLkk',
+        '.......kkKKKKKKKKKKKLLkk',
+        '.......kkKKKKLkkkkKKLLkk',
+        '.......kkKKKKLkkkkKKLLkk',
+        '.......kkggbbgkkkkggbbkk',
+        '.......kkbbbbbkk.kkkkkk',
+      ],
+      left: [
+        '........kkLqLLLLLLLLLLkk',
+        '........kkKKKKKKKKKKLLkk',
+        '.........kkkKKKLkKKLkkk',
+        '..........kkKKKLkKKLkk',
+        '.........kkgbgbbkgbgkk',
+        '.........kkbbbbbkbbbkk',
+      ],
+      leftWalk: [
+        '........kkLqLLLLLLLLLLkk',
+        '........kkKKKKKKKKKKLLkk',
+        '........kkKKKLkkkkKKLLkk',
+        '........kkKKKLkkkkKKLLkk',
+        '.......kkggbbgkkkkggbbkk',
+        '.......kkbbbbbkk.kkbbbkk',
+      ],
+    },
+    shorts: {
+      down: [
+        '........kkKKKKKKKKKKLLkk',
+        '........kkKKKKKKKKKKLLkk',
+        '........kkKKKKLkkKKKLLkk',
+        '........kkssssskkSSSSSkk',
+        '........kkgbbgbkkgbgbbkk',
+        '........kkbbbbbkkbbbbbkk',
+      ],
+      downWalk: [
+        '........kkKKKKKKKKKKLLkk',
+        '.......kkKKKKKKKKKKKLLkk',
+        '.......kkKKKKLkkkkKKLLkk',
+        '.......kkssssskkkkSSSSkk',
+        '.......kkggbbgkkkkggbbkk',
+        '.......kkbbbbbkk.kkkkkk',
+      ],
+      left: [
+        '........kkKKKKKKKKKKLLkk',
+        '........kkKKKKKKKKKKLLkk',
+        '.........kkkKKKLkKKLkkk',
+        '..........kksssskSSSkk',
+        '.........kkgbgbbkgbgkk',
+        '.........kkbbbbbkbbbkk',
+      ],
+      leftWalk: [
+        '........kkKKKKKKKKKKLLkk',
+        '........kkKKKKKKKKKKLLkk',
+        '........kkKKKLkkkkKKLLkk',
+        '........kksssskkkkSSSSkk',
+        '.......kkggbbgkkkkggbbkk',
+        '.......kkbbbbbkk.kkbbbkk',
+      ],
+    },
+    skirt: {
+      down: [
+        '........kkKKKKKKKKKKLLkk',
+        '.......kkKKKKKKKKKKKLLLkk',
+        '.......kkLLLLLLLLLLLLLLkk',
+        '........kkssssskkSSSSSkk',
+        '........kkgbbgbkkgbgbbkk',
+        '........kkbbbbbkkbbbbbkk',
+      ],
+      downWalk: [
+        '........kkKKKKKKKKKKLLkk',
+        '.......kkKKKKKKKKKKKLLLkk',
+        '.......kkLLLLLLLLLLLLLLkk',
+        '.......kkssssskkkkSSSSkk',
+        '.......kkggbbgkkkkggbbkk',
+        '.......kkbbbbbkk.kkkkkk',
+      ],
+      left: [
+        '........kkKKKKKKKKKKLLkk',
+        '.......kkKKKKKKKKKKKLLLkk',
+        '.......kkLLLLLLLLLLLLLLkk',
+        '........kkkksssskSSSkkkk',
+        '.........kkgbgbbkgbgkkk',
+        '.........kkbbbbbkbbbkk',
+      ],
+      leftWalk: [
+        '........kkKKKKKKKKKKLLkk',
+        '.......kkKKKKKKKKKKKLLLkk',
+        '.......kkLLLLLLLLLLLLLLkk',
+        '........kksssskkkkSSSSkk',
+        '.......kkggbbgkkkkggbbkk',
+        '.......kkbbbbbkk.kkbbbkk',
+      ],
+    },
+    overalls: {
+      down: [
+        '........kkKKKKKKKKKKLLkk',
+        '........kkKKKKKKKKKKLLkk',
+        '........kkKKKKLkkKKKLLkk',
+        '........kkLLLLLkkLLLLLkk',
+        '........kkgbbgbkkgbgbbkk',
+        '........kkbbbbbkkbbbbbkk',
+      ],
+      downWalk: [
+        '........kkKKKKKKKKKKLLkk',
+        '.......kkKKKKKKKKKKKLLkk',
+        '.......kkKKKKLkkkkKKLLkk',
+        '.......kkLLLLLkkkkLLLLkk',
+        '.......kkggbbgkkkkggbbkk',
+        '.......kkbbbbbkk.kkkkkk',
+      ],
+      left: [
+        '........kkKKKKKKKKKKLLkk',
+        '........kkKKKKKKKKKKLLkk',
+        '.........kkkKKKLkKKLkkk',
+        '..........kkLLLLkLLLkk',
+        '.........kkgbgbbkgbgkk',
+        '.........kkbbbbbkbbbkk',
+      ],
+      leftWalk: [
+        '........kkKKKKKKKKKKLLkk',
+        '........kkKKKKKKKKKKLLkk',
+        '........kkKKKLkkkkKKLLkk',
+        '........kkLLLLkkkkLLLLkk',
+        '.......kkggbbgkkkkggbbkk',
+        '.......kkbbbbbkk.kkbbbkk',
+      ],
+      // the bib and straps, over the shirt (from row 20)
+      top: {
+        down: [
+          '............KL....KL',
+          '............KL....KL',
+          '...........kKLkkkkKLk',
+          '...........KqKKKKKKqL',
+          '...........KKKLLLLKLL',
+          '...........KKKKKKKKLL',
+        ],
+        up: [
+          '............KL....KL',
+          '............KL....KL',
+          '............KKKKKKKL',
+          '.............KKKKKK',
+          '...........KKKKKKKKLL',
+          '...........KKKKKKKKLL',
+        ],
+        left: [
+          '............KL',
+          '............KL',
+          '............KL',
+          '..........KKqKL',
+          '..........KKKKL',
+          '..........KKKKL',
+        ],
+        leftWalk: [
+          '............KL',
+          '............KL',
+          '............KL',
+          '..........KKqKL',
+          '..........KKKKL',
+          '..........KKKKL',
+        ],
+      },
+    },
+  };
+  for (const p of PANTS) if (PANTS32[p.hd]) p.hi = PANTS32[p.hd];
   // a buffer of letters, doubled by Scale2x (the same rule as scale2x, on letters); null is clear
   function double(b) {
     const out = new Array(1024).fill(null), at = (x, y) => b[Math.min(15, Math.max(0, y)) * 16 + Math.min(15, Math.max(0, x))];
@@ -2685,7 +2864,13 @@ window.Art = (function () {
       const view = dir === 'left' && step > 0 ? 'leftWalk' : dir;
       b.fill(null, 20 * 32, 26 * 32);
       lay32(b, shirt.hi[view], shirt.hi.from);
-      if (pants.top) doubleOver(b, pants.top[view] || pants.top[dir], 10);
+      if (pants.hi && pants.hi.top) lay32(b, pants.hi.top[view], 20);
+      else if (pants.top) doubleOver(b, pants.top[view] || pants.top[dir], 10);
+    }
+    if (pants.hi) {
+      const side = dir === 'left', legs = pants.hi[side ? (step > 0 ? 'leftWalk' : 'left') : step > 0 ? 'downWalk' : 'down'];
+      b.fill(null, 26 * 32);
+      lay32(b, step === 2 && !side ? legs.map((r) => [...r.padEnd(32, '.')].reverse().join('')) : legs, 26);
     }
     if (hair.hi) {
       lay32(b, HEAD32[dir], 0);
