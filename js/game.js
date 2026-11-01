@@ -8145,6 +8145,7 @@
   // Decorations, drawn over the boardroom. Pass 0 goes under the people; pass 1 goes over
   // them: the dimmed lights (while the party is on), what glows in the dark, and the bats.
   function drawPumpkinAt(x, y, lit) {
+    if (HIRES) { ctx.drawImage(pic('pumpkin', { y: lit ? ((tick >> 3) % 3 ? '#f8e040' : '#f8b830') : '#402008' }), x, y); return; }
     ctx.fillStyle = '#2c6a34'; ctx.fillRect(x + 4, y, 2, 2);
     ctx.fillStyle = '#f08020'; ctx.fillRect(x + 1, y + 2, 8, 7); ctx.fillRect(x, y + 3, 10, 5);
     ctx.fillStyle = '#c05810'; ctx.fillRect(x + 3, y + 2, 1, 7); ctx.fillRect(x + 6, y + 2, 1, 7);
@@ -8153,6 +8154,7 @@
     ctx.fillRect(x + 2, y + 7, 6, 1); ctx.fillRect(x + 3, y + 6, 1, 1); ctx.fillRect(x + 6, y + 6, 1, 1);
   }
   function drawBatAt(x, y, up, color) {
+    if (HIRES) { ctx.drawImage(pic(up ? 'batUp' : 'batDown', { P: color || '#4a2c78' }), x - 7, y - 3); return; }
     ctx.fillStyle = color || '#4a2c78';
     ctx.fillRect(x - 1, y, 2, 3); ctx.fillRect(x - 2, y - 1, 1, 1); ctx.fillRect(x + 1, y - 1, 1, 1);
     const wy = up ? y - 2 : y + 1;
@@ -8168,6 +8170,36 @@
     // table tiles the pumpkins and candles sit on, and one pumpkin on the counter
     const pumpkins = [[r.x1 + 5, r.y1 + 4], [r.x1 + 14, r.y1 + 6], [r.x1 + 2, r.y2]].map(([tx, ty]) => [X(tx) + 3, Y(ty) + 2]);
     const candles = [[r.x1 + 7, r.y1 + 6], [r.x1 + 12, r.y1 + 5]].map(([tx, ty]) => [X(tx) + 7, Y(ty) + 3]);
+    if (pass === 0 && HIRES) {
+      // (at double resolution: the same things in the same places, from PROPS32)
+      const by = y0 - 9, px = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+      px(x0, by - 0.5, w, 0.5, '#181820');
+      for (let i = 0; i * 8 < w; i++) ctx.drawImage(pic('flag', { f: BUNTING[i % 3] }), x0 + i * 8 + 0.5, by);
+      for (let i = 0; i < 22; i++) {
+        const k = i / 2;
+        px(x0 + k, y0 - 11 + k, 0.5, 0.5, '#f8f8f8'); px(x0 + w - 0.5 - k, y0 - 11 + k, 0.5, 0.5, '#f8f8f8');
+        if (i % 8 === 7) { px(x0, y0 - 11 + k, k, 0.5, '#f8f8f8'); px(x0 + w - k, y0 - 11 + k, k, 0.5, '#f8f8f8'); }
+      }
+      const sx = X(r.x1 + 9) + 8, drop = 10 + Math.round(Math.sin(tick / 40) * 5);
+      px(sx, y0 - 10, 0.5, drop, '#f8f8f8');
+      ctx.drawImage(pic('spider'), sx - 2.75, y0 - 11 + drop);
+      ctx.drawImage(pic('candybowl'), X(r.x1 + 10), Y(r.y1 + 7) + 4);
+      for (const [ppx, ppy] of pumpkins) drawPumpkinAt(ppx, ppy, false);
+      for (const [cx2, cy2] of candles) { ctx.drawImage(pic('candle'), cx2, cy2 + 3); ctx.drawImage(pic('flame'), cx2, cy2 + (tick >> 3 & 1)); }
+      if (on) {
+        for (const p of hw.props) {
+          const ppx = X(p.x), ppy = Y(p.y);
+          if (p.kind === 'bucket') {
+            ctx.drawImage(pic('tub'), ppx + 1, ppy + 3);
+            [4, 8, 11].forEach((ax, i) => ctx.drawImage(pic('apple'), ppx + ax, ppy + 4 + (((tick >> 4) + i) & 1)));
+          } else [[2, 8], [9, 8], [5, 2]].forEach(([rx, ry]) => ctx.drawImage(pic('roll'), ppx + rx - 1, ppy + ry - 1));
+        }
+        ctx.drawImage(pic('knife'), X(r.x1 + 3) + 4, Y(r.y2) + 7);
+        ctx.drawImage(pic('ghostpeek'), X(r.x1 + 11) - 4, Y(r.y2) - 3 - ((tick >> 5) & 1));
+      }
+      if (on) for (const d of hw.doors) ctx.drawImage(pic('doorbar'), X(d.x), Y(d.y) + 6);
+      return;
+    }
     if (pass === 0) {
       // bunting and cobwebs along the top wall, and a spider on a thread
       const by = y0 - 9;
@@ -8970,6 +9002,65 @@
       : Math.hypot(P.x - p.x, P.y - p.y) < 10 ? 0.35 : 0;
     if (vol) sfx('ring', vol);
   }
+  // ---------- props at 32 x 32 ----------
+  // The little things drawn over the office (the phones, the decorations and the rest), as
+  // pictures at double resolution: rows of letters in PROP32_COLS's colours ('.' clear),
+  // made into a canvas once for each set of colours (`over` swaps some, for a lit bulb or a
+  // ringing phone) and drawn at half their size, so every pixel shows (see "View" at the top).
+  const PROP32_COLS = {
+    k: '#181820', K: '#484858', g: '#8890a0', G: '#c8ccd8', w: '#f8f8f8', W: '#e4e4ec', i: '#a8a8b0',
+    r: '#e03030', R: '#f06060', m: '#a02020', M: '#5a1010', e: '#1c3a20', E: '#2c6a34', l: '#3f8a4a', L: '#58a848',
+    n: '#6a3c20', N: '#a85a2a', y: '#c8783a', b: '#b0692e', B: '#7a4a20', c: '#c88848', h: '#301808',
+    o: '#f0d040', O: '#f8e070', q: '#c8962c', x: '#e0b030', X: '#5878b8', z: '#5a3a18', Z: '#6a4a10',
+    u: '#3878e0', U: '#4898f8', v: '#3878c8', p: '#7b3fb8', P: '#4a2c78', a: '#f08020', A: '#c05810', s: '#d83030', f: '#f08020',
+  };
+  const PROPS32 = {
+    phoneBase: ['...kkkkkkkkkkkkkkkkkkkkkk', '..kkkkkkkkkkkkkkkkkkkkkkkk', '.kkggggggggggggggggggggggkk', 'kkKKKKKKKKKKKKKKKKKKKKKKKKkk', 'kkKKKKKKKKKKKKKKKKKKKKKKKKkk', 'kkKKKGGGKGGGKGGGKKKkGGGkKKkk', 'kkKKKGGgKGGgKGGgKKKkkkkkKKkk', 'kkKKKKKKKKKKKKKKKKKKKKKKKKkk', 'kkKKKGGGKGGGKGGGKKKKKrrKKKkk', 'kkKKKGGgKGGgKGGgKKKKKrrKKKkk', 'kkKKKKKKKKKKKKKKKKKKKKKKKKkk', '.kkKKKKKKKKKKKKKKKKKKKKKKkk', '..kkkkkkkkkkkkkkkkkkkkkkkk', '...kkkkkkkkkkkkkkkkkkkkkk'],
+    phoneHandset: ['..kkKKkk............kkKKkk', '.kKKKKKKkkkkkkkkkkkkKKKKKKk', 'kggggggggggggggggggggggggggk', 'kgggKKKKKKKKKKKKKKKKKKKKKggk', 'kKKKKKKKKKKKKKKKKKKKKKKKKKKk', 'kKKKKKKKKkkkkkkkkkkKKKKKKKKk', '.kKKKKKKk..........kKKKKKKk', '..kkKKkk............kkKKkk'],
+    stapler: ['', '.kkkkkkkkkkkkkkkkkkkk', 'krrrrrrrrrrrrrrrrrrrrk', 'krrRRRRRRRRRRRRRRRrrrk', 'krrrrrrrrrrrrrrrrrrrrk', 'krrrrrrrrrrrrrrrrrrrrk', 'krrrrrrrrrrrrrrrrrrrrk', 'krmmmmmmmmmmmmmmmmmmrk', 'kMMMMMMMMMMMMMMMMGGGGk', 'kMMMMMMMMMMMMMMMMGGgGk', 'kMMMMMMMMMMMMMMMMMMMMk', 'kMMMMMMMMMMMMMMMMMMMMk', 'kMMMMMMMMMMMMMMMMMMMMk', '.kkkkkkkkkkkkkkkkkkkk'],
+    cookies: ['', '', '...........kkkkk', '..........kccccBk', '.........kccccccBk', '........kBcchchcBBk', '.....kkkkBccccccBBkkkk', '....kccccBBcccchBcccBBk', '...kcccccccBBBBBccccccBk', '...kccccchcBwwwccccchcBkk', '.kkWccchccBBwwwccccccBBWWkk', 'kWWwBBcccBBBwwwBBchcBBBwwWWk', 'kWwwwBBBBBBwwwwwBBBBBBwwwwWk', 'kWwwwwwwwwwwwwwwwwwwwwwwOOOOOO', 'kWWWwwwwwwwwwwwwwwwwwwwwOOOOOO', '.kkWWWWWwwwwwwwwwwwwWWWWOggggO', '...kkkkWWWWWWWWWWWWWWkkkOOOOOO', '.......kkkkkkkkkkkkkk...OOOOOO'],
+    easel: ['kZZZZZZZZZZZZZZZZZZZZZZZZZZZZk', 'kZZZZZZZZZZZZZZZZZZZZZZZZZZZZk', 'kZZOOOOOOOOOOOOOOOOOOOOOOOOZZk', 'kZZxxxxxxxxxxxxxxxxxxxxxxqqZZk', 'kZZxxxxxxxxxxxxxxxxxxxxxxqqZZk', 'kZZxxxxxxxxxxxxxxxxxxxxxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxXXXXXXXXXXXXXXXXxxqqZZk', 'kZZxxxxxxooooooooooooxxxxqqZZk', 'kZZxxxxxxoqqqqqqqqqqoxxxxqqZZk', 'kZZxxxxxxooooooooooooxxxxqqZZk', 'kZZxxxxxxxxxxxxxxxxxxxxxxqqZZk', 'kZZZZZZZZZZZZZZZZZZZZZZZZZZZZk', 'kZZZZZZZZZZZZZZZZZZZZZZZZZZZZk', '.kkkkzzzzkkkkzzzzkkkkzzzzkkkk', '....kzzzzk..kzzzzk..kzzzzk', '....kzzzzk..kzzzzk..kzzzzk', '....kzzzzk..kzzzzk..kzzzzk', '....kzzzzk..kzzzzk..kzzzzk', '....kzzzzk..kzzzzk..kzzzzk', '....kzzzzk..kzzzzk..kzzzzk', '....kzzzzk..kzzzzk..kzzzzk', '....kzzzzk..kzzzzk..kzzzzk', '....kzzzzk..kzzzzk..kzzzzk', '....kzzzzk..kzzzzk..kzzzzk', '....kzzzzk..kzzzzk..kzzzzk', '....kzzzzk..kzzzzk..kzzzzk', '....kzzzzk..kzzzzk..kzzzzk', '....kzzzzk...kkkk...kzzzzk', '....kzzzzk..........kzzzzk'],
+    pumpkin: ['........kEELk', '........kEEEk', '........kEEk', '......kkkEEkkk', '....kkAaaEEaaAkk', '..kkaaAaaaaaaAaAkk', '.kaaaaAaaaaaaAaaaAk', 'kaaaaaAaaaaaaAaaaaAk', 'kaaaayyaaaaaayyaaaAk', 'aaaayyyyaaaayyyyaaaA', 'aaaayyyyaaaayyyyaaaA', 'aaaaaaAaaaaaaAaaaaAA', 'AaaaaayaaaaaayaaaaAA', 'kaaaayyayyyyayyaaAAk', 'kAaaayyyyyyyyyyaAAAk', '.kAAaaAaaaaaaAaAAAk', '..kkAAAaaaaaAAAAkk', '....kkAAAAAAAAkk'],
+    batDown: ['', '', '............P..P', '.............PP', '............PPPP', '..........PPPrrPPPP', '.......PPPPPPPPPPPPPPP', '....PPPPPPPPPPPPPPPPPPPPP', '..PPPPPPPP...PP....PPPPPPPP', '..PP.PP.P...........P.PP.PP', '....P...................P', ''],
+    batUp: ['', '..PP.....................PP', '..PPPP......P..P.......PPPP', '....PPPP.....PP......PPPP', '.....PPPPP..PPPP...PPPPP', '....P.PPPPPPPrrPPPPPPPP.P', '........PPPPPPPPPPPPP', '........P.PPPPPPPPP.P', '.............PP', '', '', ''],
+    bulb: ['.KK', '.KK', '.bb', 'bwbb', 'bbbb', 'bbbb', '.bb'],
+    wire: ['', 'eeee.........................eee', '....eeeeeeeee.......eeeeeeeee', '.............eeeeeee'],
+    wreath: ['.......kkkkkkkk', '.....kkElELlEElkk', '....kELlEElrrLEElk', '...kEElEELEElEElLEk', '..kEELEElEElLElEElEk', '.kEElEElLElEElELrrElk', '.kElLrrEkkkkkkElEELEk', 'kElEElEk......kEElEElk', 'klELlEk........klLElEk', 'kEElEEk........kEElELk', 'kELEElk........kLlEElk', 'klEElLk........klEELEk', 'kLElEEk........kEElEEk', 'kElrrlk........kElLElk', 'klEElEEk......kElErrEk', '.kELEElEkkkkkkElELlEk', '.klEElLElEElELlEElEEk', '..kElEElELlEElEELEEk', '...kErrrrrEErrrrrEk', '...krrRrrrmmmRrrrrk', '...krrrrrrmmmrrrrrk', '....krrrrrmmmrrrrk', '.....kkkkrrkrrkkk', '........krrkrrk', '........krrkrrk', '........krrkrrk'],
+    bauble: ['wbb', 'bbb', 'bbb'],
+    mistletoe: ['.....knnk', '.....knnk', '...kkknnkkk', '..krrknnkrrk', '.krrrrmmrrrrk', '.krrrrmmrrrrk', '..krrkmmkrrk', '.kkkkknnkkkkk', 'klllllkklllllk', 'llllllllllllll', 'EEEEEEEEEEEEEE', 'kEEEEEwkwEEEEk', '.kkEEEEwEEEkk', '..kEEEwEEEEk', '...kEEkkEEk', '....kk..kk'],
+    stocking: ['.kkkkkkkkkk', 'kWWWWWWWWWWk', 'kwwwwwwwwwwk', 'kwwwwwwwwwwk', 'kwwwwwwwwwwk', '.kssssssssk', '.kssssssssk', '.kswssssssk', '.kssssssssk', '.ksssswsssk', '.ksssssssskk', '.ksswsssssssk', '.ksssssssssssk', '..kssssssssssk', '..kssssssssssk', '...kssssssssk', '....kkksskkk', '.......kk'],
+    poinsettia: ['......kkkk', '.....krrrrk', '...kkrrrrrrkk', '..krrkRrrrkrrk', '.krrrrkrrkrrrrk', 'krrrrrrkkrrRrrrk', '.krrrrkookrrrrk', '..kkkrkookrkkk', '.kkrrrrrrrrrrkk', 'kEEEErrrrrrEEEEk', 'kEEEErrrrrrEEEEk', '.kkkrrryyrrrkkk', '...kNNNNNNNNk', '...kNNNNNNNNk', '...kNNNNNNNNk', '...kNNNNNNNNk', '....kNNNNNNk', '....kNNNNNNk'],
+    candycane: ['...kkk', '..krrwk', '.krrwwrk', '.krkkkrk', '.kwwkkww', '.kwrkkwr', '.krrkkrr', '.krwk.kk', '.kwwk', '.kwrk', '.krrk', '.krwk', '.kwwk', '.kwrk', '.krrk', '.krwk', '.kwwk', '..kk'],
+    ginger: ['..........kwwk', '.........kwwwwk', '........kwwWWwwk', '.......kwwWWLLwwk', '......kwwWWWWWWwwk', '.....kwwWWWWWWWWwwk', '....kwwWrrWWWWWWWwwk', '...kwwWWWWWWWWWuuWwwk', '.kkwwWWWWWWWWWWWWWWwwkk', 'kwwwWLLWWWWWWWWWWWWrrwwk', 'wwwWWwWWwWWwWWwWWwWWwwww', 'wwWWWWWWWWWWWWWWWWWWWWww', 'kkbbbbbbbbbbbbbbbbbBBBkk', '.kbboooobbbbbbbbooooBBk', '.kbboOOobbbbbbbboOOoBBk', '.kbboOOobbbbbbbboOOoBBk', '.kbboooobbbbbbbbooooBBk', '.kbbbbbbbbnnnnbbbbbBBBk', '.kbbbbbbbbnnnnbbbbbBBBk', '.kbbbbbbbbnnnnbbbbbBBBk', '.kbbbbbbbbnnonbbbbbBBBk', '.kbbbbbbbbnnnnbbbbbBBBk', '.kbbbbbbbbnnnnbbbbbBBBk', '.kbbbbbbbbnnnnbbbbbBBBk', '.kbbbbbbbbnnnnbbbbbBBBk', '..kkkkkkkkkkkkkkkkkkkk'],
+    bow: ['.kkkrrkkk....kkkrrkkk', 'krrrrrrrrkkkkrrrrrrrrk', 'rrRRRRrrrmmmmrRRRRrrrr', 'rrRRRRRrrmrrmrRRRRRrrr', 'rrrRRRrrrmrrmrrRRRrrrr', 'rrrrrrrrrmrrmrrrrrrrrr', 'krrrrrrrrmmmmrrrrrrrrk', '.kkkrrkkkmmmmkkkrrkkk', '....kk...kkkk...kk', ''],
+    cup: ['.....kkkkkkkkkkkkkkkkkkkkkk', '...kkkkkkkkkkkkkkkkkkkkkkkkkk', '..kkkOOOOOOOOOOOOOOOOOOOOOOkkk', '.kkrkOOOOOOOOOOOOOOOOOOOOOOkrkk', 'kkwkwooOOOooooooooooooooqqqwkwkk', 'kkwkkooOOOooooooooooooooqqqkkwkk', 'kkrkkooOOOooooooooooooooqqqkkrkk', 'kkrkkooOOOooooooooooooooqqqkkrkk', 'kkwkkooOOOooooooooooooooqqqkkwkk', 'kkwkkooOOOooooooooooooooqqqkkwkk', 'kkrkkooOOOooooooooooooooqqqkkrkk', 'kkrkkooOOOooooooooooooooqqqkkrkk', 'kkwkkooOOOooooooooooooooqqqkkwkk', 'kkwkkkoOOOooooooooooooooqqkkkwkk', '.kkk.kkOOOooooooooooooooqkk.kkk', '..k...kkooooooooooooooookk...k', '.......kkqqqqqqqqqqqqqqkk', '........kkqqqqqqqqqqqqkk', '.........kkqqqqqqqqqqkk', '..........kkkkoqqqkkkk', '...........kkkoqqqkkk', '............kkoqqqkk', '............kkoqqqkk', '............kkoqqqkk', '............kkoqqqkk', '.........kkkkkoqqqkkkkk', '........kkkkkkoqqqkkkkkk', '.......kkooooooooooooookk', '.......kkqqqqqqqqqqqqqqkk', '.......kkqqqqqqqqqqqqqqkk', '.......kkqqqqqqqqqqqqqqkk', '...kkkkkkqqqqqqqqqqqqqqkkkkkk', '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk', '.kkyyyyyyyyyyyyyyyyyyyyyyyyyykk', '.kkyyyyyyyyyyyyyyyyyyyyyyyyyykk', '.kknnnnnnnnnnnnnnnnnnnnnnnnnnkk', '.kknnnnnnnnnnnnnnnnnnnnnnnnnnkk', '.kknnnnnnnnnnnnnnnnnnnnnnnnnnkk', '.kknnnnnnnnnnnnnnnnnnnnnnnnnnkk', '.kknnnnnOOOOOOOOOOOOOOOOnnnnnkk', '.kknnnnnOxxxxxxxxxxxxxxOnnnnnkk', '.kknnnnnOxxxxxxxxxxxxxxOnnnnnkk', '.kknnnnnOxxqqqqqqqqqqxxOnnnnnkk', '.kknnnnnOxxxxxxxxxxxxxxOnnnnnkk', '.kknnnnnOxxxxxxxxxxxxxxOnnnnnkk', '.kknnnnnOxxqqqqqqqxxxxxOnnnnnkk', '.kknnnnnOxxxxxxxxxxxxxxOnnnnnkk', '.kknnnnnOxxxxxxxxxxxxxxOnnnnnkk', '.kknnnnnOOOOOOOOOOOOOOOOnnnnnkk', '.kknnnnnnnnnnnnnnnnnnnnnnnnnnkk', '.kknnnnnnnnnnnnnnnnnnnnnnnnnnkk', '.kknnnnnnnnnnnnnnnnnnnnnnnnnnkk', '.kkhhhhhhhhhhhhhhhhhhhhhhhhhhkk', '.kkhhhhhhhhhhhhhhhhhhhhhhhhhhkk', '.kkhhhhhhhhhhhhhhhhhhhhhhhhhhkk', '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk'],
+    flag: ['ffffffffffffff', 'ffffffffffffff', 'kffffffffffffk', '.kffffffffffk', '.kffffffffffk', '..kffffffffk', '...kffffffk', '...kffffffk', '....kffffk', '....kffffk', '.....kffk', '......kk'],
+    spider: ['', '..k.......k', '...kkkkk.k', '.k.kkrkrk..k', '..kkkkkkk.k', '....kkkk', '..k.kkkk..k', '.k..kkkk...k', '...k.kk..k', '..k.......k'],
+    candybowl: ['..........kkkk......kkkk', '.....kkkkkwwwwkkkkkkwLLLkkkkk', '....kwaaakwwwwkwOOOkLLLLkwaaak', '.kkkkaaaakwwwwkOOOOkLLLLkaaaakk', 'kppppaaawrrrpwuuuOOpppwOOOaaappk', 'kppppppprrrrpuuuupppppOOOOpppppk', 'kppppppprrrrpuuuupppppOOOOpppppk', 'kppppppppppppppppppppppppppppPPk', 'kppppppppppppppppppppppppppppPPk', 'kPppppppppppppppppppppppppppPPPk', '.kppppppppppppppppppppppppppPPk', '.kPppppppppppppppppppppppppPPPk', '..kPppppppppppppppppppppppPPPk', '...kPppppppppppppppppppppPPPk', '....kPppppppppppppppppppPPPk', '.....kkPppppppppppppppPPPkk', '.......kPPPppppppppPPPPPk', '........kkkkPPPPPPPPkkkk'],
+    candle: ['wkwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW'],
+    flame: ['', '.oo', 'oooo', 'oOOo', 'oOOo', '.OO'],
+    tub: ['', '', '..kkkkkkkkkkkkkkkkkkkkkkkk', '.kkkkkkkkkkkkkkkkkkkkkkkkkk', 'kkyyyyyyyyyyyyyyyyyyyyyyyykk', 'kknnUUUUUUUUUUUUUUUUUUUUBBkk', 'kknnvvvvvvvvvvvvvvvvvvvvBBkk', 'kknnvvvvwvvvvvvvvvvvvvvvBBkk', 'kknnvvvvvvvvvvvvvvwvvvvvBBkk', 'kknnvvvvvvvvvvvvvvvvvvvvBBkk', 'kknnvvvvvvvvvvvvvvvvvvvvBBkk', 'kknnvvvvvvvvvvvvvvvvvvvvBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kkiiiiiiiiiiiiiiiiiiiiBBBBkk', 'kkiiiiiiiiiiiiiiiiiiiiBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk'],
+    apple: ['.rE', 'rRrr', 'rrrr', '.rr'],
+    roll: ['.kkkkkkkkkk', 'kwwwwwwwwWWk', 'kwwwwiiwwWWk', 'kwwwiiiiwWWk', 'kwwwiigiwWWk', 'kwwwwiiwwWWk', 'kwwwwwwwwWWk', 'kwwwwwwwwWWk', 'kwwwwwwwwWWk', 'kwwwwwwwwWWk', 'kwwwwwwwwWWk', 'kwwwwwwwwWWk', 'kwwwwwwwwWWk', '.kkkkkkkkkk'],
+    knife: ['wwwwwwwwwwwwwwnnnnnnnn', 'GGGGGGGGGGGGGGnnGnnGnn', 'GGGGGGGGGGGGGGnnnnnnnn', 'GGGGGGGGGGGGGGnnnnnnnn'],
+    ghostpeek: ['.....wwwwww', '...wwwwwwwwwW', '..wwwwwwwwwwWW', '..wwwwwwwwwwWW', '.wwwkkwwwwkkWWW', '.wwwkkwwwwkkWWW', '.wwwkkwwwwkkWWW', '.wwwkkwwwwkkWWW', '.wwwwwwwwwwwWWW', '.wwwwwwkkwwwWWW', '.wwwwwwkkwwwWWW', '.wwwwwwwwwwwWWW', '.wwwwwwwwwwwWWW', '...ww..ww..wW'],
+    doorbar: ['kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk', 'kkkaaaakkkkaaaakkkkaaaakkkkaaaak', 'kkaaaakkkkaaaakkkkaaaakkkkaaaakk', 'kaaaakkkkaaaakkkkaaaakkkkaaaakkk', 'aaaakkkkaaaakkkkaaaakkkkaaaakkkk', 'aaakkkkaaaakkkkaaaakkkkaaaakkkka', 'aakkkkaaaakkkkaaaakkkkaaaakkkkaa', 'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk'],
+  };
+  const propPics = new Map();
+  function pic(name, over) {
+    const key = name + JSON.stringify(over || {});
+    let cv = propPics.get(key);
+    if (!cv) {
+      const rows = PROPS32[name], cols = Object.assign({}, PROP32_COLS, over);
+      cv = document.createElement('canvas');
+      cv.width = Math.max(...rows.map((r) => r.length)); cv.height = rows.length; cv.hi = 2;
+      const c = cv.getContext('2d');
+      rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== '.') { c.fillStyle = cols[ch]; c.fillRect(x, y, 1, 1); } }));
+      propPics.set(key, cv);
+    }
+    return cv;
+  }
+
   const PHONE_BASE = [
     '..kkkkkkkkkk..',
     '.kKKKKKKKKKKk.',
@@ -8996,15 +9087,20 @@
   function drawPhoneAt(p, x, y) {
     if (x < -16 || x > SW || y < -16 || y > SH) return;
     const on = ringing(p), flash = on && (tick >> 2) & 1;
-    drawPix(PHONE_BASE, x + 1, y + 6, { k: '#181820', K: '#484858', G: '#c8ccd8', r: flash ? '#f05040' : '#782020' });
-    const jig = on ? ((tick >> 1) & 1 ? 1 : -1) : 0;
-    drawPix(PHONE_HANDSET, x + 1 + jig, y + 3 - (on && (tick >> 2) & 1 ? 2 : 0), { k: '#181820', K: '#484858' });
+    const jig = on ? ((tick >> 1) & 1 ? 1 : -1) : 0, lift = on && (tick >> 2) & 1 ? 2 : 0;
+    if (HIRES) {
+      ctx.drawImage(pic('phoneBase', { r: flash ? '#f05040' : '#782020' }), x + 1, y + 6);
+      ctx.drawImage(pic('phoneHandset'), x + 1 + jig / 2, y + 3 - lift);
+    } else {
+      drawPix(PHONE_BASE, x + 1, y + 6, { k: '#181820', K: '#484858', G: '#c8ccd8', r: flash ? '#f05040' : '#782020' });
+      drawPix(PHONE_HANDSET, x + 1 + jig, y + 3 - lift, { k: '#181820', K: '#484858' });
+    }
     if (!on) return;
     ctx.fillStyle = '#f0d040';
-    const far = (tick >> 3) & 1 ? 2 : 0;
+    const far = (tick >> 3) & 1 ? 2 : 0, t = HIRES ? 0.5 : 1; // (the ring marks' thickness)
     for (const [sx, d] of [[x - 1 - far, -1], [x + 16 + far, 1]]) {
-      ctx.fillRect(sx, y + 4, 1, 4);
-      ctx.fillRect(sx - d, y + 2, 1, 2); ctx.fillRect(sx - d, y + 8, 1, 2);
+      ctx.fillRect(sx, y + 4, t, 4);
+      ctx.fillRect(sx - d, y + 2, t, 2); ctx.fillRect(sx - d, y + 8, t, 2);
     }
   }
   // Where to stand to use the phone, and which way to face; whoever is standing there moves.
@@ -9957,6 +10053,7 @@
     } else questQueue.push('The air feels a little lighter.');
   }
   function drawStaplerAt(x, y) {
+    if (HIRES) { ctx.drawImage(pic('stapler'), x + 2.5, y + 5.5); return; }
     ctx.fillStyle = '#5a1010'; ctx.fillRect(x + 3, y + 9, 10, 3); // base
     ctx.fillStyle = '#d02828'; ctx.fillRect(x + 3, y + 6, 10, 3); // top arm
     ctx.fillStyle = '#f06060'; ctx.fillRect(x + 4, y + 6, 8, 1);
@@ -9966,6 +10063,7 @@
   // A plate of homemade cookies on the lunch room counter, next to the sink.
   const cookies = { floor: 0, x: 78, y: 4 };
   function drawCookiesAt(x, y) {
+    if (HIRES) { ctx.drawImage(pic('cookies'), x + 0.5, y + 4); return; }
     ctx.fillStyle = '#a8acb8'; ctx.fillRect(x + 1, y + 8, 14, 5); // plate
     ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 2, y + 8, 12, 4);
     ctx.fillStyle = '#7a4a20'; // cookies
@@ -10260,6 +10358,7 @@
   }
   // the easel by the entrance, drawn over the map once there's a picture to show
   function drawEaselAt(x, y) {
+    if (HIRES) { ctx.drawImage(pic('easel'), x + 0.5, y - 6.5); ctx.drawImage(sprites.down[0], 0, 0, 16, 16, x + 4, y - 3.5, 7.5, 8.5); return; }
     ctx.fillStyle = '#5a3a18';
     ctx.fillRect(x + 3, y + 8, 2, 8); ctx.fillRect(x + 11, y + 8, 2, 8); ctx.fillRect(x + 7, y + 10, 2, 5);
     ctx.fillStyle = '#6a4a10'; ctx.fillRect(x + 1, y - 6, 14, 15);
@@ -11177,6 +11276,7 @@
   cupCheck();
   // a gold cup with candy canes for handles, on a wooden plinth with a plaque
   function cupSprite() {
+    if (HIRES) return pic('cup');
     const cv = document.createElement('canvas');
     cv.width = 16; cv.height = 28;
     const c = cv.getContext('2d'), R = (f, x, y, w, h) => { c.fillStyle = f; c.fillRect(x, y, w, h); };
@@ -11249,7 +11349,49 @@
     text(b, (SW - b.length * 6) >> 1, y + 22);
   }
   // A tree, in three frames so its lights twinkle (gold: the casino's, all tinsel).
+  // the same tree at double resolution: tiers with ragged branch tips, round baubles with a
+  // shine, a garland of tinsel, bulbs twinkling in turn, a five-pointed star, presents with bows
+  function treeFrame32(k, gold) {
+    const cv = document.createElement('canvas');
+    cv.width = 64; cv.height = 104; cv.hi = 2;
+    const c = cv.getContext('2d');
+    const px = (x, y, w, h, col) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
+    const [dark, mid, light, shade] = gold ? ['#a87820', '#c8962c', '#f0d060', '#7a5410'] : ['#1c4a24', '#2c6a34', '#3f8a4a', '#143a1c'];
+    px(28, 76, 8, 12, '#4a2810'); px(29, 76, 5, 12, '#6a3c20'); px(29, 76, 1, 12, '#8a5a30');
+    for (const [top, bot, w0, w1] of [[48, 82, 12, 30], [28, 60, 8, 24], [10, 38, 4, 16]]) {
+      for (let y = top; y <= bot; y++) {
+        const hw = Math.round(w0 + (w1 - w0) * (y - top) / (bot - top)) + ((y % 6) < 2 ? 1 : 0);
+        px(32 - hw - 1, y, hw * 2 + 2, 1, '#181820');
+        px(32 - hw, y, hw * 2, 1, mid);
+        px(32 - hw, y, Math.max(2, hw >> 1), 1, light);
+        px(32 + hw - Math.max(2, hw >> 2), y, Math.max(2, hw >> 2), 1, dark);
+        if (y % 6 === 3) px(32 - hw + 3, y, hw * 2 - 6, 1, dark);
+      }
+      px(32 - w1 - 1, bot + 1, w1 * 2 + 2, 2, shade);
+    }
+    for (let i = 0; i < 18; i++) { px(16 + i * 2, 34 + i, 2, 1, '#f0d050'); px(10 + i * 2, 76 - i, 2, 1, '#f0d050'); }
+    for (const [x, y, col] of [[24, 30, '#e03030'], [38, 42, '#3878e0'], [18, 50, '#e070c0'], [44, 56, '#e03030'],
+      [28, 66, '#3878e0'], [12, 76, '#e03030'], [50, 74, '#e070c0'], [34, 54, '#f0d050']]) {
+      px(x, y + 1, 4, 2, col); px(x + 1, y, 2, 4, col); px(x + 1, y + 1, 1, 1, '#f8f8f8'); px(x + 3, y + 3, 1, 1, '#181820');
+    }
+    const BULB = ['#f8f040', '#f05050', '#60e070', '#60b0f8'];
+    [[30, 18], [22, 26], [38, 24], [16, 40], [32, 38], [46, 46], [24, 46], [12, 62], [36, 64], [52, 68], [20, 70], [42, 78],
+      [8, 80], [56, 80], [30, 58], [40, 32]].forEach(([x, y], i) => { const on = (i + k) % 3; px(x, y, 2, 2, on ? BULB[i % 4] : '#183a20'); if (on) px(x, y, 1, 1, '#ffffff'); });
+    // the star
+    for (let j = -6; j <= 6; j++)
+      for (let i = -6; i <= 6; i++) {
+        const a = Math.atan2(j, i), r = Math.hypot(i, j), edge = 3 + 3.4 * Math.max(0, Math.cos(2.5 * (a + Math.PI / 2)));
+        if (r <= edge) px(32 + i, 6 + j, 1, 1, r < 2 ? '#fff8c0' : '#f8d840');
+      }
+    for (const [x, y, w, h, box, ribbon] of [[2, 86, 20, 16, '#d83030', '#f0d040'], [42, 84, 20, 18, '#3878e0', '#f8f8f8'], [22, 90, 18, 14, '#58a848', '#e03030']]) {
+      px(x - 2, y - 2, w + 4, h + 4, '#181820'); px(x, y, w, h, box); px(x, y, w, 2, 'rgba(255, 255, 255, 0.35)');
+      px(x + (w >> 1) - 2, y, 4, h, ribbon); px(x, y + (h >> 1) - 2, w, 4, ribbon);
+      px(x + (w >> 1) - 7, y - 5, 5, 4, ribbon); px(x + (w >> 1) + 2, y - 5, 5, 4, ribbon); px(x + (w >> 1) - 2, y - 3, 4, 3, ribbon);
+    }
+    return cv;
+  }
   function treeFrame(k, gold) {
+    if (HIRES) return treeFrame32(k, gold);
     const cv = document.createElement('canvas');
     cv.width = 32; cv.height = 52;
     const c = cv.getContext('2d');
@@ -11284,7 +11426,53 @@
   }
   const XMAS_LIGHTS = ['#f84848', '#f8d040', '#48d860', '#4898f8'];
   // Drawn over the floor, under the people.
+  // the decorations at double resolution: the same places as drawChristmas, drawn with PROPS32
+  function drawChristmas32(cx, cy) {
+    const seen = (x, y) => x * 16 - cx > -16 && x * 16 - cx < SW && y * 16 - cy > -16 && y * 16 - cy < SH;
+    const px = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+    for (const { x, y } of xmas.lights[P.floor]) {
+      if (!seen(x, y)) continue;
+      const sx = x * 16 - cx, sy = y * 16 - cy + 2;
+      ctx.drawImage(pic('wire'), sx, sy - 0.5);
+      for (let i = 0; i < 2; i++) {
+        const k = x * 2 + i, lit = ((tick >> 5) + k * 3 + y) % 4 !== 0;
+        ctx.drawImage(pic('bulb', lit ? { b: XMAS_LIGHTS[(k + y) % 4] } : { b: '#484850', w: '#686878' }), sx + 3 + i * 8, sy + 1.5);
+      }
+    }
+    for (const { x, y } of xmas.exits[P.floor].concat(xmas.wreaths[P.floor])) {
+      if (seen(x, y)) ctx.drawImage(pic('wreath'), x * 16 - cx + 2.5, y * 16 - cy + 3.5);
+    }
+    for (const { x, y } of xmas.plants[P.floor]) {
+      if (!seen(x, y)) continue;
+      [[5, 3, 0], [9, 5, 1], [6, 7, 2], [10, 2, 3]].forEach(([dx, dy, i]) => ctx.drawImage(pic('bauble', { b: XMAS_LIGHTS[(i + x + y) % 4] }), x * 16 - cx + dx, y * 16 - cy + dy));
+    }
+    for (const { x, y } of xmas.mistletoe[P.floor]) {
+      if (seen(x, y)) ctx.drawImage(pic('mistletoe'), x * 16 - cx + (tileAt(P.floor, x + 1, y) === 'D' ? 16 : 8) - 3.5, y * 16 - cy);
+    }
+    for (const { x, y } of xmas.stockings[P.floor]) {
+      if (seen(x, y)) ctx.drawImage(pic('stocking', { s: (x + y) % 2 ? '#d83030' : '#2e8a44' }), x * 16 - cx + 4, y * 16 - cy + 9);
+    }
+    for (const { x, y } of xmas.flowers[P.floor]) {
+      if (seen(x, y)) ctx.drawImage(pic('poinsettia'), x * 16 - cx + 4, y * 16 - cy + 3);
+    }
+    for (const { x, y } of xmas.canes[P.floor]) {
+      if (seen(x, y)) ctx.drawImage(pic('candycane'), x * 16 - cx + 9.5, y * 16 - cy + 2.5);
+    }
+    for (const { x, y } of xmas.ginger[P.floor]) {
+      if (seen(x, y)) ctx.drawImage(pic('ginger'), x * 16 - cx + 2, y * 16 - cy + 1);
+    }
+    // red ribbon round anything with a bow on it (a shine down the middle, darker edges), the bow at the top
+    for (const b of xmas.bows[P.floor]) {
+      if (!seen(b.x, b.y) && !seen(b.x2, b.y2)) continue;
+      const x0 = b.x * 16 - cx, y0 = b.y * 16 - cy, w = (b.x2 - b.x + 1) * 16, h = (b.y2 - b.y + 1) * 16;
+      const mx = x0 + (w >> 1), my = y0 + Math.min(h >> 1, 12);
+      px(mx - 1.5, y0 + 1, 3, h - 2, '#a02020'); px(mx - 1, y0 + 1, 2, h - 2, '#d82828'); px(mx - 0.5, y0 + 1, 0.5, h - 2, '#f05050');
+      px(x0 + 1, my - 1.5, w - 2, 3, '#a02020'); px(x0 + 1, my - 1, w - 2, 2, '#d82828'); px(x0 + 1, my - 1, w - 2, 0.5, '#f05050');
+      ctx.drawImage(pic('bow'), mx - 5.5, my - 5);
+    }
+  }
   function drawChristmas(cx, cy) {
+    if (HIRES) { drawChristmas32(cx, cy); return; }
     const seen = (x, y) => x * 16 - cx > -16 && x * 16 - cx < SW && y * 16 - cy > -16 && y * 16 - cy < SH;
     for (const { x, y } of xmas.lights[P.floor]) {
       if (!seen(x, y)) continue;
@@ -14592,13 +14780,20 @@
       const dx = x - 7.5, dy = y - 7.5, r = Math.hypot(dx, dy);
       if (r < 7.6) PORTAL_PIX.push({ x, y, r, a: Math.atan2(dy, dx) / (Math.PI * 2) });
     }
+  // (at double resolution, every half pixel: PORTAL_PIX32)
+  const PORTAL_PIX32 = [];
+  for (let y = 0; y < 32; y++)
+    for (let x = 0; x < 32; x++) {
+      const dx = (x - 15.5) / 2, dy = (y - 15.5) / 2, r = Math.hypot(dx, dy);
+      if (r < 7.6) PORTAL_PIX32.push({ x: x / 2, y: y / 2, r, a: Math.atan2(dy, dx) / (Math.PI * 2), s: 0.5 });
+    }
   function drawPortalAt(x, y, busy) {
     const spin = tick / (busy ? 12 : 40);
-    for (const p of PORTAL_PIX) {
+    for (const p of HIRES ? PORTAL_PIX32 : PORTAL_PIX) {
       if (p.r > 6.6) ctx.fillStyle = '#181030';
       else if (p.r < (busy ? 2.6 : 1.2)) ctx.fillStyle = '#f8f8f8';
       else ctx.fillStyle = PORTAL_COLS[((Math.floor((p.a * 2 + p.r * 0.22 - spin) * 4) % 4) + 4) % 4];
-      ctx.fillRect(x + p.x, y + p.y, 1, 1);
+      ctx.fillRect(x + p.x, y + p.y, p.s || 1, p.s || 1);
     }
   }
 
@@ -14635,7 +14830,9 @@
       PANEL_LIGHTS.forEach((c, i) => {
         // each light blinks at its own pace, offset per panel so they don't sync up
         if (((tick >> 4) * (i + 1) + k.x * 7 + k.y * 13 + i * 5) % 3 === 0) return;
-        ctx.fillStyle = c; ctx.fillRect(x + 4 + i * 3, y + 3, 2, 2);
+        ctx.fillStyle = c;
+        if (HIRES) { ctx.fillRect(x + 4.5 + i * 3, y + 3, 1, 1.5); ctx.fillRect(x + 4 + i * 3, y + 3.5, 2, 0.5); ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.fillRect(x + 4.5 + i * 3, y + 3, 0.5, 0.5); }
+        else ctx.fillRect(x + 4 + i * 3, y + 3, 2, 2);
       });
     }
     for (const k of fameCrowns[P.floor]) {
@@ -14643,7 +14840,8 @@
       if (g > 3) continue;
       const x = k.x * 16 - cx + 6, y = k.y * 16 - cy + 3, r = g < 2 ? g + 1 : 4 - g;
       ctx.fillStyle = '#f8f8f8';
-      ctx.fillRect(x - r, y, r * 2 + 1, 1); ctx.fillRect(x, y - r, 1, r * 2 + 1);
+      const t = HIRES ? 0.5 : 1; // (a finer twinkle, at double resolution)
+      ctx.fillRect(x - r, y + (1 - t) / 2, r * 2 + 1, t); ctx.fillRect(x + (1 - t) / 2, y - r, t, r * 2 + 1);
     }
     const spooky = HALLOWEEN && P.floor === hw.floor;
     if (spooky) drawHalloween(cx, cy, 0);
@@ -14673,7 +14871,7 @@
     // a Christmas tree sorts in by the row it stands on (z), not by its top
     if (CHRISTMAS) for (const tr of xmas.trees) if (P.floor === tr.floor)
       actors.push({ x: tr.x * 16, y: (tr.y + 1) * 16 - 48, z: tr.y * 16, img: tr.frames[(tick >> 5) % 3] });
-    if (cup && P.floor === cup.floor) actors.push({ x: cup.x * 16, y: (cup.y + 1) * 16 - cup.img.height, z: cup.y * 16, img: cup.img });
+    if (cup && P.floor === cup.floor) actors.push({ x: cup.x * 16, y: (cup.y + 1) * 16 - cup.img.height / (cup.img.hi || 1), z: cup.y * 16, img: cup.img });
     const z = (a) => (a.z === undefined ? a.y : a.z);
     actors.sort((a, b) => z(a) - z(b));
     for (const a of actors) {

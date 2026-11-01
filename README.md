@@ -984,8 +984,14 @@ dampers, electrical panels, server and computer racks, engraver, parts shelves, 
 floor parts, and the plant's forklift; the casino's slot machines) and the things drawn by
 code (`PAINT32`: exits, the elevator, stairs, TVs, the Hall of Fame, the putting green, the
 squat rack, railings, curtains, the stretcher and Joe's Lego shelf and desk; the plant's
-work tables are drawn as desks). Only the casino's card tables and the plant's finished
-units are still today's, doubled with Scale2x.
+work tables are drawn as desks; the plant's finished units, keeping their layouts, with the
+32 x 32 parts `ahu32`, and the casino's card tables). The things the game draws over the
+office itself are at 32 x 32 too (`PROPS32` in `js/game.js`): the desk phones, the panels'
+lights, the portal, the stapler, the cookies, the Employee of the Month easel, the
+jack-o'-lanterns and bats, the Christmas Cup, the Christmas lights, wreaths, trees,
+stockings, mistletoe, poinsettias, candy canes, the gingerbread house and the ribbons and
+bows, and the Halloween party's bunting, cobwebs, spider, candy, candles, apple tub, toilet
+rolls and the rest.
 Add `&hires=0` to a `#play` link to see it all at 16 x 16 as it was, e.g.
 `index.html#play&hires=0`. A look code, as in `&look=m20000000`, is the body, then the
 skin 0 to 7, the hairstyle 0 to 8, the hair colour, the head thing, then the shirt and
