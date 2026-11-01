@@ -1199,12 +1199,14 @@ window.Art = (function () {
     if (!noHat) lay(b, hat[dir] || hat.down, 0);
     return b;
   }
+  // the extra colours a 32 x 32 picture uses, from a look's colours (h, s, w, K)
+  const extras32 = (c) => ({ H: darker(c.h, 0.35), v: darker(c.w, 0.25), S: darker(c.s, 0.2), f: blend(c.s, '#e04848', 0.4), j: blend(c.h, '#ffffff', 0.3), O: '#f8e070', Y: '#a87018', L: darker(c.K, 0.3), b: '#383040' });
   function lookPalette(look, over) {
     const c = lookColours(look);
     // (and for 32 x 32: S, skin in shadow, f, the cheeks, j, a shine on the hair, and O and
     // Y, light and dark gold, for the crown and the golden antlers, L, the pants in shadow,
     // and b, shoes)
-    return palette(Object.assign({ H: darker(c.h, 0.35), v: darker(c.w, 0.25), S: darker(c.s, 0.2), f: blend(c.s, '#e04848', 0.4), j: blend(c.h, '#ffffff', 0.3), O: '#f8e070', Y: '#a87018', L: darker(c.K, 0.3), b: '#383040' }, c, over));
+    return palette(Object.assign({ H: darker(c.h, 0.35), v: darker(c.w, 0.25) }, extras32(c), c, over));
   }
   // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look, the same
   // shape renderSprites gives, in an ugly sweater if `sweater` names one.
@@ -3200,12 +3202,29 @@ window.Art = (function () {
   }
   // renderLook at 32 x 32: canvases marked hi: 2, drawn at the usual size (see js/game.js)
   function renderLook32(look, sweater) {
-    const sw = SWEATERS[sweater], pal = lookPalette(look, sw ? sweaterPal(sw) : null), out = {};
+    const sw = SWEATERS[sweater];
+    return sheet32(look, sw && sweater, lookPalette(look, sw ? sweaterPal(sw) : null));
+  }
+  // renderSprites at 32 x 32, for a coworker: their body is the character editor's parts
+  // (short hair, a shirt and tie and trousers; long hair and a blouse for a woman) in their
+  // own colours (look: h, s, w, u, K), in an ugly sweater if `sweater` names one.
+  const COWORKER32 = {
+    male: { hair: HAIRS.findIndex((h) => h.hd === 'short'), shirt: SHIRTS.findIndex((s) => s.hd === 'tie') },
+    female: { hair: HAIRS.findIndex((h) => h.hd === 'long'), shirt: SHIRTS.findIndex((s) => s.hd === 'blouse') },
+  };
+  function renderSprites32(gender, look, sweater) {
+    const sw = SWEATERS[sweater], parts = Object.assign({ hat: 0, pants: 0 }, COWORKER32[gender] || COWORKER32.male);
+    return sheet32(parts, sw && sweater, palette(Object.assign(extras32(look), look, sw ? sweaterPal(sw) : null)));
+  }
+  // a whole sheet at 32 x 32 ({down: [stand, stride, other stride], up, left, right}) for
+  // the parts in `parts`, in the colours in `pal`
+  function sheet32(parts, sweater, pal) {
+    const out = {};
     const make = (dir, step, flip) => {
       const cv = document.createElement('canvas');
       cv.width = cv.height = 32; cv.hi = 2;
       const ctx = cv.getContext('2d'), img = ctx.createImageData(32, 32);
-      blit(img, lookBuf32(look, dir, step, false, sw && sweater), 0, 0, pal, flip, 32);
+      blit(img, lookBuf32(parts, dir, step, false, sweater), 0, 0, pal, flip, 32);
       ctx.putImageData(img, 0, 0);
       return cv;
     };
@@ -4436,7 +4455,7 @@ window.Art = (function () {
   return {
     LOOKS, UI, COSTUMES, scale2x, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLook32, renderLookCostume,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLook32, renderSprites32, renderLookCostume,
     SWEATERS,
   };
 })();
