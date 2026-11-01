@@ -89,10 +89,12 @@ Walk up to these and press A:
 - **Forklift** (Kingston plant, in the warehouse): Forklift Rush. The truck at the dock
   calls for one kind of pallet at a time (fan, coil, damper or motor); drive the forks
   into it to pick it up, and into the trailer to load it (or into an empty rack bay to
-  put a wrong one back). 90 seconds, as many pallets as you can. Left and right turn the
-  wheels a notch at a time and they stay turned (Space straightens them); it steers from
-  the back, so it only turns while it's moving. Bringing the wrong pallet costs 3
-  seconds, and running into Steve on the crosswalk costs 5
+  put a wrong one back). Space sets the pallet down right where you are, anywhere but on
+  the truck, and it stays there until it's picked up again.
+  90 seconds, as many pallets as you can. Left and right turn the wheels a notch at a
+  time and they stay turned (Space straightens them); it steers from the back, so it only
+  turns while it's moving. Bringing the wrong pallet costs 3 seconds, and running into
+  Steve on the crosswalk costs 5
 - **Grey unit in the paint booth** (Kingston plant, in the corner of sub-assembly): Even Coat.
   Hold A to spray the job's colour and steer the gun with the arrows. One pass leaves a
   stripe; passes that overlap by about half leave an even coat. Stay in one spot and the
@@ -381,8 +383,9 @@ players don't block your way, so nobody can stand in a doorway and trap you.
     called pallet on the truck first scores it, then there's a new call. The call is
     for a kind there are at least two of whenever there can be, so you can fight over
     the nearest one or go for another. Drive your empty forks into the pallet on their
-    forks to swipe it (it can't be swiped straight back for a second). The forklifts
-    bump into each other. Hitting Steve stalls your forklift for 3 seconds and the wrong
+    forks to swipe it (it can't be swiped straight back for a second). A pallet you set
+    down with Space is up for grabs, for them too. The forklifts bump into each other.
+    Hitting Steve stalls your forklift for 3 seconds and the wrong
     pallet for 2 (a stalled forklift flashes, and is easy to rob). Their count shows
     above the truck, and whoever has loaded more when the 90 seconds are up wins. The
     game server runs this one (`server/games/forklift.js`), so it's only in the list

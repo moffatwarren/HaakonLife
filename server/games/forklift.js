@@ -35,6 +35,9 @@ export const hz = 30;
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const tip = (L, d) => ({ x: L.x + Math.cos(L.a) * d, y: L.y + Math.sin(L.a) * d });
+const boxAt = (c) => ({ x: c.x - 8, y: c.y - 8, w: 16, h: 16 }); // a pallet's footprint
+const onBay = (i, k) => ({ x: BAYS[i].x, y: BAYS[i].y, b: i, k }); // b: the rack bay it's in, if it's in one
+const sitsOn = (p, b) => Math.abs(p.x - b.x) < 16 && Math.abs(p.y - b.y) < 16; // a pallet at p is in the way of one at b
 
 // push the circle at c (radius r) out of the boxes in `solid`; returns how far it moved
 function pushOut(c, r, solid) {
@@ -47,6 +50,30 @@ function pushOut(c, r, solid) {
     mx += dx / d * (r - d); my += dy / d * (r - d);
   }
   return { x: mx, y: my };
+}
+
+// Where the pallet on L's forks lands if it's set down now: just far enough along them to
+// clear the forklift's body, then nudged off anything it would sit on. Null if it won't fit.
+function dropSpot(L, solid) {
+  const body = tip(L, -1.5);
+  let c = tip(L, 11);
+  for (let d = 12; d <= 17; d++) {
+    const p = pushOut(body, R, [boxAt(c)]);
+    if (!p.x && !p.y) break;
+    c = tip(L, d);
+  }
+  for (let go = 0; go < 4; go++) {
+    let moved = false;
+    for (const o of solid) {
+      const left = c.x - o.x + 8, right = o.x + o.w + 8 - c.x, up = c.y - o.y + 8, down = o.y + o.h + 8 - c.y;
+      const least = Math.min(left, right, up, down);
+      if (least <= 0.01) continue;
+      if (least === left) c.x -= left; else if (least === right) c.x += right; else if (least === up) c.y -= up; else c.y += down;
+      moved = true;
+    }
+    if (!moved) return c;
+  }
+  return null;
 }
 
 function event(s, seat, k, extra) {
@@ -71,10 +98,10 @@ function newOrder(s) {
 }
 
 function restock(s) {
-  const free = BAYS.map((b, i) => i).filter((i) => !s.pallets.some((p) => p.b === i)
+  const free = BAYS.map((b, i) => i).filter((i) => !s.pallets.some((p) => sitsOn(p, BAYS[i]))
     && s.lifts.every((L) => dist(L, BAYS[i]) > 24));
   if (!free.length) return;
-  s.pallets.push({ b: free[Math.floor(s.rng() * free.length)], k: Math.floor(s.rng() * KINDS) });
+  s.pallets.push(onBay(free[Math.floor(s.rng() * free.length)], Math.floor(s.rng() * KINDS)));
 }
 
 export function create({ rng }) {
@@ -88,13 +115,13 @@ export function create({ rng }) {
     })),
   };
   // the same starting racks as on your own
-  BAYS.forEach((b, i) => { if (i % 4 !== 3) s.pallets.push({ b: i, k: (i * 3 + (i >> 2)) % KINDS }); });
+  BAYS.forEach((b, i) => { if (i % 4 !== 3) s.pallets.push(onBay(i, (i * 3 + (i >> 2)) % KINDS)); });
   newOrder(s);
   return s;
 }
 
 // d.h: the keys held (1 up, 2 down, 4 left, 8 right), d.e: presses since the last message
-// ('l' and 'r' turn the wheels a notch, 'a' straightens them)
+// ('l' and 'r' turn the wheels a notch, 'a' straightens them and sets down any pallet)
 export function input(s, seat, d) {
   if (!d || typeof d !== 'object') return;
   const L = s.lifts[seat];
@@ -105,6 +132,7 @@ export function input(s, seat, d) {
 function drive(s, i) {
   const L = s.lifts[i], O = s.lifts[1 - i];
   const presses = L.presses.splice(0);
+  let drop = false;
   if (L.stall > 0) { L.stall--; L.v = 0; } else {
     // driving: it only turns while it's rolling, and backwards it steers the other way
     const max = L.load >= 0 ? 1.7 : 2.1;
@@ -115,7 +143,7 @@ function drive(s, i) {
     // the wheels: a notch a press, and a notch every 4 steps while held
     const notch = (dir) => { L.wheel = Math.max(-WHEEL, Math.min(WHEEL, L.wheel + dir)); };
     for (const p of presses) {
-      if (p === 'a') L.wheel = 0;
+      if (p === 'a') { L.wheel = 0; drop = L.load >= 0; }
       else { notch(p === 'r' ? 1 : -1); L.wheelT = 0; }
     }
     if (L.held.l || L.held.r) { if (!presses.some((p) => p !== 'a') && ++L.wheelT % 4 === 0) notch(L.held.r ? 1 : -1); } else L.wheelT = 0;
@@ -129,8 +157,7 @@ function drive(s, i) {
   const oBody = { x: O.x - Math.cos(O.a) * 1.5 - 6, y: O.y - Math.sin(O.a) * 1.5 - 6, w: 12, h: 12 };
   const oHeld = tip(O, 11);
   const oLoad = O.load >= 0 ? [{ x: oHeld.x - 7, y: oHeld.y - 7, w: 14, h: 14 }] : [];
-  const racked = s.pallets.map((p) => ({ x: BAYS[p.b].x - 8, y: BAYS[p.b].y - 8, w: 16, h: 16 }));
-  const solid = WALLS.concat(racked, [steveBox, oBody], oLoad);
+  const solid = WALLS.concat(s.pallets.map(boxAt), [steveBox, oBody], oLoad);
   const body = { x: L.x - Math.cos(L.a) * 1.5, y: L.y - Math.sin(L.a) * 1.5 };
   let push = pushOut(body, R, solid);
   const front = L.load >= 0 ? { c: tip(L, 10), r: 7, s: solid } : { c: tip(L, 7), r: 2, s: WALLS.concat([steveBox, oBody]) };
@@ -152,14 +179,22 @@ function drive(s, i) {
   // the forks load and unload themselves when you're in the right place
   const t8 = tip(L, 8), held1 = tip(L, 11);
   const inTruck = held1.x > TRUCK.x1 && held1.x < TRUCK.x2 && held1.y > TRUCK.y1 && held1.y < TRUCK.y2;
-  const under = s.pallets.find((p) => dist(BAYS[p.b], t8) < 9);
+  const under = s.pallets.find((p) => dist(p, t8) < 9);
   const fy = Math.sin(L.a);
-  const bay = BAYS.findIndex((b, bi) => dist(b, held1) < 7 && (b.y < SH / 2 ? fy < -0.7 : fy > 0.7)
-    && !s.pallets.some((p) => p.b === bi));
+  const bay = BAYS.findIndex((b) => dist(b, held1) < 7 && (b.y < SH / 2 ? fy < -0.7 : fy > 0.7)
+    && !s.pallets.some((p) => sitsOn(p, b)));
   // their pallet, if your empty forks are in under it
   const steal = O.load >= 0 && O.guard <= 0 && dist(oHeld, t8) < 9;
-  if (!L.armed) {
-    L.armed = !inTruck && !s.pallets.some((p) => dist(BAYS[p.b], t8) < 16)
+  if (drop) {
+    // A sets it down wherever you are, except on the truck
+    const spot = inTruck ? null : dropSpot(L, solid.concat([{ x: TRUCK.x1, y: TRUCK.y1, w: TRUCK.x2 - TRUCK.x1, h: TRUCK.y2 - TRUCK.y1 }]));
+    if (spot) {
+      s.pallets.push({ x: spot.x, y: spot.y, k: L.load }); L.load = -1; L.armed = false;
+      L.v = Math.min(L.v, 0);
+      event(s, i, 'putt');
+    } else event(s, i, 'noroom');
+  } else if (!L.armed) {
+    L.armed = !inTruck && !s.pallets.some((p) => dist(p, t8) < 16)
       && !BAYS.some((b) => dist(b, held1) < 12) && !(O.load >= 0 && dist(oHeld, t8) < 16);
   } else if (L.load < 0 && under) {
     L.load = under.k; s.pallets = s.pallets.filter((p) => p !== under); L.armed = false;
@@ -178,13 +213,13 @@ function drive(s, i) {
       event(s, i, 'wrong', { p: s.order });
     }
   } else if (L.load >= 0 && bay >= 0) {
-    s.pallets.push({ b: bay, k: L.load }); L.load = -1; L.armed = false;
+    s.pallets.push(onBay(bay, L.load)); L.load = -1; L.armed = false;
     event(s, i, 'putt');
   }
 }
 
-// Steve wanders up and down the crosswalk, stopping now and then, and waits for a
-// forklift rather than walking into it
+// Steve wanders up and down the crosswalk, stopping now and then, waits for a forklift
+// rather than walking into it, and turns his mind elsewhere at a pallet left in his way
 function walkSteve(s) {
   const st = s.steve;
   if (st.wait > 0) { st.wait--; return; }
@@ -195,6 +230,7 @@ function walkSteve(s) {
   }
   st.dir = st.to > st.y ? 1 : 0;
   const ny = st.y + Math.sign(st.to - st.y) * Math.min(0.6, Math.abs(st.to - st.y));
+  if (s.pallets.some((p) => Math.abs(p.x - STEVE_X) < 13 && Math.abs(p.y - ny) < 14)) { st.to = st.y; return; }
   const clear = s.lifts.every((L) => Math.hypot(L.x - STEVE_X, L.y - ny) > 14 && Math.hypot(tip(L, 8).x - STEVE_X, tip(L, 8).y - ny) > 10);
   if (clear) st.y = ny;
   if (s.n % 12 === 0) st.step ^= 1;
@@ -223,13 +259,15 @@ const r1 = (n) => Math.round(n * 10) / 10;
 
 // s: your seat, ph: 0 getting ready (t counts up to 75) or 1 playing, left: steps to go,
 // order: the kind the truck wants, l: each forklift [x, y, angle, speed, load, wheel,
-// stalled], p: the pallets on the racks [bay, kind, bay, kind, ...], st: Steve [y, facing
-// down, step], sc: pallets loaded by each seat, ev: the last second's events
+// stalled], p: the pallets on the racks [bay, kind, bay, kind, ...], f: the ones set down
+// anywhere else [x, y, kind, ...], st: Steve [y, facing down, step], sc: pallets loaded by
+// each seat, ev: the last second's events
 export function view(s, seat) {
   return {
     s: seat, ph: s.ready < READY ? 0 : 1, t: s.ready, left: s.left, order: s.order,
     l: s.lifts.map((L) => [r1(L.x), r1(L.y), Math.round(L.a * 1000) / 1000, Math.round(L.v * 100) / 100, L.load, L.wheel, L.stall > 0 ? 1 : 0]),
-    p: s.pallets.flatMap((p) => [p.b, p.k]),
+    p: s.pallets.filter((p) => p.b !== undefined).flatMap((p) => [p.b, p.k]),
+    f: s.pallets.filter((p) => p.b === undefined).flatMap((p) => [r1(p.x), r1(p.y), p.k]),
     st: [r1(s.steve.y), s.steve.dir, s.steve.wait > 0 ? 0 : 1 + s.steve.step],
     sc: s.sc,
     ev: s.ev.filter((e) => s.n - e.at < 60).map((e) => [e.id, e.s, e.k, e.p === undefined ? -1 : e.p]),

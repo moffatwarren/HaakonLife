@@ -100,6 +100,121 @@ test('wheels turn a notch a press, and straighten on A', () => {
   for (const bad of [null, 'x', { h: 'up' }, { e: 5 }]) fl.input(s, 0, bad);
 });
 
+test('A sets the pallet down where you are, and the forks can pick it back up', () => {
+  const s = game();
+  const L = s.lifts[0];
+  park(s, 1);
+  const before = s.pallets.length;
+  place(L, 120, 100, RIGHT, { load: 2, wheel: 3 });
+  fl.input(s, 0, { h: 0, e: 'a' });
+  fl.tick(s);
+  assert.equal(L.load, -1);
+  assert.equal(L.wheel, 0);
+  assert.equal(s.pallets.length, before + 1);
+  const dropped = s.pallets.at(-1);
+  assert.equal(dropped.k, 2);
+  assert.ok(Math.abs(dropped.x - 133) < 2 && dropped.y === 100, 'just ahead of the forklift');
+  assert.ok(s.ev.some((e) => e.k === 'putt' && e.s === 0));
+  const v = fl.view(s, 0);
+  assert.deepEqual([v.f.length, v.f[2]], [3, 2], 'sent apart from the racks');
+  assert.equal(v.p.length, before * 2);
+  // it doesn't jump straight back on: back off, then drive in again
+  fl.tick(s);
+  assert.equal(L.load, -1);
+  hold(s, 0, 'd');
+  run(s, 30);
+  assert.ok(L.armed);
+  hold(s, 0, 'u');
+  run(s, 60);
+  assert.equal(L.load, 2);
+  assert.ok(!s.pallets.includes(dropped));
+  assert.equal(fl.view(s, 0).f.length, 0);
+});
+
+test('a pallet set down stops forklifts like one on the racks', () => {
+  const s = game();
+  const L = s.lifts[0];
+  park(s, 1);
+  s.pallets.push({ x: 140, y: 100, k: 1 });
+  place(L, 100, 100, RIGHT, { load: 0 });
+  hold(s, 0, 'u');
+  run(s, 60);
+  assert.equal(L.load, 0);
+  assert.ok(L.x + 10 + 7 <= 132 + 0.5, 'the pallet on the forks stops at it');
+});
+
+test('a pallet set down against a wall lands clear of it', () => {
+  const s = game();
+  const L = s.lifts[0];
+  park(s, 1);
+  s.steve.y = s.steve.to = 200; s.steve.wait = 1000;
+  // nose up against the dock wall, which starts at x 262
+  place(L, 245, 40, RIGHT, { load: 3 });
+  fl.input(s, 0, { h: 0, e: 'a' });
+  run(s, 5);
+  assert.equal(L.load, -1);
+  const dropped = s.pallets.at(-1);
+  assert.ok(dropped.x + 8 <= 262, 'not in the wall');
+  assert.ok(L.x < 245, 'the forklift backs off it');
+});
+
+test('nothing can be set down on the truck, or while stalled', () => {
+  const s = game();
+  const L = s.lifts[0];
+  park(s, 1);
+  const before = s.pallets.length;
+  place(L, 270, 120, RIGHT, { load: (s.order + 1) % 4, armed: false });
+  fl.input(s, 0, { h: 0, e: 'a' });
+  fl.tick(s);
+  assert.notEqual(L.load, -1);
+  assert.equal(s.pallets.length, before);
+  assert.ok(s.ev.some((e) => e.k === 'noroom' && e.s === 0));
+  place(L, 120, 100, RIGHT, { load: 1, stall: 30 });
+  fl.input(s, 0, { h: 0, e: 'a' });
+  fl.tick(s);
+  assert.equal(L.load, 1);
+});
+
+test('it can be set down in a squeeze only if it fits', () => {
+  const s = game();
+  const L = s.lifts[0];
+  park(s, 1);
+  // a pallet each side of where this one would land leaves no room for it
+  s.pallets.push({ x: 134, y: 86, k: 0 }, { x: 134, y: 114, k: 0 });
+  place(L, 120, 100, RIGHT, { load: 1 });
+  fl.input(s, 0, { h: 0, e: 'a' });
+  fl.tick(s);
+  assert.equal(L.load, 1);
+  assert.ok(s.ev.some((e) => e.k === 'noroom'));
+});
+
+test('Steve never walks through a pallet left on the crosswalk', () => {
+  for (let seed = 1; seed < 6; seed++) {
+    const s = game(seed);
+    place(s.lifts[0], 118, 100, RIGHT);
+    park(s, 1);
+    s.pallets.push({ x: 238, y: 130, k: 0 });
+    s.left = 100000;
+    for (let i = 0; i < 2000; i++) {
+      fl.tick(s);
+      assert.ok(Math.abs(s.steve.y - 130) >= 13.9, 'he stays clear of it');
+    }
+  }
+});
+
+test('a rack bay with a pallet set down over it is not restocked', () => {
+  const s = game();
+  park(s, 1);
+  // every bay full, bar one with a pallet sitting over it
+  s.pallets = fl.BAYS.flatMap((b, i) => (i === 3 ? [{ x: b.x + 4, y: b.y + 4, k: 0 }] : [{ x: b.x, y: b.y, b: i, k: 0 }]));
+  const before = s.pallets.length;
+  place(s.lifts[0], 250, 120, RIGHT, { load: s.order });
+  hold(s, 0, 'u');
+  run(s, 20);
+  assert.deepEqual(s.sc, [1, 0]);
+  assert.equal(s.pallets.length, before);
+});
+
 test('when time is up, most pallets loaded wins', () => {
   const s = game();
   s.sc = [3, 5];

@@ -10704,10 +10704,11 @@
   // ---------- the plant forklift: load the truck before it has to leave ----------
   // Top-down loading dock. The truck calls for one kind of pallet at a time; drive the
   // forks into it and it's on, drive it into the trailer and it's off (or into an empty
-  // rack bay to put a wrong one back). The forklift steers from the back: left and right
-  // turn the wheels a notch at a time and they stay turned, so it only turns while it's
-  // moving. It beeps when it reverses, and Steve from Health and Safety keeps walking
-  // across the crosswalk. Hitting him, or bringing the wrong pallet, costs time.
+  // rack bay to put a wrong one back, or press A to set it down right where you are). The
+  // forklift steers from the back: left and right turn the wheels a notch at a time and
+  // they stay turned, so it only turns while it's moving. It beeps when it reverses, and
+  // Steve from Health and Safety keeps walking across the crosswalk. Hitting him, or
+  // bringing the wrong pallet, costs time.
   const FORKLIFT_ART = [
     '....K......K....',
     '....K......K....',
@@ -10810,13 +10811,15 @@
     const say2 = (str, good) => { msg = { str, t: 0, good }; };
     const fx = () => Math.cos(lift.a), fy = () => Math.sin(lift.a);
     const tipAt = (d) => ({ x: lift.x + fx() * d, y: lift.y + fy() * d });
+    const boxAt = (c) => ({ x: c.x - 8, y: c.y - 8, w: 16, h: 16 }); // a pallet's footprint
+    const sitsOn = (p, b) => Math.abs(p.x - b.x) < 16 && Math.abs(p.y - b.y) < 16; // a pallet at p is in the way of one at b
     function newOrder() {
       // something that's actually out there (or already on the forks)
       const kinds = pallets.map((p) => p.k).concat(lift.load >= 0 ? [lift.load] : []);
       order = kinds[Math.floor(rndOrder() * kinds.length)];
     }
     function restock() {
-      const free = BAYS.filter((b) => !pallets.some((p) => Math.hypot(p.x - b.x, p.y - b.y) < 16)
+      const free = BAYS.filter((b) => !pallets.some((p) => sitsOn(p, b))
         && Math.hypot(lift.x - b.x, lift.y - b.y) > 24);
       if (!free.length) return;
       const b = free[Math.floor(rndStock() * free.length)];
@@ -10835,6 +10838,30 @@
         mx += dx / d * (r - d); my += dy / d * (r - d);
       }
       return { x: mx, y: my };
+    }
+    // Where the pallet on the forks lands if it's set down now: just far enough along them
+    // to clear the forklift's body, then nudged off anything it would sit on. Null if it
+    // won't fit.
+    function dropSpot(solid) {
+      const body = tipAt(-1.5);
+      let c = tipAt(11);
+      for (let d = 12; d <= 17; d++) {
+        const p = pushOut(body, R, [boxAt(c)]);
+        if (!p.x && !p.y) break;
+        c = tipAt(d);
+      }
+      for (let go = 0; go < 4; go++) {
+        let moved = false;
+        for (const o of solid) {
+          const left = c.x - o.x + 8, right = o.x + o.w + 8 - c.x, up = c.y - o.y + 8, down = o.y + o.h + 8 - c.y;
+          const least = Math.min(left, right, up, down);
+          if (least <= 0.01) continue;
+          if (least === left) c.x -= left; else if (least === right) c.x += right; else if (least === up) c.y -= up; else c.y += down;
+          moved = true;
+        }
+        if (!moved) return c;
+      }
+      return null;
     }
     function finish() {
       state = 'done'; t = 0;
@@ -10855,6 +10882,7 @@
       if (first) { lift.x = lift.tx; lift.y = lift.ty; lift.a = lift.ta; other.x = other.tx; other.y = other.ty; other.a = other.ta; }
       pallets = [];
       for (let i = 0; i + 1 < v.p.length; i += 2) if (BAYS[v.p[i]] && PALLETS[v.p[i + 1]]) pallets.push({ x: BAYS[v.p[i]].x, y: BAYS[v.p[i]].y, k: v.p[i + 1] });
+      if (Array.isArray(v.f)) for (let i = 0; i + 2 < v.f.length; i += 3) if (PALLETS[v.f[i + 2]]) pallets.push({ x: +v.f[i] || 0, y: +v.f[i + 1] || 0, k: v.f[i + 2] });
       if (Array.isArray(v.st)) {
         steve.to = +v.st[0] || steve.y; steve.dir = v.st[1] ? 'down' : 'up';
         steve.wait = v.st[2] ? 0 : 1; steve.step = v.st[2] === 2 ? 1 : 0;
@@ -10881,6 +10909,7 @@
         // the rest only matter to whoever it happened to
       } else if (k === 'lift') sfx('lift', 0.6);
       else if (k === 'putt') sfx('putt');
+      else if (k === 'noroom') { sfx('buzz'); say2('No room to set it down here!', false); }
       else if (k === 'bump') sfx('bump');
       else if (k === 'wrong') { sfx('buzz'); say2('Wrong pallet! The truck wants ' + what + '. Stalled 2s', false); }
       else if (k === 'steve') { sfx('buzz'); say2('Steve: Zero days since an incident! Stalled 3s', false); }
@@ -10946,7 +10975,7 @@
         else lift.v *= 0.92;
         if (Math.abs(lift.v) < 0.02) lift.v = 0;
         // the wheels stay where you turn them: a notch per press (and quickly, a notch every
-        // few ticks, while held), and Space straightens them
+        // few ticks, while held), and Space straightens them (and sets down any pallet, below)
         if (held.left || held.right) {
           if (pressed.has('left') || pressed.has('right') || ++wheelT % 4 === 0) {
             const w = Math.max(-WHEEL, Math.min(WHEEL, lift.wheel + (held.right ? 1 : -1)));
@@ -10960,7 +10989,7 @@
         // bump into things: the body, and the forks (or the pallet on them); loose pallets
         // only stop the body, so the forks can slide in under one
         const steveBox = { x: STEVE_X - 5, y: steve.y - 6, w: 10, h: 12 };
-        const solid = WALLS.concat(pallets.map((p) => ({ x: p.x - 8, y: p.y - 8, w: 16, h: 16 })), [steveBox]);
+        const solid = WALLS.concat(pallets.map(boxAt), [steveBox]);
         const body = { x: lift.x - fx() * 1.5, y: lift.y - fy() * 1.5 };
         let push = pushOut(body, R, solid);
         const front = lift.load >= 0 ? { c: tipAt(10), r: 7, s: solid } : { c: tipAt(7), r: 2, s: WALLS.concat([steveBox]) };
@@ -10985,8 +11014,15 @@
         const under = pallets.find((q) => Math.hypot(q.x - tip.x, q.y - tip.y) < 9);
         // an empty bay you're facing into, with the pallet over it
         const bay = BAYS.find((b) => Math.hypot(b.x - held1.x, b.y - held1.y) < 7 && (b.y < SH / 2 ? fy() < -0.7 : fy() > 0.7)
-          && !pallets.some((q) => Math.hypot(q.x - b.x, q.y - b.y) < 16));
-        if (!armed) {
+          && !pallets.some((q) => sitsOn(q, b)));
+        if (pressed.has('a') && lift.load >= 0) {
+          // Space sets it down wherever you are, except on the truck
+          const spot = inTruck ? null : dropSpot(solid.concat([{ x: TRUCK.x1, y: TRUCK.y1, w: TRUCK.x2 - TRUCK.x1, h: TRUCK.y2 - TRUCK.y1 }]));
+          if (spot) {
+            pallets.push({ x: spot.x, y: spot.y, k: lift.load }); lift.load = -1; sfx('putt'); armed = false;
+            lift.v = Math.min(lift.v, 0);
+          } else { sfx('buzz'); say2('No room to set it down here!', false); }
+        } else if (!armed) {
           armed = !inTruck && !pallets.some((q) => Math.hypot(q.x - tip.x, q.y - tip.y) < 16)
             && !BAYS.some((b) => Math.hypot(b.x - held1.x, b.y - held1.y) < 12);
         } else if (lift.load < 0 && under) {
@@ -11012,8 +11048,10 @@
         } else {
           steve.dir = steve.to > steve.y ? 'down' : 'up';
           const ny = steve.y + Math.sign(steve.to - steve.y) * Math.min(0.6, Math.abs(steve.to - steve.y));
-          // he waits for the forklift rather than walking into it
-          if (Math.hypot(lift.x - STEVE_X, lift.y - ny) > 14 && Math.hypot(tipAt(8).x - STEVE_X, tipAt(8).y - ny) > 10) steve.y = ny;
+          // he turns his mind elsewhere at a pallet left in his way, and waits for the
+          // forklift rather than walking into it
+          if (pallets.some((p) => Math.abs(p.x - STEVE_X) < 13 && Math.abs(p.y - ny) < 14)) steve.to = steve.y;
+          else if (Math.hypot(lift.x - STEVE_X, lift.y - ny) > 14 && Math.hypot(tipAt(8).x - STEVE_X, tipAt(8).y - ny) > 10) steve.y = ny;
           if (tick % 12 === 0) steve.step ^= 1;
         }
       },
@@ -11142,7 +11180,7 @@
           text(theirs + ' loaded', 272, 44, 1, '#f0d040');
         }
         if (vs && !view && state !== 'gone') { box(60, 100, 200, 40); ctext('Waiting for ' + foe + '...', 108); ctext('Esc: give up', 122); }
-        else if (state === 'ready') readyBox(t, vs ? 'Same truck. Swipe their pallets!' : 'Space: straighten the wheels');
+        else if (state === 'ready') readyBox(t, vs ? 'Same truck. Swipe their pallets!' : 'Space: drop pallet, straighten');
         else if (state === 'gone') doneBox([foe + ' has gone.', 'Nobody wins this one.'], t);
         else if (state === 'done' && vs) doneBox([outcome === 'win' ? 'You out-loaded ' + foe + '!' : outcome === 'lose' ? foe + ' wins!' : 'Dead even!',
           'You ' + loaded + '  ' + foe + ' ' + theirs], t);
