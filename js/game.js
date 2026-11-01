@@ -7331,6 +7331,41 @@
     }
     deal();
     const slotAt = (x) => Math.max(0, Math.min(SLOTS - 1, Math.floor((x - X0) / SLOT_W)));
+    // A trophy at double resolution: a plinth with a brass plate, a stem with a knop, then a
+    // cup with loop handles, or for the rest their own sport's ball, badge or stone.
+    function fineTrophy(T, x, by) {
+      const cx = x + 22, lit = mixHex(T.c, '#ffffff', 0.5), dim = mixHex(T.c, '#000000', 0.28);
+      fine(cx - 3, by + 16, 6, 15, col.dark); fine(cx - 2, by + 16, 4, 15, T.c); fine(cx - 2, by + 16, 1, 15, lit); fine(cx + 1, by + 16, 1, 15, dim);
+      fine(cx - 5, by + 28.5, 10, 2, col.dark); fine(cx - 4, by + 29, 8, 1.5, T.c); fine(cx - 4, by + 29, 8, 0.5, lit);
+      fineDisc(cx, by + 23.5, 4, col.dark); fineDisc(cx, by + 23.5, 3, T.c); fineDisc(cx - 1, by + 22.5, 1, lit);
+      roundBox(x + 12, by + 30, 20, 8, 1.5, col.dark); roundBox(x + 13, by + 31, 18, 6, 1, '#5c4c3a');
+      fine(x + 14, by + 31, 16, 0.5, '#8a7660'); fine(x + 14, by + 36.5, 16, 0.5, '#3c3024');
+      fine(x + 17, by + 32.5, 10, 3, '#d8b860'); fine(x + 17, by + 32.5, 10, 0.5, '#f8e8a8'); fine(x + 19, by + 33.5, 6, 0.5, '#8a6a20'); fine(x + 19, by + 34.5, 6, 0.5, '#8a6a20');
+      if (T.cup) {
+        for (const hx of [x + 12.5, x + 31.5]) { fineDisc(hx, by + 9, 4.5, col.dark); fineDisc(hx, by + 9, 3.5, T.c); fineDisc(hx, by + 9, 2, col.dark); fineDisc(hx, by + 9, 1, col.light); }
+        for (let r = 0; r < 18; r += 0.5) { const f = (r + 0.25) / 18, w = Math.round(10 * Math.sqrt(1 - f * f * f * f) * 2) / 2; fine(cx - w, by + 2 + r, w * 2, 0.5, col.dark); }
+        for (let r = 0; r < 16; r += 0.5) {
+          const f = (r + 0.25) / 16, w = Math.round(9 * Math.sqrt(1 - f * f * f * f) * 2) / 2, y = by + 3 + r;
+          fine(cx - w, y, w * 2, 0.5, T.c); fine(cx + w - 3, y, 3, 0.5, dim);
+          if (r > 1.5 && r < 11) fine(cx - w + 2, y, 2, 0.5, lit);
+        }
+        fine(cx - 9, by + 3, 18, 1, lit); fine(cx - 9, by + 4, 18, 0.5, dim);
+      } else if (T.tag === 'BOWL') {
+        fineDisc(cx, by + 9, 8.5, col.dark); fineDisc(cx, by + 9, 7.5, dim); fineDisc(cx - 0.5, by + 8.5, 6.5, T.c);
+        fineDisc(cx - 3, by + 6, 1.5, lit);
+        for (const [hx, hy] of [[1.5, 4.5], [4.5, 6], [2.5, 8]]) { fineDisc(cx + hx, by + hy, 1, col.dark); fine(cx + hx - 0.5, by + hy + 0.5, 1, 0.5, lit); }
+      } else if (T.tag === 'SAFE') {
+        const rows = (inset, top, c) => { for (let r = 0; r < 18 - inset * 2; r += 0.5) { const f = (r + 0.25 - 7) / (11 - inset), w = Math.round((8 - inset) * (r < 7 ? 1 : Math.sqrt(1 - f * f)) * 2) / 2; if (r >= top) fine(cx - w, by + inset + r, w * 2, 0.5, c); } };
+        rows(0, 0, col.dark); rows(1, 0, T.c);
+        fine(cx - 6, by + 1, 12, 0.5, lit); fine(cx - 7, by + 1.5, 0.5, 7, lit); fine(cx + 6.5, by + 1.5, 0.5, 7, dim);
+        fine(cx - 1.5, by + 3.5, 3, 9, '#f8f8f8'); fine(cx - 4.5, by + 6.5, 9, 3, '#f8f8f8'); fine(cx + 1.5, by + 3.5, 0.5, 3, dim); fine(cx + 4.5, by + 6.5, 0.5, 3, dim); fine(cx - 4.5, by + 9.5, 3, 0.5, dim); fine(cx + 1.5, by + 9.5, 3, 0.5, dim); fine(cx - 1.5, by + 12.5, 3, 0.5, dim);
+      } else {
+        fine(cx - 1, by + 2, 2, 5, col.dark); roundBox(cx - 1, by, 8, 3.5, 1.5, col.dark); fine(cx, by + 1, 6, 1, T.c); fine(cx, by + 1, 6, 0.5, lit);
+        roundBox(x + 14, by + 6, 16, 12, 5, col.dark); roundBox(x + 15, by + 7, 14, 10, 4, T.c);
+        fine(x + 18, by + 7.5, 8, 1, lit); fine(x + 15, by + 11, 14, 2.5, '#c8ccd8'); fine(x + 15, by + 11, 14, 0.5, '#f0f2f8'); fine(x + 15, by + 13, 14, 0.5, '#888898');
+        fine(x + 18, by + 15.5, 8, 1, dim);
+      }
+    }
     const self = {
       music: 'punch', doing: 'trophy',
       update() {
@@ -7375,29 +7410,38 @@
         for (let i = 0; i < LIVES; i++) {
           ctx.fillStyle = i < lives ? '#c03030' : '#c8ccd8';
           ctx.fillRect(90 + i * 14, 26, 10, 10);
+          if (HIRES) { fine(90 + i * 14, 26, 10, 1, i < lives ? '#e86060' : '#e0e2ea'); fine(91 + i * 14, 27, 1, 8, i < lives ? '#e86060' : '#e0e2ea'); fine(90 + i * 14, 35, 10, 1, i < lives ? '#802020' : '#a8acb8'); }
         }
         ctx.drawImage(nathan.down[0], SW - 58, 96, 48, 48);
         text('Nathan', SW - 54, 148);
         // the shelf and what is standing on it
         ctx.fillStyle = col.dark; ctx.fillRect(10, SHELF_Y, SLOTS * SLOT_W + 10, 8);
         ctx.fillStyle = '#9a6434'; ctx.fillRect(12, SHELF_Y + 1, SLOTS * SLOT_W + 6, 6);
+        if (HIRES) { // the shelf's lit edge, its grain, and its shadow on the wall
+          fine(12, SHELF_Y + 1, SLOTS * SLOT_W + 6, 0.5, '#d8a070'); fine(12, SHELF_Y + 6.5, SLOTS * SLOT_W + 6, 0.5, '#6a4020');
+          for (let x = 16; x < SLOTS * SLOT_W; x += 23) { fine(x, SHELF_Y + 2.5, 13, 0.5, '#805028'); fine(x + 8, SHELF_Y + 4.5, 10, 0.5, '#805028'); }
+          fine(10, SHELF_Y + 8, SLOTS * SLOT_W + 10, 1, 'rgba(0,0,0,0.12)');
+        }
         shelf.forEach((k, i) => {
           const T = KINDS[k], x = X0 + i * SLOT_W;
           const taken = grab && grab.slot === i;
           const lift = taken ? Math.min(34, grab.t * 1.6) : 0;
           if (taken && !grab.ok && grab.t > 17) return;   // Nathan snatches it back
           const by = SHELF_Y - 40 - lift;
-          ctx.fillStyle = col.dark; ctx.fillRect(x + 12, by + 30, 20, 8);
-          ctx.fillStyle = '#5c4c3a'; ctx.fillRect(x + 13, by + 31, 18, 6);
-          if (T.cup) {
-            ctx.fillStyle = col.dark; ctx.fillRect(x + 19, by + 18, 6, 14);
-            ctx.fillRect(x + 12, by + 2, 20, 18);
-            ctx.fillStyle = T.c; ctx.fillRect(x + 13, by + 3, 18, 16); ctx.fillRect(x + 20, by + 19, 4, 12);
-            ctx.fillStyle = col.dark; ctx.fillRect(x + 8, by + 5, 4, 10); ctx.fillRect(x + 32, by + 5, 4, 10);
-          } else {
-            ctx.fillStyle = col.dark; ctx.fillRect(x + 19, by + 16, 6, 16);
-            ctx.fillRect(x + 14, by, 16, 18);
-            ctx.fillStyle = T.c; ctx.fillRect(x + 15, by + 1, 14, 16); ctx.fillRect(x + 20, by + 17, 4, 14);
+          if (HIRES) fineTrophy(T, x, Math.round(by * 2) / 2);
+          else {
+            ctx.fillStyle = col.dark; ctx.fillRect(x + 12, by + 30, 20, 8);
+            ctx.fillStyle = '#5c4c3a'; ctx.fillRect(x + 13, by + 31, 18, 6);
+            if (T.cup) {
+              ctx.fillStyle = col.dark; ctx.fillRect(x + 19, by + 18, 6, 14);
+              ctx.fillRect(x + 12, by + 2, 20, 18);
+              ctx.fillStyle = T.c; ctx.fillRect(x + 13, by + 3, 18, 16); ctx.fillRect(x + 20, by + 19, 4, 12);
+              ctx.fillStyle = col.dark; ctx.fillRect(x + 8, by + 5, 4, 10); ctx.fillRect(x + 32, by + 5, 4, 10);
+            } else {
+              ctx.fillStyle = col.dark; ctx.fillRect(x + 19, by + 16, 6, 16);
+              ctx.fillRect(x + 14, by, 16, 18);
+              ctx.fillStyle = T.c; ctx.fillRect(x + 15, by + 1, 14, 16); ctx.fillRect(x + 20, by + 17, 4, 14);
+            }
           }
           text(T.tag, x + 20 - T.tag.length * 3, SHELF_Y + 12, 1,
             k === want ? '#2c6a34' : '#585868');
@@ -7405,9 +7449,18 @@
         // your hand, sweeping or diving in
         const hx = Math.round(hand) + SLOT_W / 2 - 9;
         const hy = grab ? SHELF_Y - 58 + Math.min(22, grab.t * 2) : 78;
-        ctx.fillStyle = col.dark; ctx.fillRect(hx, hy, 18, 16);
-        ctx.fillStyle = '#f8d0a8'; ctx.fillRect(hx + 1, hy + 1, 16, 14);
-        ctx.fillStyle = col.dark; ctx.fillRect(hx + 7, hy - 10, 4, 10);
+        if (HIRES) { // a rounded hand, its fingers pointing down, on a sleeve with a white cuff
+          fine(hx + 7, hy - 10, 4, 8, col.dark); fine(hx + 7.5, hy - 10, 1, 8, '#585868');
+          roundBox(hx, hy, 18, 16, 4.5, col.dark); roundBox(hx + 1, hy + 1, 16, 14, 3.5, '#f8d0a8');
+          fine(hx + 3, hy + 2, 11, 1, '#ffe8d0'); fine(hx + 2.5, hy + 7, 13, 0.5, '#e8b890');
+          for (const fx of [5.5, 9, 12.5]) fine(hx + fx, hy + 8, 0.5, 6.5, '#d8a478');
+          fine(hx + 3, hy + 13.5, 12, 1, '#e8b890');
+          fine(hx + 5, hy - 2.5, 8, 3.5, col.dark); fine(hx + 5.5, hy - 2, 7, 2.5, '#f8f8f8'); fine(hx + 5.5, hy, 7, 0.5, '#c8ccd8');
+        } else {
+          ctx.fillStyle = col.dark; ctx.fillRect(hx, hy, 18, 16);
+          ctx.fillStyle = '#f8d0a8'; ctx.fillRect(hx + 1, hy + 1, 16, 14);
+          ctx.fillStyle = col.dark; ctx.fillRect(hx + 7, hy - 10, 4, 10);
+        }
         if (grab) {
           const m = grab.ok ? 'Got it!' : 'Nathan: NOT THAT ONE!';
           text(m, (SW - m.length * 6) >> 1, 196, 1, grab.ok ? '#2c6a34' : '#b83028');
@@ -7531,26 +7584,56 @@
         ctx.fillStyle = '#58a848'; ctx.fillRect(FX, FY, FW, FH);
         ctx.fillStyle = '#4e9a40';
         for (let x = FX; x < FX + FW; x += 16) ctx.fillRect(x, FY, 8, FH);
+        if (HIRES) { // the frame's bevel and its shade on the green, and blades of grass
+          fine(FX - 3, FY - 3, FW + 6, 0.5, '#585868'); fine(FX - 3, FY - 3, 0.5, FH + 6, '#585868');
+          fine(FX, FY, FW, 1, 'rgba(0,0,0,0.18)'); fine(FX, FY + 1, 1, FH - 1, 'rgba(0,0,0,0.18)');
+          for (let i = 0; i < 260; i++) {
+            const gx = FX + 1 + ((i * 97) % (FW - 2)), gy = FY + 1 + ((i * 61 + (i >> 3) * 13) % (FH - 2));
+            fine(gx, gy, 0.5, 1, ((gx - FX) >> 3) & 1 ? '#6cbc5c' : '#428a34');
+          }
+        }
         // the cup and its flag
-        ctx.fillStyle = col.dark; ring(Math.round(cup.x) - CUP, Math.round(cup.y) - CUP, CUP * 2, CUP * 2);
-        ctx.fillStyle = '#181820'; ctx.fillRect(Math.round(cup.x) - CUP + 2, Math.round(cup.y) - CUP + 2, CUP * 2 - 4, CUP * 2 - 4);
-        ctx.fillStyle = col.dark; ctx.fillRect(Math.round(cup.x), Math.round(cup.y) - 24, 2, 20);
-        ctx.fillStyle = '#c03030'; ctx.fillRect(Math.round(cup.x) + 2, Math.round(cup.y) - 24, 12, 8);
+        const ccx = Math.round(cup.x), ccy = Math.round(cup.y);
+        if (HIRES) { // a round hole with a white liner, a shining pole, and a flag that waves
+          fineDisc(ccx, ccy, CUP, col.dark); fineDisc(ccx, ccy, CUP - 1, '#e8e8e8'); fineDisc(ccx + 0.5, ccy + 0.5, CUP - 1.5, '#181820');
+          fine(ccx - 2, ccy + 2, 4, 0.5, '#383848'); fine(ccx - 3, ccy + 1, 1, 0.5, '#383848');
+          fine(ccx, ccy - 24, 2, 20, col.dark); fine(ccx + 0.5, ccy - 24, 0.5, 20, '#f8f8f8'); fine(ccx - 0.5, ccy - 25, 3, 1.5, '#f0c040'); fine(ccx - 0.5, ccy - 25, 1.5, 0.5, '#f8e8a8');
+          for (let i = 0; i < 24; i++) {
+            const s = Math.sin(i * 0.45 - tick * 0.12), wy = Math.round(s * 2 * (i / 24)) / 2;
+            fine(ccx + 2 + i / 2, ccy - 24 + wy, 0.5, 8, s > 0.4 ? '#e05848' : s < -0.4 ? '#a02424' : '#c03030');
+          }
+        } else {
+          ctx.fillStyle = col.dark; ring(ccx - CUP, ccy - CUP, CUP * 2, CUP * 2);
+          ctx.fillStyle = '#181820'; ctx.fillRect(ccx - CUP + 2, ccy - CUP + 2, CUP * 2 - 4, CUP * 2 - 4);
+          ctx.fillStyle = col.dark; ctx.fillRect(ccx, ccy - 24, 2, 20);
+          ctx.fillStyle = '#c03030'; ctx.fillRect(ccx + 2, ccy - 24, 12, 8);
+        }
         // both balls
         for (const [who, c] of [['you', '#f8f8f8'], ['wade', '#f0b030']]) {
-          const bb = ball[who];
-          ctx.fillStyle = col.dark; ctx.fillRect(Math.round(bb.x) - R - 1, Math.round(bb.y) - R - 1, R * 2 + 2, R * 2 + 2);
-          ctx.fillStyle = c; ctx.fillRect(Math.round(bb.x) - R, Math.round(bb.y) - R, R * 2, R * 2);
+          const bb = ball[who], bx = Math.round(bb.x), by = Math.round(bb.y);
+          if (HIRES) { // round, with a shadow on the grass, a few dimples and a shine
+            fineDisc(bx + 1, by + 1.5, R + 1, 'rgba(0,0,0,0.28)'); fineDisc(bx, by, R + 1, col.dark); fineDisc(bx, by, R, c);
+            fine(bx + 0.5, by + 0.5, 1, 1, 'rgba(0,0,0,0.14)'); fine(bx - 1.5, by + 1.5, 1, 0.5, 'rgba(0,0,0,0.14)'); fine(bx + 1.5, by - 1, 0.5, 1, 'rgba(0,0,0,0.14)');
+            fine(bx - 2, by - 2, 1.5, 1, '#ffffff');
+          } else {
+            ctx.fillStyle = col.dark; ctx.fillRect(bx - R - 1, by - R - 1, R * 2 + 2, R * 2 + 2);
+            ctx.fillStyle = c; ctx.fillRect(bx - R, by - R, R * 2, R * 2);
+          }
         }
         // your aim line and power bar
         if (turn === 'you' && !vel && !msg && state === 'play') {
           const bb = ball.you, a = Math.atan2(cup.y - bb.y, cup.x - bb.x) + aim;
           ctx.fillStyle = '#f8f8f8';
-          for (let d = 8; d < 34; d += 5) ctx.fillRect(Math.round(bb.x + Math.cos(a) * d), Math.round(bb.y + Math.sin(a) * d), 2, 2);
+          for (let d = 8; d < 34; d += 5) {
+            const ax = Math.round(bb.x + Math.cos(a) * d), ay = Math.round(bb.y + Math.sin(a) * d);
+            if (HIRES) { ctx.fillRect(ax, ay + 0.5, 2, 1); ctx.fillRect(ax + 0.5, ay, 1, 2); } // (round dots)
+            else ctx.fillRect(ax, ay, 2, 2);
+          }
           if (phase === 'power') {
             ctx.fillStyle = col.dark; ctx.fillRect(FX, FY + FH + 10, 200, 10);
             ctx.fillStyle = '#e8e8e8'; ctx.fillRect(FX + 1, FY + FH + 11, 198, 8);
             ctx.fillStyle = '#f0b030'; ctx.fillRect(FX + 1, FY + FH + 11, Math.round(198 * power / 100), 8);
+            if (HIRES && power > 0) { fine(FX + 1, FY + FH + 11, Math.round(198 * power / 100), 1, 'rgba(255,255,255,0.45)'); fine(FX + 1, FY + FH + 18, Math.round(198 * power / 100), 1, 'rgba(0,0,0,0.15)'); }
           }
           text(phase === 'aim' ? 'Space: lock the line' : 'Space: hit it', FX, FY + FH + 24);
         }
@@ -7962,6 +8045,17 @@
     }
     newDish();
     const endDish = (s, good) => { msg = { t: 0, s }; sfx(good ? 'cup' : 'buzz'); };
+    // what each food looks like at double resolution, over its rounded chunk (x, y its middle)
+    const FOOD32 = {
+      rice(x, y) { for (const [dx, dy] of [[-3, -2.5], [0.5, -3], [-1.5, -0.5], [1.5, -1], [-3, 0.5], [1, 0.5]]) { fine(x + dx, y + dy, 2, 1, '#fffcf0'); fine(x + dx, y + dy + 1, 2, 0.5, '#d8ccb0'); } },
+      egg(x, y) { fine(x - 2.5, y - 3, 3, 1, '#fff0a0'); fine(x - 3, y, 7, 0.5, '#d8a828'); fine(x + 1, y - 1.5, 1.5, 1, '#f8f0d0'); },
+      pea(x, y) { fine(x - 2, y - 3, 2, 1, '#98e080'); fine(x - 3, y + 1, 7, 1, '#3c8030'); },
+      shrimp(x, y) { for (const dx of [-1.5, 0.5, 2.5]) fine(x + dx, y - 3, 0.5, 5, '#d87850'); fine(x - 3, y - 3, 6, 0.5, '#ffd0b0'); fine(x - 3, y - 2, 1, 2, '#f85838'); },
+      beef(x, y) { for (const [dx, dy] of [[-3, -2], [-1, 0], [1, -2]]) fine(x + dx, y + dy, 2.5, 0.5, '#5c2c14'); fine(x - 3, y - 3, 7, 0.5, '#b87048'); },
+      pepper(x, y) { fine(x - 3, y - 3, 7, 1, '#f88070'); fine(x - 2.5, y + 1, 6, 1, '#a01810'); fine(x + 2, y - 2, 1, 2, '#f8c0a8'); },
+      noodle(x, y) { for (let i = 0; i < 7; i++) { const wy = (i + (x & 1)) & 1 ? 0.5 : 0; fine(x - 3 + i, y - 2.5 + wy, 1, 0.5, '#b89050'); fine(x - 3 + i, y - 0.5 + wy, 1, 0.5, '#b89050'); fine(x - 3 + i, y - 1.5 + wy, 1, 0.5, '#fff0c0'); } },
+      onion(x, y) { fine(x - 2.5, y - 2, 6, 0.5, '#b8a8d8'); fine(x - 2.5, y, 6, 0.5, '#b8a8d8'); fine(x - 3, y - 3, 7, 0.5, '#ffffff'); },
+    };
     const self = {
       music: 'kitchen', doing: 'wok',
       update() {
@@ -8035,6 +8129,7 @@
           ctx.fillStyle = col.dark; ctx.fillRect(x + 44, 35, 92, 9);
           ctx.fillStyle = '#e8e8e8'; ctx.fillRect(x + 45, 36, 90, 7);
           ctx.fillStyle = c; ctx.fillRect(x + 45, 36, Math.round(90 * Math.min(100, v) / 100), 7);
+          if (HIRES && v > 0) { const mw = Math.round(90 * Math.min(100, v) / 100); fine(x + 45, 36, mw, 1, 'rgba(255,255,255,0.45)'); fine(x + 45, 42, mw, 1, 'rgba(0,0,0,0.15)'); }
         };
         meter(16, 'Cooked', cook, '#58a848');
         meter(164, 'Scorch', scorch, scorch > 70 && (tick >> 2) & 1 ? '#f8e070' : '#d83020');
@@ -8043,26 +8138,68 @@
         ctx.fillStyle = '#c4d4da';
         for (let y = 50; y < 204; y += 16) ctx.fillRect(4, y, SW - 8, 1);
         for (let x = 4; x < SW - 4; x += 16) ctx.fillRect(x, 50, 1, 154);
+        if (HIRES) { // each tile's glaze: a lit top and left, a shaded foot and side
+          for (let y = 50; y < 204; y += 16) for (let x = 4; x < SW - 4; x += 16) {
+            const tw = Math.min(15, SW - 5 - x);
+            fine(x + 1, y + 1, tw, 0.5, '#f4fafc'); fine(x + 1, y + 1.5, 0.5, 14.5, '#f4fafc'); fine(x + 1, y + 15.5, tw, 0.5, '#ccdae0');
+            if (tw === 15) fine(x + 15.5, y + 1.5, 0.5, 14, '#ccdae0');
+          }
+          fine(4, 201, SW - 8, 3, 'rgba(0,0,0,0.05)');
+        }
         ctx.drawImage(nik.down[0], SW - 50, 56, 36, 36);
         ctx.fillStyle = '#484858'; ctx.fillRect(4, 204, SW - 8, 32);
         ctx.fillStyle = '#303040'; ctx.fillRect(4, 204, SW - 8, 3);
+        if (HIRES) { // steel: a lit lip, a seam, a brushed front, the burner and the knobs
+          fine(4, 204, SW - 8, 0.5, '#8888a0'); fine(4, 206.5, SW - 8, 0.5, '#181820'); fine(4, 207, SW - 8, 0.5, '#686878');
+          for (let y = 209; y < 236; y += 3) fine(4, y, SW - 8, 0.5, '#505060');
+          fine(FLAME.x + 1, 204, FLAME.w - 2, 1, '#181820'); fine(FLAME.x + 1, 204, FLAME.w - 2, 0.5, '#585868');
+          for (const kx of [24, 46, 68, 252, 274, 296]) {
+            fineDisc(kx, 217, 5, '#181820'); fineDisc(kx, 217, 4, '#a8acb8'); fineDisc(kx - 0.5, 216.5, 3, '#d0d4dc');
+            fine(kx - 0.5, 213.5, 1, 3.5, '#303040');
+          }
+        }
         // the flame
         for (let i = 0; i < 8; i++) {
           const fx = FLAME.x + 4 + i * 10, h = 8 + ((tick + i * 5) >> 2) % 4 * 2;
-          ctx.fillStyle = '#f0b030'; ctx.fillRect(fx, 204 - h, 6, h);
-          ctx.fillStyle = '#d83020'; ctx.fillRect(fx + 1, 204 - h + 3, 4, h - 3);
-          ctx.fillStyle = '#3868c8'; ctx.fillRect(fx, 202, 6, 2);
+          if (HIRES) { // a tongue of flame tapering to its tip, hottest at its heart, blue at the burner
+            const tongue = (hh, ww, c) => { for (let r = 0; r < hh; r += 0.5) { const f = (r + 0.25) / hh, w = Math.round(ww * Math.sqrt(f) * (1.2 - 0.4 * f * f) * 2) / 2; fine(fx + 3 - w, 204 - hh + r, w * 2, 0.5, c); } };
+            tongue(h, 3.5, '#e85020'); tongue(h - 2, 2.5, '#f0a030'); tongue(h - 4, 1.5, '#f8e880');
+            fine(fx, 202, 6, 2, '#3868c8'); fine(fx + 1, 202.5, 4, 0.5, '#88b8f8');
+          } else {
+            ctx.fillStyle = '#f0b030'; ctx.fillRect(fx, 204 - h, 6, h);
+            ctx.fillStyle = '#d83020'; ctx.fillRect(fx + 1, 204 - h + 3, 4, h - 3);
+            ctx.fillStyle = '#3868c8'; ctx.fillRect(fx, 202, 6, 2);
+          }
         }
         // the wok, with its handle
-        ctx.fillStyle = '#5a3420'; ctx.fillRect(wx + HALF, WOK_Y + 1, 22, 4);
-        ctx.fillStyle = col.dark;
-        for (let i = 0; i < 6; i++) ctx.fillRect(wx - HALF + i * 3, WOK_Y + 3 + i * 2, (HALF - i * 3) * 2, 2);
-        ctx.fillStyle = '#686878'; ctx.fillRect(wx - HALF, WOK_Y + 3, HALF * 2, 1);
+        if (HIRES) { // a smooth round pan: a lit rim, a shine round the left, a glow when it's on the flame
+          fine(wx + HALF - 3, WOK_Y + 2, 6, 2, '#686878'); fine(wx + HALF - 3, WOK_Y + 2, 6, 0.5, '#a8acb8');
+          roundBox(wx + HALF + 2, WOK_Y + 1, 20, 4, 1.5, '#5a3420'); fine(wx + HALF + 3, WOK_Y + 1.5, 18, 0.5, '#8a5a38');
+          fine(wx + HALF + 5, WOK_Y + 3, 13, 0.5, '#3e2414'); fine(wx + HALF + 4, WOK_Y + 4, 16, 0.5, '#3e2414');
+          for (let r = 0; r < 12; r += 0.5) {
+            const f = (r + 0.25) / 12, w = Math.round((13 + 15 * Math.sqrt(1 - f * f)) * 2) / 2, y = WOK_Y + 3 + r;
+            fine(wx - w, y, w * 2, 0.5, col.dark);
+            if (r > 1 && r < 9) fine(wx - w + 2, y, 3, 0.5, '#505060');
+            if (r > 1 && r < 8) fine(wx + w - 2.5, y, 1.5, 0.5, '#101014');
+          }
+          fine(wx - HALF, WOK_Y + 3, HALF * 2, 1, '#686878'); fine(wx - HALF + 0.5, WOK_Y + 3, HALF * 2 - 1, 0.5, '#b8bcc8');
+          if (Math.abs(wx - (FLAME.x + FLAME.w / 2)) < FLAME.w / 2 + HALF / 2) { fine(wx - 10, WOK_Y + 13.5, 20, 0.5, '#a04020'); fine(wx - 7, WOK_Y + 14, 14, 1, '#d86030'); }
+        } else {
+          ctx.fillStyle = '#5a3420'; ctx.fillRect(wx + HALF, WOK_Y + 1, 22, 4);
+          ctx.fillStyle = col.dark;
+          for (let i = 0; i < 6; i++) ctx.fillRect(wx - HALF + i * 3, WOK_Y + 3 + i * 2, (HALF - i * 3) * 2, 2);
+          ctx.fillStyle = '#686878'; ctx.fillRect(wx - HALF, WOK_Y + 3, HALF * 2, 1);
+        }
         // the food
         for (const f of food) {
           const x = Math.round(f.inWok ? wx + f.off : f.x), y = Math.round(f.inWok ? WOK_Y + 1 + ((tick + f.off) >> 4 & 1) : f.y);
-          ctx.fillStyle = col.dark; ctx.fillRect(x - 4, y - 4, 9, 7);
-          ctx.fillStyle = FOOD[f.kind]; ctx.fillRect(x - 3, y - 3, 7, 5);
+          if (HIRES) {
+            roundBox(x - 4, y - 4, 9, 7, 2.5, col.dark); roundBox(x - 3, y - 3, 7, 5, 1.5, FOOD[f.kind]);
+            FOOD32[f.kind](x, y);
+          } else {
+            ctx.fillStyle = col.dark; ctx.fillRect(x - 4, y - 4, 9, 7);
+            ctx.fillStyle = FOOD[f.kind]; ctx.fillRect(x - 3, y - 3, 7, 5);
+          }
         }
         if (msg) { box(60, 100, 200, 30); ctext(msg.s, 112); }
         if (state === 'ready') readyBox(t, 'Space: toss  Arrows: catch');
@@ -8159,34 +8296,82 @@
         ctx.fillStyle = '#c89058'; ctx.fillRect(16, 88, SW - 32, 92);
         ctx.fillStyle = '#b88048';
         for (let y = 94; y < 178; y += 9) ctx.fillRect(18, y, SW - 36, 1);
+        if (HIRES) { // the board's lit edge and shaded foot, long grain, and a groove for the juice
+          fine(16, 88, SW - 32, 0.5, '#e8b888'); fine(16, 88, 0.5, 92, '#e8b888'); fine(16, 179.5, SW - 32, 0.5, '#9a6838'); fine(SW - 16.5, 88, 0.5, 92, '#9a6838');
+          for (let y = 98.5; y < 178; y += 9) for (let x = 20 + ((y * 14) % 23); x < SW - 40; x += 37) fine(x, y, 19, 0.5, '#d8a470');
+          fine(20, 91, SW - 40, 0.5, '#a87a48'); fine(20, 176.5, SW - 40, 0.5, '#d8a470'); fine(20, 91, 0.5, 86, '#a87a48'); fine(SW - 20.5, 91, 0.5, 86, '#d8a470');
+        }
         // the carrot: orange, leafy top on the right, only drawn on the board
         ctx.save();
         ctx.beginPath(); ctx.rect(16, 88, SW - 32, 92); ctx.clip();
         const x0 = Math.round(cx);
-        ctx.fillStyle = '#58a848';
-        for (let i = 0; i < 4; i++) ctx.fillRect(x0 + len + 1, CY - 8 + i * 6, 10 + (i & 1) * 4, 3);
-        ctx.fillStyle = col.dark; ctx.fillRect(x0 - 1, CY - CH / 2 - 1, len + 2, CH + 2);
-        ctx.fillStyle = '#f08a20'; ctx.fillRect(x0, CY - CH / 2, len, CH);
-        ctx.fillStyle = '#f8b060'; ctx.fillRect(x0, CY - CH / 2 + 2, len, 2);
-        ctx.fillStyle = '#c86a10'; ctx.fillRect(x0, CY + CH / 2 - 3, len, 2);
-        ctx.fillStyle = '#c89058'; ctx.fillRect(x0 - 1, CY - CH / 2 - 1, 4, 3); ctx.fillRect(x0 - 1, CY + CH / 2 - 2, 4, 3);
+        // (at double resolution it tapers to a point at the tip, and rounds off at the top)
+        const halfAt = (xx) => Math.round(CH / 2 * Math.min(1, Math.sqrt((xx + 0.25) / 26)) * (xx > len - 3 ? Math.sqrt(1 - ((xx - len + 3) / 5) ** 2) : 1) * 2) / 2;
+        if (HIRES) {
+          for (let i = 0; i < 4; i++) { // tapering leaves, each with a lit edge and a dark rib
+            const ly = CY - 6.5 + i * 6, ll = 10 + (i & 1) * 4;
+            for (let k = 0; k < ll; k += 0.5) {
+              const th = Math.round(2 * Math.sin(Math.PI * (k + 0.25) / ll) ** 0.7 * 2) / 2;
+              if (!th) continue;
+              fine(x0 + len + 1 + k, ly - th, 0.5, th * 2, '#58a848'); fine(x0 + len + 1 + k, ly - th, 0.5, 0.5, '#88d070');
+              fine(x0 + len + 1 + k, ly, 0.5, 0.5, '#3a8030'); fine(x0 + len + 1 + k, ly + th - 0.5, 0.5, 0.5, '#3a8030');
+            }
+          }
+          fine(x0 - 1, CY - 1, 1, 2, col.dark);
+          for (let xx = 0; xx < len; xx += 0.5) {
+            const X = x0 + xx, h = halfAt(xx);
+            if (X < 16 || X > SW - 16) continue;
+            fine(X, CY - h - 1, 0.5, h * 2 + 2, col.dark);
+            fine(X, CY - h, 0.5, h * 2, '#f08a20');
+            fine(X, CY - h + Math.round(h * 0.25 * 2) / 2, 0.5, Math.round(h * 0.3 * 2) / 2, '#f8b060');
+            fine(X, CY + Math.round(h * 0.45 * 2) / 2, 0.5, Math.round(h * 0.55 * 2) / 2, '#c86a10');
+            // the root's little ridges, across one side and then the other
+            const n = Math.floor(xx / 11);
+            if (xx % 11 < 1 && n > 0 && h > 3) fine(X, n & 1 ? CY + 1 : CY - h + 1, 0.5, h - 2, n & 1 ? '#a85808' : '#d87818');
+          }
+          fine(x0 + len, CY - halfAt(len - 0.5) - 1, 0.5, halfAt(len - 0.5) * 2 + 2, col.dark);
+        } else {
+          ctx.fillStyle = '#58a848';
+          for (let i = 0; i < 4; i++) ctx.fillRect(x0 + len + 1, CY - 8 + i * 6, 10 + (i & 1) * 4, 3);
+          ctx.fillStyle = col.dark; ctx.fillRect(x0 - 1, CY - CH / 2 - 1, len + 2, CH + 2);
+          ctx.fillStyle = '#f08a20'; ctx.fillRect(x0, CY - CH / 2, len, CH);
+          ctx.fillStyle = '#f8b060'; ctx.fillRect(x0, CY - CH / 2 + 2, len, 2);
+          ctx.fillStyle = '#c86a10'; ctx.fillRect(x0, CY + CH / 2 - 3, len, 2);
+          ctx.fillStyle = '#c89058'; ctx.fillRect(x0 - 1, CY - CH / 2 - 1, 4, 3); ctx.fillRect(x0 - 1, CY + CH / 2 - 2, 4, 3);
+        }
         // the lines to cut on, and the cuts you've made
         for (const l of lines) {
           if (l.cut) continue;
           ctx.fillStyle = '#f8f8f8';
-          for (let y = CY - CH / 2 - 6; y < CY + CH / 2 + 6; y += 4) ctx.fillRect(x0 + l.at, y, 1, 2);
+          for (let y = CY - CH / 2 - 6; y < CY + CH / 2 + 6; y += 4) {
+            ctx.fillRect(x0 + l.at, y, 1, 2);
+            if (HIRES) { fine(x0 + l.at + 1, y + 0.5, 0.5, 2, 'rgba(0,0,0,0.3)'); ctx.fillStyle = '#f8f8f8'; }
+          }
         }
-        ctx.fillStyle = '#c89058';
-        for (const c of cuts) ctx.fillRect(x0 + Math.round(c), CY - CH / 2 - 1, 2, CH + 2);
+        for (const c of cuts) {
+          ctx.fillStyle = '#c89058'; ctx.fillRect(x0 + Math.round(c), CY - CH / 2 - 1, 2, CH + 2);
+          if (HIRES) { const cc = Math.round(c), h = halfAt(cc); fine(x0 + cc, CY + h, 2, 1, 'rgba(0,0,0,0.2)'); fine(x0 + cc + 2, CY - h, 0.5, h * 2, '#f8c888'); fine(x0 + cc - 0.5, CY - h, 0.5, h * 2, '#a85808'); }
+        }
         ctx.restore();
         // the knife: up and ready, or down mid-chop
         const ky = chop ? CY - CH / 2 - 4 : CY - 52;
-        ctx.fillStyle = col.dark; ctx.fillRect(KNIFE - 2, ky - 22, 5, 14);
-        ctx.fillStyle = '#5a3420'; ctx.fillRect(KNIFE - 1, ky - 21, 3, 12);
-        ctx.fillStyle = col.dark; ctx.fillRect(KNIFE - 6, ky - 9, 9, 22);
-        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(KNIFE - 5, ky - 8, 7, 20);
-        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(KNIFE + 1, ky - 8, 1, 20);
-        if (!chop) { ctx.fillStyle = 'rgba(24,24,32,0.25)'; ctx.fillRect(KNIFE, 92, 1, 84); }
+        if (HIRES) { // a riveted wooden handle, a bolster, and a steel blade: its spine, grind and sharp edge
+          roundBox(KNIFE - 2, ky - 22, 5, 14, 1.5, col.dark); roundBox(KNIFE - 1, ky - 21, 3, 12, 1, '#5a3420');
+          fine(KNIFE - 0.5, ky - 20, 0.5, 10, '#8a5a38'); fine(KNIFE, ky - 19, 1, 1, '#d8dce8'); fine(KNIFE, ky - 13.5, 1, 1, '#d8dce8');
+          for (let r = 0; r < 22; r += 0.5) {
+            const y = ky - 9 + r, cut = r > 15 ? Math.round((r - 15) ** 2 / 7 * 2) / 2 : 0;
+            fine(KNIFE - 6 + cut, y, 9 - cut, 0.5, col.dark);
+            if (r >= 1 && r < 21) { fine(KNIFE - 5 + cut, y, Math.max(0, 7 - cut), 0.5, '#c8ccd8'); if (cut < 3) fine(KNIFE - 5 + cut, y, 1, 0.5, '#e8ecf4'); fine(KNIFE, y, 2, 0.5, '#f8f8f8'); fine(KNIFE - 0.5, y, 0.5, 0.5, '#9098a8'); }
+          }
+          fine(KNIFE - 6, ky - 9, 9, 2, '#888898'); fine(KNIFE - 6, ky - 9, 9, 0.5, '#d8dce8');
+        } else {
+          ctx.fillStyle = col.dark; ctx.fillRect(KNIFE - 2, ky - 22, 5, 14);
+          ctx.fillStyle = '#5a3420'; ctx.fillRect(KNIFE - 1, ky - 21, 3, 12);
+          ctx.fillStyle = col.dark; ctx.fillRect(KNIFE - 6, ky - 9, 9, 22);
+          ctx.fillStyle = '#c8ccd8'; ctx.fillRect(KNIFE - 5, ky - 8, 7, 20);
+          ctx.fillStyle = '#f8f8f8'; ctx.fillRect(KNIFE + 1, ky - 8, 1, 20);
+        }
+        if (!chop) { ctx.fillStyle = 'rgba(24,24,32,0.25)'; ctx.fillRect(KNIFE, 92, HIRES ? 0.5 : 1, 84); }
         if (pop) text(pop.s, KNIFE + 14, 98, 1, pop.s === 'Perfect!' ? '#2c6a34' : pop.s === 'Good' ? '#3050a8' : '#b83028');
         if (state === 'ready') readyBox(t, 'Space: chop on the line');
         else if (state === 'done') doneBox([pct() > DMITRIY ? 'Dmitriy is impressed!' : 'Dmitriy shakes his head.',
@@ -8205,6 +8390,7 @@
   // With `vs` (a match with another player) you both get the same arrows, from the match's
   // shared random numbers, and each of you sees the other's score as they dance. The
   // higher score when you've both finished the song wins.
+  const danceArrows = new Map();
   function DanceGame(vs) {
     const LANES = ['left', 'down', 'up', 'right'], LANE_COLS = ['#ff2a6d', '#05d9e8', '#39ff14', '#f9f871'];
     const LX = 104, LW = 28, TY = 34, PX = 9; // first lane, lane width, target row, pixels per step
@@ -8311,9 +8497,22 @@
             if ((tx + ty + beat) & 1) continue;
             ctx.fillStyle = RAVE_COLS[(tx * 3 + ty * 5 + (beat & 0xffff)) % RAVE_COLS.length];
             ctx.globalAlpha = 0.18; ctx.fillRect(tx * 16, ty * 16, 16, 16);
+            if (HIRES) { ctx.globalAlpha = 0.16; ctx.fillRect(tx * 16 + 1, ty * 16 + 1, 14, 0.5); ctx.fillRect(tx * 16 + 1, ty * 16 + 1.5, 0.5, 13.5); } // (its lit edge)
           }
         ctx.globalAlpha = 1;
+        if (HIRES) { // the seams between the floor's tiles
+          for (let ty = 0; ty < SH / 16; ty++) fine(0, ty * 16, SW, 0.5, 'rgba(0, 0, 0, 0.5)');
+          for (let tx = 0; tx < SW / 16; tx++) fine(tx * 16, 0, 0.5, SH, 'rgba(0, 0, 0, 0.5)');
+        }
         ctx.fillStyle = 'rgba(0, 0, 0, 0.55)'; ctx.fillRect(LX - 4, 0, LW * 4 + 8, SH);
+        if (HIRES) { // the lanes' edges and rails, the target row's band, and a lane lit up as you hit it
+          LANES.forEach((k, lane) => {
+            if (flash[lane]) { ctx.globalAlpha = flash[lane] * 0.03; fine(LX + lane * LW, 0, LW, SH, LANE_COLS[lane]); ctx.globalAlpha = 1; }
+            if (lane) fine(LX + lane * LW, 0, 0.5, SH, 'rgba(255, 255, 255, 0.08)');
+          });
+          fine(LX - 4, 0, 0.5, SH, 'rgba(255, 255, 255, 0.25)'); fine(LX + LW * 4 + 3.5, 0, 0.5, SH, 'rgba(255, 255, 255, 0.25)');
+          fine(LX - 4, TY - 3, LW * 4 + 8, 26, 'rgba(255, 255, 255, 0.05)');
+        }
         // you and Patrick, dancing on either side
         const bop = (step & 1) ? 0 : 3;
         ctx.drawImage(sprites[move][1 + (beat & 1)], 22, 100 - bop, 56, 56);
@@ -8332,7 +8531,7 @@
           if (n.hit && n.hit !== 'miss') continue;
           const y = TY + (n.s - pos) * PX;
           if (y > SH || y < -20) continue;
-          arrow(LANES[n.lane], LX + n.lane * LW + 4, Math.round(y), n.hit === 'miss' ? '#585868' : LANE_COLS[n.lane]);
+          arrow(LANES[n.lane], LX + n.lane * LW + 4, HIRES ? Math.round(y * 2) / 2 : Math.round(y), n.hit === 'miss' ? '#585868' : LANE_COLS[n.lane]);
         }
         if (judge && judge.t < 30) text(judge.word, 160 - judge.word.length * 6, 70 - (judge.t >> 3), 2, judge.color);
         if (combo > 4) text(combo + ' combo', 160 - (String(combo).length + 6) * 3, 92, 1, '#f8f8f8');
@@ -8352,8 +8551,32 @@
           'You ' + pct() + '%  Patrick ' + PATRICK + '%  Combo ' + maxCombo, record ? 'New record!' : 'Best ' + getBest('dance') + '%'], t);
       },
     };
+    // At double resolution the arrow is a smooth one, made once for each way and colour: its
+    // top and left edges catch the light, the others are in shade, and a shadow falls behind.
+    function arrowPic(k, color, hollow) {
+      const key = k + color + (hollow ? 'h' : '');
+      let cv = danceArrows.get(key);
+      if (cv) return cv;
+      // an up arrow in a 40 x 40 grid: a head on a stem, with its stem's foot rounded off
+      const solid = (u, v) => u >= 0 && v >= 0 && u < 40 && v < 40 && Math.abs(u - 19.5) < (v < 20 ? Math.min(v + 1, 19) : v < 38 ? 8 : 45 - v);
+      const up = (u, v) => solid(u, v) && (!hollow || !(solid(u - 3, v) && solid(u + 3, v) && solid(u, v - 3) && solid(u, v + 3)));
+      const on = (px, py) => (k === 'up' ? up(px, py) : k === 'down' ? up(px, 39 - py) : k === 'left' ? up(py, px) : up(py, 39 - px));
+      cv = document.createElement('canvas');
+      cv.width = 42; cv.height = 42; cv.hi = 2;
+      const c = cv.getContext('2d'), lit = mixHex(color, '#ffffff', 0.55), dim = mixHex(color, '#000000', 0.35);
+      c.fillStyle = '#000000';
+      for (let py = 0; py < 40; py++) for (let px = 0; px < 40; px++) if (on(px, py)) c.fillRect(px + 2, py + 2, 1, 1);
+      for (let py = 0; py < 40; py++) for (let px = 0; px < 40; px++) {
+        if (!on(px, py)) continue;
+        c.fillStyle = !on(px - 1, py) || !on(px, py - 1) ? lit : !on(px + 1, py) || !on(px, py + 1) ? dim : color;
+        c.fillRect(px, py, 1, 1);
+      }
+      danceArrows.set(key, cv);
+      return cv;
+    }
     // a chunky pixel arrow pointing k, 20px square at (x, y); hollow for the targets
     function arrow(k, x, y, color, hollow) {
+      if (HIRES) { ctx.drawImage(arrowPic(k, color, hollow), x, y); return; }
       const UP = ['....##....', '...####...', '..######..', '.########.', '##########', '...####...', '...####...', '...####...', '...####...', '...####...'];
       const on = (cx, cy) => cx >= 0 && cy >= 0 && cx < 10 && cy < 10 && UP[cy][cx] === '#';
       for (let cy = 0; cy < 10; cy++)
