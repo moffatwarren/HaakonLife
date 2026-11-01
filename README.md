@@ -963,6 +963,16 @@ Add these to the end of the address (after `index.html`) and press Enter.
   everything still (still drawing): for a screenshot of a snowball in mid-air, say, or a
   snow angel.
 
+**Double resolution (work in progress)**
+
+The screen is drawn at twice the resolution (640 x 480 pixels for the same 320 x 240
+view), and the characters are being redrawn at 32 x 32 a part at a time. Until they're
+done it only shows with `&hires` in a `#play` link: your character is drawn at 32 x 32
+(`renderLook32` in `js/art.js`), with any part that hasn't been redrawn yet doubled from
+today's with Scale2x, and the floors and everyone else are Scale2x'd too. So far the head
+and face (`HEAD32`) are redrawn, and show with the Bald hairstyle, e.g.
+`index.html#play&hires&look=m08000000` (the look code's second character is the skin, 0 to 7).
+
 **Straight into a mini-game**
 
 `index.html#play&game=NAME` skips the title screen and opens that game, for example

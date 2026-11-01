@@ -23,56 +23,15 @@
     if (a.length === 2) return drawImage1(img, a[0], a[1], img.width / k, img.height / k);
     return drawImage1(img, a[0] * k, a[1] * k, a[2] * k, a[3] * k, a[4], a[5], a[6], a[7]);
   };
-  // &hires: a look at the office in double resolution. The floors and everyone in them are
-  // made double with Scale2x (Art.scale2x), and anyone wearing the golden antlers, standing
-  // facing down, is the hand-drawn 32 x 32 test picture (HI_TEST) instead, its outline
-  // doubled on the outside so it's as heavy as everything else's.
+  // &hires: a look at the office in double resolution, while the characters are redrawn
+  // at 32 x 32 (see "32 x 32 characters" in js/art.js): players' looks are drawn that way,
+  // and the floors and everyone else are made double with Scale2x (Art.scale2x).
   const HIRES = /[#&]hires/.test(location.hash);
   if (HIRES) {
-    const HI_TEST = [
-      '.kkOkkkWkkOkk......kkOkkWkkkOkk.',
-      '.kkOokkOokOkkkkkkkkkkOkoOkkoOkk.',
-      '..kkOooOookkkkkkkkkkkkooOooOkk..',
-      '...kkkooOokkkjjhhhjjkkoOookkk...',
-      '....kkkkOokjjhhhhhhhjkoOkkkk....',
-      '......kkkOqkhhhhhhhhkqOkkk......',
-      '......kkhkoqkhhhhhhkqokHkk......',
-      '.....kkhhhkkhhhhhHHHsssshkk.....',
-      '.....kkhhhhhhhHHHssssssshkk.....',
-      '.....kkhhhhHHHsssssssssshkk.....',
-      '....kkhhHHHssssssssssssshhkk....',
-      '....kkhhsssssssssssssssshhkk....',
-      '...kkshhsssssssssssssssshhskk...',
-      '...kkShhsssWkssssssWkssshhSkk...',
-      '...kksssssskksssssskksssssskk...',
-      '...kksksssskksssssskksssskskk...',
-      '....kkkscccsssssssssscccskkk....',
-      '.....kksssssssSmmSssssssskk.....',
-      '......kksssssssssssssssskk......',
-      '.......kksssssssssssssskk.......',
-      '.......kkkkSSSSSSSSSSkkkk.......',
-      '......kkkwwwwsssssswwwwkkk......',
-      '.....kkwwvwwwwwUuwwwwwvwwkk.....',
-      '.....kkwwvwwwwwUuwwwwwvwwkk.....',
-      '.....kkwwvwwwwwuuwwwwwvwwkk.....',
-      '.....kkwwvwwwwwuuwwwwwvwwkk.....',
-      '.....kkssvwwwwwuuwwwwwvsskk.....',
-      '.....kksskbbbbbOobbbbbksskk.....',
-      '......kkkkLKKKKKKKKKKLkkkk......',
-      '.......kkkLKKKKkkKKKKLkkk.......',
-      '........kkLKKKKkkKKKKLkk........',
-      '.......kkbbbbbbkkbbbbbbkk.......',
-    ];
-    const HI_PAL = { k: '#181820', h: '#5a3420', H: '#3c2010', j: '#7a4a2c', s: '#f8d0a8', S: '#e0a880', c: '#f09080', W: '#ffffff', w: '#f8f8f8', v: '#c8ccd8',
-      u: '#3050a8', U: '#6890e0', K: '#484858', L: '#303040', b: '#282830', o: '#f0b030', O: '#f8e070', q: '#b07818', m: '#a04040' };
-    const test = document.createElement('canvas');
-    test.width = test.height = 32; test.hi = 2;
-    const tc = test.getContext('2d');
-    HI_TEST.forEach((r, y) => [...r].forEach((ch, x) => { if (HI_PAL[ch]) { tc.fillStyle = HI_PAL[ch]; tc.fillRect(x, y, 1, 1); } }));
     const up = (sheet) => { const out = {}; for (const d in sheet) out[d] = sheet[d].map((cv) => Art.scale2x(cv)); return out; };
     for (const k of ['renderSprites', 'renderCostume', 'renderLookCostume', 'renderDog']) { const f = Art[k]; Art[k] = (...a) => up(f(...a)); }
-    const look = Art.renderLook, floor = Art.renderFloor;
-    Art.renderLook = (l, sw) => { const out = up(look(l, sw)); if (l.hat === Art.ANTLERS) out.down[0] = test; return out; };
+    const floor = Art.renderFloor;
+    Art.renderLook = Art.renderLook32;
     Art.renderFloor = (f) => Art.scale2x(floor(f));
   }
   // Touch screens get the on-screen D-pad (a thumbstick out in the parking lot) and A/B/START

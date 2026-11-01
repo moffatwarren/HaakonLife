@@ -951,6 +951,8 @@ window.Art = (function () {
     },
     {
       name: 'Bald', hd: 'bald',
+      // at 32 x 32 (see "32 x 32 characters"), nothing over the head
+      hi: { down: [], up: [], left: [] },
       down: ['................', '.....kkkkkk.....', '....kssssssk....', '...kssssssssk...', '...kssssssssk...', '...khsssssshk...', '...khsssssshk...', '...kskssssksk...', '....kssssssk....', '.....kkkkkk.....'],
       up: ['................', '.....kkkkkk.....', '....kssssssk....', '...kssssssssk...', '...kssssssssk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...kshhhhhhsk...', '....khhhhhhk....', '.....kkkkkk.....'],
       left: ['................', '.....kkkkkk.....', '....kssssssk....', '...kssssssssk...', '...kssssssssk...', '...ksssssshhk...', '..ksssssshhhk...', '..ksksssshhhk...', '...kssssshhk....', '....kkkkkkk.....'],
@@ -1158,6 +1160,11 @@ window.Art = (function () {
       shirt: female ? 1 : 0, shirtC: nearest(SHIRT_COLOURS, c.w, (e) => e[1]) , pants: 0, pantsC: nearest(PANTS_COLOURS, c.K, (e) => e[1]),
     });
   }
+  // a colour t of the way to another
+  function blend(a, b, t) {
+    const x = hexRGB(a), y = hexRGB(b);
+    return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('');
+  }
   function darker(hex, f) {
     const c = hexRGB(hex), k = hexRGB(COLORS.k);
     return '#' + c.map((v, i) => Math.round(v + (k[i] - v) * f).toString(16).padStart(2, '0')).join('');
@@ -1196,7 +1203,8 @@ window.Art = (function () {
   }
   function lookPalette(look, over) {
     const c = lookColours(look);
-    return palette(Object.assign({ H: darker(c.h, 0.35), v: darker(c.w, 0.25) }, c, over));
+    // (and for 32 x 32: S, skin in shadow, and f, the cheeks)
+    return palette(Object.assign({ H: darker(c.h, 0.35), v: darker(c.w, 0.25), S: darker(c.s, 0.2), f: blend(c.s, '#e04848', 0.4) }, c, over));
   }
   // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look, the same
   // shape renderSprites gives, in an ugly sweater if `sweater` names one.
@@ -1207,6 +1215,142 @@ window.Art = (function () {
       cv.width = cv.height = 16;
       const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16);
       blit(img, lookBuf(look, dir, step, false, sw && sweater), 0, 0, pal, flip);
+      ctx.putImageData(img, 0, 0);
+      return cv;
+    };
+    out.down = [make('down', 0), make('down', 1), make('down', 2)];
+    out.up = [make('up', 0), make('up', 1), make('up', 2)];
+    out.left = [make('left', 0), make('left', 1), make('left', 1)];
+    out.right = [make('left', 0, true), make('left', 1, true), make('left', 1, true)];
+    return out;
+  }
+
+  // ---------- 32 x 32 characters ----------
+  // The looks drawn at double resolution (for &hires: see js/game.js), a part at a time. A
+  // part that's been redrawn has a `hi` of its own, the same shape as at 16 (down, up,
+  // left; rows 32 wide, laid from row 0), drawn with 2-pixel outlines and the light from
+  // the top left; one that hasn't is today's, doubled with Scale2x, so a look always comes
+  // out whole. Once a look's hair has been redrawn the face is HEAD32 underneath it (at 16
+  // the hair and the face are one picture, so until then it's the old head, doubled).
+  // Letters as at 16, plus S (skin in shadow) and f (the cheeks): see lookPalette.
+  const HEAD32 = {
+    down: [
+      '................................',
+      '................................',
+      '............kkkkkkkk............',
+      '...........kkkkkkkkkk...........',
+      '.........kkksssssssskkk.........',
+      '........kkksssssssssskkk........',
+      '.......kksssssssssssssskk.......',
+      '.......kksssssssssssssskk.......',
+      '......kksssssssssssssssskk......',
+      '......kksssssssssssssssskk......',
+      '......kkssHHHssssssHHHsSkk......',
+      '.....kkSsssssssssssssssSSkk.....',
+      '....kkSSsssWkssssssWkssSSSkk....',
+      '....kkSSSsskksssssskksSSSSkk....',
+      '.....kkSksskksssSsskkSSkSkk.....',
+      '......kkkffsssSssSssSffkkk......',
+      '.......kkkkSsssMMssSSkkkk.......',
+      '.........kkkSSSSSSSSkkk.........',
+      '...........kkkkkkkkkk...........',
+      '............kkkkkkkk............',
+    ],
+    up: [
+      '................................',
+      '................................',
+      '............kkkkkkkk............',
+      '...........kkkkkkkkkk...........',
+      '.........kkksssssssskkk.........',
+      '........kkksssssssssskkk........',
+      '.......kksssssssssssssskk.......',
+      '.......kksssssssssssssskk.......',
+      '......kksssssssssssssssskk......',
+      '......kksssssssssssssssskk......',
+      '......kksssssssssssssssSkk......',
+      '.....kkSsssssssssssssssSSkk.....',
+      '....kkSSsssssssssssssssSSSkk....',
+      '....kkSSSsssssssssssssSSSSkk....',
+      '.....kkSkssssssssssssSSkSkk.....',
+      '......kkkSssssssssssSSSkkk......',
+      '.......kkkkSsssssssSSkkkk.......',
+      '.........kkkSSSSSSSSkkk.........',
+      '...........kkkkkkkkkk...........',
+      '............kkkkkkkk............',
+    ],
+    left: [
+      '................................',
+      '................................',
+      '............kkkkkkkk............',
+      '...........kkkkkkkkkk...........',
+      '.........kkksssssssskkk.........',
+      '........kkksssssssssskkk........',
+      '.......kksssssssssssssskk.......',
+      '.......kksssssssssssssskk.......',
+      '......kksssssssssssssssskk......',
+      '......kksssssssssssssssskk......',
+      '......kksHHHHssssssssssSkk......',
+      '......kksssssssssskksssSkk......',
+      '......kkssWksssssskSkssSkk......',
+      '......kkSskksssssskSksSSkk......',
+      '.....kkSSskksssssskksSSkk.......',
+      '......kkSSssffssssssSSSkk.......',
+      '.......kkMMSsssssssSSkkk........',
+      '........kkkkSSSSSSSSkkk.........',
+      '...........kkkkkkkkkk...........',
+      '............kkkkkkkk............',
+    ],
+  };
+  // a buffer of letters, doubled by Scale2x (the same rule as scale2x, on letters); null is clear
+  function double(b) {
+    const out = new Array(1024).fill(null), at = (x, y) => b[Math.min(15, Math.max(0, y)) * 16 + Math.min(15, Math.max(0, x))];
+    for (let y = 0; y < 16; y++)
+      for (let x = 0; x < 16; x++) {
+        const p = at(x, y), a = at(x, y - 1), r = at(x + 1, y), l = at(x - 1, y), d = at(x, y + 1), o = y * 64 + x * 2;
+        const edge = a !== d && l !== r;
+        out[o] = edge && l === a ? l : p;
+        out[o + 1] = edge && a === r ? r : p;
+        out[o + 32] = edge && l === d ? l : p;
+        out[o + 33] = edge && d === r ? r : p;
+      }
+    return out;
+  }
+  // lay 32-wide rows over a 32 x 32 buffer, as lay does at 16
+  function lay32(b, rows, y0) {
+    (rows || []).forEach((row, j) => [...row].forEach((ch, i) => {
+      if (i >= 32 || y0 + j >= 32) return;
+      if (ch === '_') b[(y0 + j) * 32 + i] = null; else if (ch !== '.') b[(y0 + j) * 32 + i] = ch;
+    }));
+  }
+  // One picture of a look at 32 x 32, as lookBuf at 16.
+  function lookBuf32(look, dir, step, noHat, sweater) {
+    const hair = HAIRS[look.hair], hat = HATS[look.hat];
+    // today's picture without the head thing, doubled: the body, and the head till the hair's redrawn
+    const b = double(lookBuf(look, dir, step, true, sweater));
+    if (hair.hi) {
+      b.fill(null, 0, 20 * 32); // (the head is rows 0-19; the body starts at 20)
+      lay32(b, HEAD32[dir], 0);
+      lay32(b, hair.hi[dir], 0);
+    }
+    if (!noHat) {
+      if (hat.hi) lay32(b, hat.hi[dir] || hat.hi.down, 0);
+      else {
+        // today's head thing, doubled: '_' (rubbing out) and '.' (leaving) carried through
+        const o = new Array(256).fill(null);
+        (hat[dir] || hat.down || []).forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== '.') o[j * 16 + i] = ch; }));
+        double(o).forEach((ch, i) => { if (ch === '_') b[i] = null; else if (ch) b[i] = ch; });
+      }
+    }
+    return b;
+  }
+  // renderLook at 32 x 32: canvases marked hi: 2, drawn at the usual size (see js/game.js)
+  function renderLook32(look, sweater) {
+    const sw = SWEATERS[sweater], pal = lookPalette(look, sw ? sweaterPal(sw) : null), out = {};
+    const make = (dir, step, flip) => {
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 32; cv.hi = 2;
+      const ctx = cv.getContext('2d'), img = ctx.createImageData(32, 32);
+      blit(img, lookBuf32(look, dir, step, false, sw && sweater), 0, 0, pal, flip, 32);
       ctx.putImageData(img, 0, 0);
       return cv;
     };
@@ -2227,11 +2371,11 @@ window.Art = (function () {
   }
 
   // Paint a buffer into ImageData at pixel (ox, oy).
-  function blit(img, b, ox, oy, pal, flip) {
-    const d = img.data, W = img.width;
-    for (let y = 0; y < 16; y++)
-      for (let x = 0; x < 16; x++) {
-        const c = b[y * 16 + (flip ? 15 - x : x)];
+  function blit(img, b, ox, oy, pal, flip, n) {
+    const d = img.data, W = img.width, N = n || 16;
+    for (let y = 0; y < N; y++)
+      for (let x = 0; x < N; x++) {
+        const c = b[y * N + (flip ? N - 1 - x : x)];
         if (!c) continue;
         const rgb = pal[c], i = ((oy + y) * W + ox + x) * 4;
         d[i] = rgb[0]; d[i + 1] = rgb[1]; d[i + 2] = rgb[2]; d[i + 3] = 255;
@@ -2434,7 +2578,7 @@ window.Art = (function () {
   return {
     LOOKS, UI, COSTUMES, scale2x, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLookCostume,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLook32, renderLookCostume,
     SWEATERS,
   };
 })();
