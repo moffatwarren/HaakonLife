@@ -2289,6 +2289,360 @@ window.Art = (function () {
     },
   };
   for (const h of HATS) if (HAT32[h.hd]) h.hi = HAT32[h.hd];
+  // The shirts, by their hd name: the body from the shoulders to the waist (rows 20-25;
+  // the hoodie's hood from 18, behind the head), arms and hands and all, looking down, up,
+  // left, and left mid-stride (the near arm swung forward). `from` is the row they start on.
+  const SHIRT32 = {
+    tie: {
+      from: 18,
+      down: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkwwvuuuuvwvkkkk',
+        '......kkwwwwwwwuuwwwvvvvkk',
+        '......kkwwkwwwwuUwwwvkvvkk',
+        '......kkwwkwwwwuuwwwvkvvkk',
+        '......kksskwwwwuuwwwvkSSkk',
+        '......kksskvvvvuuvvvvkSSkk',
+      ],
+      up: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkwwwwwwwwwvkkkk',
+        '......kkwwwwwwwwwwwwvvvvkk',
+        '......kkwwkwwwwwwwwwvkvvkk',
+        '......kkwwkwwwwwwwwwvkvvkk',
+        '......kksskwwwwwwwwwvkSSkk',
+        '......kksskvvvvvvvvvvkSSkk',
+      ],
+      left: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkuvwwwwwwwvkk',
+        '........kkuuwwwwvkwwvvkk',
+        '........kkuuwwwwvkwwvvkk',
+        '........kkuuwwwwvkwwvvkk',
+        '........kkwwwwssskwwvvkk',
+        '........kkvvvvSSSkvvvvkk',
+      ],
+      leftWalk: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkuwwwwwwwwvkk',
+        '........kkuuwvvvkwwwvvkk',
+        '.......kkkuuvvvkkwwwvvkk',
+        '......kkkkuvvvkkwwwwvvkkk',
+        '.....kksssvvvkkwwwwwvvSSkk',
+        '.....kkSSSkkkkvvvvvvvvSSkk',
+      ],
+    },
+    blouse: {
+      from: 18,
+      down: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkwwsssssswvkkkk',
+        '......kkwwwwwussssuwvvvvkk',
+        '......kkwwkwwwuuuuwwvkvvkk',
+        '......kkwwkwwwwvuwwwvkvvkk',
+        '......kksskwwwwwwwwwvkSSkk',
+        '......kksskvvvvvvvvvvkSSkk',
+      ],
+      up: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkwwwwwwwwwvkkkk',
+        '......kkwwwwwwwwwwwwvvvvkk',
+        '......kkwwkwwwwwwwwwvkvvkk',
+        '......kkwwkwwwwwwwwwvkvvkk',
+        '......kksskwwwwwwwwwvkSSkk',
+        '......kksskvvvvvvvvvvkSSkk',
+      ],
+      left: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkswwwwwwwwvkk',
+        '........kkuwwwwwvkwwvvkk',
+        '........kkwuwwwwvkwwvvkk',
+        '........kkwwwwwwvkwwvvkk',
+        '........kkwwwwssskwwvvkk',
+        '........kkvvvvSSSkvvvvkk',
+      ],
+      leftWalk: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkswwwwwwwwvkk',
+        '........kkuwwvvvkwwwvvkk',
+        '.......kkkwuvvvkkwwwvvkk',
+        '......kkkkwvvvkkwwwwvvkkk',
+        '.....kksssvvvkkwwwwwvvSSkk',
+        '.....kkSSSkkkkvvvvvvvvSSkk',
+      ],
+    },
+    tee: {
+      from: 18,
+      down: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkwuussssuuvkkkk',
+        '......kkwwwwwuuuuuuwvvvvkk',
+        '......kkwwkwwwwwwwwwvkvvkk',
+        '......kksskwwwwwwwwwvkSSkk',
+        '......kksskwwwwwwwwwvkSSkk',
+        '......kksskvvvvvvvvvvkSSkk',
+      ],
+      up: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkwuuuuuuuuvkkkk',
+        '......kkwwwwwwwwwwwwvvvvkk',
+        '......kkwwkwwwwwwwwwvkvvkk',
+        '......kksskwwwwwwwwwvkSSkk',
+        '......kksskwwwwwwwwwvkSSkk',
+        '......kksskvvvvvvvvvvkSSkk',
+      ],
+      left: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkuuwwwwwwwvkk',
+        '........kkswwwwwvkwwvvkk',
+        '........kkwwwwwwvkwwvvkk',
+        '........kkwwwwssSkwwvvkk',
+        '........kkwwwwssskwwvvkk',
+        '........kkvvvvSSSkvvvvkk',
+      ],
+      leftWalk: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkuuwwwwwwwvkk',
+        '........kkswwvvvkwwwvvkk',
+        '.......kkkwwvvvkkwwwvvkk',
+        '......kkkkwssskkwwwwvvkkk',
+        '.....kksssssskkwwwwwvvSSkk',
+        '.....kkSSSkkkkvvvvvvvvSSkk',
+      ],
+    },
+    stripes: {
+      from: 18,
+      down: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkwwwsssswwvkkkk',
+        '......kkuuuuuuuuuuuuuuuukk',
+        '......kkwwkwwwwwwwwwvkvvkk',
+        '......kkwwkwwwwwwwwwvkvvkk',
+        '......kksskuuuuuuuuuukSSkk',
+        '......kksskvvvvvvvvvvkSSkk',
+      ],
+      up: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkwwwwwwwwwvkkkk',
+        '......kkuuuuuuuuuuuuuuuukk',
+        '......kkwwkwwwwwwwwwvkvvkk',
+        '......kkwwkwwwwwwwwwvkvvkk',
+        '......kksskuuuuuuuuuukSSkk',
+        '......kksskvvvvvvvvvvkSSkk',
+      ],
+      left: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkwwwwwwwwwvkk',
+        '........kkuuuuuuukuuuukk',
+        '........kkwwwwwwvkwwvvkk',
+        '........kkwwwwwwvkwwvvkk',
+        '........kkuuuussskuuuukk',
+        '........kkvvvvSSSkvvvvkk',
+      ],
+      leftWalk: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkwwwwwwwwwvkk',
+        '........kkuuuuuukuuuuukk',
+        '.......kkkwwvvvkkwwwvvkk',
+        '......kkkkwvvvkkwwwwvvkkk',
+        '.....kksssuuukkuuuuuuuSSkk',
+        '.....kkSSSkkkkvvvvvvvvSSkk',
+      ],
+    },
+    hoodie: {
+      from: 17,
+      down: [
+        '.........kk..........kk',
+        '........kwwkkkkkkkkkkwwk',
+        '........kwwkkkkkkkkkkwwk',
+        '.......kkkkwwwwwwwwwvkkkk',
+        '......kkwwwwwuwwwwuwvvvvkk',
+        '......kkwwkwwuwwwwuwvkvvkk',
+        '......kkwwkwwWwwwwWwvkvvkk',
+        '......kkvvkvuuuuuuuuvkvvkk',
+        '......kksskvvvvvvvvvvkSSkk',
+      ],
+      up: [
+        '...........kkkkkkkkkk',
+        '...........wwwwwwwvvv',
+        '........kkkwwwwwwwvvvkkk',
+        '.......kkkkvvvvvvvvvvkkkk',
+        '......kkwwwwvvvvvvvvvvvvkk',
+        '......kkwwkwwvvvvvvwvkvvkk',
+        '......kkwwkwwwwwwwwwvkvvkk',
+        '......kkvvkwwwwwwwwwvkvvkk',
+        '......kksskvvvvvvvvvvkSSkk',
+      ],
+      left: [
+        '.................kkkkk',
+        '...........kkkkkkwwwwwk',
+        '..........kkkkkkkwwwwwk',
+        '.........kkwwwwwwvvvvvk',
+        '........kkuwwwwwvvvvvvkk',
+        '........kkWwwwwwvkwwvvkk',
+        '........kkwwwwwwvkwwvvkk',
+        '........kkwwwwvvvkwwvvkk',
+        '........kkvvvvSSSkvvvvkk',
+      ],
+      leftWalk: [
+        '.................kkkkk',
+        '...........kkkkkkwwwwwk',
+        '..........kkkkkkkwwwwwk',
+        '.........kkwwwwwwvvvvvk',
+        '........kkuwwvvvkvvvvvkk',
+        '.......kkkWwvvvkkwwwvvkk',
+        '......kkkkwvvvkkwwwwvvkkk',
+        '.....kkvvvvvvkkwwwwwvvvvkk',
+        '.....kkSSSkkkkvvvvvvvvSSkk',
+      ],
+    },
+    suit: {
+      from: 18,
+      down: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkwwWWuuWWwvkkkk',
+        '......kkwwwwwvWuuWvwvvvvkk',
+        '......kkwwkwwwvuuvwwvkvvkk',
+        '......kkwwkwvvwWWwwwvkvvkk',
+        '......kksskwwwwwkwwwvkSSkk',
+        '......kksskvvvvvkvvvvkSSkk',
+      ],
+      up: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkwwwwwwwwwvkkkk',
+        '......kkwwwwwwwwwwwwvvvvkk',
+        '......kkwwkwwwwwvwwwvkvvkk',
+        '......kkwwkwwwwwvwwwvkvvkk',
+        '......kksskwwwwwvwwwvkSSkk',
+        '......kksskvvvvvvvvvvkSSkk',
+      ],
+      left: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkWwwwwwwwwvkk',
+        '........kkuWwwwwvkwwvvkk',
+        '........kkuwwwwwvkwwvvkk',
+        '........kkwwwwwwvkwwvvkk',
+        '........kkwwwwssskwwvvkk',
+        '........kkvvvvSSSkvvvvkk',
+      ],
+      leftWalk: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkWwwwwwwwwvkk',
+        '........kkuWwvvvkwwwvvkk',
+        '.......kkkuwvvvkkwwwvvkk',
+        '......kkkkwvvvkkwwwwvvkkk',
+        '.....kksssvvvkkwwwwwvvSSkk',
+        '.....kkSSSkkkkvvvvvvvvSSkk',
+      ],
+    },
+    sweater: {
+      from: 18,
+      down: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkwwvvvvvvwvkkkk',
+        '......kkuuuuuuuuuuuuuuuukk',
+        '......kkwukwwuwwwuwwvuvvkk',
+        '......kkuwuwuwuwuwuwukuvkk',
+        '......kkssuuuuuuuuuuuuSSkk',
+        '......kksskvvvvvvvvvvkSSkk',
+      ],
+      up: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkwwwwwwwwwvkkkk',
+        '......kkuuuuuuuuuuuuuuuukk',
+        '......kkwukwwuwwwuwwvuvvkk',
+        '......kkuwuwuwuwuwuwukuvkk',
+        '......kkssuuuuuuuuuuuuSSkk',
+        '......kksskvvvvvvvvvvkSSkk',
+      ],
+      left: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkwwwwwwwwwvkk',
+        '........kkuuuuuuuuuuuukk',
+        '........kkwwwuwwvuwwvukk',
+        '........kkuwuwuwukuwuvkk',
+        '........kkuuuusssuuuuukk',
+        '........kkvvvvSSSkvvvvkk',
+      ],
+      leftWalk: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkwwwwwwwwwvkk',
+        '........kkuuuuuuuuuuuukk',
+        '.......kkkwwvuvkkuwwvukk',
+        '......kkkkuvuvukuwuwuvkkk',
+        '.....kksssuuuuuuuuuuuuSSkk',
+        '.....kkSSSkkkkvvvvvvvvSSkk',
+      ],
+    },
+    hivis: {
+      from: 18,
+      down: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkooowwwwoookkkk',
+        '......kkwwoooowwwwoooovvkk',
+        '......kkwwWWWWWwwWWWWWvvkk',
+        '......kkwwWWWWWWWWWWWWvvkk',
+        '......kkssoooooqqoooooSSkk',
+        '......kkssqqqqqqqqqqqqSSkk',
+      ],
+      up: [
+        '...........kkkkkkkkkk',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kkkkooooooooookkkk',
+        '......kkwwoooooooooooovvkk',
+        '......kkwwWWWWWWWWWWWWvvkk',
+        '......kkwwWWWWWWWWWWWWvvkk',
+        '......kkssooooooooooooSSkk',
+        '......kkssooooooooooooSSkk',
+      ],
+      left: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkwoooooooookk',
+        '........kkoooowwvoooookk',
+        '........kkWWWWwwvWWWWWkk',
+        '........kkWWWWwwvWWWWWkk',
+        '........kkoooosssoooookk',
+        '........kkooooSSSoooookk',
+      ],
+      leftWalk: [
+        '...........kkkkkkkkkk',
+        '..........kkkkkkkkkkkk',
+        '.........kkwoooooooookk',
+        '........kkooovvvooooookk',
+        '.......kkkWWvvvWWWWWWWkk',
+        '......kkkkWvvvWWWWWWWWkkk',
+        '.....kksssvvvoooooooooSSkk',
+        '.....kkSSSooooooooooooSSkk',
+      ],
+    },
+  };
+  for (const s of SHIRTS) if (SHIRT32[s.hd]) s.hi = SHIRT32[s.hd];
   // a buffer of letters, doubled by Scale2x (the same rule as scale2x, on letters); null is clear
   function double(b) {
     const out = new Array(1024).fill(null), at = (x, y) => b[Math.min(15, Math.max(0, y)) * 16 + Math.min(15, Math.max(0, x))];
@@ -2311,14 +2665,29 @@ window.Art = (function () {
     }));
   }
   const BALD = HAIRS.findIndex((h) => h.hd === 'bald');
+  // lay today's 16-wide rows (from row y0 at 16) over a 32 x 32 buffer, doubled: '_'
+  // (rubbing out) and '.' (leaving what's there) carried through
+  function doubleOver(b, rows, y0) {
+    const o = new Array(256).fill(null);
+    (rows || []).forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== '.' && y0 + j < 16) o[(y0 + j) * 16 + i] = ch; }));
+    double(o).forEach((ch, i) => { if (ch === '_') b[i] = null; else if (ch) b[i] = ch; });
+  }
   // One picture of a look at 32 x 32, as lookBuf at 16.
   function lookBuf32(look, dir, step, noHat, sweater) {
-    const hair = HAIRS[look.hair], hat = HATS[look.hat];
+    const hair = HAIRS[look.hair], hat = HATS[look.hat], shirt = SHIRTS[look.shirt], pants = PANTS[look.pants];
     // today's picture without the head thing, doubled: the body, and the head till the hair's
     // redrawn (once it is, today's hair is left off, or long hair would show twice)
     const b = double(lookBuf(hair.hi ? Object.assign({}, look, { hair: BALD }) : look, dir, step, true, sweater));
+    if (hair.hi) b.fill(null, 0, 20 * 32); // (the head is rows 0-19; the body starts at 20)
+    // the shirt goes on before the head, so the hoodie's hood is behind it (not an ugly
+    // sweater, which is still today's, doubled), and overalls' bib and straps over it
+    if (shirt.hi && !SWEATERS[sweater]) {
+      const view = dir === 'left' && step > 0 ? 'leftWalk' : dir;
+      b.fill(null, 20 * 32, 26 * 32);
+      lay32(b, shirt.hi[view], shirt.hi.from);
+      if (pants.top) doubleOver(b, pants.top[view] || pants.top[dir], 10);
+    }
     if (hair.hi) {
-      b.fill(null, 0, 20 * 32); // (the head is rows 0-19; the body starts at 20)
       lay32(b, HEAD32[dir], 0);
       lay32(b, hair.hi[dir], 0);
     }
@@ -2328,12 +2697,7 @@ window.Art = (function () {
         (hat.hi[dir] || hat.hi.down).forEach((row, j) => [...row].forEach((ch, i) => {
           if (ch === '_') { const h = (head[j] || '')[i]; b[j * 32 + i] = h && h !== '.' ? h : null; } else if (ch !== '.') b[j * 32 + i] = ch;
         }));
-      } else {
-        // today's head thing, doubled: '_' (rubbing out) and '.' (leaving) carried through
-        const o = new Array(256).fill(null);
-        (hat[dir] || hat.down || []).forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== '.') o[j * 16 + i] = ch; }));
-        double(o).forEach((ch, i) => { if (ch === '_') b[i] = null; else if (ch) b[i] = ch; });
-      }
+      } else doubleOver(b, hat[dir] || hat.down, 0);
     }
     return b;
   }

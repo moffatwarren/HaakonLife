@@ -970,8 +970,8 @@ view), and the characters are being redrawn at 32 x 32 a part at a time. Until t
 done it only shows with `&hires` in a `#play` link: your character is drawn at 32 x 32
 (`renderLook32` in `js/art.js`), with any part that hasn't been redrawn yet doubled from
 today's with Scale2x, and the floors and everyone else are Scale2x'd too. So far the head
-and face (`HEAD32`), all nine hairstyles (`HAIR32`) and all eleven head things (`HAT32`)
-are redrawn, e.g.
+and face (`HEAD32`), all nine hairstyles (`HAIR32`), all eleven head things (`HAT32`) and
+all eight shirts (`SHIRT32`) are redrawn (the pants and ugly sweaters are next), e.g.
 `index.html#play&hires&look=m20000000` (the look code is the body, then the skin 0 to 7,
 the hairstyle 0 to 8, the hair colour, the head thing, then the shirt and pants and their
 colours).
