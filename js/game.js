@@ -5315,6 +5315,7 @@
       ctx.fillStyle = '#f8f8f8'; ctx.fillRect(bx + 1, y + 22, bw - 2, 6);
       ctx.fillStyle = f > 0.5 ? '#58b058' : f > 0.2 ? '#f0b030' : '#f05040';
       ctx.fillRect(bx + 1, y + 22, Math.round((bw - 2) * f), 6);
+      if (HIRES && f > 0) { fine(bx + 1, y + 22, Math.round((bw - 2) * f), 1, 'rgba(255,255,255,0.45)'); fine(bx + 1, y + 27, Math.round((bw - 2) * f), 1, 'rgba(0,0,0,0.15)'); }
       text(Math.ceil(Math.max(0, value)) + '/' + MAX_HP, bx + bw + 4, y + 22);
     }
 
@@ -5377,8 +5378,19 @@
         ctx.fillStyle = '#d8dce8'; ctx.fillRect(4, 4, SW - 8, 146);
         ctx.fillStyle = '#c8b898'; ctx.fillRect(4, 150, SW - 8, SH - 154);
         ctx.fillStyle = col.dark; ctx.fillRect(4, 150, SW - 8, 1);
-        ctx.fillStyle = '#b0a888'; ctx.fillRect(RX - 6, RY + RS - 6, RS + 12, 6);
-        ctx.fillStyle = '#b0a888'; ctx.fillRect(PX - 10, PY + PS - 10, PS + 20, 8);
+        if (HIRES) {
+          // a chair rail and wainscot on the wall, carpet tiles on the floor, round pads
+          fine(4, 118, SW - 8, 1, '#b8bcc8'); fine(4, 119, SW - 8, 0.5, '#f0f2f8');
+          fine(4, 119.5, SW - 8, 30.5, '#ccd0dc'); for (let x = 30; x < SW - 8; x += 52) { fine(x, 122, 0.5, 26, '#b8bcc8'); fine(x + 0.5, 122, 0.5, 26, '#e8eaf2'); }
+          for (let x = 4; x < SW - 4; x += 40) fine(x, 151, 0.5, SH - 155, '#b8a888');
+          for (let y = 175; y < SH - 4; y += 25) fine(4, y, SW - 8, 0.5, '#b8a888');
+          for (let i = 0; i < 160; i++) fine(5 + ((i * 89) % (SW - 10)), 152 + ((i * 47) % (SH - 158)), 0.5, 0.5, i & 1 ? '#b0a080' : '#d8ccb0');
+          const pad = (cx, cy, rx, ry) => { for (let y = -ry; y < ry; y += 0.5) { const w = Math.round(rx * Math.sqrt(1 - ((y + 0.25) / ry) ** 2) * 2) / 2; fine(cx - w, cy + y, w * 2, 0.5, y < -ry / 3 ? '#c4bc9c' : '#b0a888'); } };
+          pad(RX + RS / 2, RY + RS - 3, RS / 2 + 8, 4); pad(PX + PS / 2, PY + PS - 6, PS / 2 + 12, 5);
+        } else {
+          ctx.fillStyle = '#b0a888'; ctx.fillRect(RX - 6, RY + RS - 6, RS + 12, 6);
+          ctx.fillStyle = '#b0a888'; ctx.fillRect(PX - 10, PY + PS - 10, PS + 20, 8);
+        }
         // the fighters, blinking when they have just been hit
         const flash = (n) => n > 0 && (n >> 1) & 1;
         if (!flash(hurt.rich)) ctx.drawImage(rSprites.down[0], RX, RY, RS, RS);
@@ -6757,6 +6769,11 @@
         // the desk and the visitor standing at it
         ctx.fillStyle = col.dark; ctx.fillRect(8, 150, SW - 16, 10);
         ctx.fillStyle = '#c89058'; ctx.fillRect(10, 152, SW - 20, 6);
+        if (HIRES) { // the desk's wood: a lit edge, grain, and its front panel below
+          fine(10, 152, SW - 20, 1, '#e8b47c'); fine(10, 157, SW - 20, 1, '#9a6434');
+          for (let x = 18; x < SW - 20; x += 37) fine(x, 154, 14, 0.5, '#b07840');
+          fine(8, 160, SW - 16, 4, '#b07840'); fine(8, 160, SW - 16, 1, '#7a4c24'); fine(8, 163.5, SW - 16, 0.5, '#7a4c24');
+        }
         ctx.drawImage(face.down[0], 40, 96, 52, 52);
         text('"I\'m here to see', 110, 48);
         text(who.name + '."', 110, 64);
@@ -6935,9 +6952,16 @@
         ctx.fillStyle = '#c8ccd8'; ctx.fillRect(73 + sx, SLOT + 1, 174, 40);
         ctx.fillStyle = col.dark; ctx.fillRect(76 + sx, SLOT - 2, 168, 4);
         ctx.fillStyle = '#8890a0'; ctx.fillRect(80 + sx, SLOT + 8, 120, 16);
+        if (HIRES) { // the casing's shine and seam, the rollers in the slot, a vent, the screen's glass
+          fine(73 + sx, SLOT + 1, 174, 1, '#e8eaf0'); fine(73 + sx, SLOT + 39, 174, 2, '#a8acb8'); fine(73 + sx, SLOT + 30, 174, 0.5, '#a8acb8');
+          for (let x = 80; x < 244; x += 12) fine(x + sx, SLOT - 1, 6, 1.5, '#585868');
+          for (let x = 84; x < 240; x += 4) fine(x + sx, SLOT + 33, 2, 4, '#a8acb8');
+          fine(80 + sx, SLOT + 8, 120, 1, '#686878'); fine(81 + sx, SLOT + 22.5, 118, 0.5, '#a8acb8');
+        }
         text('PC LOAD LETTER', 83 + sx, SLOT + 12, 1, col.dark);
         ctx.fillStyle = state === 'play' && snagAhead() && (tick >> 2) & 1 ? '#f05040' : '#58a848';
         ctx.fillRect(222 + sx, SLOT + 12, 8, 8);
+        if (HIRES) { fine(222 + sx, SLOT + 12, 8, 0.5, 'rgba(0,0,0,0.3)'); fine(223 + sx, SLOT + 13, 2, 2, 'rgba(255,255,255,0.6)'); }
         // OUT (with the snags marked) on the left, PULL on the right, both filling upwards
         const BY = 42, BH = 146;
         text('OUT', 6, BY - 12);
@@ -7032,13 +7056,23 @@
         for (let i = 0; i < LIVES; i++) {
           ctx.fillStyle = i < lives ? '#c03030' : '#c8ccd8';
           ctx.fillRect(220 + i * 14, 24, 10, 10);
+          if (HIRES) { fine(220 + i * 14, 24, 10, 1, i < lives ? '#e86060' : '#e0e2ea'); fine(221 + i * 14, 25, 1, 8, i < lives ? '#e86060' : '#e0e2ea'); fine(220 + i * 14, 33, 10, 1, i < lives ? '#802020' : '#a8acb8'); }
         }
         // washer and dryer across the top, the chute between them
         for (const [x, lbl] of [[20, 'WASH'], [232, 'DRY']]) {
           ctx.fillStyle = col.dark; ctx.fillRect(x, 36, 68, 56);
           ctx.fillStyle = '#e8e8e8'; ctx.fillRect(x + 2, 38, 64, 52);
-          ctx.fillStyle = col.dark; ring(x + 18, 52, 32, 32);
-          ctx.fillStyle = '#a8d8f0'; ctx.fillRect(x + 20, 54, 28, 28);
+          if (HIRES) { // a round door with a chrome rim and suds behind the glass, and dials up top
+            fine(x + 2, 38, 64, 1, '#ffffff'); fine(x + 2, 46, 64, 0.5, '#c8ccd8'); fine(x + 65, 38, 1, 52, '#c8ccd8');
+            fine(x + 6, 40, 4, 4, '#888898'); fine(x + 7, 41, 1, 1, '#f8f8f8'); fine(x + 52, 41, 10, 2, '#585868'); fine(x + 52, 41, 4, 2, '#58d870');
+            fineDisc(x + 34, 68, 16.5, col.dark); fineDisc(x + 34, 68, 15, '#c8ccd8'); fineDisc(x + 34, 68, 13.5, col.dark); fineDisc(x + 34, 68, 12.5, '#a8d8f0');
+            const sp = tick * (lbl === 'WASH' ? 0.08 : 0.15);
+            for (let k = 0; k < 5; k++) { const a = sp + k * 1.26; fineDisc(x + 34 + Math.cos(a) * 6, 70 + Math.sin(a) * 5, 2.5, '#f8f8f8'); }
+            for (let a = 0; a < 14; a++) { const an = Math.PI * (1.1 + a / 28); fine(x + 34 + Math.cos(an) * 10 - 0.25, 68 + Math.sin(an) * 10 - 0.25, 0.5, 1, '#f0f8ff'); }
+          } else {
+            ctx.fillStyle = col.dark; ring(x + 18, 52, 32, 32);
+            ctx.fillStyle = '#a8d8f0'; ctx.fillRect(x + 20, 54, 28, 28);
+          }
           text(lbl, x + 22, 94, 1, col.dark);
         }
         // what the machine wants right now
@@ -7053,12 +7087,25 @@
           const k = LOADS[it.k];
           ctx.fillStyle = k.edge; ctx.fillRect(Math.round(it.x), Math.round(it.y), 16, 14);
           ctx.fillStyle = k.c; ctx.fillRect(Math.round(it.x) + 2, Math.round(it.y) + 2, 12, 10);
+          if (HIRES) { // a folded T-shirt: sleeves, a collar, a fold
+            const ix = Math.round(it.x), iy = Math.round(it.y);
+            fine(ix, iy, 1.5, 1.5, col.light); fine(ix + 14.5, iy, 1.5, 1.5, col.light);
+            fine(ix + 5.5, iy + 2, 5, 1.5, k.edge); fine(ix + 6.5, iy + 2, 3, 0.5, k.c);
+            fine(ix + 4, iy + 4, 0.5, 8, k.edge); fine(ix + 11.5, iy + 4, 0.5, 8, k.edge);
+            fine(ix + 2, iy + 8, 12, 0.5, k.edge);
+          }
         }
         // floor and basket
         ctx.fillStyle = col.dark; ctx.fillRect(8, FLOOR + 10, SW - 16, 2);
         ctx.fillStyle = col.dark; ctx.fillRect(Math.round(bx), FLOOR - 16, BASKET_W, 26);
         ctx.fillStyle = '#c89058'; ctx.fillRect(Math.round(bx) + 2, FLOOR - 14, BASKET_W - 4, 22);
+        if (HIRES) { // woven wicker
+          const b0 = Math.round(bx);
+          for (let y = FLOOR - 13; y < FLOOR + 8; y += 3) for (let x = b0 + 3 + ((y >> 0) % 2) * 2; x < b0 + BASKET_W - 3; x += 4) { fine(x, y, 2, 1.5, '#a87040'); fine(x, y, 2, 0.5, '#e0b07c'); }
+          fine(b0 + 2, FLOOR - 14, BASKET_W - 4, 2, '#9a6434'); fine(b0 + 2, FLOOR - 14, BASKET_W - 4, 0.5, '#e0b07c');
+        }
         ctx.fillStyle = L.c; ctx.fillRect(Math.round(bx) + 6, FLOOR - 10, BASKET_W - 12, 6);
+        if (HIRES) { const b0 = Math.round(bx); fine(b0 + 6, FLOOR - 10, BASKET_W - 12, 1, 'rgba(255,255,255,0.4)'); for (let x = b0 + 12; x < b0 + BASKET_W - 8; x += 9) fine(x, FLOOR - 9, 0.5, 4, 'rgba(0,0,0,0.2)'); }
         if (state === 'ready') readyBox(t, 'Left/Right: move the basket');
         else if (state === 'done') doneBox(['Laundry disaster!', 'Sorted: ' + caught,
           record ? 'New record!' : 'Best ' + getBest('laundry')], t);
@@ -7219,9 +7266,11 @@
         for (let i = 0; i < LIVES; i++) {
           ctx.fillStyle = i < lives ? '#c03030' : '#c8ccd8';
           ctx.fillRect(220 + i * 14, 24, 10, 10);
+          if (HIRES) { fine(220 + i * 14, 24, 10, 1, i < lives ? '#e86060' : '#e0e2ea'); fine(221 + i * 14, 25, 1, 8, i < lives ? '#e86060' : '#e0e2ea'); fine(220 + i * 14, 33, 10, 1, i < lives ? '#802020' : '#a8acb8'); }
         }
         // the form itself, scrolling up past a highlight band
         ctx.fillStyle = '#f8f8f8'; ctx.fillRect(20, 40, SW - 40, 170);
+        if (HIRES) fine(22, 42, SW - 44, 166, '#fdfdf8');
         ctx.fillStyle = col.dark; ring(20, 40, SW - 40, 170);
         ctx.fillStyle = '#dfe8f8'; ctx.fillRect(22, WIN_Y - 4, SW - 44, WIN_H);
         ctx.fillStyle = '#3060d0'; ctx.fillRect(22, WIN_Y - 4, SW - 44, 1); ctx.fillRect(22, WIN_Y + WIN_H - 5, SW - 44, 1);
@@ -7229,10 +7278,18 @@
         ctx.beginPath(); ctx.rect(22, 42, SW - 44, 166); ctx.clip();
         for (const l of lines) {
           const y = Math.round(l.y);
-          ctx.fillStyle = col.dark; ctx.fillRect(34, y + 2, 12, 12);
-          ctx.fillStyle = l.done ? (l.trap ? '#f0a0a0' : '#b8e8b8') : '#f8f8f8';
-          ctx.fillRect(35, y + 3, 10, 10);
-          if (l.done && !l.trap) { ctx.fillStyle = '#2c6a34'; ctx.fillRect(37, y + 7, 2, 4); ctx.fillRect(39, y + 5, 2, 4); }
+          if (HIRES) { // a rule under each line, then a finer box with a pen tick or a cross
+            for (let x = 54; x < SW - 30; x += 2) fine(x, y + 13, 1, 0.5, '#c8ccd8');
+            fine(34, y + 2, 12, 12, col.dark); fine(35, y + 3, 10, 10, l.done ? (l.trap ? '#f0a0a0' : '#b8e8b8') : '#ffffff');
+            fine(35, y + 3, 10, 0.5, 'rgba(0,0,0,0.12)');
+            if (l.done && !l.trap) for (let k = 0; k < 9; k++) { const tx = 36.5 + k * 0.75, ty = k < 3 ? y + 8 + k * 0.75 : y + 10.5 - (k - 3) * 1.1; fine(tx, ty, 1.25, 1.25, '#1c5a2a'); }
+            if (l.done && l.trap) for (let k = 0; k < 8; k++) { fine(36.5 + k, y + 4.5 + k, 1, 1, '#b83028'); fine(43.5 - k, y + 4.5 + k, 1, 1, '#b83028'); }
+          } else {
+            ctx.fillStyle = col.dark; ctx.fillRect(34, y + 2, 12, 12);
+            ctx.fillStyle = l.done ? (l.trap ? '#f0a0a0' : '#b8e8b8') : '#f8f8f8';
+            ctx.fillRect(35, y + 3, 10, 10);
+            if (l.done && !l.trap) { ctx.fillStyle = '#2c6a34'; ctx.fillRect(37, y + 7, 2, 4); ctx.fillRect(39, y + 5, 2, 4); }
+          }
           text(l.s, 54, y + 2, 1, l.trap ? '#b83028' : col.dark);
         }
         ctx.restore();
