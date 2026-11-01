@@ -118,20 +118,22 @@ window.HD = (function () {
   const HAIRS = ['short', 'long', 'buzz', 'spiky', 'curly', 'bob', 'ponytail', 'bun', 'bald'];
   const SHIRTS = ['tie', 'blouse', 'tee', 'stripes', 'hoodie', 'suit', 'sweater', 'hivis'];
   const LEGS = ['trousers', 'shorts', 'skirt', 'overalls'];
-  const HATS = ['cap', 'toque', 'hardhat', 'cowboy', 'crown'], WORN = ['glasses', 'shades', 'headphones', 'bow'];
+  const HATS = ['cap', 'toque', 'hardhat', 'cowboy', 'crown', 'santa'], WORN = ['glasses', 'shades', 'headphones', 'bow'];
   // the head things' colours, as the editor draws them
-  const HAT_COLOURS = { cap: '#c03a30', toque: '#58a848', hardhat: '#f0b030', cowboy: '#9a6434', crown: '#f0b030', headphones: '#8890a0', bow: '#d23a40' };
+  const HAT_COLOURS = { cap: '#c03a30', toque: '#58a848', hardhat: '#f0b030', cowboy: '#9a6434', crown: '#f0b030', santa: '#c8202a', headphones: '#8890a0', bow: '#d23a40' };
   const HIVIS = '#f6a524';
   function person(name, body, look, style) {
     const h = hash(name || '?'), st = style || {}, female = body === 'female';
     const pick = (list, v, office) => (list.includes(v) ? v : office);
-    const outfit = pick(SHIRTS, st.shirt, female ? 'blouse' : 'tie');
+    // an ugly Christmas sweater (st.sweater: { key, cols }) goes on in place of the shirt
+    const ugly = st.sweater && st.sweater.key ? st.sweater : null;
+    const outfit = ugly ? 'ugly' : pick(SHIRTS, st.shirt, female ? 'blouse' : 'tie');
     // (a hi-vis vest is the coat, over a shirt that shows at the neck and down the arms)
-    const coat = outfit === 'hivis' ? HIVIS : look.w;
+    const coat = ugly ? ugly.cols[0] : outfit === 'hivis' ? HIVIS : look.w;
     return {
       female, hair: pick(HAIRS, st.hair, female ? 'long' : 'short'), hat: pick(HATS, st.hat, 'none'), wear: pick(WORN, st.hat, ''),
-      outfit, legs: pick(LEGS, st.pants, 'trousers'), seed: (h % 1000) / 37,
-      skin: tone(look.s), hairC: tone(look.h), coat: tone(coat), arms: tone(outfit === 'hivis' ? look.w : coat), acc: tone(look.u),
+      outfit, ugly, legs: pick(LEGS, st.pants, 'trousers'), seed: (h % 1000) / 37,
+      skin: tone(look.s), hairC: tone(look.h), coat: tone(coat), arms: tone(outfit === 'hivis' ? look.w : coat), acc: tone(ugly ? ugly.cols[1] : look.u),
       hatC: tone(HAT_COLOURS[st.hat] || look.u), pants: tone(look.K),
       boot: tone('#3c3440'), sole: tone('#1e1a22'), skate: tone('#2a2a34'), blade: tone('#cfd6e2'), pomT: tone('#f0ece4'),
       brow: mix(look.h, OUT, 0.5),
@@ -369,6 +371,20 @@ window.HD = (function () {
       c.strokeStyle = wool.s; c.lineWidth = 0.45;
       for (let x = -4.4; x <= 4.6; x += 1.1) { c.beginPath(); c.moveTo(x + dx, -38.2); c.lineTo(x + dx, -36.4); c.stroke(); }
       tufts(c, [[dx + (side ? 1 : 0), -45, 1.2], [dx + (side ? 0 : -0.9), -44.4, 1], [dx + (side ? 1.8 : 0.9), -44.4, 1]], p.pomT);
+    } else if (p.hat === 'santa') {
+      // a Santa hat: red, flopping over to one side, with a white furry band and a pompom
+      // on the end
+      const red = p.hatC, s = side ? -1 : 1;
+      part(c, red, (cc) => {
+        cc.beginPath(); cc.moveTo(-5 + dx, -37.4);
+        cc.bezierCurveTo(-5 + dx, -44, -1 + dx, -47.4, s * 3.4 + dx, -46.6);
+        cc.quadraticCurveTo(s * 6.6 + dx, -45.6, s * 7 + dx, -42.6);
+        cc.lineTo(s * 5.4 + dx, -42.4);
+        cc.quadraticCurveTo(s * 4.6 + dx, -41.4, 5 + dx, -37.4);
+        cc.closePath();
+      }, (cc) => cc.rect(1.6 + dx, -48, 8, 12), (cc) => ell(cc, -2 + dx, -42.6, 1.4, 0.7, -0.4));
+      part(c, p.pomT, (cc) => rr(cc, -5.6 + dx, -39.4, 11.2, 3, 1.4), (cc) => cc.rect(2 + dx, -40, 6, 4));
+      tufts(c, [[s * 6.4 + dx, -42.2, 1.3], [s * 7.2 + dx, -41.4, 1.1], [s * 5.8 + dx, -41.2, 1]], p.pomT);
     } else if (p.hat === 'cap') {
       // a ball cap: a round crown with a button on top, and the peak out front
       const t = p.hatC;
@@ -463,8 +479,126 @@ window.HD = (function () {
       for (const yy of [-2.9, -2]) { c.beginPath(); c.moveTo(x - 0.6, y + yy); c.lineTo(x + 0.6, y + yy); c.stroke(); }
     }
   }
-  // the shirt: with a tie, a blouse, a T-shirt, stripes, a hoodie, a suit, a sweater or a
-  // hi-vis vest
+  // ---------- ugly Christmas sweaters ----------
+  // What's knitted on the front of each (the keys and colours are SWEATERS in js/art.js:
+  // k[0] is the knit, the rest the yarns in the pattern), drawn round 0, 0 in a box about
+  // 20 wide and 14 high. The flat art shrinks it on to the chest, and js/lot3d.js paints it
+  // big on the 3D sweater's texture.
+  function sweaterArt(c, key, k) {
+    const dot = (x, y, r, col) => { c.fillStyle = col; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); };
+    const line = (pts, w, col) => { c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.stroke(); };
+    const oval = (x, y, rx, ry, col, rot) => { c.fillStyle = col; ell(c, x, y, rx, ry, rot || 0); c.fill(); };
+    const flake = (x, y, r, col, w) => {
+      for (let i = 0; i < 3; i++) {
+        const a = i * Math.PI / 3, dx = Math.cos(a) * r, dy = Math.sin(a) * r;
+        line([[x - dx, y - dy], [x + dx, y + dy]], w, col);
+      }
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3, tx = x + Math.cos(a) * r * 0.62, ty = y + Math.sin(a) * r * 0.62;
+        for (const s of [-1, 1]) line([[tx, ty], [tx + Math.cos(a + s * 0.8) * r * 0.32, ty + Math.sin(a + s * 0.8) * r * 0.32]], w * 0.8, col);
+      }
+    };
+    const star = (x, y, r, col) => { c.fillStyle = col; c.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } c.closePath(); c.fill(); };
+    c.save();
+    switch (key) {
+      case 'reindeer':
+        for (const s of [-1, 1]) {
+          line([[s * 1.6, -2.6], [s * 4.4, -6.6]], 1.1, k[3]); line([[s * 3.1, -4.7], [s * 5.8, -4.6]], 0.9, k[3]); line([[s * 3.9, -5.9], [s * 3, -7.3]], 0.8, k[3]);
+          oval(s * 3.4, -1.6, 1.7, 0.8, k[3], s * 0.4);
+        }
+        oval(0, 0.6, 2.9, 3.7, k[3]); oval(0, 3, 2.1, 1.5, mix(k[3], k[2], 0.35));
+        for (const s of [-1, 1]) { dot(s * 1.2, -0.4, 0.75, k[2]); dot(s * 1.2, -0.3, 0.38, '#1e1a22'); }
+        dot(0, 3.7, 1.45, k[1]); dot(-0.45, 3.25, 0.4, k[2]);
+        for (const [x, y] of [[-8, -4], [8, -4], [-7, 4.5], [7, 4.5]]) flake(x, y, 1.6, k[2], 0.5);
+        break;
+      case 'snowflake':
+        flake(0, 0, 5.4, k[1], 0.9); flake(-7.6, -3, 2.6, k[3], 0.6); flake(7.6, -3, 2.6, k[3], 0.6);
+        flake(-6.8, 4.4, 1.9, k[1], 0.5); flake(6.8, 4.4, 1.9, k[1], 0.5);
+        for (const x of [-9, -3, 3, 9]) dot(x, -6.4, 0.6, k[2]);
+        break;
+      case 'tree': {
+        c.fillStyle = '#6a4428'; c.fillRect(-1, 5.6, 2, 1.6);
+        for (const [y0, y1, w] of [[-6.2, -1, 3.6], [-3.6, 2.8, 5.2], [-0.8, 6, 7]]) { c.fillStyle = k[1]; poly(c, [[0, y0], [w, y1], [-w, y1]]); c.fill(); }
+        line([[-3, -2], [2.8, -3]], 0.5, k[3]); line([[-4.6, 1.6], [4.4, 0.4]], 0.5, k[3]); line([[-6, 5], [6, 3.6]], 0.5, k[3]);
+        const lights = [k[2], k[4], '#ff6a8a', k[3]];
+        [[-1.6, -3.4], [1.2, -1.6], [-2.8, 0.8], [2, 1.4], [-0.4, 2.6], [3.8, 3.8], [-4.6, 4.6], [0.8, 4.8], [-1.8, 5.2]].forEach(([x, y], i) => dot(x, y, 0.65, lights[i % 4]));
+        star(0, -6.6, 1.7, k[2]);
+        for (const [x, y] of [[-8.4, -3], [8.4, -3], [-8, 4], [8, 4]]) star(x, y, 0.9, k[3]);
+        break;
+      }
+      case 'candycane':
+        for (const s of [-1, 1]) {
+          c.save(); c.translate(s * 2.4, 0); c.rotate(-s * 0.35);
+          const cane = () => { c.beginPath(); c.moveTo(0, 6.6); c.lineTo(0, -3.4); c.arc(s * 1.9, -3.4, 1.9, Math.PI, s > 0 ? 0 : TAU, s < 0); };
+          cane(); c.strokeStyle = '#ffffff'; c.lineWidth = 1.9; c.lineCap = 'round'; c.stroke();
+          cane(); c.strokeStyle = k[1]; c.setLineDash([0.9, 0.9]); c.stroke(); c.setLineDash([]);
+          c.restore();
+        }
+        c.fillStyle = k[2]; poly(c, [[0, 1.6], [-3.2, -0.2], [-3.2, 3.4]]); c.fill(); poly(c, [[0, 1.6], [3.2, -0.2], [3.2, 3.4]]); c.fill(); dot(0, 1.6, 0.9, k[2]);
+        for (const x of [-9, -6, 6, 9]) for (const y of [-5, 0, 5]) dot(x, y + (x > 0 ? 2.5 : 0) - 1.2, 0.55, (x + y) % 2 ? k[1] : k[2]);
+        break;
+      case 'gingerbread':
+        line([[-5.6, -1.4], [5.6, -1.4]], 2.3, k[1]); line([[-1.2, 2.6], [-3.4, 6.4]], 2.4, k[1]); line([[1.2, 2.6], [3.4, 6.4]], 2.4, k[1]);
+        oval(0, 1.2, 2.9, 3.3, k[1]); dot(0, -4.2, 2.4, k[1]);
+        for (const [x, y] of [[-5, -2.3], [5, -2.3], [-3, 5.4], [3, 5.4]]) line([[x - 0.8, y], [x - 0.3, y + 0.8], [x + 0.2, y], [x + 0.7, y + 0.8]], 0.4, k[2]);
+        dot(-0.8, -4.7, 0.4, k[2]); dot(0.8, -4.7, 0.4, k[2]);
+        c.strokeStyle = k[2]; c.lineWidth = 0.4; c.beginPath(); c.arc(0, -4.2, 1.1, 0.3, Math.PI - 0.3); c.stroke();
+        dot(0, 0, 0.6, k[3]); dot(0, 1.9, 0.6, k[3]);
+        for (const [x, y] of [[-8.6, -5], [8.6, -5], [-8.6, 5], [8.6, 5]]) { dot(x, y, 0.9, k[3]); dot(x, y, 0.4, k[2]); }
+        break;
+      case 'santa':
+        c.fillStyle = k[1]; c.fillRect(-1.5, -8, 3, 11);
+        for (let y = -7.4; y < 3; y += 1.3) { dot(-1.5, y, 0.75, k[1]); dot(1.5, y + 0.6, 0.75, k[1]); }
+        c.fillStyle = k[2]; c.fillRect(-14, 2.8, 28, 2.8);
+        c.strokeStyle = k[3]; c.lineWidth = 0.8; c.strokeRect(-1.9, 2.5, 3.8, 3.4);
+        c.fillStyle = k[3]; c.fillRect(-0.3, 3.4, 1.4, 0.6);
+        break;
+      case 'snowman':
+        dot(0, 3.2, 3.6, k[1]); dot(0, -2.4, 2.6, k[1]);
+        c.fillStyle = k[3]; c.fillRect(-1.9, -8, 3.8, 3.2); c.fillRect(-3, -5.1, 6, 0.9);
+        c.fillStyle = k[4]; c.fillRect(-2.6, -0.4, 5.2, 1.1); c.fillRect(1, 0, 1.2, 3);
+        dot(-0.9, -2.9, 0.38, k[3]); dot(0.9, -2.9, 0.38, k[3]);
+        c.fillStyle = k[2]; poly(c, [[0, -2.3], [3.2, -1.8], [0, -1.5]]); c.fill();
+        dot(0, 2.4, 0.4, k[3]); dot(0, 4.2, 0.4, k[3]);
+        for (const [x, y] of [[-8, -5], [7, -6], [-6.5, 1], [8.4, 0], [-8.6, 5.6], [6.4, 5.4], [-4.4, -6.6], [4.6, -3.2]]) dot(x, y, 0.55, k[1]);
+        break;
+      case 'moose':
+        for (const s of [-1, 1]) {
+          oval(s * 5, -4.4, 3.3, 1.7, k[1], s * 0.35);
+          for (let i = 0; i < 4; i++) { const x = s * (2.8 + i * 1.3); c.fillStyle = k[1]; poly(c, [[x - 0.5, -5 - i * 0.3], [x + s * 0.3, -7.4 - i * 0.2], [x + 0.5, -5 - i * 0.3]]); c.fill(); }
+          oval(s * 2.2, -1.6, 1.3, 0.7, k[1], s * 0.5);
+        }
+        oval(0, 0.4, 2.3, 3.2, k[1]); oval(0, 3.4, 2.6, 1.9, mix(k[1], '#000000', 0.18));
+        for (const s of [-1, 1]) { dot(s * 1.1, -0.6, 0.45, '#1e1a22'); dot(s * 0.9, 3.8, 0.38, '#1e1a22'); }
+        for (const s of [-1, 1]) { c.fillStyle = k[3]; poly(c, [[s * 8.4, 1.4], [s * 10, 6], [s * 6.8, 6]]); c.fill(); }
+        break;
+      case 'hvac':
+        c.fillStyle = k[1]; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.font = '900 5.4px system-ui, -apple-system, "Segoe UI", sans-serif';
+        c.fillText('HO HO', 0, -3.1); c.fillText('HVAC', 0, 3.1);
+        for (const s of [-1, 1]) {
+          dot(s * 8.6, 0, 2.2, k[3]); dot(s * 8.6, 0, 1.7, k[0]);
+          for (let i = 0; i < 3; i++) { const a = i * TAU / 3; c.fillStyle = k[3]; ell(c, s * 8.6 + Math.cos(a) * 0.85, Math.sin(a) * 0.85, 0.95, 0.42, a); c.fill(); }
+        }
+        line([[-6, 0], [6, 0]], 0.5, k[2]);
+        break;
+    }
+    c.restore();
+  }
+  // a knitted band across (x0 to x1, centred on y, about h high): a row of zigzags in the
+  // pattern's first yarn with dots in its second between them
+  function sweaterBand(c, k, x0, x1, y, h) {
+    c.fillStyle = k[1];
+    c.beginPath();
+    for (let x = x0, i = 0; x <= x1 + h; x += h * 0.6, i++) c.lineTo(x, y + (i % 2 ? h / 2 : -h / 2));
+    c.lineTo(x1 + h, y + h / 2 + 0.01); c.lineTo(x0, y + h / 2 + 0.01); c.closePath();
+    c.globalAlpha = 0.9; c.fill(); c.globalAlpha = 1;
+    c.fillStyle = k[2] || k[1];
+    for (let x = x0 + h * 0.6; x <= x1; x += h * 1.2) { c.beginPath(); c.arc(x, y + h * 0.95, h * 0.18, 0, TAU); c.fill(); }
+  }
+
+  // the shirt: with a tie, a blouse, a T-shirt, stripes, a hoodie, a suit, a sweater, a
+  // hi-vis vest or an ugly Christmas sweater
   function torso(c, p, view, by) {
     const side = view === 'side';
     const sw = side ? 4.4 : p.female ? 6.6 : 7.8, ww = side ? 4.2 : p.female ? 5.4 : 6.4, hw = side ? 4.2 : p.female ? 5.8 : 6.2;
@@ -516,6 +650,13 @@ window.HD = (function () {
       if (view === 'front') { poly(c, [[-2.2, top - 1], [2.2, top - 1], [0, top + 2.8]]); c.fillStyle = p.skin.f; c.fill(); c.stroke(); }
     } else if (p.outfit === 'hoodie') {
       if (view === 'front') { rr(c, -3.8, -18.8 + by, 7.6, 4.2, 1.4); c.fillStyle = p.coat.s; c.fill(); c.stroke(); } // the pocket
+    } else if (p.outfit === 'ugly') {
+      // a knitted band over the shoulders and another at the hem, and the picture on the front
+      const k = p.ugly.cols;
+      sweaterBand(c, k, -20, 20, top + 2.6, 1.6);
+      sweaterBand(c, k, -20, 20, hem - 2.6, 1.4);
+      if (view === 'front') { c.save(); c.translate(0, -20.6 + by); c.scale(0.5, 0.5); sweaterArt(c, p.ugly.key, k); c.restore(); }
+      else if (view === 'side') { c.save(); c.translate(1.2, -20.6 + by); c.scale(0.22, 0.5); sweaterArt(c, p.ugly.key, k); c.restore(); }
     }
     c.restore();
     // a band at the hem
@@ -554,7 +695,7 @@ window.HD = (function () {
         else part(c, t, (cc) => rr(cc, side ? -3 : -3.4, -29.6 + by, side ? 6 : 6.8, 1.6, 0.6));
         break;
       }
-      case 'tee': case 'stripes': case 'sweater': {
+      case 'tee': case 'stripes': case 'sweater': case 'ugly': {
         if (view === 'back') break;
         const arc = () => {
           c.beginPath();
@@ -710,7 +851,28 @@ window.HD = (function () {
       p.poses.set(key, img = cv);
       poses++;
     }
+    // lying on their back in the snow (o.lie, 0 to 1), sweeping their arms and legs (o.flap):
+    // squashed down toward their feet, as seen from up here
+    if (o.lie > 0) {
+      c.save(); c.translate(x, y); c.scale(1 + 0.12 * (o.flap || 0), 1 - 0.62 * o.lie);
+      c.drawImage(img, -BOX_W / 2, -FEET, BOX_W, BOX_H);
+      c.restore();
+      return;
+    }
     c.drawImage(img, x - BOX_W / 2, y - FEET, BOX_W, BOX_H);
+  }
+  // A snow angel's outline, a tile long with its head up the map, round 0, 0 in tiles (the
+  // flat lot and js/lot3d.js both fill it): the head, the body, a wing each side where the
+  // arms swept, and the fan of the legs. Every part goes round the same way, so one fill
+  // covers them all.
+  function snowAngel(c) {
+    c.beginPath();
+    c.ellipse(0, -0.74, 0.2, 0.22, 0, 0, TAU);
+    c.moveTo(0.27, 0); c.ellipse(0, 0, 0.27, 0.5, 0, 0, TAU);
+    c.moveTo(0.12, -0.42); c.arc(0.12, -0.42, 0.8, -0.75, 1.3);
+    c.moveTo(-0.12, -0.42); c.arc(-0.12, -0.42, 0.8, Math.PI - 1.3, Math.PI + 0.75);
+    c.moveTo(0, 0.15); c.arc(0, 0.15, 0.84, Math.PI / 2 - 0.5, Math.PI / 2 + 0.5);
+    c.closePath();
   }
   // A name over someone's head, and a speech bubble above that.
   const FONT = '700 5px system-ui, -apple-system, "Segoe UI", sans-serif';
@@ -1472,5 +1634,5 @@ window.HD = (function () {
     c.restore();
   }
 
-  return { K, person, drawPerson, tag, bubble, paintLot, drawProp, overlay };
+  return { K, person, drawPerson, tag, bubble, paintLot, drawProp, overlay, sweaterArt, sweaterBand, snowAngel };
 })();

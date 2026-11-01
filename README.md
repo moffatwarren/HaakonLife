@@ -23,7 +23,7 @@ upload again without a push.
 | --- | --- | --- | --- |
 | Move | Arrows / WASD | D-pad (a thumbstick for walking round the parking lot, for hockey and for rolling snowballs) | Left stick or D-pad |
 | A: interact, confirm | E / Space | A | A / ✕ |
-| B: back, cancel | Esc / X / Shift | B | B or X / ○ or □ |
+| B: back, cancel (out in the parking lot at Christmas, throw a snowball) | Esc / X / Shift | B | B or X / ○ or □ |
 | Start menu (map, sound, music) | Enter (or Esc while walking) | START | Menu / Options |
 | Map | M | (Start → Map) | Y or View / △ or Share (Create on a PS5) |
 
@@ -36,7 +36,8 @@ upload again without a push.
 - Walk onto a staircase to change floors, or face the elevator doors and press A.
 - After the title screen, type your name (the game remembers it), then make your
   character: gender, skin, hair and its colour, something on your head (a cap, a toque,
-  a hard hat, a cowboy hat, headphones, glasses, shades or a bow), and a shirt and
+  a hard hat, a cowboy hat, headphones, glasses, shades or a bow, and a Santa hat once
+  your name has opened its present on Christmas Day: see **Christmas**), and a shirt and
   pants, each in a colour. Up and down pick a part, left and right (or A) change it,
   RANDOM picks for you and DONE (or START) heads into the office. Your character is
   saved with your name (see **Saved characters** below), so typing the same name on
@@ -192,7 +193,9 @@ shows every leaderboard at once. Left and right flip between its pages:
 - **Champions**: the race for Office Champion. Every board's top ten earn points
   (10 for 1st, down to 1 for 10th), and holding 1st at a game is a crown. Underneath
   you see your place, how many points it takes to pass the person above you, and how
-  many crowns, top tens and games you have.
+  many crowns, top tens and games you have. Whoever is on top, the Office Champion,
+  wears the crown, and wherever they walk a short trail of twinkling gold glints is left
+  on the ground behind them, fading away in half a second (other players see it too).
 - **Latest scores**: the newest scores on any board, who set them and where they rank now.
 - **Quests**: everyone who has set Linda free and everyone who has been Employee of the
   Month, side by side, with how many times each name has done it (up and down scroll
@@ -652,9 +655,32 @@ have a `halloween:` line of their own.
 
 From November 27 to December 31 (by your device's date) the office does Christmas:
 
-- Strings of lights run along the walls on both floors, the exits have wreaths, the
-  potted plants have baubles, and there's a tree in reception by the front doors
-  (press A on it).
+- Strings of lights run along the walls on both floors, at the Kingston plant and in
+  Cody's casino; the exits have wreaths, and so does the wall beside each of the office's
+  doors; the potted plants have baubles; and there's a tree by the front doors in
+  reception and in the plant's reception, and a gold tinsel one in the casino (press A on
+  any of them). Mistletoe hangs over the doors into the lunch room, the boardroom and the
+  meeting rooms, stockings hang off the front of reception's desk, poinsettias sit along
+  the counters, the candy table has candy canes and the lunch room has a gingerbread
+  house. At the plant the finished units waiting in shipping are tied up in red ribbon
+  with a bow on top, and in the casino so are the slot machines.
+- After the character editor you pick an **ugly Christmas sweater**: Gingerbread,
+  Reindeer, Snowflakes, Xmas tree, Candy cane, Santa suit, Snowman, Moose or Ho Ho HVAC (or
+  NONE, for the shirt you made). It goes on over your look in place of your shirt (your
+  hair, head thing and pants stay), and you wear it all game, indoors and out, in 3D too.
+  Other players see it, and the game remembers it. About half your coworkers come in
+  wearing one too (a random half each time the game loads, separate from who wears one
+  out in the parking lot).
+- **Christmas Day**: from December 25, the present under reception's tree that rattles has a
+  tag with your name on it. Press A on the tree to open it: it's a **Santa hat**, and it asks
+  whether you want to put it on now. From then on the Santa hat is one of your head things
+  in the character editor, for good (not just at Christmas). It belongs to your name, not
+  the browser: it's noted under your name in the leaderboards' database (a board of its
+  own, `santahat`, holding 1, that isn't shown anywhere, so the scores rules already cover
+  it), so typing the same name on another phone or computer brings it with you. Before the
+  25th the presents just say not to open them. It's "Christmas Day" in `js/game.js`.
+- The music changes too: indoors the office tune gives way to Deck the Halls, outside
+  it's Jingle Bells, and out on the ice a slow skating waltz.
 - The fitness room's side doors (on its left wall) open onto the **parking lot**, a map
   of its own drawn in a rough, cel-shaded cartoon style instead of pixels (thick black
   outlines, flat colour, a hard shadow and highlight): snow falling, lights strung over
@@ -670,10 +696,24 @@ From November 27 to December 31 (by your device's date) the office does Christma
   dead. In 3D you crouch and push off one skate then the
   other, toe turned out, swaying over the one you're gliding on with your arms swinging
   across, and coast with both skates side by side.
+- **Out in the snow**: anyone walking through the deep snow (the park east of the lot,
+  not the plowed lot itself) leaves footprints, which the falling snow fills back in over
+  a minute and a half. **B throws a snowball** the way you're facing; it flies about eight
+  tiles and bursts on whoever or whatever is in the way. A coworker you hit turns round
+  and says something, and more often than not throws one back at you, and every so often
+  two of them start a snowball fight of their own. Get hit and there's snow on your screen
+  for a moment. Press A facing a clear patch of deep snow and you can lie down and make a
+  **snow angel**: you go over backwards, sweep your arms and legs three times and get up,
+  and the angel stays behind you for a few minutes. Other players see your snowballs and
+  snow angels and you see theirs (a snowball hits whoever it hits on each screen, so a near
+  miss can look different to the person it missed). It's "out in the snow" in
+  `js/game.js`, drawn by `js/lot3d.js` (or by `drawYard` when the lot is flat), and the
+  snow angel's shape is `snowAngel` in `js/hd.js`.
 - Eleven coworkers, picked at random each time the game loads, have gone out there and
   stand around the lot: one minding the gate in the rink's boards, at the fire pit, the
   hot chocolate stand, a car, the snowman and the big spruce, and two pacing along the
-  rink's boards. The ice is all yours. Anyone with a part to play indoors (the Employee of
+  rink's boards. About half of them have an ugly Christmas sweater on (a different one
+  each, picked afresh each time too). The ice is all yours. Anyone with a part to play indoors (the Employee of
   the Month list, Lam, Linda, Jenn, Cody, Zin, Eugene) stays in. The hot chocolate
   stand pours as many as you like (or you can work it: see the winter games below).
 - **Winter games**: walk up to these around the lot and press A. Each has its own
@@ -812,7 +852,10 @@ blouse and necklace, over trousers. Set `style: { hair, hat, shirt, pants }` on 
 in `PEOPLE` to dress them in anything else from the character editor (the options are
 listed at the top of `js/people.js`). Players wear just what they made
 in the character editor: the same hair, head thing, shirt and pants, in the same
-colours (each part's `hd` in `js/art.js` names its match in `js/hd.js` and `js/lot3d.js`). What they say out there is
+colours (each part's `hd` in `js/art.js` names its match in `js/hd.js` and `js/lot3d.js`),
+with their ugly sweater over the top. The sweaters are `SWEATERS` in `js/art.js` (each one's
+colours, and its pattern in the pixel art), and what's knitted on the front of each is
+`sweaterArt` in `js/hd.js`, which `js/lot3d.js` paints on the 3D sweater too. What they say out there is
 `CHRISTMAS_LINES` at the bottom of `js/people.js`, and anyone in `PEOPLE` can have a
 `christmas:` line of their own. The rink's layout is in `tools/build_maps.py`.
 
@@ -850,7 +893,18 @@ Add these to the end of the address (after `index.html`) and press Enter.
 - `index.html#christmas=1`: the whole game with Christmas switched on.
 - `index.html#play&christmas=1&yard=1`: start outside the parking lot's doors.
 - `#christmas=0` switches it off during the holidays.
-- Add `&flat` to see the flat parking lot instead of the 3D one.
+- Add `&flat` to see the flat parking lot instead of the 3D one, and `&zoom=2` (or `1`)
+  to bring the 3D one's camera in close (or halfway).
+- Add `&xmasday=1` to make it Christmas Day (the present under the tree can be opened), and
+  `&santahat=1` to have the Santa hat already, as if your name had opened it.
+- Add `&sweater=moose` (or `gingerbread`, `reindeer`, `snowflake`, `tree`, `candycane`,
+  `santa`, `snowman`, `hvac`, `none`) to a `#play` link to pick your ugly sweater, and
+  `&sweaters` to open the sweater picker. In October add `&halloween=0` too, or you're in
+  a Halloween costume instead.
+- `&keys=up:30,b:1` holds each key for that many ticks in turn as the game starts (a key
+  name that isn't one, like `wait:60`, just lets time pass), and `&freeze` then holds
+  everything still (still drawing): for a screenshot of a snowball in mid-air, say, or a
+  snow angel.
 
 **Straight into a mini-game**
 

@@ -1008,9 +1008,15 @@ window.Art = (function () {
       name: 'Crown', hd: 'crown',
       down: ['____k__kk__k____', '___kokkookkok___', '...koyooooook...', '...kqrqiiqrqk...'],
     },
+    // only for a name that's opened its present under the tree on Christmas Day (see js/game.js)
+    {
+      name: 'Santa hat', hd: 'santa',
+      down: ['_______kkk_kWWk_', '______krrrkkWWk_', '....krrrrrrRk___', '...kWWWWWWWWk...', '...kWWWWWWWWk...'],
+      up: ['_kWWk_kkk_______', '_kWWkkrrrk______', '___kRrrrrrrk....', '...kWWWWWWWWk...', '...kWWWWWWWWk...'],
+    },
   ];
-  // where the crown is in HATS
-  const CROWN = HATS.findIndex((h) => h.hd === 'crown');
+  // where the crown and the Santa hat are in HATS
+  const CROWN = HATS.findIndex((h) => h.hd === 'crown'), SANTA = HATS.findIndex((h) => h.hd === 'santa');
   // Shirts: rows 10-12 (or from row 9, when `from` says so), looking down, up (the same
   // as down unless it says), left standing and left mid-stride.
   const SHIRTS = [
@@ -1155,8 +1161,9 @@ window.Art = (function () {
     const sc = SHIRT_COLOURS[look.shirtC];
     return { h: HAIR_COLOURS[look.hairC][1], s: SKINS[look.skin], w: sc[1], u: sc[2], K: PANTS_COLOURS[look.pantsC][1] };
   }
-  // how a look dresses in the parking lot's smoother style (js/hd.js): just as it is here
-  const lookStyle = (look) => ({ hair: HAIRS[look.hair].hd, hat: HATS[look.hat].hd, shirt: SHIRTS[look.shirt].hd, pants: PANTS[look.pants].hd });
+  // how a look dresses in the parking lot's smoother style (js/hd.js): just as it is here,
+  // in an ugly sweater (SWEATERS) if it names one
+  const lookStyle = (look, sweater) => ({ hair: HAIRS[look.hair].hd, hat: HATS[look.hat].hd, shirt: SHIRTS[look.shirt].hd, pants: PANTS[look.pants].hd, sweater: sweaterStyle(sweater) });
 
   // lay rows over a buffer from row y0: '.' (or past a row's end) leaves what's there, '_' rubs it out
   function lay(b, rows, y0) {
@@ -1167,13 +1174,14 @@ window.Art = (function () {
   const mirror = (rows) => rows.map((r) => [...r].reverse().join(''));
   // One picture of a look, as a buffer: dir is 'down', 'up' or 'left', and step 0 standing,
   // 1 mid-stride or 2 the other stride (which only flips the legs, so a bow or a side
-  // part stays put). noHat leaves the head thing off (under a costume).
-  function lookBuf(look, dir, step, noHat) {
-    const b = buf(), shirt = SHIRTS[look.shirt], pants = PANTS[look.pants], hair = HAIRS[look.hair], hat = HATS[look.hat];
+  // part stays put). noHat leaves the head thing off (under a costume). sweater (a key in
+  // SWEATERS) wears that in place of the shirt, over the top of any overalls.
+  function lookBuf(look, dir, step, noHat, sweater) {
+    const sw = SWEATERS[sweater], b = buf(), shirt = sw ? sweaterRows(sw) : SHIRTS[look.shirt], pants = PANTS[look.pants], hair = HAIRS[look.hair], hat = HATS[look.hat];
     const side = dir === 'left', walk = step > 0;
     const torso = side ? (walk ? shirt.leftWalk : shirt.left) : (dir === 'up' && shirt.up) || shirt.down;
     lay(b, torso, shirt.from || 10);
-    if (pants.top) lay(b, side ? (walk ? pants.top.leftWalk : pants.top.left) : pants.top[dir], 10);
+    if (pants.top && !sw) lay(b, side ? (walk ? pants.top.leftWalk : pants.top.left) : pants.top[dir], 10);
     const legs = side ? (walk ? pants.leftWalk : pants.left) : walk ? pants.downWalk : pants.down;
     lay(b, step === 2 && !side ? mirror(legs) : legs, 13);
     lay(b, hair[dir], 0);
@@ -1185,14 +1193,14 @@ window.Art = (function () {
     return palette(Object.assign({ H: darker(c.h, 0.35), v: darker(c.w, 0.25) }, c, over));
   }
   // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look, the same
-  // shape renderSprites gives.
-  function renderLook(look) {
-    const pal = lookPalette(look), out = {};
+  // shape renderSprites gives, in an ugly sweater if `sweater` names one.
+  function renderLook(look, sweater) {
+    const sw = SWEATERS[sweater], pal = lookPalette(look, sw ? sweaterPal(sw) : null), out = {};
     const make = (dir, step, flip) => {
       const cv = document.createElement('canvas');
       cv.width = cv.height = 16;
       const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16);
-      blit(img, lookBuf(look, dir, step), 0, 0, pal, flip);
+      blit(img, lookBuf(look, dir, step, false, sw && sweater), 0, 0, pal, flip);
       ctx.putImageData(img, 0, 0);
       return cv;
     };
@@ -1542,6 +1550,35 @@ window.Art = (function () {
       ]),
     },
   };
+  // ---------- Christmas: ugly sweaters ----------
+  // Picked after the character editor at Christmas and worn over the look you made in
+  // place of its shirt (your hair, head thing and pants stay), in this order on the picker.
+  // `cols` are the sweater's
+  // colours, the knit first: in the rows they're '1' to '5'. `front` and `back` are the
+  // chest across rows 10-12 (six pixels wide, between the arms); the side view has the
+  // back's pattern. js/hd.js and js/lot3d.js knit the same sweater by its key, bigger.
+  const SWEATERS = {
+    gingerbread: { name: 'Gingerbread', cols: ['#efe2c4', '#a8642e', '#f8f8f8', '#d03a3a'], front: ['112211', '224422', '121121'], back: ['111111', '212121', '111111'] },
+    reindeer: { name: 'Reindeer', cols: ['#2e6b3a', '#d23a3a', '#f4f1ea', '#8a5a34'], front: ['141141', '114411', '132231'], back: ['111111', '323232', '111111'] },
+    snowflake: { name: 'Snowflakes', cols: ['#23366e', '#f4f1ea', '#c8303a', '#8fb4e8'], front: ['121121', '212212', '333333'], back: ['121121', '111111', '333333'] },
+    tree: { name: 'Xmas tree', cols: ['#c22c34', '#2e8a44', '#f0c838', '#f4f1ea', '#5ab0f0'], front: ['113311', '122421', '252242'], back: ['111111', '414141', '111111'] },
+    candycane: { name: 'Candy cane', cols: ['#2e7a44', '#d0283a', '#f0c838', '#f4f1ea'], front: ['242424', '424242', '333333'], back: ['121212', '111111', '333333'] },
+    santa: { name: 'Santa suit', cols: ['#c8202a', '#f6f4ee', '#1e1a22', '#f0c838'], front: ['112211', '112211', '334433'], back: ['111111', '111111', '333333'] },
+    snowman: { name: 'Snowman', cols: ['#6fa8d8', '#f6f6f2', '#f08a24', '#1e1a22', '#d03a3a'], front: ['114411', '112311', '125521'], back: ['121112', '111211', '211121'] },
+    moose: { name: 'Moose', cols: ['#9a2c2c', '#a8763e', '#efe6cf', '#2e6b3a'], front: ['221122', '112211', '343434'], back: ['111111', '111111', '343434'] },
+    hvac: { name: 'Ho Ho HVAC', cols: ['#1f5a8a', '#f4f1ea', '#d03a3a', '#cfd6e2'], front: ['142241', '124421', '333333'], back: ['111111', '212121', '333333'] },
+  };
+  // a sweater's rows, laid out the way SHIRTS are (long sleeves, knit, with the hands below)
+  const sweaterRows = (sw) => sw.rows || (sw.rows = {
+    down: ['....k' + sw.front[0] + 'k....', '...k1' + sw.front[1] + '1k...', '...ks' + sw.front[2] + 'sk...'],
+    up: ['....k' + sw.back[0] + 'k....', '...k1' + sw.back[1] + '1k...', '...ks' + sw.back[2] + 'sk...'],
+    left: ['....k' + sw.back[0] + 'k....', '....k' + sw.back[1] + 'k....', '....k' + sw.back[2].slice(0, 2) + 'ss' + sw.back[2].slice(4) + 'k....'],
+    leftWalk: ['....k' + sw.back[0] + 'k....', '...k1' + sw.back[1] + 'k....', '....k' + sw.back[2].slice(0, 5) + 'sk....'],
+  });
+  const sweaterPal = (sw) => { const o = {}; sw.cols.forEach((c, i) => { o[i + 1] = c; }); return o; };
+  // how a sweater dresses someone in the parking lot (js/hd.js, js/lot3d.js)
+  const sweaterStyle = (key) => (SWEATERS[key] ? { key, cols: SWEATERS[key].cols } : null);
+
   // The sprite sheet for someone in a costume: the same shape renderSprites returns.
   // base(dir, i) is the body under it (i: 0 standing, 1 mid-stride), and `logo` is the
   // SDG logo image, for the costume that wears it.
@@ -2225,23 +2262,34 @@ window.Art = (function () {
   }
 
   // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look.
-  function renderSprites(gender, look) {
-    const pal = palette(gender === 'ghost' ? {} : look), out = {};
+  // `sweater` (a key in SWEATERS) knits an ugly Christmas sweater over their shirt.
+  function renderSprites(gender, look, sweater) {
+    const sw = gender !== 'ghost' && SWEATERS[sweater], rows = sw ? sweaterRows(sw) : {};
+    const pal = palette(gender === 'ghost' ? {} : Object.assign({}, look, sw ? sweaterPal(sw) : null)), out = {};
     const SP = gender === 'female' ? SPRITES_F : gender === 'ghost' ? SPRITES_GHOST : SPRITES;
-    const make = (art, flip) => {
+    const make = (art, flip, knit) => {
       const cv = document.createElement('canvas');
       cv.width = cv.height = 16;
       const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16), b = buf();
       stamp(b, art);
+      if (knit) knitOver(b, knit);
       blit(img, b, 0, 0, pal, flip);
       ctx.putImageData(img, 0, 0);
       return cv;
     };
-    out.down = [make(SP.down[0]), make(SP.down[1]), make(SP.down[1], true)];
-    out.up = [make(SP.up[0]), make(SP.up[1]), make(SP.up[1], true)];
-    out.left = [make(SP.left[0]), make(SP.left[1]), make(SP.left[1])];
-    out.right = [make(SP.left[0], true), make(SP.left[1], true), make(SP.left[1], true)];
+    out.down = [make(SP.down[0], false, rows.down), make(SP.down[1], false, rows.down), make(SP.down[1], true, rows.down)];
+    out.up = [make(SP.up[0], false, rows.up), make(SP.up[1], false, rows.up), make(SP.up[1], true, rows.up)];
+    out.left = [make(SP.left[0], false, rows.left), make(SP.left[1], false, rows.leftWalk), make(SP.left[1], false, rows.leftWalk)];
+    out.right = [make(SP.left[0], true, rows.left), make(SP.left[1], true, rows.leftWalk), make(SP.left[1], true, rows.leftWalk)];
     return out;
+  }
+  // A sweater's rows over a coworker's body (rows 10-12, as on the look sprites), only where
+  // their shirt is, or a bare arm it has a sleeve over: long hair down their back stays put.
+  function knitOver(b, rows) {
+    rows.forEach((row, j) => [...row].forEach((ch, i) => {
+      const k = (10 + j) * 16 + i;
+      if (ch >= '1' && ch <= '9' && ['w', 'u', 's'].includes(b[k])) b[k] = ch;
+    }));
   }
 
   // Dogs: h = coat, D = ears and darker patches, y = chest and belly, u = collar.
@@ -2355,6 +2403,7 @@ window.Art = (function () {
   return {
     LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLookCostume,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, lookFix, lookCode, lookFrom, lookLike, lookColours, lookStyle, renderLook, renderLookCostume,
+    SWEATERS,
   };
 })();

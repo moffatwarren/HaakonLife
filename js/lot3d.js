@@ -237,6 +237,19 @@ window.LOT3D = (function () {
       for (let x = 4; x < w; x += 8) { g.beginPath(); g.moveTo(x, 27); g.lineTo(x + 3.5, 31); g.lineTo(x, 35); g.lineTo(x - 3.5, 31); g.closePath(); g.fill(); }
       g.fillStyle = mixc(base, '#000000', 0.22); for (let x = 0; x < w; x += 4) g.fillRect(x, h - 7, 1.5, 7);
     });
+    // an ugly Christmas sweater ({ key, cols }, see js/art.js): knitted ribs, a band round
+    // the shoulders and another at the hem, and its picture (js/hd.js draws it) across the
+    // chest. The torso's texture starts and ends at the front, so the picture goes on both
+    // edges, half on each.
+    const ugly = (u) => tex('ugly' + u.key + u.cols.join(''), 256, 128, (g, w, h) => {
+      const k = u.cols;
+      g.fillStyle = k[0]; g.fillRect(0, 0, w, h);
+      g.fillStyle = mixc(k[0], '#000000', 0.12); for (let x = 0; x < w; x += 4) g.fillRect(x, 0, 1, h);
+      HD.sweaterBand(g, k, -8, w + 8, 22, 9);
+      HD.sweaterBand(g, k, -8, w + 8, h - 22, 8);
+      g.fillStyle = mixc(k[0], '#000000', 0.25); for (let x = 0; x < w; x += 4) g.fillRect(x, h - 9, 1.6, 9);
+      for (const x of [0, w]) { g.save(); g.translate(x, 60); g.scale(3.6, 3.6); HD.sweaterArt(g, u.key, k); g.restore(); }
+    });
     const hivis = (base) => tex('hivis' + base, 16, 64, (g, w, h) => {
       g.fillStyle = base; g.fillRect(0, 0, w, h);
       for (const y of [30, 41]) { g.fillStyle = '#3a3440'; g.fillRect(0, y - 1, w, 6); g.fillStyle = '#e8ecf2'; g.fillRect(0, y, w, 4); }
@@ -345,7 +358,7 @@ window.LOT3D = (function () {
       const rig = new T.Group(), upper = new T.Group();
       body.add(rig); rig.add(upper);
       const skinM = toon(p.skin.f), hairM = toon(p.hairC.f), pantsM = toon(p.pants.f);
-      const shirt = { stripes: () => bands(p.coat.f, p.acc.f, 8), sweater: () => sweater(p.coat.f, p.acc.f), hivis: () => hivis(p.coat.f) }[p.outfit];
+      const shirt = { stripes: () => bands(p.coat.f, p.acc.f, 8), sweater: () => sweater(p.coat.f, p.acc.f), hivis: () => hivis(p.coat.f), ugly: () => ugly(p.ugly) }[p.outfit];
       const coatM = shirt ? toon(null, shirt()) : toon(p.coat.f);
       const sleeveM = p.outfit === 'stripes' ? toon(null, bands(p.coat.f, p.acc.f, 4)) : toon(p.arms.f);
 
@@ -420,7 +433,7 @@ window.LOT3D = (function () {
         upper.add(ball(accM, 0, top - 0.045, r * 0.74, 0.034, 0.03, 0.022));
         upper.add(ring(r * 0.58, 0.03, toon(p.outfit === 'suit' ? '#f4f4f8' : p.coat.f), top - 0.02));
       }
-      if (['tee', 'stripes', 'sweater'].includes(p.outfit)) upper.add(ring(r * 0.56, 0.028, toon(p.outfit === 'tee' ? p.acc.f : mixc(p.coat.f, '#000000', 0.2)), top - 0.02));
+      if (['tee', 'stripes', 'sweater', 'ugly'].includes(p.outfit)) upper.add(ring(r * 0.56, 0.028, toon(p.outfit === 'tee' ? p.acc.f : mixc(p.coat.f, '#000000', 0.2)), top - 0.02));
       if (p.outfit === 'blouse') { vee(0.08, p.skin.f, top - 0.06); upper.add(ball(toon(p.acc.f), 0, top - 0.13, r * 0.82 + 0.012, 0.02, 0.024, 0.012, { ol: false })); }
       if (p.outfit === 'hivis') vee(0.1, p.arms.f, top - 0.07);
       if (p.outfit === 'hoodie') {
@@ -488,7 +501,7 @@ window.LOT3D = (function () {
       // curly: small curls all over, or just the ones that show below a hat (where the hat's
       // bottom edge is, before it's tipped back)
       const TILT = { cap: 0.3, hardhat: 0.25, cowboy: 0.3 }[p.hat] || 0, X = new V3(1, 0, 0);
-      const under = { cap: 0.06, toque: 0.085, hardhat: 0.07, cowboy: 0.09, crown: 0.13 }[p.hat];
+      const under = { cap: 0.06, toque: 0.085, hardhat: 0.07, cowboy: 0.09, crown: 0.13, santa: 0.085 }[p.hat];
       if (hair === 'curly') scalp(120, 0.1).forEach((n, i) => {
         const c = onHead(n, 1.1 + 0.03 * Math.sin(i * 12.9898));
         if ((!hat || c.clone().applyAxisAngle(X, TILT).y + 0.03 < under) && clear(n)) head.add(at(mesh(CURL, hairM), c.x, c.y, c.z, 0.055));
@@ -511,6 +524,16 @@ window.LOT3D = (function () {
         head.add(at(mesh(HEMI, toon(null, knit(p.hatC.f))), 0, 0.085, 0, 0.29, 0.31, 0.285));
         head.add(at(cyl(0.296, 0.3, 0.1, toon(mixc(p.hatC.f, '#000000', 0.12)), null, 22), 0, 0.11, 0));
         head.add(ball(toon(p.pomT.f), 0, 0.43, 0, 0.085, 0.085, 0.085));
+      }
+      if (p.hat === 'santa') {
+        // a Santa hat: a red cone flopped over to one side and back, its white pompom
+        // hanging off the end, over a white furry band
+        const fur = toon(p.pomT.f), flop = new T.Group();
+        head.add(at(mesh(HEMI, hatM), 0, 0.085, 0, 0.29, 0.2, 0.285));
+        flop.position.set(0, 0.2, -0.02); flop.rotation.set(-0.35, 0, -0.75); head.add(flop);
+        flop.add(at(mesh(new T.ConeGeometry(0.2, 0.34, 16), hatM), 0, 0.15, 0));
+        flop.add(ball(fur, 0, 0.33, 0, 0.068, 0.068, 0.068));
+        head.add(at(cyl(0.305, 0.31, 0.11, fur, null, 22), 0, 0.11, 0));
       }
       if (p.hat === 'cap') {
         hg.add(at(mesh(HEMI, hatM), 0, 0.06, -0.005, 0.292, 0.27, 0.285));
@@ -1479,6 +1502,28 @@ window.LOT3D = (function () {
           elbows[s].rotation.x += (-0.5 - elbows[s].rotation.x) * dn;
         }
       }
+      // lying on their back making a snow angel (it.angel: { lie, flap }, both 0 to 1): tipped
+      // back from the feet, then sweeping the arms up over the head and the legs apart
+      const an = it.angel ? ease(clamp(it.angel.lie, 0, 1)) : 0;
+      if (an > 0) {
+        const fl = it.angel.flap || 0;
+        rig.rotation.set(-Math.PI / 2 * an, 0, 0); rig.position.set(0, 0.2 * an, 0);
+        upper.rotation.y = 0;
+        for (const s of [-1, 1]) {
+          hips[s].rotation.set(0, 0, s * (0.04 + 0.42 * fl) * an); knees[s].rotation.x = 0.05;
+          arms[s].rotation.set(0, 0, s * (0.14 + (0.1 + 2.3 * fl) * an)); elbows[s].rotation.x = -0.12;
+        }
+      }
+      // throwing a snowball (it.throw, 0 to 1 through the throw): the right arm goes back and
+      // up with the elbow bent, the shoulders turning away, then over the top and through
+      if (it.throw > 0 && it.throw < 1) {
+        const k = it.throw;
+        const th = k < 0.35 ? 2.3 * ease(k / 0.35) : k < 0.75 ? 2.3 + 2.9 * ease((k - 0.35) / 0.4) : 5.2 + (TAU - 5.2) * ease((k - 0.75) / 0.25);
+        arms[-1].rotation.set(th, 0, -0.2);
+        elbows[-1].rotation.x = -1.5 * Math.sin(Math.PI * Math.min(1, k / 0.6));
+        arms[1].rotation.x = -0.8 * Math.sin(Math.PI * k);
+        upper.rotation.y = (k < 0.35 ? -0.45 * ease(k / 0.35) : -0.45 + 0.8 * ease(Math.min(1, (k - 0.35) / 0.4))) * (k > 0.75 ? 1 - ease((k - 0.75) / 0.25) : 1);
+      }
       // a ring of a team's colour on the ice round their feet
       // their team's ring on the ice round them, filled in while they have the puck (it.full)
       if (it.ring && !person.ring) {
@@ -1540,6 +1585,8 @@ window.LOT3D = (function () {
         if (frame - person.seen > 600) { scene.remove(person.root); people.delete(key); }
       }
 
+      if (f.snow) drawSnow(f.snow, alpha);
+      drawGlow(f.glow || []);
       flames.forEach((fl, i) => { const s = 1 + Math.sin(t * (9 + i * 3) + i) * 0.12; fl.scale.set(s, 1 + Math.sin(t * (11 + i * 2)) * 0.18, s); });
       fires.forEach((l) => (l.intensity = 1.25 + Math.sin(t * 13) * 0.12 + Math.sin(t * 7.3) * 0.1));
       embers.forEach((e, i) => (e.visible = Math.sin(t * (3 + (i % 5)) + i) > -0.3));
@@ -1564,6 +1611,103 @@ window.LOT3D = (function () {
       }
 
       renderer.render(scene, camera);
+    }
+
+    // ---------- out in the snow (see "out in the snow" in js/game.js) ----------
+    // f.snow: { ver, t, prints: [{ x, y, a, t }], angels: [{ x, y, t }], life: [prints', angels'],
+    // balls: [{ x, y, z, px, py, pz }], puffs: [{ x, y, z, t, seed }] }, in tiles (a tile's middle a
+    // whole number) and metres up. Footprints and snow angels are painted on a see-through
+    // layer just over the ground, again whenever there are new ones and now and then as they
+    // fill in; snowballs (each with a shadow under it) and the puffs where they burst are
+    // kept in pools and placed every frame.
+    const MPX = 16, marks = { cv: document.createElement('canvas'), ver: -1, at: -999 };
+    marks.cv.width = MW * MPX; marks.cv.height = MH * MPX;
+    marks.tex = new T.CanvasTexture(marks.cv); marks.tex.anisotropy = ANISO;
+    const marksMesh = new T.Mesh(new T.PlaneGeometry(MW, MH), new T.MeshToonMaterial({ map: marks.tex, gradientMap: GRAD, transparent: true, depthWrite: false }));
+    marksMesh.rotation.x = -Math.PI / 2; marksMesh.position.y = 0.012; marksMesh.receiveShadow = true; marksMesh.visible = false;
+    scene.add(marksMesh);
+    function paintMarks(sn) {
+      const any = sn.prints.length + sn.angels.length > 0;
+      if (!any && !marksMesh.visible) return;
+      const g = marks.cv.getContext('2d'), [pl, al] = sn.life;
+      g.clearRect(0, 0, marks.cv.width, marks.cv.height);
+      const fade = (age, life) => clamp((life - age) / (life * 0.35), 0, 1);
+      for (const p of sn.prints) {
+        const a = fade(sn.t - p.t, pl);
+        if (a <= 0) continue;
+        g.save(); g.translate((p.x + 0.5) * MPX, (p.y + 0.5) * MPX); g.rotate(p.a);
+        g.fillStyle = 'rgba(112,130,172,' + (0.6 * a).toFixed(3) + ')';
+        g.beginPath(); g.ellipse(0.03 * MPX, 0, 0.1 * MPX, 0.055 * MPX, 0, 0, TAU); g.fill();
+        g.beginPath(); g.ellipse(-0.1 * MPX, 0, 0.05 * MPX, 0.045 * MPX, 0, 0, TAU); g.fill();
+        g.restore();
+      }
+      for (const an of sn.angels) {
+        const a = fade(sn.t - an.t, al);
+        if (a <= 0) continue;
+        g.save(); g.translate((an.x + 0.5) * MPX, (an.y + 0.5) * MPX); g.scale(MPX, MPX);
+        HD.snowAngel(g); g.fillStyle = 'rgba(118,136,180,' + (0.5 * a).toFixed(3) + ')'; g.fill();
+        g.restore();
+      }
+      marks.tex.needsUpdate = true;
+      marksMesh.visible = any;
+    }
+    const balls = [], puffs = [], shade = new T.MeshBasicMaterial({ color: '#1a1e3a', transparent: true, opacity: 0.28, depthWrite: false });
+    const DISC = new T.CircleGeometry(1, 16).rotateX(-Math.PI / 2);
+    const PUFF = 7, PUFF_LIFE = 40;
+    function drawSnow(sn, alpha) {
+      // (each repaint sends the whole layer to the graphics card again, so not too often)
+      if (sn.ver !== marks.ver ? frame - marks.at > 10 : frame - marks.at > 90) { marks.ver = sn.ver; marks.at = frame; paintMarks(sn); }
+      sn.balls.forEach((b, i) => {
+        if (!balls[i]) {
+          const m = ball(WHITE, 0, 0, 0, 0.1, 0.1, 0.1), sh = new T.Mesh(DISC, shade);
+          sh.scale.setScalar(0.1); scene.add(m); scene.add(sh);
+          balls[i] = { m, sh };
+        }
+        const x = b.px + (b.x - b.px) * alpha, y = b.py + (b.y - b.py) * alpha, z = b.pz + (b.z - b.pz) * alpha;
+        balls[i].m.position.set(TX(x), Math.max(0.08, z), TZ(y)); balls[i].sh.position.set(TX(x), 0.02, TZ(y));
+        balls[i].m.visible = balls[i].sh.visible = true;
+      });
+      for (let i = sn.balls.length; i < balls.length; i++) balls[i].m.visible = balls[i].sh.visible = false;
+      // each puff is a handful of lumps flying out and dropping, shrinking as they go
+      let n = 0;
+      for (const pf of sn.puffs) {
+        const age = sn.t - pf.t + alpha, k = age / PUFF_LIFE;
+        if (k >= 1) continue;
+        for (let j = 0; j < PUFF; j++) {
+          if (!puffs[n]) { puffs[n] = ball(WHITE, 0, 0, 0, 1, 1, 1, { ol: false, cast: false }); scene.add(puffs[n]); }
+          const a = pf.seed + j * TAU / PUFF, sp = 0.025 + 0.012 * ((j * 7 + pf.seed * 3) % 3), up = 0.05 + 0.02 * (j % 3);
+          const m = puffs[n++];
+          m.position.set(TX(pf.x) + Math.cos(a) * sp * age, Math.max(0.03, pf.z + up * age - 0.0035 * age * age), TZ(pf.y) + Math.sin(a) * sp * age);
+          m.scale.setScalar(0.07 * (1 - k * 0.7)); m.visible = true;
+        }
+      }
+      for (let i = n; i < puffs.length; i++) puffs[i].visible = false;
+    }
+
+    // ---------- the champion's trail (see "the champion's trail" in js/game.js) ----------
+    // f.glow: [{ x, y, k, on }]: each glint where a person stands (in pixels, like their px and
+    // py), how far it is through fading away (0 to 1) and whether it's twinkling. Each is a soft
+    // gold glow lying on the ground, with a bright spark rising off it while it twinkles, kept
+    // in pools like the snowballs.
+    const glows = [], sparks = [], GLOW_GEO = new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    function drawGlow(list) {
+      let m = 0;
+      list.forEach((g, i) => {
+        if (!glows[i]) {
+          glows[i] = new T.Mesh(GLOW_GEO, new T.MeshBasicMaterial({ map: haloTex, color: '#ffc030', transparent: true, depthWrite: false }));
+          glows[i].renderOrder = 1; scene.add(glows[i]);
+        }
+        const p = world(g.x, g.y), a = 1 - g.k, gl = glows[i];
+        gl.position.set(p.x, 0.03, p.z); gl.scale.setScalar(0.6 - g.k * 0.25);
+        gl.material.opacity = 0.9 * a; gl.visible = true;
+        if (!g.on) return;
+        if (!sparks[m]) { sparks[m] = new T.Sprite(new T.SpriteMaterial({ map: flakeTex, color: '#fff4b8', transparent: true, depthWrite: false })); scene.add(sparks[m]); }
+        const sp = sparks[m++];
+        sp.position.set(p.x, 0.1 + g.k * 0.35, p.z); sp.scale.setScalar(0.24 * (1 - g.k * 0.5));
+        sp.material.opacity = a; sp.visible = true;
+      });
+      for (let i = list.length; i < glows.length; i++) glows[i].visible = false;
+      for (let i = m; i < sparks.length; i++) sparks[i].visible = false;
     }
 
     function resize(w, h) {

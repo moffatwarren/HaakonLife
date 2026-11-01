@@ -38,7 +38,8 @@
   GENDERS.forEach((g) => { charSprites[g] = Art.LOOKS[g].map((look) => Art.renderSprites(g, look)); });
   // Players' looks (see "the character editor"), each one's sprite sheet made once.
   const lookSheets = {};
-  const lookSprites = (look) => lookSheets[Art.lookCode(look)] || (lookSheets[Art.lookCode(look)] = Art.renderLook(look));
+  // (in an ugly Christmas sweater if `sweater` names one: see "Christmas" further down)
+  const lookSprites = (look, sweater) => { const k = Art.lookCode(look) + (sweater || ''); return lookSheets[k] || (lookSheets[k] = Art.renderLook(look, sweater)); };
   // The look last made in this browser, or from before the editor, the closest thing to
   // the character last picked.
   const oldPick = (g, i) => Art.lookLike(g, Art.LOOKS[g][Math.max(0, Math.min(Math.floor(+i) || 0, Art.LOOKS[g].length - 1))]);
@@ -196,8 +197,11 @@
     if (P.free) return Math.abs(P.fx - x) < 0.5 + FREE_R && Math.abs(P.fy - y) < 0.5 + FREE_R; // any tile you're partly on
     return (P.x === x && P.y === y) || (P.moving && P.x + P.mdx === x && P.y + P.mdy === y);
   }
+  // At Christmas about half of them come in wearing an ugly sweater (a random half each
+  // time the game loads, apart from who wears one out in the parking lot: see knits).
   (function spawnNpcs() {
-    const placed = new Set();
+    const placed = new Set(), SWEATERS = Object.keys(Art.SWEATERS);
+    const knit = (body) => (CHRISTMAS && body !== 'ghost' && Math.random() < 0.5 ? SWEATERS[Math.floor(Math.random() * SWEATERS.length)] : '');
     MAPS.floors.forEach((f, fi) => {
       // offices first, so someone with an office isn't placed in a cubicle too
       const rooms = f.rooms.filter((r) => !r.parent).concat(f.rooms.filter((r) => r.parent));
@@ -226,7 +230,7 @@
           const [x, y] = spots[(hash(name) + npcs.length * 7) % spots.length];
           npcs.push({
             name: p.name || name, floor: fi, room: area, x, y, dir: 'down', moving: false, prog: 0, mdx: 0, mdy: 0, step: 0,
-            wait: 30 + ((hash(name) + npcs.length * 37) % 120), sprites: Art.renderSprites(body, look),
+            wait: 30 + ((hash(name) + npcs.length * 37) % 120), sprites: Art.renderSprites(body, look, knit(body)),
             // extra: the plant crew, and the dealers in Cody's casino (who are in the office too),
             // so they're left out wherever the game picks one of your coworkers
             ghost: body === 'ghost', extra: fi === PLANT || fi === CASINO,
@@ -600,7 +604,8 @@
     if (!music || !actx || music.name !== name) return null;
     return music.step - (music.next - actx.currentTime) / (60 / music.song.bpm / 2);
   }
-  // Which song fits right now: the open mini-game's theme, the room's mood, or the office tune.
+  // Which song fits right now: the open mini-game's theme, the room's mood, or the office tune
+  // (a carol at Christmas).
   function pickMusic() {
     if (!musicOn) return null;
     for (let i = ui.length - 1; i >= 0; i--) if (ui[i].music) return ui[i].music;
@@ -610,8 +615,9 @@
     if (mode === 'play' && P.floor !== PLANT && inPhoneRoom()) return null; // nothing but the phone ringing in Eugene's office
     if (mode === 'play' && P.floor === PLANT) return 'plant';
     if (mode === 'play' && P.floor === CASINO) return 'poker';
-    if (mode === 'play' && P.floor === YARD) return 'jingle';
-    return 'office';
+    // outside at Christmas, a waltz while you're on the ice; indoors, a carol
+    if (mode === 'play' && P.floor === YARD) return tileAt(YARD, P.x, P.y) === '~' ? 'skate' : 'jingle';
+    return CHRISTMAS ? 'carol' : 'office';
   }
 
   // ---------- input ----------
@@ -2823,8 +2829,73 @@
   function setCrowned(on) {
     if (on === crowned) return;
     crowned = on;
-    if (!hw.worn) sprites = lookSprites(wornLook(myLook));
+    if (!hw.worn) sprites = mySprites();
   }
+  // The champion's trail: wherever the Office Champion walks (you, or another player in the
+  // crown), a short path of gold glints is left on the ground behind them, twinkling as it
+  // fades in half a second. Places are in pixels, where people are drawn (x and y as their
+  // sprite's), with jx and jy scattering each glint a little either side of the path and s
+  // setting when it twinkles. drawWorld, drawYard and js/lot3d.js draw it (see glowScene).
+  const GLOW = { pts: [], me: {} }, GLOW_LIFE = 30;
+  const glint = (g) => ((tick + Math.floor(g.s * 24)) >> 2) % 5 === 0;
+  function glowTick() {
+    const sc = hockey && hockey.scene(), out = (f) => f === YARD && sc;
+    // one glint every few pixels walked (a floor change or a jump starts again from there)
+    const drop = (last, f, x, y) => {
+      const d = last.f === f ? Math.hypot(x - last.x, y - last.y) : Infinity;
+      if (!(d <= 48)) Object.assign(last, { f, x, y });
+      else if (d >= 3) {
+        GLOW.pts.push({ f, x, y, jx: (Math.random() - 0.5) * 6, jy: (Math.random() - 0.5) * 3, t: tick, s: Math.random() });
+        Object.assign(last, { x, y });
+      }
+    };
+    if (crowned && !out(P.floor)) {
+      if (P.floor === YARD) drop(GLOW.me, YARD, (P.free ? P.fx : P.x) * 16, (P.free ? P.fy : P.y) * 16);
+      else drop(GLOW.me, P.floor, P.x * 16 + (P.moving ? P.mdx * P.prog : 0), P.y * 16 + (P.moving ? P.mdy * P.prog : 0));
+    }
+    for (const o of mpHere()) if (o.look.hat === Art.CROWN && !out(o.f)) drop(o.glow || (o.glow = {}), o.f, o.px, o.py);
+    while (GLOW.pts.length && tick - GLOW.pts[0].t >= GLOW_LIFE) GLOW.pts.shift();
+  }
+  // in the office: a pixel of gold under each glint, a little yellow sparkle while it twinkles
+  const GLOW_COLS = ['#e09a10', '#f0b828', '#ffd850'];
+  function drawGlowPix(cx, cy) {
+    for (const g of GLOW.pts) {
+      if (g.f !== P.floor) continue;
+      const k = (tick - g.t) / GLOW_LIFE, x = Math.round(g.x + 8 + g.jx - cx), y = Math.round(g.y + 10 + g.jy - cy);
+      if (x < -4 || x > SW + 4 || y < -4 || y > SH + 4) continue;
+      ctx.globalAlpha = 1 - k * k;
+      ctx.fillStyle = GLOW_COLS[Math.floor(g.s * 3 + (tick >> 3)) % 3];
+      const r = k < 0.6 ? 2 : 1;
+      ctx.fillRect(x, y, r, r);
+      if (glint(g)) {
+        const sy = y - Math.round(k * 3);
+        ctx.fillStyle = '#ffd040';
+        ctx.fillRect(x - 1, sy, 3, 1); ctx.fillRect(x, sy - 1, 1, 3);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(x, sy, 1, 1);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  // in the flat parking lot: a soft gold spot under each glint, and a four-pointed star
+  // over it while it twinkles
+  function glowGround(c) {
+    for (const g of GLOW.pts) {
+      if (g.f !== YARD) continue;
+      const k = (tick - g.t + drawAlpha) / GLOW_LIFE, x = g.x + 8 + g.jx, y = g.y + 12 + g.jy;
+      c.globalAlpha = 0.85 * (1 - k);
+      c.fillStyle = GLOW_COLS[1];
+      c.beginPath(); c.ellipse(x, y, 2.2 - k, 1.1 - k * 0.5, 0, 0, Math.PI * 2); c.fill();
+      if (!glint(g)) continue;
+      const s = 2.6 * (1 - k * 0.5), sy = y - k * 3;
+      c.globalAlpha = 1 - k;
+      c.fillStyle = GLOW_COLS[2];
+      c.beginPath(); c.ellipse(x, sy, s, s * 0.22, 0, 0, Math.PI * 2); c.ellipse(x, sy, s * 0.22, s, 0, 0, Math.PI * 2); c.fill();
+    }
+    c.globalAlpha = 1;
+  }
+  // and in the 3D lot (in pixels like a person's px and py, k 0 to 1 through fading away)
+  const glowScene = () => GLOW.pts.filter((g) => g.f === YARD)
+    .map((g) => ({ x: g.x + g.jx, y: g.y + g.jy, k: Math.min(1, (tick - g.t + drawAlpha) / GLOW_LIFE), on: glint(g) }));
   function HallOfFame() {
     const name = playerName || store.get('name') || '', me = name ? boardKey(name) : null;
     const { keys, games, groups } = fameBoards();
@@ -7755,7 +7826,7 @@
     sprites = Art.renderLookCostume(myLook, hw.costume, sdgIcon);
   }
   const propAt = (fi, x, y) => (hw.state === 'party' && fi === hw.floor && hw.props.find((p) => p.x === x && p.y === y))
-    || (CHRISTMAS && fi === xmas.tree.floor && y === xmas.tree.y && x >= xmas.tree.x && x < xmas.tree.x + 2 && xmas.tree) || null;
+    || (CHRISTMAS && xmas.trees.find((t) => fi === t.floor && y === t.y && x >= t.x && x < t.x + 2)) || null;
   const doorShut = (fi, x, y) => hw.state === 'party' && fi === hw.floor && hw.doors.some((d) => d.x === x && d.y === y);
 
   // Who comes: Lam (the MC), eight others at random, each in a different costume, and Linda.
@@ -10236,9 +10307,9 @@
   // Their sprite sheet: the look they made, in costume if they're wearing one.
   const mpSheets = {};
   function mpSprites(o) {
-    const key = o.a + ':' + o.c + ':' + sdgIcon.complete;
+    const key = o.a + ':' + o.c + ':' + o.xs + ':' + sdgIcon.complete;
     if (!mpSheets[key])
-      mpSheets[key] = o.c ? Art.renderLookCostume(o.look, o.c, sdgIcon) : lookSprites(o.look);
+      mpSheets[key] = o.c ? Art.renderLookCostume(o.look, o.c, sdgIcon) : lookSprites(o.look, o.xs);
     return mpSheets[key];
   }
 
@@ -10356,12 +10427,15 @@
       // closest thing to the character they picked (g and l)
       const look = Art.lookFrom(r.a) || oldPick(GENDERS.includes(r.g) ? r.g : 'male', r.l);
       const rec = {
-        n: String(r.n || '?').slice(0, NAME_MAX), look, a: Art.lookCode(look), c: Art.COSTUMES[r.c] ? r.c : '',
+        n: String(r.n || '?').slice(0, NAME_MAX), look, a: Art.lookCode(look), c: Art.COSTUMES[r.c] ? r.c : '', xs: Art.SWEATERS[r.xs] ? r.xs : '',
         f: MAPS.floors[r.f] ? r.f : 0, x: +r.x || 0, y: +r.y || 0, d: DIRS[r.d] ? r.d : 'down', b: !!r.b,
         do: typeof r.do === 'string' && Object.prototype.hasOwnProperty.call(MP_DOING, r.do) ? r.do : '', dn: Math.max(0, Math.min(9, Math.round(+r.dn) || 0)),
         s: MP_LINES[r.s] ? r.s : -1, w: mpClean((typeof r.w0 === 'string' ? r.w0 : '') + (typeof r.w1 === 'string' ? r.w1 : '')),
         sn: +r.sn || 0, v: +r.v || 0, t: +r.t || 0, tc: !!r.tc,
         fx: Number.isFinite(r.fx) ? r.fx : null, fy: Number.isFinite(r.fy) ? r.fy : null, fa: Number.isFinite(r.fa) ? r.fa : null,
+        // their last snowball and snow angel out in the parking lot (see snowRecord)
+        sb: Math.max(0, Math.round(+r.sb) || 0), sbx: Number.isFinite(r.sbx) ? r.sbx : null, sby: Number.isFinite(r.sby) ? r.sby : null, sba: Number.isFinite(r.sba) ? r.sba : 0,
+        an: Math.max(0, Math.round(+r.an) || 0), anx: Number.isFinite(r.anx) ? r.anx : null, any: Number.isFinite(r.any) ? r.any : null,
       };
       let o = mp.others[id];
       if (!o) {
@@ -10375,6 +10449,7 @@
       }
       if (rec.t !== o.t) o.seen = now;
       if (rec.sn !== o.sn && (rec.s >= 0 || rec.w)) o.said = now;
+      if (rec.f === YARD) snowRecord(o, rec);
       Object.assign(o, rec);
     }
     if (MP_VER && mpHere().some((o) => o.v > MP_VER)) mp.newer = true;
@@ -10441,6 +10516,9 @@
     // out in the parking lot, exactly where you are (pixels) and which way you face, so
     // everyone else sees you go any way there (a copy from before only goes by x, y)
     if (P.free) { rec.fx = Math.round(P.fx * 16); rec.fy = Math.round(P.fy * 16); rec.fa = Math.round(P.face * 20) / 20; }
+    // your ugly sweater, and your last snowball and snow angel out there
+    if (mySweater()) rec.xs = mySweater();
+    snowRec(rec);
     return rec;
   }
   function mpPut() {
@@ -10469,7 +10547,7 @@
     const o = mp.others[opp];
     const m = {
       id, opp, name, gone: false, rng: seeded(seed), soft: !!soft, moves: [],
-      sprites: o ? mpSprites(o) : charSprites.male[0], look: o ? o.look : null, code: o ? o.a : '',
+      sprites: o ? mpSprites(o) : charSprites.male[0], look: o ? o.look : null, code: o ? o.a : '', xs: o ? o.xs : '',
       server: !!server, view: null, result: undefined,
       send(data) { mpSend(opp, Object.assign({}, data, { k: 'mv', m: id })); },
       take() { return m.moves.shift(); },
@@ -10736,33 +10814,80 @@
     say(here.length ? 'Also here: ' + here.map((o) => o.n + ' (' + mpWhere(o) + ')').join(', ') + '.' : 'Nobody else is playing right now.');
   }
 
-  // ---------- Christmas: lights, a tree, and the parking lot out back ----------
-  // Lights run along the foot of every wall on both office floors, there's a tree in
-  // reception, wreaths hang on the exits and the potted plants get a few baubles. And the
-  // fitness room's side doors open onto the parking lot (YARD), drawn in js/hd.js's
-  // smoother style on a canvas of its own under the game screen: a rink with coworkers
-  // skating laps of it, a fire pit, a hot chocolate stand and falling snow.
+  // ---------- Christmas: lights, trees, and the parking lot out back ----------
+  // Lights run along the foot of every wall indoors (the office, the Kingston plant and
+  // Cody's casino), wreaths hang on the exits and beside the office's doors, the potted
+  // plants get a few baubles and there's a tree in each reception (a gold one in the
+  // casino). In the office there's mistletoe over the doors into the lunch room, the
+  // boardroom and the meeting rooms, stockings hang off the front of reception's desk,
+  // poinsettias sit along the counters, the candy table has candy canes and the lunch room
+  // has a gingerbread house; at the plant the finished units in shipping are tied up in
+  // red ribbon, and in the casino so are the slot machines. And the fitness room's side
+  // doors open onto the parking lot (YARD), drawn in js/hd.js's smoother style on a canvas
+  // of its own under the game screen: a rink with coworkers skating laps of it, a fire pit,
+  // a hot chocolate stand and falling snow.
   const xmas = (function () {
     const office = (fi) => fi !== PLANT && fi !== CASINO && fi !== YARD;
-    const each = (test) => MAPS.floors.map((f, fi) => {
+    const each = (test, where) => MAPS.floors.map((f, fi) => {
       const list = [];
-      if (office(fi)) f.tiles.forEach((row, y) => [...row].forEach((ch, x) => { if (test(ch, x, y, f)) list.push({ x, y }); }));
+      if ((where || ((i) => i !== YARD))(fi)) f.tiles.forEach((row, y) => [...row].forEach((ch, x) => { if (test(ch, x, y, f)) list.push({ x, y }); }));
       return list;
     });
+    const at = (f, x, y) => (f.tiles[y] || '')[x] || ' ';
+    const front = (f, x, y) => at(f, x, y) === '#' && !'# X'.includes(at(f, x, y + 1)); // a wall you can see the face of
     const rec = MAPS.floors[0].rooms.find((r) => /Reception$/.test(r.name));
+    const plantRec = PLANT >= 0 && MAPS.floors[PLANT].rooms.find((r) => r.name === 'Reception');
+    const casino = CASINO >= 0 && MAPS.floors[CASINO].rooms.find((r) => /Casino/.test(r.name));
+    // whole things more than a tile big (a finished unit, a slot machine): where each one is
+    const things = (fi, test) => {
+      const f = MAPS.floors[fi], seen = new Set(), out = [];
+      if (!f) return out;
+      f.tiles.forEach((row, y) => [...row].forEach((ch, x) => {
+        if (!test(ch) || seen.has(x + ',' + y)) return;
+        let x2 = x, y2 = y;
+        while (at(f, x2 + 1, y) === ch) x2++;
+        while (at(f, x, y2 + 1) === ch) y2++;
+        for (let j = y; j <= y2; j++) for (let i = x; i <= x2; i++) seen.add(i + ',' + j);
+        out.push({ x, y, x2, y2 });
+      }));
+      return out;
+    };
+    // doorways into these rooms get mistletoe
+    const kissing = (f, x, y) => f.rooms.some((r) => /Lunch Room|Boardroom|Meeting Room/.test(r.name) && x >= r.x1 - 1 && x <= r.x2 + 1 && y >= r.y1 - 1 && y <= r.y2 + 1);
+    const lunch = MAPS.floors[0].rooms.find((r) => /^Lunch Room/.test(r.name));
     return {
-      // the foot of every wall you can see: a wall tile with floor in front of it
-      lights: each((ch, x, y, f) => ch === '#' && !'# X'.includes((f.tiles[y + 1] || ' ')[x])),
+      lights: each((ch, x, y, f) => front(f, x, y)),
       exits: each((ch) => ch === 'X'),
       plants: each((ch) => ch === 'p'),
-      // the tree stands two tiles wide in reception's front corner, by the doors
-      tree: { floor: 0, x: rec.x2 - 2, y: rec.y2 - 1 },
-      frames: [0, 1, 2].map(treeFrame),
+      // a wreath on the wall to the left of each of the office's doorways
+      wreaths: each((ch, x, y, f) => front(f, x, y) && at(f, x + 1, y) === 'D', office),
+      // mistletoe over the middle of a doorway in a wall across the map (from its left end)
+      mistletoe: each((ch, x, y, f) => ch === 'D' && at(f, x - 1, y) === '#' && kissing(f, x, y), office),
+      stockings: each((ch, x, y, f) => ch === 'r' && at(f, x, y + 1) !== 'r', office), // along the front of reception's desk
+      flowers: each((ch, x, y) => ch === 'k' && (x * 3 + y) % 4 === 0, office),
+      canes: each((ch) => ch === 'Z', office),
+      // the gingerbread house: on the lunch room's counter, a tile in from its corner
+      ginger: each((ch, x, y) => !!lunch && ch === 'k' && x >= lunch.x1 && x <= lunch.x2 && y >= lunch.y1 && y <= lunch.y2, (fi) => fi === 0).map((l) => l.slice(1, 2)),
+      // red ribbon round the plant's finished units and the casino's slot machines
+      bows: MAPS.floors.map((f, fi) => (fi === PLANT ? things(fi, (ch) => '12345'.includes(ch)) : fi === CASINO ? things(fi, (ch) => ch === '7').flatMap((t) => [0, 1, 2].slice(0, t.x2 - t.x + 1).map((i) => ({ x: t.x + i, y: t.y, x2: t.x + i, y2: t.y2 }))) : [])),
+      // a tree two tiles wide in each reception's front corner, by the doors, and one in the casino
+      trees: [{ floor: 0, x: rec.x2 - 2, y: rec.y2 - 1, frames: [0, 1, 2].map((k) => treeFrame(k)), gift: true,
+        say: 'A Christmas tree, covered in lights and baubles. The presents underneath all say "DO NOT OPEN UNTIL THE 25TH". One of them rattles.' }]
+        .concat(plantRec ? [{ floor: PLANT, x: plantRec.x2 - 2, y: plantRec.y2 - 1, frames: [0, 1, 2].map((k) => treeFrame(k)),
+          say: 'The plant\'s Christmas tree. The star on top is a bent bit of sheet metal, and the tinsel is offcuts of wire from electrical.' }] : [])
+        .concat(casino ? [{ floor: CASINO, x: casino.x1 + 5, y: casino.y2 - 1, frames: [0, 1, 2].map((k) => treeFrame(k, true)),
+          say: 'A gold tinsel tree. The baubles are poker chips, and the star is a lucky seven.' }] : []),
       cocoa: 0, // hot chocolates had
+      // the ugly sweater you picked (a key in Art.SWEATERS, or 'none'), the reindeer if you never have
+      sweater: store.get('sweater') || 'reindeer',
     };
   })();
-  // The reception tree, in three frames so its lights twinkle.
-  function treeFrame(k) {
+  // At Christmas you wear your ugly sweater over the look you made (not under a costume).
+  const mySweater = () => (CHRISTMAS && !hw.worn && Art.SWEATERS[xmas.sweater] ? xmas.sweater : '');
+  const mySprites = () => lookSprites(wornLook(myLook), mySweater());
+  if (CHRISTMAS) sprites = mySprites();
+  // A tree, in three frames so its lights twinkle (gold: the casino's, all tinsel).
+  function treeFrame(k, gold) {
     const cv = document.createElement('canvas');
     cv.width = 32; cv.height = 52;
     const c = cv.getContext('2d');
@@ -10771,10 +10896,10 @@
     for (const [top, bot, w0, w1] of [[24, 41, 6, 15], [14, 30, 4, 12], [5, 19, 2, 8]]) {
       for (let y = top; y <= bot; y++) {
         const hw = Math.round(w0 + (w1 - w0) * (y - top) / (bot - top));
-        px(16 - hw, y, hw * 2, 1, '#2c6a34');
-        px(16 - hw, y, Math.max(1, hw >> 1), 1, '#3f8a4a');
+        px(16 - hw, y, hw * 2, 1, gold ? '#c8962c' : '#2c6a34');
+        px(16 - hw, y, Math.max(1, hw >> 1), 1, gold ? '#f0d060' : '#3f8a4a');
       }
-      px(16 - w1, bot, w1 * 2, 1, '#1c4a24');
+      px(16 - w1, bot, w1 * 2, 1, gold ? '#8a6418' : '#1c4a24');
     }
     // tinsel and baubles
     for (let i = 0; i < 9; i++) { px(8 + i * 2, 17 + i, 2, 1, '#f0d050'); px(5 + i * 2, 38 - i, 2, 1, '#f0d050'); }
@@ -10811,7 +10936,7 @@
         if (lit) { ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.fillRect(sx + 3 + i * 8, sy + 2, 1, 1); }
       }
     }
-    for (const { x, y } of xmas.exits[P.floor]) {
+    for (const { x, y } of xmas.exits[P.floor].concat(xmas.wreaths[P.floor])) {
       if (!seen(x, y)) continue;
       // a ring of green, a bow at the bottom and a few berries
       const sx = x * 16 - cx + 8, sy = y * 16 - cy + 9;
@@ -10831,10 +10956,117 @@
         ctx.fillStyle = XMAS_LIGHTS[(i + x + y) % 4]; ctx.fillRect(sx + dx, sy + dy, 1, 1);
       });
     }
+    const px = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+    // mistletoe hanging in the doorway: a sprig of leaves, white berries and a red bow
+    for (const { x, y } of xmas.mistletoe[P.floor]) {
+      if (!seen(x, y)) continue;
+      const sx = x * 16 - cx + (tileAt(P.floor, x + 1, y) === 'D' ? 16 : 8), sy = y * 16 - cy;
+      px(sx, sy, 1, 4, '#3a5a2a');
+      px(sx - 3, sy + 4, 3, 2, '#2c6a34'); px(sx + 1, sy + 4, 3, 2, '#3f8a4a'); px(sx - 2, sy + 6, 2, 1, '#2c6a34'); px(sx + 1, sy + 6, 2, 1, '#2c6a34');
+      px(sx - 1, sy + 5, 1, 1, '#f8f8f8'); px(sx + 1, sy + 7, 1, 1, '#f8f8f8'); px(sx, sy + 6, 1, 1, '#f8f8f8');
+      px(sx - 2, sy + 2, 2, 2, '#e03030'); px(sx + 1, sy + 2, 2, 2, '#e03030'); px(sx, sy + 3, 1, 1, '#a02020');
+    }
+    // stockings hanging off the front of reception's desk, red and green turn about
+    for (const { x, y } of xmas.stockings[P.floor]) {
+      if (!seen(x, y)) continue;
+      const sx = x * 16 - cx + 5, sy = y * 16 - cy + 10, c = (x + y) % 2 ? '#d83030' : '#2e8a44';
+      px(sx - 1, sy - 1, 7, 9, '#181820');
+      px(sx, sy, 5, 2, '#f8f8f8'); px(sx, sy + 2, 4, 4, c); px(sx + 1, sy + 5, 4, 2, c); px(sx + 4, sy + 6, 1, 1, '#181820');
+    }
+    // a poinsettia in a pot every few counter tops
+    for (const { x, y } of xmas.flowers[P.floor]) {
+      if (!seen(x, y)) continue;
+      const sx = x * 16 - cx + 8, sy = y * 16 - cy + 6;
+      px(sx - 2, sy + 3, 4, 3, '#a85a2a'); px(sx - 2, sy + 3, 4, 1, '#c8783a');
+      px(sx - 4, sy - 1, 3, 2, '#d82828'); px(sx + 1, sy - 1, 3, 2, '#d82828'); px(sx - 1, sy - 3, 2, 3, '#e03838'); px(sx - 1, sy + 1, 2, 2, '#b81c1c');
+      px(sx - 3, sy + 1, 2, 1, '#2c6a34'); px(sx + 1, sy + 1, 2, 1, '#2c6a34'); px(sx - 1, sy - 1, 2, 1, '#f0d040');
+    }
+    // candy canes on the candy table
+    for (const { x, y } of xmas.canes[P.floor]) {
+      if (!seen(x, y)) continue;
+      const sx = x * 16 - cx + 10, sy = y * 16 - cy + 3;
+      for (let i = 0; i < 6; i++) px(sx, sy + 2 + i, 1, 1, i % 2 ? '#f8f8f8' : '#e03030');
+      px(sx + 1, sy, 2, 1, '#e03030'); px(sx + 3, sy + 1, 1, 2, '#f8f8f8'); px(sx + 1, sy + 1, 1, 1, '#f8f8f8');
+    }
+    // the gingerbread house: walls, a white-iced roof and gumdrops
+    for (const { x, y } of xmas.ginger[P.floor]) {
+      if (!seen(x, y)) continue;
+      const sx = x * 16 - cx + 3, sy = y * 16 - cy + 2;
+      px(sx - 1, sy + 4, 12, 9, '#181820'); px(sx, sy + 5, 10, 7, '#b0692e');
+      for (let i = 0; i < 6; i++) px(sx + 5 - i - 1, sy + i - 1, 2 + i * 2, 1, i < 5 ? '#f8f8f8' : '#d8d8e0');
+      px(sx + 4, sy + 8, 2, 4, '#5a3018'); px(sx + 1, sy + 7, 2, 2, '#f0d040'); px(sx + 7, sy + 7, 2, 2, '#f0d040');
+      px(sx + 2, sy + 2, 1, 1, '#e03030'); px(sx + 6, sy + 1, 1, 1, '#48d860'); px(sx + 4, sy + 3, 1, 1, '#4898f8');
+    }
+    // red ribbon round anything with a bow on it, the bow at the top
+    for (const b of xmas.bows[P.floor]) {
+      if (!seen(b.x, b.y) && !seen(b.x2, b.y2)) continue;
+      const x0 = b.x * 16 - cx, y0 = b.y * 16 - cy, w = (b.x2 - b.x + 1) * 16, h = (b.y2 - b.y + 1) * 16;
+      const mx = x0 + (w >> 1), my = y0 + Math.min(h >> 1, 12);
+      px(mx - 1, y0 + 1, 3, h - 2, '#d82828'); px(x0 + 1, my - 1, w - 2, 3, '#d82828');
+      px(mx, y0 + 1, 1, h - 2, '#f05050');
+      px(mx - 5, my - 4, 4, 3, '#181820'); px(mx + 2, my - 4, 4, 3, '#181820');
+      px(mx - 4, my - 3, 3, 2, '#e83838'); px(mx + 2, my - 3, 3, 2, '#e83838'); px(mx - 1, my - 2, 3, 3, '#b81c1c');
+    }
   }
-  function treeTalk() {
+  function treeTalk(tree) {
     sfx('select');
-    say('A Christmas tree, covered in lights and baubles. The presents underneath all say "DO NOT OPEN UNTIL THE 25TH". One of them rattles.');
+    if (tree.gift && XMAS_DAY) { openPresent(); return; }
+    say(tree.say);
+  }
+
+  // ---------- Christmas Day: the present with your name on it ----------
+  // From December 25 the rattling present under reception's tree has a tag with your name on
+  // it. Inside is a Santa hat: from then on it's one of your head things in the character
+  // editor (for good, not just at Christmas), and you can put it on there and then. It
+  // belongs to the name, not the browser: it's noted under the name in the leaderboards'
+  // database (a board of its own, `santahat`, holding 1, that isn't shown anywhere), so the
+  // same name on another phone or computer has it too, and in this browser as well, in case
+  // the database can't be reached. &xmasday=1 (or =0) makes it the 25th (or not) for testing,
+  // and &santahat=1 gives any name its hat as if it had opened the present.
+  const XMAS_DAY = (function () {
+    const m = /[#&]xmasday=(\d)/.exec(location.hash);
+    if (m) return m[1] !== '0';
+    const d = new Date();
+    return d.getMonth() === 11 && d.getDate() >= 25;
+  })();
+  const GIFT = 'santahat';
+  let santaHat = false; // whether your name has opened its present
+  const giftKey = (name) => 'gift.' + GIFT + '.' + boardKey(name || 'New Hire');
+  const giftHere = (name) => /[#&]santahat=1/.test(location.hash) || !!store.get(giftKey(name)); // known in this browser
+  function giftCheck(name) {
+    if (giftHere(name)) return Promise.resolve(true);
+    if (!BOARD_URL || !name || boardDemo) return Promise.resolve(false);
+    return boardFetch(GIFT + '/' + boardKey(name) + '.json').then((r) => (r.ok ? r.json() : null))
+      .then((r) => { const on = !!(r && r.score >= 1); if (on) store.set(giftKey(name), '1'); return on; }, () => false);
+  }
+  function giftSave(name) {
+    store.set(giftKey(name), '1');
+    if (BOARD_URL && name && name !== 'New Hire' && BOARD_POSTS && !boardDemo) // (everybody who hasn't typed a name is a New Hire)
+      boardFetch(GIFT + '/' + boardKey(name) + '.json', { method: 'PUT', body: JSON.stringify({ name, score: 1, t: { '.sv': 'timestamp' } }) }).catch(() => {});
+  }
+  function openPresent() {
+    const name = playerName || 'New Hire';
+    if (santaHat) {
+      say(myLook.hat === Art.SANTA ? 'The presents are all open. Yours was the one that rattled: the Santa hat you\'re wearing. The bell on the end still jingles.'
+        : 'The presents are all open. Yours was the one that rattled: a Santa hat. It\'s with your other head things in the character editor.');
+      return;
+    }
+    ask('Merry Christmas! The present that rattles has a tag on it: "To ' + name + ', from everyone at Haakon. DO NOT OPEN UNTIL THE 25TH." It\'s the 25th.', ['OPEN IT', 'NOT YET'], (i) => {
+      if (i !== 0) { say('You put it back under the tree. It rattles.'); return; }
+      sfx('ding');
+      santaHat = true;
+      giftSave(name);
+      ask('A Santa hat, with a little bell on the end! It\'s yours to keep: it\'s one of your head things in the character editor now. Wear it now?', ['WEAR IT', 'NOT NOW'], (j) => {
+        if (j !== 0) { say('You tuck it under your arm. It\'s in the character editor whenever you want it.'); return; }
+        sfx('menu');
+        myLook = Object.assign({}, myLook, { hat: Art.SANTA });
+        store.set('avatar', Art.lookCode(myLook));
+        lookSave(playerName, myLook);
+        sprites = mySprites();
+        say(crowned ? 'You try it on, but the Office Champion has to wear the crown. The Santa hat is saved underneath it for when you need it.'
+          : 'You pull the Santa hat on. The bell jingles every time you turn your head. Ho ho ho!');
+      });
+    });
   }
 
   // The fitness room's side doors and the parking lot's doors are the same two doors:
@@ -10859,9 +11091,11 @@
   // rink's gate (who'll take you on at hockey), at the fire, the cocoa stand, a car, the
   // snowman and the spruce, and a couple pacing along the rink's boards. The ice is left
   // for you. Who goes out is picked afresh every time the game loads; anyone with a part
-  // to play indoors stays in.
+  // to play indoors stays in. About half of them have an ugly sweater on over their office
+  // clothes (knits: name to a key in Art.SWEATERS), no two the same where it can be helped.
   const STAY_IN = ['Lam', 'Linda', 'Jenn', 'Cody', 'Zin', 'Eugene'];
   let gateKeeper = null;
+  const knits = {};
   (function sendOutside() {
     if (!CHRISTMAS) return;
     const f = MAPS.floors[YARD], rink = f.rooms.find((r) => r.name === 'Ice Rink');
@@ -10879,8 +11113,10 @@
     const lines = window.CHRISTMAS_LINES || {};
     const pool = shuffled(npcs.filter((n) => !n.ghost && !n.extra && !n.guest && !(visit && n === visit.npc)
       && !STAY_IN.includes(n.name) && !COWORKERS.some((c) => c.name === n.name)));
+    const sweaters = shuffled(Object.keys(Art.SWEATERS));
     pool.slice(0, spots.length).forEach((n, i) => {
       const [x, y, dir, k, pace] = spots[i], own = personOf(n.name).christmas;
+      if (i % 2 === 0) knits[n.name] = sweaters[(i / 2) % sweaters.length];
       Object.assign(n, { floor: YARD, moving: false, prog: 0, wait: 30 + Math.floor(Math.random() * 90),
         x, y, dir, look: dir, room: { x1: x - (pace || 0), y1: y, x2: x + (pace || 0), y2: y },
         lines: (own ? [own] : []).concat(lines[k] || ['Happy holidays!']) });
@@ -10929,9 +11165,170 @@
       ask(msg, [opt, 'NOT NOW'], (i) => { if (i === 0) { sfx('menu'); ui.push(Game()); } });
       return;
     }
+    // a clear patch of deep snow, and you're stood in it too
+    if (t === '.' && deepSnow(P.fx, P.fy)) {
+      sfx('select');
+      ask('Deep, soft snow, just right for lying in.', ['SNOW ANGEL', 'NOT NOW'], (i) => { if (i === 0) startAngel(); });
+      return;
+    }
     const msgs = YARD_INFO[t];
     if (msgs) { sfx('select'); say(msgs[(tx * 3 + ty * 5) % msgs.length]); }
   }
+
+  // ---------- out in the snow: footprints, snowballs and snow angels ----------
+  // Anyone walking through the deep snow ('.') leaves footprints, which the falling snow
+  // fills back in over a minute and a half. B throws a snowball the way you're facing, at
+  // whoever is in the way: a coworker you hit turns round and says something, and more often
+  // than not throws one back, and now and then two of them start one of their own. Press A
+  // facing a clear patch of deep snow to lie down and make a snow angel, which stays a few
+  // minutes. Other players see your snowballs and snow angels (your record carries your
+  // last throw and your last angel: see snowRecord) and you see theirs. Whoever a snowball
+  // hits on your screen is hit on your screen, so a near miss can look different from where
+  // they're standing. Places are in tiles (a tile's middle a whole number, like P.fx),
+  // heights in metres; js/lot3d.js and drawYard draw it all from snowScene().
+  const SNOW = { prints: [], angels: [], balls: [], puffs: [], ver: 0, steps: new Map(), hitMe: -999, fight: 1200, thrown: null, angel: null };
+  const BALL_V = 0.2, BALL_G = 0.0045, BALL_Z = 1.5; // tiles a tick across, metres a tick per tick down, metres up out of the hand
+  const THROW_T = 24, RELEASE = 13, ANGEL_T = 200, PRINT_LIFE = 5400, ANGEL_LIFE = 21600; // all in ticks
+  // how tall what stands on each kind of tile is: a snowball lower than that hits it
+  const SNOW_TALL = { '#': 99, X: 99, ' ': 99, L: 99, h: 99, Y: 99, c: 1.4, B: 1.1, n: 1.2, b: 0.5, f: 0.4, s: 1.7, '*': 0.8, w: 0.9 };
+  const HIT_LINES = ['Hey!', 'Oh, it is ON.', 'Right in the toque!', 'Who threw that?', 'You\'ll regret that!', 'Not the face!',
+    'Brrr! Down my collar!', 'Nice arm!', 'My hot chocolate!', 'Okay, okay, truce!', 'Ha! Missed me. Wait, no.'];
+  const deepSnow = (x, y) => tileAt(YARD, Math.round(x), Math.round(y)) === '.';
+  // everyone out here, where they are
+  function snowPeople() {
+    const out = [];
+    if (P.floor === YARD && P.free && !hockey) out.push({ key: 'me', x: P.fx, y: P.fy });
+    for (const n of npcs) if (n.floor === YARD) out.push({ key: 'npc:' + n.name, n, x: n.x + (n.moving ? n.mdx * n.prog / 16 : 0), y: n.y + (n.moving ? n.mdy * n.prog / 16 : 0) });
+    for (const o of mpHere()) if (o.f === YARD) out.push({ key: 'mp:' + o.id, o, x: o.px / 16, y: o.py / 16 });
+    return out;
+  }
+  const snowWho = (key) => snowPeople().find((p) => p.key === key) || null;
+  // A snowball thrown from x, y the way `a` faces (an angle, as P.face), or lobbed at whoever
+  // `at` is (with a little wobble), high enough to get there.
+  function throwBall(from, x, y, a, at) {
+    let vz = 0.06;
+    if (at) {
+      a = Math.atan2(at.x - x, at.y - y) + (Math.random() - 0.5) * 0.16;
+      const T = Math.hypot(at.x - x, at.y - y) / BALL_V;
+      vz = Math.max(-0.02, Math.min(0.12, (BALL_G / 2 * T * T - 0.35) / T));
+    }
+    const s = Math.sin(a), c = Math.cos(a), b = { from, x: x + s * 0.35, y: y + c * 0.35, z: BALL_Z, vx: s * BALL_V, vy: c * BALL_V, vz };
+    SNOW.balls.push(Object.assign(b, { px: b.x, py: b.y, pz: b.z }));
+  }
+  const near = (x, y) => P.floor === YARD && Math.hypot(x - P.fx, y - P.fy) < 11;
+  function snowHit(p, from) {
+    if (near(p.x, p.y)) sfx('splat');
+    if (p.key === 'me') { SNOW.hitMe = tick; return; }
+    if (!p.n) return; // another player: their own screen sees to them
+    const n = p.n, src = snowWho(from);
+    if (src) n.dir = wayOf(src.x - p.x, src.y - p.y);
+    n.bubble = { str: HIT_LINES[Math.floor(Math.random() * HIT_LINES.length)], t: tick };
+    n.wait = Math.max(n.wait, 90); // they stand and glare a moment
+    if (src && Math.random() < 0.6) n.back = { t: tick + 30 + Math.floor(Math.random() * 40), at: from };
+  }
+  // You lie down in the snow (facing the bottom of the map, so you go over backwards), sweep
+  // your arms and legs three times and get up, and there's the angel behind you.
+  function angelRoom() {
+    const x = P.fx, y = P.fy;
+    return [0.95, 1.9].every((d) => deepSnow(x, y - d) && walkable(YARD, Math.round(x), Math.round(y - d)) && !npcAt(YARD, Math.round(x), Math.round(y - d)))
+      && spruces.every(([sx, sy]) => Math.hypot(sx - x, sy - y + 0.95) > SPRUCE_R);
+  }
+  function startAngel() {
+    if (!angelRoom()) { say('Not enough room to lie down here. Find a clear patch of deep snow, with nothing behind you.'); return; }
+    Object.assign(P, { angel: { t: 0, x: P.fx, y: P.fy }, vx: 0, vy: 0, face: 0, dir: 'down', glide: false });
+    sfx('crunch');
+    SNOW.angel = { n: (SNOW.angel ? SNOW.angel.n : 0) + 1, x: P.fx, y: P.fy };
+  }
+  function addAngel(x, y) { SNOW.angels.push({ x, y: y - 0.95, t: tick }); SNOW.ver++; }
+  // how far into lying down (lie) and sweeping (flap) someone t ticks into a snow angel is
+  function angelPose(t) {
+    if (t === null || t === undefined || t >= ANGEL_T) return null;
+    const lie = t < 30 ? t / 30 : t > ANGEL_T - 30 ? (ANGEL_T - t) / 30 : 1;
+    const flap = t < 30 || t > ANGEL_T - 30 ? 0 : (1 - Math.cos(Math.PI * 2 * 3 * (t - 30) / (ANGEL_T - 60))) / 2;
+    return { lie, flap };
+  }
+  // Another player's record: a new throw or a new snow angel since the last one.
+  function snowRecord(o, rec) {
+    if (rec.sb && rec.sb !== o.sb && rec.sbx !== null) { throwBall('mp:' + o.id, rec.sbx / 16, rec.sby / 16, rec.sba); o.throwT = tick; }
+    if (rec.an && rec.an !== o.an && rec.anx !== null) o.angel = { t: tick, x: rec.anx / 16, y: rec.any / 16 };
+  }
+  // what's thrown and lain in, for mpRecord
+  function snowRec(rec) {
+    const s = SNOW.thrown, a = SNOW.angel;
+    if (s) Object.assign(rec, { sb: s.n, sbx: Math.round(s.x * 16), sby: Math.round(s.y * 16), sba: Math.round(s.a * 100) / 100 });
+    if (a) Object.assign(rec, { an: a.n, anx: Math.round(a.x * 16), any: Math.round(a.y * 16) });
+  }
+  // Every tick out here, while nothing's open on screen.
+  function snowTick() {
+    const who = snowPeople();
+    // your throw, let go partway through the swing
+    if (P.throwing) {
+      const k = tick - P.throwing.t;
+      if (k >= RELEASE && !P.throwing.out) {
+        P.throwing.out = true;
+        throwBall('me', P.fx, P.fy, P.throwing.a); sfx('swish');
+        SNOW.thrown = { n: (SNOW.thrown ? SNOW.thrown.n : 0) + 1, x: P.fx, y: P.fy, a: P.throwing.a };
+      }
+      if (k >= THROW_T || P.floor !== YARD) P.throwing = null;
+    }
+    // coworkers: throwing back at whoever got them, the odd fight of their own, and what they said
+    for (const p of who) {
+      const n = p.n;
+      if (!n) continue;
+      if (n.bubble && tick - n.bubble.t > 110) n.bubble = null;
+      if (n.back && tick >= n.back.t) {
+        const at = snowWho(n.back.at);
+        if (at && !n.moving && !n.throwing && Math.hypot(at.x - p.x, at.y - p.y) < 11) { n.dir = wayOf(at.x - p.x, at.y - p.y); n.throwing = { t: tick, at: n.back.at }; }
+        n.back = null;
+      }
+      if (n.throwing) {
+        const k = tick - n.throwing.t, at = k >= RELEASE && !n.throwing.out && snowWho(n.throwing.at);
+        if (k >= RELEASE) n.throwing.out = true;
+        if (at) { throwBall(p.key, p.x, p.y, 0, at); if (near(p.x, p.y)) sfx('swish'); }
+        if (k >= THROW_T) n.throwing = null;
+      }
+    }
+    if (--SNOW.fight <= 0) {
+      SNOW.fight = 900 + Math.floor(Math.random() * 1500);
+      const idle = who.filter((p) => p.n && !p.n.moving && !p.n.throwing && p.n !== gateKeeper);
+      const a = idle[Math.floor(Math.random() * idle.length)];
+      const b = a && shuffled(idle.filter((p) => p !== a && Math.hypot(p.x - a.x, p.y - a.y) < 9))[0];
+      if (b) { a.n.dir = wayOf(b.x - a.x, b.y - a.y); a.n.throwing = { t: tick, at: b.key }; }
+    }
+    // snowballs in flight: into someone, something standing up, or the ground
+    SNOW.balls = SNOW.balls.filter((b) => {
+      Object.assign(b, { px: b.x, py: b.y, pz: b.z });
+      b.x += b.vx; b.y += b.vy; b.z += b.vz; b.vz -= BALL_G;
+      const puff = () => SNOW.puffs.push({ x: b.x, y: b.y, z: Math.max(0, b.z), t: tick, seed: Math.random() * 6.28 });
+      const hit = who.find((p) => p.key !== b.from && Math.hypot(p.x - b.x, p.y - b.y) < 0.42 && b.z < 2.1);
+      if (hit) { puff(); snowHit(hit, b.from); return false; }
+      const t = tileAt(YARD, Math.round(b.x), Math.round(b.y));
+      if (b.z <= 0 || b.z < (SNOW_TALL[t] || 0) || spruces.some(([x, y]) => Math.hypot(x - b.x, y - b.y) < SPRUCE_R - 0.3 && b.z < 3.4)) {
+        puff(); if (near(b.x, b.y)) sfx('crunch');
+        return false;
+      }
+      return true;
+    });
+    SNOW.puffs = SNOW.puffs.filter((f) => tick - f.t < 40);
+    // footprints, every step or so through deep snow, left and right of where they're going
+    for (const p of who) {
+      const last = SNOW.steps.get(p.key), d = last ? Math.hypot(p.x - last.x, p.y - last.y) : Infinity;
+      if (d > 1.5) { SNOW.steps.set(p.key, { x: p.x, y: p.y, side: 1 }); continue; }
+      if (d < 0.34) continue;
+      const a = Math.atan2(p.y - last.y, p.x - last.x);
+      last.side = -last.side;
+      if (deepSnow(p.x, p.y)) { SNOW.prints.push({ x: p.x - Math.sin(a) * last.side * 0.1, y: p.y + Math.cos(a) * last.side * 0.1, a, t: tick }); SNOW.ver++; }
+      last.x = p.x; last.y = p.y;
+    }
+    // other players' snow angels, once they're back up
+    for (const p of who) if (p.o && p.o.angel && tick - p.o.angel.t >= ANGEL_T) { addAngel(p.o.angel.x, p.o.angel.y); p.o.angel = null; }
+    // the snow filling them in
+    while (SNOW.prints.length && (tick - SNOW.prints[0].t > PRINT_LIFE || SNOW.prints.length > 900)) { SNOW.prints.shift(); SNOW.ver++; }
+    while (SNOW.angels.length && (tick - SNOW.angels[0].t > ANGEL_LIFE || SNOW.angels.length > 30)) { SNOW.angels.shift(); SNOW.ver++; }
+  }
+  const snowScene = () => ({ ver: SNOW.ver, t: tick, prints: SNOW.prints, angels: SNOW.angels, life: [PRINT_LIFE, ANGEL_LIFE], balls: SNOW.balls, puffs: SNOW.puffs });
+  // how someone is posed for it, as drawYard passes them on: throw (0 to 1 through a throw) and angel
+  const throwPose = (t) => (t === null || t === undefined || tick - t >= THROW_T ? 0 : (tick - t) / THROW_T);
 
   // ---------- winter games around the parking lot ----------
   // Six games at the lot's props: the chopping block at the end of the woodpile (ChopGame),
@@ -12213,7 +12610,7 @@
       },
       draw() {
         // (another player as they made themselves in the character editor)
-        const who = vs ? () => (vs.look ? hdLook('mp:' + foe + ':' + vs.code, foe, vs.look) : npcSpec(foe)) : npcSpec;
+        const who = vs ? () => (vs.look ? hdLook('mp:' + foe + ':' + vs.code + ':' + (vs.xs || ''), foe, vs.look, vs.xs) : npcSpec(foe)) : npcSpec;
         const st = draw3D('snowball', () => ({ forts, who, me: meSpec(), px, duck, cool, pack, mine, theirs }));
         if (!st) {
           duskSky(0, 62);
@@ -12516,7 +12913,7 @@
     function face(j, w) {
       const o = mp.others[w.id], mate = mates[j];
       return { me: j === me, npc: mate || null,
-        look: j === me || mate ? null : o ? { n: o.n, look: o.look } : { n: String(w.n || '?'), look: oldPick('male', 0) },
+        look: j === me || mate ? null : o ? { n: o.n, look: o.look, xs: o.xs } : { n: String(w.n || '?'), look: oldPick('male', 0) },
         tag: j === me ? '' : mate ? mate.name : String(w.n || '?') + (w.ai ? ' (CPU)' : '') };
     }
     // What's on the ice now, running ahead if this game can, otherwise as the views have it.
@@ -12919,14 +13316,19 @@
   }
   // someone's look in the smoother style, made once
   const hdPerson = (key, name, body, look, style) => hd.people[key] || (hd.people[key] = HD.person(name, body, look, style));
-  // a player, dressed just as they made themselves in the character editor
-  const hdLook = (key, name, look) => hdPerson(key, name, look.g, Art.lookColours(look), Art.lookStyle(look));
+  // a player, dressed just as they made themselves in the character editor (in their ugly
+  // sweater, at Christmas: the key has to say which)
+  const hdLook = (key, name, look, sweater) => hdPerson(key, name, look.g, Art.lookColours(look), Art.lookStyle(look, sweater));
   // you as you're dressed now, and a coworker
   function meSpec() {
-    const mine = wornLook(myLook), key = 'me:' + playerName + ':' + Art.lookCode(mine);
-    return { key, spec: hdLook(key, playerName || 'New Hire', mine) };
+    const mine = wornLook(myLook), key = 'me:' + playerName + ':' + Art.lookCode(mine) + ':' + mySweater();
+    return { key, spec: hdLook(key, playerName || 'New Hire', mine, mySweater()) };
   }
-  const npcSpec = (name) => { const { body, look } = lookFor(name); return hdPerson('npc:' + name, name, body, look, personOf(name).style); };
+  const npcSpec = (name) => {
+    const { body, look } = lookFor(name), knit = knits[name];
+    const style = knit ? Object.assign({}, personOf(name).style, { sweater: { key: knit, cols: Art.SWEATERS[knit].cols } }) : personOf(name).style;
+    return hdPerson('npc:' + name, name, body, look, style);
+  };
   const iceAt = (px, py) => tileAt(YARD, Math.round(px / 16), Math.round(py / 16)) === '~';
   // how far through a stride someone is (two steps to a stride), or -1 standing still
   const stride = (moving, step, prog) => (moving ? ((step ? 1 : 0) + prog / 16) / 2 : -1);
@@ -12939,18 +13341,26 @@
     // everyone out here: you, coworkers and other players (in a hockey game, you and
     // whoever you're playing are out on the ice instead)
     const sc = hockey && hockey.scene();
+    // (anyone throwing a snowball or lying in the snow making an angel is posed for it: see
+    // "out in the snow")
     const people = sc ? [] : [{ key: me, spec: mySpec, px, py, dir: P.dir, face: P.free ? P.face : undefined,
-      walk: P.glide || !(P.vx || P.vy) ? -1 : (P.dist / 32) % 1, skate: iceAt(px, py) }];
+      walk: P.glide || !(P.vx || P.vy) ? -1 : (P.dist / 32) % 1, skate: iceAt(px, py),
+      throw: P.throwing ? throwPose(P.throwing.t) : 0, angel: P.angel ? angelPose(P.angel.t) : null }];
+    const npcsOut = [];
     for (const n of npcs) {
       if (n.floor !== YARD || (sc && (n === hockey.npc || (hockey.npcs && hockey.npcs.includes(n))))) continue;
       const nx = n.x * 16 + (n.moving ? n.mdx * n.prog : 0), ny = n.y * 16 + (n.moving ? n.mdy * n.prog : 0);
-      people.push({ key: 'npc:' + n.name, spec: npcSpec(n.name), px: nx, py: ny, dir: n.dir, walk: stride(n.moving, n.step, n.prog), skate: iceAt(nx, ny) });
+      people.push({ key: 'npc:' + n.name, spec: npcSpec(n.name), px: nx, py: ny, dir: n.dir, walk: stride(n.moving, n.step, n.prog), skate: iceAt(nx, ny),
+        throw: n.throwing ? throwPose(n.throwing.t) : 0 });
+      if (n.bubble) npcsOut.push([n.bubble.str, nx, ny]);
     }
     const others = mpHere().filter((o) => o.f === YARD && !(sc && hockey.ids && hockey.ids.includes(o.id)));
     for (const o of others) {
-      const [tx, ty] = mpTarget(o), mv = o.px !== tx || o.py !== ty, key = 'mp:' + o.n + ':' + o.a;
-      people.push({ key, spec: hdLook(key, o.n, o.look), px: o.px, py: o.py, dir: o.dir, face: o.face,
-        walk: mv ? (o.dist / 32) % 1 : -1, skate: iceAt(o.px, o.py) });
+      const [tx, ty] = mpTarget(o), mv = o.px !== tx || o.py !== ty, key = 'mp:' + o.n + ':' + o.a + ':' + o.xs;
+      // (their throw went out as they let go, so their arm is already partway through it)
+      people.push({ key, spec: hdLook(key, o.n, o.look, o.xs), px: o.px, py: o.py, dir: o.angel ? 'down' : o.dir, face: o.angel ? 0 : o.face,
+        walk: mv ? (o.dist / 32) % 1 : -1, skate: iceAt(o.px, o.py),
+        throw: o.throwT !== undefined ? throwPose(o.throwT - RELEASE) : 0, angel: o.angel ? angelPose(tick - o.angel.t) : null });
     }
     // the view follows you, or in a hockey game the play (mostly the puck, and leaning a
     // little toward the net you're shooting at); hockey's places are in tiles from the map's
@@ -12959,8 +13369,8 @@
     if (sc) {
       const at = (x, y) => [x * 16 - 8, y * 16 - 8];
       sc.skaters.forEach((p, i) => {
-        const lk = p.look, key = p.me ? me : p.npc ? 'npc:' + p.npc.name : 'mp:' + lk.n + ':' + Art.lookCode(lk.look);
-        const spec = p.me ? mySpec : p.npc ? npcSpec(p.npc.name) : hdLook(key, lk.n, lk.look);
+        const lk = p.look, key = p.me ? me : p.npc ? 'npc:' + p.npc.name : 'mp:' + lk.n + ':' + Art.lookCode(lk.look) + ':' + (lk.xs || '');
+        const spec = p.me ? mySpec : p.npc ? npcSpec(p.npc.name) : hdLook(key, lk.n, lk.look, lk.xs);
         // (another player on the ice gets a figure of their own, apart from the one out in the lot)
         people.push({ key: p.look ? 'ice:' + i + ':' + key : key, spec, px: p.x * 16 - 8, py: p.y * 16 - 8,
           dir: ['down', 'right', 'up', 'left'][(Math.round(p.ang / (Math.PI / 2)) + 4) % 4], face: p.ang, walk: p.push ? (tick / 40) % 1 : -1, skate: true,
@@ -12978,7 +13388,7 @@
       const ms = performance.now();
       if (ms - (h.drawn || 0) < 9) return;
       h.drawn = ms;
-      gl.draw({ t: tick, alpha: drawAlpha, focus, people, view: sc ? HOCKEY_VIEW : null, puck });
+      gl.draw({ t: tick, alpha: drawAlpha, focus, people, view: sc ? HOCKEY_VIEW : null, puck, snow: sc ? null : snowScene(), glow: glowScene() });
       // names and speech bubbles, flat, over the 3D
       c.setTransform(1, 0, 0, 1, 0, 0);
       c.clearRect(0, 0, h.cv.width, h.cv.height);
@@ -12990,6 +13400,8 @@
       }
       for (const it of people) if (it.tag) HD.tag(c, it.tag, ...gl.toScreen(it.px, it.py, 2.35)); // other players on the ice
       if (mp.bubble) HD.bubble(c, mp.bubble.str, ...gl.toScreen(px, py, 2.5), 0, SW);
+      for (const [str, nx, ny] of npcsOut) HD.bubble(c, str, ...gl.toScreen(nx, ny, 2.5), 0, SW);
+      snowSplat(c);
       return;
     }
 
@@ -13007,17 +13419,20 @@
       if (it.full) { c.fillStyle = it.ring; c.fill(); } else { c.strokeStyle = it.ring; c.lineWidth = 1.5; c.stroke(); }
     }
     if (puck) { c.fillStyle = '#18181e'; c.beginPath(); c.ellipse(puck[0] + 8, puck[1] + 8, 2.2, 1.4, 0, 0, Math.PI * 2); c.fill(); }
+    if (!sc) snowGround(c, cx, cy);
+    glowGround(c);
     // everyone and everything standing up, back to front by where their feet are
     const items = lot.props.filter((p) => !p.img || (p.x < cx + SW && p.x + p.w > cx && p.y < cy + SH && p.y + p.h > cy));
     for (const it of people) {
       if (it.px < cx - 32 || it.px > cx + SW + 16 || it.py < cy - 16 || it.py > cy + SH + 48) continue;
-      items.push({ base: it.py + 13, x: it.px + 8, spec: it.spec, dir: it.dir, walk: it.walk, skate: it.skate });
+      items.push({ base: it.py + 13, x: it.px + 8, spec: it.spec, dir: it.dir, walk: it.walk, skate: it.skate, lie: it.angel ? it.angel.lie : 0, flap: it.angel ? it.angel.flap : 0 });
     }
     items.sort((a, b) => a.base - b.base);
     for (const it of items) {
-      if (it.spec) HD.drawPerson(c, it.spec, it.x, it.base, { dir: it.dir, t: tick, walk: it.walk, skate: it.skate });
+      if (it.spec) HD.drawPerson(c, it.spec, it.x, it.base, { dir: it.dir, t: tick, walk: it.walk, skate: it.skate, lie: it.lie, flap: it.flap });
       else HD.drawProp(c, it, tick);
     }
+    if (!sc) snowAir(c);
     HD.overlay(c, lot, tick, cx, cy, SW, SH);
     // names over other players' heads, and what anyone's saying
     c.setTransform(K, 0, 0, K, -cx * K, -cy * K);
@@ -13028,14 +13443,67 @@
     }
     for (const it of people) if (it.tag) HD.tag(c, it.tag, it.px + 8, it.py - 29); // other players on the ice
     if (mp.bubble) HD.bubble(c, mp.bubble.str, px + 8, py - 30, cx, cx + SW);
+    for (const [str, nx, ny] of npcsOut) HD.bubble(c, str, nx + 8, ny - 30, cx, cx + SW);
+    c.setTransform(K, 0, 0, K, 0, 0);
+    snowSplat(c);
+  }
+  // The flat lot's footprints and snow angels, on the ground under everyone (a tile's middle
+  // is 8 pixels in from its corner)...
+  function snowGround(c, cx, cy) {
+    const fade = (age, life) => Math.max(0, Math.min(1, (life - age) / (life * 0.35)));
+    const seen = (x, y, m) => x * 16 > cx - m && x * 16 < cx + SW + m && y * 16 > cy - m && y * 16 < cy + SH + m;
+    for (const an of SNOW.angels) {
+      if (!seen(an.x, an.y, 24)) continue;
+      c.save(); c.translate(an.x * 16 + 8, an.y * 16 + 8); c.scale(16, 16);
+      HD.snowAngel(c); c.fillStyle = 'rgba(118, 136, 180, ' + (0.5 * fade(tick - an.t, ANGEL_LIFE)).toFixed(3) + ')'; c.fill();
+      c.restore();
+    }
+    for (const p of SNOW.prints) {
+      if (!seen(p.x, p.y, 8)) continue;
+      c.fillStyle = 'rgba(112, 130, 172, ' + (0.6 * fade(tick - p.t, PRINT_LIFE)).toFixed(3) + ')';
+      c.beginPath(); c.ellipse(p.x * 16 + 8, p.y * 16 + 8, 1.7, 0.9, p.a, 0, Math.PI * 2); c.fill();
+    }
+  }
+  // ...and the snowballs in the air (each with its shadow) and the puffs where they burst, over them
+  function snowAir(c) {
+    const UP = 22; // pixels to a metre, near enough, the way people are drawn here
+    for (const b of SNOW.balls) {
+      const x = (b.px + (b.x - b.px) * drawAlpha) * 16 + 8, y = (b.py + (b.y - b.py) * drawAlpha) * 16 + 8, z = b.pz + (b.z - b.pz) * drawAlpha;
+      c.fillStyle = 'rgba(40, 50, 90, 0.28)'; c.beginPath(); c.ellipse(x, y, 1.8, 0.9, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#f6f8fc'; c.strokeStyle = '#16121c'; c.lineWidth = 0.6;
+      c.beginPath(); c.arc(x, y - z * UP, 1.7, 0, Math.PI * 2); c.fill(); c.stroke();
+    }
+    c.fillStyle = '#f6f8fc';
+    for (const f of SNOW.puffs) {
+      const age = tick - f.t + drawAlpha, k = age / 40;
+      for (let j = 0; j < 7; j++) {
+        const a = f.seed + j * Math.PI * 2 / 7, sp = 0.4 + 0.2 * (j % 3);
+        c.globalAlpha = 1 - k;
+        c.beginPath(); c.arc(f.x * 16 + 8 + Math.cos(a) * sp * age, f.y * 16 + 8 + Math.sin(a) * sp * age * 0.5 - Math.max(0, f.z * UP + (0.8 - 0.035 * age) * age), 1.2 * (1 - k * 0.6), 0, Math.PI * 2); c.fill();
+      }
+    }
+    c.globalAlpha = 1;
+  }
+  // Snow on the screen for a moment when a snowball gets you.
+  function snowSplat(c) {
+    const age = tick - SNOW.hitMe;
+    if (age < 0 || age > 70) return;
+    c.save();
+    c.globalAlpha = Math.min(1, (70 - age) / 30) * 0.92;
+    c.fillStyle = '#f4f8fc';
+    for (const [x, y, r] of [[18, 26, 22], [40, 12, 14], [8, 52, 12], [302, 214, 20], [282, 230, 14], [310, 188, 10], [44, 40, 7], [276, 204, 7]]) {
+      c.beginPath(); c.arc(x, y + age * 0.25, r, 0, Math.PI * 2); c.fill();
+    }
+    c.restore();
   }
 
   // ---------- player / world ----------
   const S0 = MAPS.start;
   // free, fx, fy, vx, vy, face, dist, stride, glide: going any way out in the parking lot
-  // (see updateFree)
+  // (see updateFree); throwing, angel: partway through a snowball or a snow angel (see "out
+  // in the snow")
   const P = { floor: S0.floor, x: S0.x, y: S0.y, dir: S0.dir, moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, turnWait: 0, walked: false, bump: 0,
-    free: false, fx: 0, fy: 0, vx: 0, vy: 0, face: 0, dist: 0, stride: 0, glide: false };
+    free: false, fx: 0, fy: 0, vx: 0, vy: 0, face: 0, dist: 0, stride: 0, glide: false, throwing: null, angel: null };
   let mode = 'title', tick = 0, roomName = null, curRoom = null, banner = null;
   let fade = null; // {t, cb, color}
 
@@ -13122,7 +13590,10 @@
     const s = Math.sin(P.face), c = Math.cos(P.face);
     const at = (side) => [Math.round(P.fx + s + c * side), Math.round(P.fy + c - s * side)]; // a tile ahead
     const spots = [at(0), at(-FREE_R), at(FREE_R)];
-    return spots.find(([x, y]) => npcAt(P.floor, x, y) || mpAt(P.floor, x, y)) || spots[0];
+    // a spruce you're up against and more or less facing, though its trunk is further off
+    const tree = P.floor === YARD && spruces.find(([x, y]) => Math.hypot(x - P.fx, y - P.fy) < SPRUCE_R + 0.5
+      && (s * (x - P.fx) + c * (y - P.fy)) / Math.hypot(x - P.fx, y - P.fy) > 0.6);
+    return spots.find(([x, y]) => npcAt(P.floor, x, y) || mpAt(P.floor, x, y)) || tree || spots[0];
   }
 
   function interact() {
@@ -13213,7 +13684,8 @@
     }
     if (t === 'X' && sideDoor(P.floor, tx, ty)) return;
     if (P.floor === YARD) { yardTalk(t, tx, ty); return; }
-    if (CHRISTMAS && propAt(P.floor, tx, ty) === xmas.tree) { treeTalk(); return; }
+    const tree = CHRISTMAS && xmas.trees.find((tr) => propAt(P.floor, tx, ty) === tr);
+    if (tree) { treeTalk(tree); return; }
     const partyGame = partyGameAt(tx, ty, t);
     if (partyGame) {
       const [msg, opt, Game] = partyGame;
@@ -13354,6 +13826,25 @@
   // much speed you lose every tick coasting
   const ICE_ACC = 0.12, ICE_BRAKE = 1.4, ICE_DRAG = 0.05;
   const FACE = { down: 0, right: Math.PI / 2, up: Math.PI, left: -Math.PI / 2 };
+  // The big spruce stands on one tile, but its branches spread nearly two metres all round
+  // (in js/lot3d.js and js/hd.js alike), so you're kept this far from its middle rather than
+  // walking in under them.
+  const SPRUCE_R = 1.8;
+  const spruces = YARD < 0 ? [] : MAPS.floors[YARD].tiles.flatMap((row, y) => [...row].flatMap((ch, x) => (ch === 'Y' ? [[x, y]] : [])));
+  // Push you back out from under any spruce you've walked into, sliding round it, and give
+  // how hard you ran into it (pixels a tick), or 0.
+  function offBranches() {
+    let hit = 0;
+    for (const [x, y] of spruces) {
+      const dx = P.fx - x, dy = P.fy - y, d = Math.hypot(dx, dy);
+      if (d >= SPRUCE_R) continue;
+      const nx = d > 1e-6 ? dx / d : 0, ny = d > 1e-6 ? dy / d : 1;
+      P.fx = x + nx * SPRUCE_R; P.fy = y + ny * SPRUCE_R;
+      const vn = P.vx * nx + P.vy * ny; // how fast you're going in toward it
+      if (vn < 0) { P.vx -= vn * nx; P.vy -= vn * ny; hit = Math.max(hit, -vn); }
+    }
+    return hit;
+  }
   // Go d tiles along one axis ('x' or 'y'): 0 if nothing's in the way, 1 slipping round a
   // corner, 2 stopped against something (or through the office doors).
   function freeStep(ax, d) {
@@ -13381,9 +13872,16 @@
     if (!P.free || Math.round(P.fx) !== P.x || Math.round(P.fy) !== P.y) {
       Object.assign(P, { free: true, fx: P.x, fy: P.y, vx: 0, vy: 0, face: FACE[P.dir], stride: 0, bump: 0, glide: false });
     }
+    // lying in the snow making an angel: nothing else until you're back up
+    if (P.angel) {
+      if (++P.angel.t >= ANGEL_T) { addAngel(P.angel.x, P.angel.y); P.angel = null; sfx('crunch'); }
+      return;
+    }
     // stopping to do something
     const act = pressed.has('start') ? openStartMenu : pressed.has('map') ? () => { sfx('menu'); ui.push(MapView()); } : pressed.has('a') ? interact : null;
     if (act) { P.vx = P.vy = 0; P.glide = false; act(); return; }
+    // B throws a snowball the way you're facing (snowTick lets it go)
+    if (pressed.has('b') && !P.throwing) P.throwing = { t: tick, a: P.face };
     let { x: ix, y: iy } = steer();
     const push = Math.hypot(ix, iy);
     if (push > 1) { ix /= push; iy /= push; }
@@ -13410,6 +13908,8 @@
       if (fade) return; // through the doors
       if (r === 2) { hit = Math.max(hit, Math.abs(P[v]) || 0.01); P[v] = 0; }
     }
+    const branches = offBranches();
+    if (branches > 0.3) hit = Math.max(hit, branches);
     // into the boards at speed, or walking into a wall
     if (hit > 2.5 && ice) sfx('boards');
     else if (hit && pushing) { if (P.bump % 24 === 0) sfx('bump'); P.bump++; }
@@ -13467,6 +13967,8 @@
       updateName();
     } else if (mode === 'costume') {
       updateCostume();
+    } else if (mode === 'sweater') {
+      updateSweater();
     } else if (ui.length) {
       top().update();
     } else if (questQueue.length) {
@@ -13474,9 +13976,11 @@
     } else {
       updatePlayer();
       updateNpcs();
+      if (mode === 'play' && P.floor === YARD) snowTick();
     }
     if (mode === 'play' && !fade) ringPhone();
     mpUpdate();
+    glowTick();
     // a finished game's leaderboard goes up as soon as the game has closed, ahead of its parting line
     // (a quest's board waits until you're back walking around)
     if (pendingBoard && !ui.includes(pendingBoard.owner) && !(pendingBoard.quiet && (ui.length || questQueue.length || mode !== 'play'))) {
@@ -13539,32 +14043,40 @@
   // Start on your look (called as the name screen closes), and ask the database for the
   // one saved under your name, which takes over if there is one, and whether you're the
   // Office Champion, which puts the crown on even if the answer's late. It holds on for both.
+  // It asks after your Santa hat too (see "Christmas Day").
   function editStart() {
     Object.assign(edit, { row: 0, btn: 1, look: Object.assign({}, myLook), wait: 240 });
     const ask = edit.ask = {}, name = playerName;
+    santaHat = giftHere(name); // (this browser knows straight away; the database answers in a moment)
     const saved = lookLoad(name).then((look) => {
+      if (look && look.hat === Art.SANTA && playerName === name) santaHat = true; // (it must be yours, then)
       if (edit.ask !== ask || edit.wait <= 0) return; // (too late: you might have changed something by now)
       if (look) edit.look = look;
     });
     const crown = crownCheck(name).then((on) => { if (playerName === name) setCrowned(on); });
-    Promise.all([saved, crown]).then(() => { if (edit.ask === ask) edit.wait = 0; });
+    const gift = giftCheck(name).then((on) => { if (playerName === name && on) santaHat = true; });
+    Promise.all([saved, crown, gift]).then(() => { if (edit.ask === ask) edit.wait = 0; });
   }
-  // how many choices a row has (the crown is the last head thing, and it's only ever the
-  // champion's, who can't change it: see crowned)
-  const editCount = (r) => r.n || LOOK_COUNT[r.key] - (r.key === 'hat' ? 1 : 0);
+  // the choices a row has, in order: the head things leave out the crown (only ever the
+  // champion's, who can't change it: see crowned) and the Santa hat, unless it's yours
+  // (or you're already wearing it)
+  function editChoices(r) {
+    if (r.key === 'hat') return [...Array(Art.CROWN).keys()].concat(santaHat || edit.look.hat === Art.SANTA ? [Art.SANTA] : []);
+    return [...Array(r.n || LOOK_COUNT[r.key]).keys()];
+  }
   const editLocked = (r) => r && r.key === 'hat' && crowned;
   function editRandom() {
-    for (const r of EDIT_ROWS) if (r.key !== 'g') editSet(r, Math.floor(Math.random() * editCount(r)));
+    for (const r of EDIT_ROWS) if (r.key !== 'g') { const ch = editChoices(r); editSet(r, ch[Math.floor(Math.random() * ch.length)]); }
     if (Math.random() < 0.4) edit.look.hat = 0; // (most people don't wear anything on their head)
   }
   function editDone() {
     if (fade) return;
     myLook = Art.lookFix(edit.look);
-    sprites = lookSprites(wornLook(myLook));
+    sprites = mySprites();
     store.set('avatar', Art.lookCode(myLook));
     lookSave(playerName, myLook);
     sfx('menu');
-    startFade(HALLOWEEN ? openCostumes : enterOffice);
+    startFade(HALLOWEEN ? openCostumes : CHRISTMAS ? openSweaters : enterOffice);
   }
   function updateEdit() {
     if (edit.wait > 0) { edit.wait--; return; }
@@ -13573,8 +14085,8 @@
     if (pressed.has('down')) { edit.row = (edit.row + 1) % (n + 1); sfx('select'); }
     if (r && (d || pressed.has('a')) && editLocked(r)) sfx('buzz');
     else if (r && (d || pressed.has('a'))) {
-      const count = editCount(r);
-      editSet(r, (editValue(r, edit.look) + (d || 1) + count) % count);
+      const ch = editChoices(r), i = Math.max(0, ch.indexOf(editValue(r, edit.look)));
+      editSet(r, ch[(i + (d || 1) + ch.length) % ch.length]);
       sfx('select');
     } else if (d) { edit.btn ^= 1; sfx('select'); }
     else if (pressed.has('a') && edit.btn === 0) { editRandom(); sfx('blip'); }
@@ -13655,6 +14167,45 @@
     ctext('Arrows: choose   Space: wear it', SH - 24);
   }
 
+  // ---------- Christmas ugly sweater select ----------
+  // Every sweater on you as you are (your hair, head thing and pants), and NONE for the shirt
+  // you made. Five across, two rows.
+  const SWEATER_KEYS = Object.keys(Art.SWEATERS).concat('none');
+  let sweaterCur = 0, sweaterSheets = [];
+  function openSweaters() {
+    sweaterSheets = SWEATER_KEYS.map((k) => lookSprites(wornLook(myLook), Art.SWEATERS[k] ? k : ''));
+    sweaterCur = Math.max(0, SWEATER_KEYS.indexOf(xmas.sweater));
+    mode = 'sweater';
+  }
+  function updateSweater() {
+    const n = SWEATER_KEYS.length, row = sweaterCur - (sweaterCur % 5);
+    if (pressed.has('left')) { sweaterCur = row + ((sweaterCur + 4) % 5); sfx('select'); }
+    if (pressed.has('right')) { sweaterCur = row + ((sweaterCur + 1) % 5); sfx('select'); }
+    if (pressed.has('up') || pressed.has('down')) { sweaterCur = (sweaterCur + 5) % n; sfx('select'); }
+    if (pressed.has('a') || pressed.has('start')) {
+      sfx('menu');
+      xmas.sweater = SWEATER_KEYS[sweaterCur];
+      store.set('sweater', xmas.sweater);
+      sprites = mySprites();
+      startFade(enterOffice);
+    } else if (pressed.has('b')) { sfx('select'); startFade(() => { mode = 'edit'; }); }
+  }
+  function drawSweater() {
+    ctx.fillStyle = col.light; ctx.fillRect(0, 0, SW, SH);
+    ctx.fillStyle = col.dark; ring(4, 4, SW - 8, SH - 8); ring(6, 6, SW - 12, SH - 12);
+    const title = 'Pick an ugly sweater';
+    text(title, (SW - title.length * 12) >> 1, 18, 2, '#b82030');
+    SWEATER_KEYS.forEach((k, i) => {
+      const x = 22 + (i % 5) * 58, y = 44 + Math.floor(i / 5) * 66, sel = i === sweaterCur;
+      ctx.drawImage(sweaterSheets[i].down[sel ? [1, 0, 2, 0][(tick >> 3) & 3] : 0], x, y, 48, 48);
+      if (sel) { ctx.fillStyle = col.dark; ring(x - 5, y - 6, 58, 60); ring(x - 4, y - 5, 56, 58); }
+    });
+    // the one you're on, by name
+    const k = SWEATER_KEYS[sweaterCur], name = Art.SWEATERS[k] ? Art.SWEATERS[k].name : 'No sweater';
+    text(name, (SW - name.length * 12) >> 1, 184, 2);
+    ctext('Arrows: choose   Space: wear it', SH - 24);
+  }
+
   // ---------- render ----------
   function frameIndex() {
     const walkFrame = P.step ? 1 : 2;
@@ -13728,6 +14279,7 @@
     const spooky = HALLOWEEN && P.floor === hw.floor;
     if (spooky) drawHalloween(cx, cy, 0);
     if (CHRISTMAS) drawChristmas(cx, cy);
+    drawGlowPix(cx, cy);
     // people, drawn back to front so nearer ones overlap farther ones
     const actors = [{ x: px, y: py, img: sprites[P.dir][frameIndex()] }];
     if (party) {
@@ -13749,10 +14301,9 @@
         alpha: visit && visit.npc === n ? visit.a : 1 });
     }
     for (const o of mpHere()) if (o.f === P.floor) actors.push({ x: o.px, y: o.py, img: mpSprites(o)[o.dir][mpFrame(o)] });
-    // the reception tree sorts in by the row it stands on (z), not by its top
-    const tr = xmas.tree;
-    if (CHRISTMAS && P.floor === tr.floor)
-      actors.push({ x: tr.x * 16, y: (tr.y + 1) * 16 - 48, z: tr.y * 16, img: xmas.frames[(tick >> 5) % 3] });
+    // a Christmas tree sorts in by the row it stands on (z), not by its top
+    if (CHRISTMAS) for (const tr of xmas.trees) if (P.floor === tr.floor)
+      actors.push({ x: tr.x * 16, y: (tr.y + 1) * 16 - 48, z: tr.y * 16, img: tr.frames[(tick >> 5) % 3] });
     const z = (a) => (a.z === undefined ? a.y : a.z);
     actors.sort((a, b) => z(a) - z(b));
     for (const a of actors) {
@@ -13852,7 +14403,7 @@
 
   function draw() {
     // outside, the screen is see-through over the parking lot's own canvas
-    const outside = !['title', 'edit', 'name', 'costume'].includes(mode) && P.floor === YARD;
+    const outside = !['title', 'edit', 'name', 'costume', 'sweater'].includes(mode) && P.floor === YARD;
     const covered = outside && ui.some((el) => el.cover);
     hdShow(outside);
     // the thumbstick for walking round the lot, and for what's on top if it wants one
@@ -13863,6 +14414,7 @@
     else if (mode === 'edit') drawEdit();
     else if (mode === 'name') drawName();
     else if (mode === 'costume') drawCostume();
+    else if (mode === 'sweater') drawSweater();
     else {
       // the room shakes while the plant is yelling at you
       const shake = ui.reduce((m, el) => Math.max(m, el.shake || 0), 0);
@@ -13915,7 +14467,11 @@
     if (Art.lookFrom(q.get('look'))) myLook = Art.lookFrom(q.get('look'));
     // &crown=1 wears the Office Champion's crown, whoever you are
     if (q.has('crown')) crowned = q.get('crown') !== '0';
-    sprites = lookSprites(wornLook(myLook));
+    // &zoom=2 brings the 3D parking lot's camera in close (0 far, 1 mid), as ZOOM in the Start menu does
+    if (q.has('zoom')) lotZoom = Math.min(LOT_ZOOMS.length - 1, Math.max(0, +q.get('zoom') || 0));
+    // &sweater=moose wears that ugly sweater (&sweater=none, none), at Christmas
+    if (q.has('sweater')) xmas.sweater = q.get('sweater');
+    sprites = mySprites();
     if (q.has('dir')) P.dir = q.get('dir');
     // &costume=vampire wears that costume (in October you wear your last one anyway);
     // &party=1 starts the boardroom party with you standing by a chair (or at &x=&y=)
@@ -13935,6 +14491,7 @@
     // &editor=1 opens the character editor
     if (q.has('editor') || q.has('select')) { editStart(); mode = 'edit'; }
     if (q.has('costumes')) openCostumes();
+    if (q.has('sweaters')) openSweaters();
     updateRoom();
     if (q.has('say')) ask('The elevator. Which floor?', ['GROUND', '2F', 'CANCEL'], () => {});
     if (q.has('menu')) openStartMenu();
@@ -14020,10 +14577,12 @@
   }
   let last = performance.now(), acc = 0;
   const STEP = 1000 / 60;
+  // (&freeze holds everything still after the keys and ticks above, still drawing, for a screenshot)
+  const frozen = location.hash.startsWith('#play') && /[#&]freeze/.test(location.hash);
   function frame(now) {
     acc += Math.min(100, now - last);
     last = now;
-    while (acc >= STEP) { update(); acc -= STEP; }
+    while (acc >= STEP) { if (!frozen) update(); acc -= STEP; }
     drawAlpha = acc / STEP;
     draw();
     requestAnimationFrame(frame);

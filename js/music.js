@@ -351,6 +351,51 @@ window.MUSIC = {
       { type: 'drums', vol: 0.35, notes: 'k h h h s h h h | k h h h s h h h' },
     ],
   },
+  // Christmas, out on the ice: a slow waltz (three beats to the bar, six steps), a music
+  // box over an oom-pah-pah, with the odd sleigh bell
+  skate: {
+    bpm: 100,
+    voices: [
+      { type: 'triangle', vol: 0.07, notes:
+        'D5 - - - B4 - | G4 - - - B4 - | D5 - - - E5 - | D5 - - - - - |' +
+        'C5 - - - A4 - | F#4 - - - A4 - | C5 - - - D5 - | C5 - - - - - |' +
+        'B4 - - - G4 - | E5 - - - D5 - | C5 - B4 - A4 - | B4 - - - D5 - |' +
+        'G5 - - - F#5 - | E5 - D5 - C5 - | B4 - - - A4 - | G4 - - - - - |' },
+      { type: 'sine', vol: 0.025, notes:
+        'D6 . . . B5 . | G5 . . . B5 . | D6 . . . E6 . | D6 . . . . . |' +
+        'C6 . . . A5 . | F#5 . . . A5 . | C6 . . . D6 . | C6 . . . . . |' +
+        'B5 . . . G5 . | E6 . . . D6 . | C6 . B5 . A5 . | B5 . . . D6 . |' +
+        'G6 . . . F#6 . | E6 . D6 . C6 . | B5 . . . A5 . | G5 . . . . . |' },
+      { type: 'triangle', vol: 0.085, notes:
+        'G2 - - - - - | G2 - - - - - | G2 - - - - - | G2 - - - - - |' +
+        'D2 - - - - - | D2 - - - - - | D2 - - - - - | D2 - - - - - |' +
+        'G2 - - - - - | C3 - - - - - | A2 - - - - - | G2 - - - - - |' +
+        'E2 - - - - - | A2 - - - - - | D2 - - - - - | G2 - - - - - |' },
+      { type: 'sine', vol: 0.03, notes:
+        '. . B3 . D4 . | . . B3 . D4 . | . . B3 . D4 . | . . B3 . D4 . |' +
+        '. . F#3 . C4 . | . . F#3 . A3 . | . . F#3 . C4 . | . . F#3 . C4 . |' +
+        '. . B3 . D4 . | . . E3 . G3 . | . . C4 . E4 . | . . B3 . D4 . |' +
+        '. . G3 . B3 . | . . C4 . E4 . | . . F#3 . C4 . | . . B3 . D4 . |' },
+      { type: 'drums', vol: 0.16, notes: '. . h . h . | . . h . h . | . . h . h . | . . h h h h' },
+    ],
+  },
+  // Christmas, indoors: Deck the Halls, the office's own tune put away for the holidays
+  carol: {
+    bpm: 120,
+    voices: [
+      { type: 'square', vol: 0.03, notes:
+        'G5 - - F5 E5 - D5 - | C5 - D5 - E5 - C5 - | D5 E5 F5 D5 E5 - - D5 | C5 - B4 - C5 - - - |' +
+        'G5 - - F5 E5 - D5 - | C5 - D5 - E5 - C5 - | D5 E5 F5 D5 E5 - - D5 | C5 - B4 - C5 - - - |' +
+        'D5 - - E5 F5 - D5 - | E5 - - F5 G5 - D5 - | E5 F#5 G5 - A5 B5 C6 - | B5 - A5 - G5 - - - |' +
+        'G5 - - F5 E5 - D5 - | C5 - D5 - E5 - C5 - | A5 A5 A5 A5 G5 - - F5 | E5 - D5 - C5 - - - |' },
+      { type: 'triangle', vol: 0.09, notes:
+        'C3 . G2 . C3 . G2 . | F2 . C3 . C3 . G2 . | G2 . D3 . C3 . G2 . | G2 . D3 . C3 . G2 . |' +
+        'C3 . G2 . C3 . G2 . | F2 . C3 . C3 . G2 . | G2 . D3 . C3 . G2 . | G2 . D3 . C3 . G2 . |' +
+        'G2 . D3 . G2 . B2 . | C3 . G2 . G2 . D3 . | C3 . G2 . D3 . A2 . | G2 . D3 . G2 . D3 . |' +
+        'C3 . G2 . C3 . G2 . | F2 . C3 . C3 . G2 . | F2 . C3 . C3 . G2 . | G2 . D3 . C3 . . . |' },
+      { type: 'drums', vol: 0.3, notes: 'k . h . s . h . | k . h . s . h h' },
+    ],
+  },
   // hockey on the rink: a rink organ, a tune and its harmony in thirds over a bouncing bass
   hockey: {
     bpm: 152,
