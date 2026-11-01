@@ -2822,6 +2822,317 @@ window.Art = (function () {
     },
   };
   for (const p of PANTS) if (PANTS32[p.hd]) p.hi = PANTS32[p.hd];
+  // The ugly Christmas sweaters, by their key in SWEATERS: on the same body as the shirts
+  // (rows 20-25), in the sweater's own colours ('1' to '5', the knit first) and '0', the
+  // knit in shadow (see sweaterPal): a motif on the front, a band across the back.
+  const SWEATER32 = {
+    gingerbread: {
+      down: [
+        '.......kkkk0101220101kkkk',
+        '......kk1113132222330000kk',
+        '......kk11k1112422113k00kk',
+        '......kk44k3111221110k44kk',
+        '......kkssk1112112113kSSkk',
+        '......kkssk3434343434kSSkk',
+      ],
+      up: [
+        '.......kkkk0101010101kkkk',
+        '......kk1111111111110000kk',
+        '......kk11k1121112110k00kk',
+        '......kk44k1212121212k44kk',
+        '......kkssk1121112110kSSkk',
+        '......kkssk3434343434kSSkk',
+      ],
+      left: [
+        '.........kk1111111110kk',
+        '........kk1111111k1100kk',
+        '........kk1112111k1102kk',
+        '........kk2121444k2120kk',
+        '........kk1112sssk1102kk',
+        '........kk4343sssk4343kk',
+      ],
+      leftWalk: [
+        '.........kk1111111110kk',
+        '........kk111111k11100kk',
+        '.......kkk11111kk21102kk',
+        '......kkkk2444kk212120kkk',
+        '.....kksss111kk1121102SSkk',
+        '.....kkssskkkk43434343SSkk',
+      ],
+    },
+    reindeer: {
+      down: [
+        '.......kkkk0144014401kkkk',
+        '......kk1111114444110000kk',
+        '......kk11k1113443110k00kk',
+        '......kk33k1114444110k33kk',
+        '......kkssk1111221110kSSkk',
+        '......kkssk1313131313kSSkk',
+      ],
+      up: [
+        '.......kkkk0101010101kkkk',
+        '......kk1111111111110000kk',
+        '......kk11k1131113110k00kk',
+        '......kk33k1313131313k33kk',
+        '......kkssk1131113110kSSkk',
+        '......kkssk1313131313kSSkk',
+      ],
+      left: [
+        '.........kk1111111110kk',
+        '........kk1111111k1100kk',
+        '........kk1113111k1103kk',
+        '........kk3131333k3130kk',
+        '........kk1113sssk1103kk',
+        '........kk3131sssk3131kk',
+      ],
+      leftWalk: [
+        '.........kk1111111110kk',
+        '........kk111111k11100kk',
+        '.......kkk11111kk31103kk',
+        '......kkkk3333kk313130kkk',
+        '.....kksss111kk1131103SSkk',
+        '.....kkssskkkk31313131SSkk',
+      ],
+    },
+    snowflake: {
+      down: [
+        '.......kkkk0102020201kkkk',
+        '......kk1114111222140000kk',
+        '......kk11k1112222214k00kk',
+        '......kk33k4111222110k33kk',
+        '......kkssk1112121214kSSkk',
+        '......kkssk3333333333kSSkk',
+      ],
+      up: [
+        '.......kkkk0101010101kkkk',
+        '......kk1111111111110000kk',
+        '......kk11k1121112110k00kk',
+        '......kk33k1212121212k33kk',
+        '......kkssk1121112110kSSkk',
+        '......kkssk3333333333kSSkk',
+      ],
+      left: [
+        '.........kk1111111110kk',
+        '........kk1111111k1100kk',
+        '........kk1112111k1102kk',
+        '........kk2121333k2120kk',
+        '........kk1112sssk1102kk',
+        '........kk3333sssk3333kk',
+      ],
+      leftWalk: [
+        '.........kk1111111110kk',
+        '........kk111111k11100kk',
+        '.......kkk11111kk21102kk',
+        '......kkkk2333kk212120kkk',
+        '.....kksss111kk1121102SSkk',
+        '.....kkssskkkk33333333SSkk',
+      ],
+    },
+    tree: {
+      down: [
+        '.......kkkk0101030101kkkk',
+        '......kk1111111242110000kk',
+        '......kk11k1112522210k00kk',
+        '......kk44k1122224220k44kk',
+        '......kkssk1111121110kSSkk',
+        '......kkssk1414141414kSSkk',
+      ],
+      up: [
+        '.......kkkk0101010101kkkk',
+        '......kk1111111111110000kk',
+        '......kk11k1141114110k00kk',
+        '......kk44k1414141414k44kk',
+        '......kkssk1141114110kSSkk',
+        '......kkssk1414141414kSSkk',
+      ],
+      left: [
+        '.........kk1111111110kk',
+        '........kk1111111k1100kk',
+        '........kk1114111k1104kk',
+        '........kk4141444k4140kk',
+        '........kk1114sssk1104kk',
+        '........kk4141sssk4141kk',
+      ],
+      leftWalk: [
+        '.........kk1111111110kk',
+        '........kk111111k11100kk',
+        '.......kkk11111kk41104kk',
+        '......kkkk4444kk414140kkk',
+        '.....kksss111kk1141104SSkk',
+        '.....kkssskkkk41414141SSkk',
+      ],
+    },
+    candycane: {
+      down: [
+        '.......kkkk0124014201kkkk',
+        '......kk1111211441120000kk',
+        '......kk11k1111221110k00kk',
+        '......kk33k1111441110k33kk',
+        '......kkssk1111221110kSSkk',
+        '......kkssk3333333333kSSkk',
+      ],
+      up: [
+        '.......kkkk0101010101kkkk',
+        '......kk1111111111110000kk',
+        '......kk11k1141114110k00kk',
+        '......kk33k1414141414k33kk',
+        '......kkssk1141114110kSSkk',
+        '......kkssk3333333333kSSkk',
+      ],
+      left: [
+        '.........kk1111111110kk',
+        '........kk1111111k1100kk',
+        '........kk1114111k1104kk',
+        '........kk4141333k4140kk',
+        '........kk1114sssk1104kk',
+        '........kk3333sssk3333kk',
+      ],
+      leftWalk: [
+        '.........kk1111111110kk',
+        '........kk111111k11100kk',
+        '.......kkk11111kk41104kk',
+        '......kkkk4333kk414140kkk',
+        '.....kksss111kk1141104SSkk',
+        '.....kkssskkkk33333333SSkk',
+      ],
+    },
+    santa: {
+      down: [
+        '.......kkkk0102012101kkkk',
+        '......kk1111112222110000kk',
+        '......kk11k1111221110k00kk',
+        '......kk22k1333333330k22kk',
+        '......kkssk1334334330kSSkk',
+        '......kkssk2222222222kSSkk',
+      ],
+      up: [
+        '.......kkkk0101010101kkkk',
+        '......kk1111111111110000kk',
+        '......kk11k1121112110k00kk',
+        '......kk22k1212121212k22kk',
+        '......kkssk1121112110kSSkk',
+        '......kkssk2222222222kSSkk',
+      ],
+      left: [
+        '.........kk1111111110kk',
+        '........kk1111111k1100kk',
+        '........kk1112111k1102kk',
+        '........kk2121222k2120kk',
+        '........kk1112sssk1102kk',
+        '........kk2222sssk2222kk',
+      ],
+      leftWalk: [
+        '.........kk1111111110kk',
+        '........kk111111k11100kk',
+        '.......kkk11111kk21102kk',
+        '......kkkk2222kk212120kkk',
+        '.....kksss111kk1121102SSkk',
+        '.....kkssskkkk22222222SSkk',
+      ],
+    },
+    snowman: {
+      down: [
+        '.......kkkk0101444101kkkk',
+        '......kk1112111242120000kk',
+        '......kk11k1111223112k00kk',
+        '......kk22k2115555510k22kk',
+        '......kkssk1112242212kSSkk',
+        '......kkssk1212121212kSSkk',
+      ],
+      up: [
+        '.......kkkk0101010101kkkk',
+        '......kk1111111111110000kk',
+        '......kk11k1121112110k00kk',
+        '......kk22k1212121212k22kk',
+        '......kkssk1121112110kSSkk',
+        '......kkssk1212121212kSSkk',
+      ],
+      left: [
+        '.........kk1111111110kk',
+        '........kk1111111k1100kk',
+        '........kk1112111k1102kk',
+        '........kk2121222k2120kk',
+        '........kk1112sssk1102kk',
+        '........kk2121sssk2121kk',
+      ],
+      leftWalk: [
+        '.........kk1111111110kk',
+        '........kk111111k11100kk',
+        '.......kkk11111kk21102kk',
+        '......kkkk2222kk212120kkk',
+        '.....kksss111kk1121102SSkk',
+        '.....kkssskkkk21212121SSkk',
+      ],
+    },
+    moose: {
+      down: [
+        '.......kkkk0221010221kkkk',
+        '......kk1111222112220000kk',
+        '......kk11k1112222110k00kk',
+        '......kk33k1112332110k33kk',
+        '......kkssk1111331110kSSkk',
+        '......kkssk4343434343kSSkk',
+      ],
+      up: [
+        '.......kkkk0101010101kkkk',
+        '......kk1111111111110000kk',
+        '......kk11k1131113110k00kk',
+        '......kk33k1313131313k33kk',
+        '......kkssk1131113110kSSkk',
+        '......kkssk4343434343kSSkk',
+      ],
+      left: [
+        '.........kk1111111110kk',
+        '........kk1111111k1100kk',
+        '........kk1113111k1103kk',
+        '........kk3131333k3130kk',
+        '........kk1113sssk1103kk',
+        '........kk3434sssk3434kk',
+      ],
+      leftWalk: [
+        '.........kk1111111110kk',
+        '........kk111111k11100kk',
+        '.......kkk11111kk31103kk',
+        '......kkkk3333kk313130kkk',
+        '.....kksss111kk1131103SSkk',
+        '.....kkssskkkk34343434SSkk',
+      ],
+    },
+    hvac: {
+      down: [
+        '.......kkkk0101444101kkkk',
+        '......kk1111114242410000kk',
+        '......kk11k1114424410k00kk',
+        '......kk33k1114242410k33kk',
+        '......kkssk1111444110kSSkk',
+        '......kkssk3333333333kSSkk',
+      ],
+      up: [
+        '.......kkkk0101010101kkkk',
+        '......kk1111111111110000kk',
+        '......kk11k1141114110k00kk',
+        '......kk33k1414141414k33kk',
+        '......kkssk1141114110kSSkk',
+        '......kkssk3333333333kSSkk',
+      ],
+      left: [
+        '.........kk1111111110kk',
+        '........kk1111111k1100kk',
+        '........kk1114111k1104kk',
+        '........kk4141333k4140kk',
+        '........kk1114sssk1104kk',
+        '........kk3333sssk3333kk',
+      ],
+      leftWalk: [
+        '.........kk1111111110kk',
+        '........kk111111k11100kk',
+        '.......kkk11111kk41104kk',
+        '......kkkk4333kk414140kkk',
+        '.....kksss111kk1141104SSkk',
+        '.....kkssskkkk33333333SSkk',
+      ],
+    },
+  };
   // a buffer of letters, doubled by Scale2x (the same rule as scale2x, on letters); null is clear
   function double(b) {
     const out = new Array(1024).fill(null), at = (x, y) => b[Math.min(15, Math.max(0, y)) * 16 + Math.min(15, Math.max(0, x))];
@@ -2858,13 +3169,14 @@ window.Art = (function () {
     // redrawn (once it is, today's hair is left off, or long hair would show twice)
     const b = double(lookBuf(hair.hi ? Object.assign({}, look, { hair: BALD }) : look, dir, step, true, sweater));
     if (hair.hi) b.fill(null, 0, 20 * 32); // (the head is rows 0-19; the body starts at 20)
-    // the shirt goes on before the head, so the hoodie's hood is behind it (not an ugly
-    // sweater, which is still today's, doubled), and overalls' bib and straps over it
-    if (shirt.hi && !SWEATERS[sweater]) {
+    // the shirt (or an ugly sweater in its place) goes on before the head, so the hoodie's
+    // hood is behind it, and overalls' bib and straps over a shirt (not over a sweater)
+    const sw = SWEATERS[sweater], top = sw ? sw.hi : shirt.hi;
+    if (top) {
       const view = dir === 'left' && step > 0 ? 'leftWalk' : dir;
       b.fill(null, 20 * 32, 26 * 32);
-      lay32(b, shirt.hi[view], shirt.hi.from);
-      if (pants.hi && pants.hi.top) lay32(b, pants.hi.top[view], 20);
+      lay32(b, top[view], top.from || 20);
+      if (sw) { /* (no bib over a sweater) */ } else if (pants.hi && pants.hi.top) lay32(b, pants.hi.top[view], 20);
       else if (pants.top) doubleOver(b, pants.top[view] || pants.top[dir], 10);
     }
     if (pants.hi) {
@@ -3268,9 +3580,12 @@ window.Art = (function () {
     left: ['....k' + sw.back[0] + 'k....', '....k' + sw.back[1] + 'k....', '....k' + sw.back[2].slice(0, 2) + 'ss' + sw.back[2].slice(4) + 'k....'],
     leftWalk: ['....k' + sw.back[0] + 'k....', '...k1' + sw.back[1] + 'k....', '....k' + sw.back[2].slice(0, 5) + 'sk....'],
   });
-  const sweaterPal = (sw) => { const o = {}; sw.cols.forEach((c, i) => { o[i + 1] = c; }); return o; };
+  // (and '0', the knit in shadow, for 32 x 32)
+  const sweaterPal = (sw) => { const o = { 0: darker(sw.cols[0], 0.25) }; sw.cols.forEach((c, i) => { o[i + 1] = c; }); return o; };
   // how a sweater dresses someone in the parking lot (js/hd.js, js/lot3d.js)
   const sweaterStyle = (key) => (SWEATERS[key] ? { key, cols: SWEATERS[key].cols } : null);
+  // (and each one's 32 x 32 knit: see SWEATER32)
+  for (const k in SWEATERS) if (SWEATER32[k]) SWEATERS[k].hi = SWEATER32[k];
 
   // The sprite sheet for someone in a costume: the same shape renderSprites returns.
   // base(dir, i) is the body under it (i: 0 standing, 1 mid-stride), and `logo` is the
