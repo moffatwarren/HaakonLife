@@ -876,6 +876,19 @@
       ctx.fillRect(x + k, y + i / 2, w - k * 2, 0.5);
     }
   };
+  // ...and for things drawn too many times a frame to paint with those each time, a picture
+  // made once (w x h real pixels, painted on c) and drawn at its ordinary size.
+  const finePics = new Map();
+  const finePic = (key, w, h, paint) => {
+    let cv = finePics.get(key);
+    if (!cv) {
+      cv = document.createElement('canvas');
+      cv.width = w; cv.height = h; cv.hi = 2;
+      paint(cv.getContext('2d'));
+      finePics.set(key, cv);
+    }
+    return cv;
+  };
   // At double resolution each letter is FONT.glyphs2 (smoothed), made into a picture once
   // for each colour and drawn at the letter's size, every pixel showing.
   const glyphPics = new Map();
@@ -1606,27 +1619,84 @@
   ];
   const SUIT_COL = ['#181820', '#c82828', '#c82828', '#181820'];
   const RANK_TXT = (r) => ({ 10: '10', 11: 'J', 12: 'Q', 13: 'K', 14: 'A' })[r] || String(r);
+  // At double resolution the suits are smooth shapes: these say whether a point is inside
+  // one, with u across from -1 to 1 and v down from -1 to 1.
+  const inHeart = (u, v) => Math.hypot(Math.abs(u) - 0.48, v + 0.42) < 0.52 || (v >= -0.42 && Math.abs(u) < 1 - (v + 0.42) / 1.42);
+  const inStem = (u, v) => v > 0.1 && v < 1 && Math.abs(u) < 0.1 + Math.max(0, v - 0.55) * 0.75;
+  const SUIT_IN = [
+    (u, v) => inHeart(u, -0.386 - v * 1.386) || inStem(u, v),
+    inHeart,
+    (u, v) => Math.abs(u) / 0.82 + Math.abs(v) < 1,
+    (u, v) => Math.hypot(u, v + 0.55) < 0.42 || Math.hypot(Math.abs(u) - 0.5, v - 0.02) < 0.42 || Math.abs(u) < 0.2 && Math.abs(v + 0.2) < 0.3 || inStem(u, v),
+  ];
   function drawSuit(s, x, y, k) {
+    if (HIRES) {
+      ctx.drawImage(finePic('suit' + s + k, 10 * k, 12 * k, (c) => {
+        c.fillStyle = SUIT_COL[s];
+        for (let j = 0; j < 12 * k; j++) for (let i = 0; i < 10 * k; i++) if (SUIT_IN[s]((i + 0.5) / (5 * k) - 1, (j + 0.5) / (6 * k) - 1)) c.fillRect(i, j, 1, 1);
+      }), x, y);
+      return;
+    }
     ctx.fillStyle = SUIT_COL[s];
     SUIT_PIX[s].forEach((row, j) => { for (let i = 0; i < 5; i++) if (row[i] === '1') ctx.fillRect(x + i * k, y + j * k, k, k); });
   }
   const CARD_W = 24, CARD_H = 32;
   function drawCard(c, x, y, faceDown) {
-    ctx.fillStyle = '#181820'; ctx.fillRect(x, y, CARD_W, CARD_H);
-    if (faceDown) {
+    if (HIRES) { // a rounded card with a thin edge and a shaded corner; the back's lattice in a frame
+      roundBox(x, y, CARD_W, CARD_H, 2.5, '#181820'); roundBox(x + 0.5, y + 0.5, CARD_W - 1, CARD_H - 1, 2, '#f8f8f8');
+      fine(x + 2, y + CARD_H - 1, CARD_W - 4, 0.5, '#c8ccd8'); fine(x + CARD_W - 1, y + 2, 0.5, CARD_H - 4, '#c8ccd8');
+      if (faceDown) {
+        roundBox(x + 2.5, y + 2.5, CARD_W - 5, CARD_H - 5, 1.5, '#3050a8');
+        fine(x + 4, y + 3.5, CARD_W - 8, 0.5, '#a8c0f0'); fine(x + 4, y + CARD_H - 4, CARD_W - 8, 0.5, '#a8c0f0'); fine(x + 3.5, y + 4, 0.5, CARD_H - 8, '#a8c0f0'); fine(x + CARD_W - 4, y + 4, 0.5, CARD_H - 8, '#a8c0f0');
+        for (let j = 1; j < CARD_H - 9; j += 4) for (let i = 1 + ((j >> 2) & 1 ? 2 : 0); i < CARD_W - 9; i += 4) { fine(x + 4.5 + i, y + 4 + j, 1, 2, '#6890e0'); fine(x + 4 + i, y + 4.5 + j, 2, 1, '#6890e0'); }
+        return;
+      }
+    } else {
+      ctx.fillStyle = '#181820'; ctx.fillRect(x, y, CARD_W, CARD_H);
+      if (faceDown) {
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 1, y + 1, CARD_W - 2, CARD_H - 2);
+        ctx.fillStyle = '#3050a8'; ctx.fillRect(x + 3, y + 3, CARD_W - 6, CARD_H - 6);
+        ctx.fillStyle = '#6890e0';
+        for (let j = 0; j < CARD_H - 8; j += 4) for (let i = (j >> 2) & 1 ? 2 : 0; i < CARD_W - 8; i += 4) ctx.fillRect(x + 4 + i, y + 4 + j, 2, 2);
+        return;
+      }
       ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 1, y + 1, CARD_W - 2, CARD_H - 2);
-      ctx.fillStyle = '#3050a8'; ctx.fillRect(x + 3, y + 3, CARD_W - 6, CARD_H - 6);
-      ctx.fillStyle = '#6890e0';
-      for (let j = 0; j < CARD_H - 8; j += 4) for (let i = (j >> 2) & 1 ? 2 : 0; i < CARD_W - 8; i += 4) ctx.fillRect(x + 4 + i, y + 4 + j, 2, 2);
-      return;
     }
-    ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 1, y + 1, CARD_W - 2, CARD_H - 2);
     text(RANK_TXT(c.r), x + 3, y + 3, 1, SUIT_COL[c.s]);
     drawSuit(c.s, x + 3, y + 12, 1);
     drawSuit(c.s, x + 9, y + 16, 2);
+    if (HIRES && c.r >= 11 && c.r <= 13) { // a little crown on the picture cards
+      const cx = x + 14;
+      fine(cx - 3, y + 11, 7, 2, '#d8a828'); fine(cx - 3, y + 11, 7, 0.5, '#f8e8a8');
+      for (const dx of [-3, 0, 3]) { fine(cx + dx, y + 8.5, 1, 2.5, '#d8a828'); fine(cx + dx, y + 8, 1, 0.5, c.r === 13 ? '#c82828' : '#3050a8'); }
+    }
+  }
+  // where a card will go, sunk into the felt
+  function drawCardSpot(x, y, w, h) {
+    if (HIRES) {
+      roundBox(x, y, w, h, 2.5, '#246a36');
+      fine(x + 2.5, y, w - 5, 0.5, '#1c5a2c'); fine(x, y + 2.5, 0.5, h - 5, '#1c5a2c');
+      fine(x + 2.5, y + h - 0.5, w - 5, 0.5, '#389050'); fine(x + w - 0.5, y + 2.5, 0.5, h - 5, '#389050');
+      return;
+    }
+    ctx.fillStyle = '#246a36'; ctx.fillRect(x, y, w, h);
+  }
+  // a bar for how much you're betting
+  function drawBetBar(f) {
+    const w = Math.round(148 * f);
+    ctx.fillStyle = INK; ctx.fillRect(160, 203, 150, 9);
+    ctx.fillStyle = '#e8e8e8'; ctx.fillRect(161, 204, 148, 7);
+    ctx.fillStyle = '#f0b030'; ctx.fillRect(161, 204, w, 7);
+    if (HIRES && w) { fine(161, 204, w, 1, 'rgba(255,255,255,0.45)'); fine(161, 210, w, 1, 'rgba(0,0,0,0.15)'); }
   }
   // a little spring roll, for amounts
   function drawRoll(x, y) {
+    if (HIRES) { // rounded, golden and crisp, its wrapper's folds and a shine along the top
+      roundBox(x, y, 11, 7, 3, '#6a3c10'); roundBox(x + 0.5, y + 0.5, 10, 6, 2.5, '#e8b048');
+      fine(x + 2, y + 1, 7, 1, '#f8e098'); fine(x + 2, y + 5, 7, 1, '#c07828');
+      fine(x + 3.5, y + 1.5, 0.5, 4, '#c07828'); fine(x + 6, y + 1.5, 0.5, 4, '#c07828'); fine(x + 8, y + 2, 0.5, 3, '#c07828');
+      return;
+    }
     ctx.fillStyle = '#6a3c10'; ctx.fillRect(x, y + 1, 11, 5); ctx.fillRect(x + 1, y, 9, 7);
     ctx.fillStyle = '#e8b048'; ctx.fillRect(x + 1, y + 1, 9, 5);
     ctx.fillStyle = '#c07828'; ctx.fillRect(x + 3, y + 1, 1, 5); ctx.fillRect(x + 6, y + 1, 1, 5);
@@ -1655,6 +1725,14 @@
   }
   // a generic profile picture: a grey head and shoulders on a coloured square
   function drawAvatar(x, y, bg) {
+    if (HIRES) { // a round head, rounded shoulders, and a bevel on the picture
+      roundBox(x, y, 24, 24, 2, '#181820'); roundBox(x + 1, y + 1, 22, 22, 1.5, bg);
+      fine(x + 2, y + 1, 20, 0.5, 'rgba(255,255,255,0.4)'); fine(x + 1, y + 2, 0.5, 20, 'rgba(255,255,255,0.4)');
+      roundBox(x + 4, y + 16.5, 16, 6.5, 3, '#c8ccd8'); roundBox(x + 4, y + 16, 15, 6.5, 3, '#e8e8f0');
+      fine(x + 5, y + 21.5, 14, 1.5, '#c8ccd8');
+      fineDisc(x + 12, y + 9.5, 5.5, '#c8ccd8'); fineDisc(x + 11.5, y + 9, 5, '#e8e8f0');
+      return;
+    }
     ctx.fillStyle = '#181820'; ctx.fillRect(x, y, 24, 24);
     ctx.fillStyle = bg; ctx.fillRect(x + 1, y + 1, 22, 22);
     ctx.fillStyle = '#e8e8f0';
@@ -1666,44 +1744,80 @@
   // with the game's name printed on it, and the leather edge you sit at runs along the
   // bottom. note goes top right, or under the name.
   const BRASS = '#e8c060', CREAM = '#f8f0d8';
+  // the felt's nap and its shade under the rail (x, y, w, h: the felt)
+  function fineFelt(x, y, w, h) {
+    for (let yy = y + 6; yy < y + h - 4; yy += 7) for (let xx = x + 8 + ((yy * 5) % 37); xx < x + w - 22; xx += 43) fine(xx, yy, 14, 0.5, '#318546');
+    fine(x + 3, y, w - 6, 1.5, 'rgba(0,0,0,0.2)'); fine(x, y + 3, 1.5, h - 6, 'rgba(0,0,0,0.2)');
+    fine(x + 3, y + h - 0.5, w - 6, 0.5, 'rgba(255,255,255,0.18)'); fine(x + w - 0.5, y + 3, 0.5, h - 6, 'rgba(255,255,255,0.18)');
+  }
   function drawCardTable(title, note, table) {
     if (table) {
       ctx.fillStyle = '#140a08'; ctx.fillRect(0, 0, SW, SH);
       ctx.fillStyle = '#3a1a0c'; ctx.fillRect(0, 150, SW, SH - 150);
-      ctx.fillStyle = INK; ctx.fillRect(4, 0, SW - 8, 170); ctx.fillRect(0, 4, SW, 162);
-      ctx.fillStyle = '#6a3418'; ctx.fillRect(5, 1, SW - 10, 168); ctx.fillRect(1, 5, SW - 2, 160);
-      ctx.fillStyle = '#c89058'; ctx.fillRect(6, 2, SW - 12, 1);
-      ctx.fillStyle = INK; ctx.fillRect(9, 7, SW - 18, 156); ctx.fillRect(7, 9, SW - 14, 152);
-      ctx.fillStyle = '#2c7a40'; ctx.fillRect(10, 8, SW - 20, 154); ctx.fillRect(8, 10, SW - 16, 150);
+      if (HIRES) { // the leather's sheen, a padded rail with a lit top, and rounded felt
+        fine(0, 170, SW, 1.5, '#28120a'); fine(0, 222, SW, 0.5, '#4a2410'); fine(0, 234, SW, 0.5, '#4a2410');
+        roundBox(0, 0, SW, 170, 6, INK); roundBox(1, 1, SW - 2, 168, 5, '#6a3418');
+        fine(6, 2, SW - 12, 1, '#c89058'); fine(4, 3, SW - 8, 0.5, '#9a6030'); fine(2, 6, 1, 158, '#8a5028'); fine(SW - 3, 6, 1, 158, '#4a2410');
+        fine(6, 166.5, SW - 12, 1, '#4a2410');
+        for (let x = 12; x < SW - 8; x += 12) { fineDisc(x, 4.5, 0.5, '#3a1a0c'); fineDisc(x, 165, 0.5, '#3a1a0c'); }
+        roundBox(7, 7, SW - 14, 156, 4, INK); roundBox(8, 8, SW - 16, 154, 3.5, '#2c7a40');
+        fineFelt(8, 8, SW - 16, 154);
+      } else {
+        ctx.fillStyle = INK; ctx.fillRect(4, 0, SW - 8, 170); ctx.fillRect(0, 4, SW, 162);
+        ctx.fillStyle = '#6a3418'; ctx.fillRect(5, 1, SW - 10, 168); ctx.fillRect(1, 5, SW - 2, 160);
+        ctx.fillStyle = '#c89058'; ctx.fillRect(6, 2, SW - 12, 1);
+        ctx.fillStyle = INK; ctx.fillRect(9, 7, SW - 18, 156); ctx.fillRect(7, 9, SW - 14, 152);
+        ctx.fillStyle = '#2c7a40'; ctx.fillRect(10, 8, SW - 20, 154); ctx.fillRect(8, 10, SW - 16, 150);
+      }
       text(title, 160 - title.length * 3, 12, 1, BRASS);
       text(note, 160 - note.length * 3, 22, 1, '#88c898');
       ctx.fillStyle = '#5a2c14';
-      for (let x = 3; x < SW; x += 6) ctx.fillRect(x, 236, 3, 1);
+      for (let x = 3; x < SW; x += 6) ctx.fillRect(x, 236, 3, HIRES ? 0.5 : 1);
       return;
     }
     ctx.fillStyle = WIN; ctx.fillRect(0, 0, SW, SH);
     ctx.fillStyle = TITLE; ctx.fillRect(0, 0, SW, 14);
+    if (HIRES) { fine(0, 0, SW, 1, '#5078c8'); fine(0, 1, SW, 0.5, '#3860b0'); fine(0, 13, SW, 1, '#183878'); }
     drawRoll(3, 4);
     text(title, 18, 3, 1, '#f8f8f8');
     text(note, SW - 20 - note.length * 6, 3, 1, '#f8f8f8');
     ctx.fillStyle = INK; ctx.fillRect(SW - 13, 2, 10, 10);
     ctx.fillStyle = WIN; ctx.fillRect(SW - 12, 3, 8, 8);
+    if (HIRES) { fine(SW - 12, 3, 8, 0.5, '#f8f8f8'); fine(SW - 12, 3, 0.5, 8, '#f8f8f8'); fine(SW - 12, 10.5, 8, 0.5, WIN_DARK); fine(SW - 4.5, 3, 0.5, 8, WIN_DARK); }
     text('x', SW - 11, 1, 1, INK);
-    ctx.fillStyle = '#4a2810'; ctx.fillRect(6, 18, 308, 150); ctx.fillRect(4, 22, 312, 142);
-    ctx.fillStyle = '#2c7a40'; ctx.fillRect(10, 22, 300, 142); ctx.fillRect(8, 26, 304, 134);
+    if (HIRES) { // a polished wooden edge, rounded, with the felt set into it
+      roundBox(4, 18, 312, 150, 6, '#4a2810');
+      fine(9, 18.5, 302, 0.5, '#9a6838'); fine(4.5, 23, 0.5, 140, '#9a6838'); fine(9, 167, 302, 0.5, '#2c1608'); fine(315, 23, 0.5, 140, '#2c1608');
+      for (let x = 12; x < 300; x += 29) { fine(x, 20, 13, 0.5, '#5e3618'); fine(x + 9, 165, 13, 0.5, '#5e3618'); }
+      roundBox(8, 22, 304, 142, 4, '#2c7a40');
+      fineFelt(8, 22, 304, 142);
+    } else {
+      ctx.fillStyle = '#4a2810'; ctx.fillRect(6, 18, 308, 150); ctx.fillRect(4, 22, 312, 142);
+      ctx.fillStyle = '#2c7a40'; ctx.fillRect(10, 22, 300, 142); ctx.fillRect(8, 26, 304, 134);
+    }
   }
   // what just happened, in a box under the table
   function drawCardLog(lines, table) {
     ctx.fillStyle = table ? BRASS : INK; ctx.fillRect(4, 172, SW - 8, 26);
     ctx.fillStyle = table ? '#1c0e08' : '#f8f8f8'; ctx.fillRect(5, 173, SW - 10, 24);
+    if (HIRES) { // the frame's shine, and the box sunk into it
+      fine(4, 172, SW - 8, 0.5, table ? '#f8e8a8' : '#585868'); fine(4, 197.5, SW - 8, 0.5, table ? '#a88030' : INK);
+      fine(5, 173, SW - 10, 1, table ? '#0c0604' : '#d8dce8'); fine(5, 174, 0.5, 23, table ? '#0c0604' : '#d8dce8');
+    }
     lines.slice(0, 2).forEach((l, i) => text(l, 10, 176 + i * 11, 1, table ? CREAM : INK));
   }
   // one of the buttons along the bottom: bevelled on a computer, a red plaque edged in
   // brass at a table. on: it's the one picked; ok: you can press it.
   function drawCardButton(x, w, label, on, ok, table) {
     if (table) {
-      ctx.fillStyle = on ? BRASS : '#1c0e08'; ctx.fillRect(x, 202, w, 16);
-      ctx.fillStyle = on ? '#b82828' : '#6a1818'; ctx.fillRect(x + 1, 203, w - 2, 14);
+      if (HIRES) { // a rounded plaque with a lit top and a shaded foot
+        roundBox(x, 202, w, 16, 2.5, on ? BRASS : '#1c0e08'); roundBox(x + 1, 203, w - 2, 14, 2, on ? '#b82828' : '#6a1818');
+        fine(x + 2.5, 203, w - 5, 1, on ? '#e86868' : '#8a2c2c'); fine(x + 2.5, 216, w - 5, 1, on ? '#801818' : '#3c0c0c');
+        if (on) { fine(x + 3, 202, w - 6, 0.5, '#f8e8a8'); fine(x + 3, 217.5, w - 6, 0.5, '#a88030'); }
+      } else {
+        ctx.fillStyle = on ? BRASS : '#1c0e08'; ctx.fillRect(x, 202, w, 16);
+        ctx.fillStyle = on ? '#b82828' : '#6a1818'; ctx.fillRect(x + 1, 203, w - 2, 14);
+      }
       text(label, x + (w >> 1) - label.length * 3, 206, 1, ok ? CREAM : '#b07868');
       return;
     }
@@ -1711,6 +1825,7 @@
     ctx.fillStyle = on ? WIN_DARK : '#f8f8f8'; ctx.fillRect(x, 202, w - 1, 15);
     ctx.fillStyle = on ? '#f8f8f8' : WIN_DARK; ctx.fillRect(x + 1, 203, w - 2, 14);
     ctx.fillStyle = on ? '#f0d890' : WIN; ctx.fillRect(x + 1, 203, w - 3, 13);
+    if (HIRES) { fine(x + 1, 203, w - 3, 3, on ? '#f6e4a8' : '#d4d8e2'); fine(x + 1, 214, w - 3, 2, on ? '#e8cc78' : '#bcc0cc'); }
     text(label, x + (w >> 1) - label.length * 3, 206, 1, ok ? INK : WIN_DARK);
   }
   function drawPokerIcon(x, y) {
@@ -1965,7 +2080,7 @@
         for (let i = 0; i < 5; i++) {
           const x = 94 + i * 27, y = 54;
           if (board[i]) drawCard(board[i], x, y);
-          else { ctx.fillStyle = '#246a36'; ctx.fillRect(x, y, CARD_W, CARD_H); }
+          else drawCardSpot(x, y, CARD_W, CARD_H);
         }
         // the players
         seats.forEach((p, i) => {
@@ -2001,8 +2116,11 @@
           }
           if (i === button) {
             const [cx, cy] = p.chip;
-            ctx.fillStyle = INK; ctx.fillRect(cx, cy + 1, 11, 9); ctx.fillRect(cx + 1, cy, 9, 11);
-            ctx.fillStyle = '#f8f8f8'; ctx.fillRect(cx + 1, cy + 1, 9, 9);
+            if (HIRES) { fineDisc(cx + 5.5, cy + 5.5, 5.5, INK); fineDisc(cx + 5.5, cy + 5.5, 5, '#c8ccd8'); fineDisc(cx + 5, cy + 5, 4.5, '#f8f8f8'); }
+            else {
+              ctx.fillStyle = INK; ctx.fillRect(cx, cy + 1, 11, 9); ctx.fillRect(cx + 1, cy, 9, 11);
+              ctx.fillStyle = '#f8f8f8'; ctx.fillRect(cx + 1, cy + 1, 9, 9);
+            }
             text('D', cx + 3, cy + 2, 1, INK);
           }
         });
@@ -2015,9 +2133,7 @@
           const minTo = Math.min(me.bet + me.stack, curBet + minRaise), maxTo = me.bet + me.stack;
           const lbl = (curBet ? 'Raise to ' : 'Bet ') + raiseTo + (raiseTo === maxTo ? ' (all in)' : '');
           text(lbl, 10, 204, 1, ink);
-          ctx.fillStyle = INK; ctx.fillRect(160, 203, 150, 9);
-          ctx.fillStyle = '#e8e8e8'; ctx.fillRect(161, 204, 148, 7);
-          ctx.fillStyle = '#f0b030'; ctx.fillRect(161, 204, Math.round(148 * (maxTo > minTo ? (raiseTo - minTo) / (maxTo - minTo) : 1)), 7);
+          drawBetBar(maxTo > minTo ? (raiseTo - minTo) / (maxTo - minTo) : 1);
           text('Arrows: amount  Space: OK  Esc: back', 10, 224, 1, ink);
         } else if (state === 'play') {
           const labels = ['Fold', call ? 'Call ' + call : 'Check', curBet ? 'Raise' : 'Bet', 'All in'];
@@ -2181,7 +2297,7 @@
         for (let i = 0; i < 5; i++) {
           const x = 94 + i * 27, y = 54;
           if (v.board[i]) drawCard(v.board[i], x, y);
-          else { ctx.fillStyle = '#246a36'; ctx.fillRect(x, y, CARD_W, CARD_H); }
+          else drawCardSpot(x, y, CARD_W, CARD_H);
         }
         v.seats.forEach((q, i) => drawSeat(v, q, i, blink));
         const p = v.seats[v.me];
@@ -2195,9 +2311,7 @@
           const maxTo = p.b + p.st, minTo = Math.min(maxTo, v.bet + v.min);
           const lbl = (v.bet ? 'Raise to ' : 'Bet ') + raiseTo + (raiseTo === maxTo ? ' (all in)' : '');
           text(lbl, 10, 204, 1, CREAM);
-          ctx.fillStyle = INK; ctx.fillRect(160, 203, 150, 9);
-          ctx.fillStyle = '#e8e8e8'; ctx.fillRect(161, 204, 148, 7);
-          ctx.fillStyle = '#f0b030'; ctx.fillRect(161, 204, Math.round(148 * (maxTo > minTo ? (raiseTo - minTo) / (maxTo - minTo) : 1)), 7);
+          drawBetBar(maxTo > minTo ? (raiseTo - minTo) / (maxTo - minTo) : 1);
           text('Arrows: amount  Space: OK  Esc: back', 10, 224, 1, CREAM);
         } else if (p && p.d && v.ph === 'play') {
           const call = Math.min(v.bet - p.b, p.st);
@@ -2215,7 +2329,7 @@
       const write = (str, x, y, c) => text(str, sp.right ? x - str.length * 6 : x, y, 1, c);
       const nameX = sp.right ? sp.ax - 4 : sp.ax + 28;
       if (!q) {
-        ctx.fillStyle = '#246a36'; ctx.fillRect(sp.ax, sp.ay, 24, 24);
+        drawCardSpot(sp.ax, sp.ay, 24, 24);
         write('Empty seat', nameX, sp.ay + 2, '#88c898');
         return;
       }
@@ -2430,7 +2544,7 @@
         text('Dealer stands on all 17s', 160 - 24 * 3, 91, 1, felt);
         // a hand of cards, centred, squeezed together when it gets long
         const row = (hand, y, hideSecond) => {
-          if (!hand.length) { ctx.fillStyle = '#246a36'; ctx.fillRect(160 - CARD_W - 1, y, CARD_W, CARD_H); ctx.fillRect(161, y, CARD_W, CARD_H); return; }
+          if (!hand.length) { drawCardSpot(160 - CARD_W - 1, y, CARD_W, CARD_H); drawCardSpot(161, y, CARD_W, CARD_H); return; }
           const gap = hand.length > 6 ? 16 : 26, w = (hand.length - 1) * gap + CARD_W;
           hand.forEach((c, i) => drawCard(c, 160 - (w >> 1) + i * gap, y, hideSecond && i === 1));
         };
@@ -2458,9 +2572,7 @@
         // your controls
         if (state === 'bet') {
           text('Bet ' + bet + (bet === stack ? ' (all in)' : ''), 10, 204, 1, ink);
-          ctx.fillStyle = INK; ctx.fillRect(160, 203, 150, 9);
-          ctx.fillStyle = '#e8e8e8'; ctx.fillRect(161, 204, 148, 7);
-          ctx.fillStyle = '#f0b030'; ctx.fillRect(161, 204, Math.round(148 * Math.min(1, bet / Math.max(1, stack))), 7);
+          drawBetBar(Math.min(1, bet / Math.max(1, stack)));
           text('Arrows: bet  Space: deal  Esc: leave', 10, 224, 1, ink);
         } else if (state === 'play' || state === 'deal' || state === 'wait') {
           const myTurn = state === 'play' && !timer;
@@ -5047,6 +5159,7 @@
     const dark = document.createElement('canvas');
     dark.width = SW; dark.height = SH;
     const dctx = dark.getContext('2d');
+    if (HIRES) { dark.width = SW * RES; dark.height = SH * RES; dark.hi = RES; dctx.scale(RES, RES); } // (a smooth beam)
     const shuffled = SPOTS.slice().sort(() => Math.random() - 0.5);
     const fuses = shuffled.slice(0, 3).map(([x, y]) => ({ x, y, got: false }));
     const cells = shuffled.slice(3, 5).map(([x, y]) => ({ x, y, got: false }));
@@ -5164,24 +5277,53 @@
         ctx.fillStyle = '#c8ccd8'; ctx.fillRect(AX, AY, AW, AH);
         ctx.fillStyle = '#a4acc4';
         for (let y = AY + 4; y < AY + AH; y += 8) for (let x = AX + ((y >> 3) & 1) * 4 + 2; x < AX + AW; x += 8) ctx.fillRect(x, y, 1, 1);
+        if (HIRES) { // the carpet tiles' seams
+          for (let y = AY + 32; y < AY + AH; y += 32) fine(AX, y, AW, 0.5, '#b4bacc');
+          for (let x = AX + 32; x < AX + AW; x += 32) fine(x, AY, 0.5, AH, '#b4bacc');
+        }
         for (const d of DESKS) {
           ctx.fillStyle = col.dark; ctx.fillRect(d.x, d.y, d.w, d.h);
           ctx.fillStyle = '#c89058'; ctx.fillRect(d.x + 1, d.y + 1, d.w - 2, d.h - 3);
+          if (HIRES) { // a lit edge and grain along the desk, and its shaded front
+            fine(d.x + 1, d.y + 1, d.w - 2, 0.5, '#e8b888'); fine(d.x + 1, d.y + 1, 0.5, d.h - 3, '#e8b888');
+            if (d.w > d.h) for (let y = d.y + 3; y < d.y + d.h - 3; y += 3) fine(d.x + 3 + (y % 5), y, d.w - 10, 0.5, '#b88048');
+            else for (let x = d.x + 3; x < d.x + d.w - 2; x += 3) fine(x, d.y + 3 + (x % 5), 0.5, d.h - 10, '#b88048');
+            fine(d.x + 1, d.y + d.h - 2.5, d.w - 2, 0.5, '#9a6838');
+          }
         }
         ctx.fillStyle = col.dark; ctx.fillRect(BREAKER.x, BREAKER.y, BREAKER.w, BREAKER.h);
         ctx.fillStyle = '#8890a0'; ctx.fillRect(BREAKER.x + 1, BREAKER.y + 1, BREAKER.w - 2, BREAKER.h - 2);
+        if (HIRES) { // the panel's bevel, its switches, a screw at the foot
+          fine(BREAKER.x + 1, BREAKER.y + 1, BREAKER.w - 2, 0.5, '#c8ccd8'); fine(BREAKER.x + 1, BREAKER.y + 1, 0.5, BREAKER.h - 2, '#c8ccd8');
+          fine(BREAKER.x + BREAKER.w - 1.5, BREAKER.y + 1.5, 0.5, BREAKER.h - 2.5, '#585868');
+          for (let i = 0; i < 3; i++) { fine(BREAKER.x + 3, BREAKER.y + 6.5 + i * 3, 4, 2, '#303040'); fine(BREAKER.x + 3.5, BREAKER.y + 7 + i * 3, i < got() ? 1 : 2, 1, i < got() ? '#58e048' : '#a8acb8'); }
+          fine(BREAKER.x + 4.5, BREAKER.y + 15.5, 1, 1, '#c8ccd8');
+        }
         for (const f of fuses) if (!f.got) {
-          ctx.fillStyle = col.dark; ctx.fillRect(f.x - 2, f.y - 4, 5, 9);
-          ctx.fillStyle = '#f0d060'; ctx.fillRect(f.x - 1, f.y - 3, 3, 7);
-          ctx.fillStyle = '#c8ccd8'; ctx.fillRect(f.x - 1, f.y - 3, 3, 1); ctx.fillRect(f.x - 1, f.y + 3, 3, 1);
+          if (HIRES) { // a glass fuse: brass caps, a wire down the middle
+            roundBox(f.x - 2, f.y - 4, 5, 9, 1, col.dark); fine(f.x - 1.5, f.y - 2.5, 4, 6, '#f8ecb0');
+            fine(f.x + 0.25, f.y - 2.5, 0.5, 6, '#a88030'); fine(f.x - 1, f.y - 2, 1, 4, '#ffffff'); fine(f.x + 1.5, f.y - 2.5, 1, 6, '#d8b860');
+            fine(f.x - 1.5, f.y - 3.5, 4, 1.5, '#c8ccd8'); fine(f.x - 1, f.y - 3.5, 1, 1, '#f8f8f8'); fine(f.x - 1.5, f.y + 2.5, 4, 1.5, '#c8ccd8'); fine(f.x - 1, f.y + 2.5, 1, 1, '#f8f8f8');
+          } else {
+            ctx.fillStyle = col.dark; ctx.fillRect(f.x - 2, f.y - 4, 5, 9);
+            ctx.fillStyle = '#f0d060'; ctx.fillRect(f.x - 1, f.y - 3, 3, 7);
+            ctx.fillStyle = '#c8ccd8'; ctx.fillRect(f.x - 1, f.y - 3, 3, 1); ctx.fillRect(f.x - 1, f.y + 3, 3, 1);
+          }
         }
         for (const c of cells) if (!c.got) {
           ctx.fillStyle = col.dark; ctx.fillRect(c.x - 4, c.y - 2, 8, 5);
           ctx.fillStyle = '#58b058'; ctx.fillRect(c.x - 3, c.y - 1, 5, 3); ctx.fillRect(c.x + 3, c.y, 1, 1);
+          if (HIRES) { fine(c.x - 3, c.y - 1, 5, 0.5, '#a8e0a8'); fine(c.x - 3, c.y + 1.5, 5, 0.5, '#388038'); fine(c.x + 0.5, c.y - 1, 0.5, 3, '#303040'); }
         }
         // shadows: only visible where the light falls on them
         for (const s of shadows) {
           const x = Math.round(s.x), y = Math.round(s.y), wob = (tick >> 3) & 1;
+          if (HIRES) { // a soft-shouldered shape with a rippling hem, and round eyes
+            roundBox(x - 5, y - 12, 10, 16, 4, '#201028'); fine(x - 3, y - 11.5, 5, 0.5, '#3c2850'); fine(x - 4.5, y - 9, 0.5, 8, '#3c2850');
+            for (let i = 0; i < 10; i++) fine(x - 5 + i, y + 4, 1, Math.round((2 + Math.sin(i * 1.1 + (tick >> 2) * 0.7)) * 2) / 2, '#201028');
+            fineDisc(x - 2, y - 6.5, 1.5, '#f8f8f8'); fineDisc(x + 2, y - 6.5, 1.5, '#f8f8f8'); fine(x - 2, y - 6.5, 1, 1, '#181820'); fine(x + 2, y - 6.5, 1, 1, '#181820');
+            continue;
+          }
           ctx.fillStyle = '#201028';
           ctx.fillRect(x - 5, y - 10, 10, 14); ctx.fillRect(x - 4, y - 12, 8, 2);
           for (let i = 0; i < 5; i++) ctx.fillRect(x - 5 + i * 2, y + 4, 1, 2 + ((i + wob) & 1));
@@ -5210,10 +5352,14 @@
           // things you can make out even in the dark: eyes, the breaker's LED, a fuse's glint
           for (const s of shadows) {
             if (inBeam(s.x, s.y) || ((tick + s.seed * 7) % 140) < 8) continue; // they blink
+            if (HIRES) for (const ex of [-2.5, 2.5]) fine(Math.round(s.x) + ex - 1, Math.round(s.y) - 7.5, 2, 2, 'rgba(224, 48, 48, 0.3)');
             ctx.fillStyle = '#e03030';
             ctx.fillRect(Math.round(s.x) - 3, Math.round(s.y) - 7, 1, 1); ctx.fillRect(Math.round(s.x) + 2, Math.round(s.y) - 7, 1, 1);
           }
-          if ((tick >> 5) & 1) { ctx.fillStyle = got() === 3 ? '#58e048' : '#f05040'; ctx.fillRect(BREAKER.x + 4, BREAKER.y + 3, 2, 2); }
+          if ((tick >> 5) & 1) {
+            ctx.fillStyle = got() === 3 ? '#58e048' : '#f05040'; ctx.fillRect(BREAKER.x + 4, BREAKER.y + 3, 2, 2);
+            if (HIRES) { fine(BREAKER.x + 3.5, BREAKER.y + 2.5, 3, 3, got() === 3 ? 'rgba(88, 224, 72, 0.3)' : 'rgba(240, 80, 64, 0.3)'); fine(BREAKER.x + 4, BREAKER.y + 3, 0.5, 0.5, '#ffffff'); }
+          }
           fuses.forEach((f, i) => {
             if (!f.got && (tick + i * 47) % 160 < 4) { ctx.fillStyle = '#f8f0a0'; ctx.fillRect(f.x, f.y - 1, 1, 1); }
           });
@@ -5223,6 +5369,7 @@
         text('Light', 96, 8, 1, '#f8f8f8');
         ctx.fillStyle = '#585868'; ctx.fillRect(128, 8, 62, 7);
         ctx.fillStyle = battery < 25 ? '#f05040' : '#f0d060'; ctx.fillRect(129, 9, Math.round(60 * battery / 100), 5);
+        if (HIRES && battery > 0) { fine(129, 9, Math.round(60 * battery / 100), 1, 'rgba(255,255,255,0.45)'); fine(129, 13, Math.round(60 * battery / 100), 1, 'rgba(0,0,0,0.2)'); }
         const secs = Math.ceil(time / 60), best = +store.get('best.dark') || 0;
         const tm = secs + 's' + (best ? '  Best ' + best + 's' : '');
         text(tm, SW - 12 - tm.length * 6, 8, 1, '#f8f8f8');
@@ -7694,6 +7841,30 @@
       }
       return seq[i];
     }
+    // At double resolution a brick is moulded plastic, with a bevel and a round stud that catches
+    // the light and throws a little shadow, and so is the baseplate's every stud.
+    const studOn = (c, cx, cy, r, top, lit, dim) => {
+      for (let y = cy - r - 1; y < cy + r + 2; y++) for (let x = cx - r - 1; x < cx + r + 1; x++) {
+        const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy), sh = Math.hypot(x + 0.5 - cx, y - 0.5 - cy);
+        if (d <= r) c.fillStyle = (x - cx) + (y - cy) < -r * 0.75 ? lit : (x - cx) + (y - cy) > r * 0.6 ? dim : top;
+        else if (sh <= r) c.fillStyle = dim;
+        else continue;
+        c.fillRect(x, y, 1, 1);
+      }
+    };
+    const fineBrick = (k, s) => finePic('brick' + k + s, s * 2, s * 2, (c) => {
+      const [face, hi, lo] = COLOURS[k], n = s * 2, mid = mixHex(face, lo, 0.45);
+      c.fillStyle = lo; c.fillRect(0, 0, n, n);
+      c.fillStyle = mid; c.fillRect(0, 0, n - 1, n - 1);
+      c.fillStyle = face; c.fillRect(1, 1, n - 3, n - 3);
+      c.fillStyle = hi; c.fillRect(0, 0, n - 1, 1); c.fillRect(0, 0, 1, n - 1);
+      studOn(c, s, s, s > 7 ? 5 : 4, mixHex(face, hi, 0.45), hi, lo);
+    });
+    const finePlate = (i) => finePic('plate' + i, COLS * C * 2, ROWS * C * 2, (c) => {
+      const base = i ? '#3a5a90' : '#2f7a3a', top = i ? '#4668a0' : '#3a8a46';
+      c.fillStyle = base; c.fillRect(0, 0, COLS * C * 2, ROWS * C * 2);
+      for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) studOn(c, x * C * 2 + C, y * C * 2 + C, 3, top, mixHex(top, '#ffffff', 0.25), mixHex(base, '#000000', 0.25));
+    });
     const empty = () => Array.from({ length: ROWS }, () => Array(COLS).fill(null));
     const fits = (board, k, r, x, y) => ROTS[k][r].every(([cx, cy]) => {
       const bx = x + cx, by = y + cy;
@@ -7931,6 +8102,7 @@
         const brick = (x, y, k, s, alpha) => {
           const [face, hi, lo] = COLOURS[k];
           ctx.globalAlpha = alpha || 1;
+          if (HIRES) { ctx.drawImage(fineBrick(k, s), x, y); ctx.globalAlpha = 1; return; }
           ctx.fillStyle = lo; ctx.fillRect(x, y, s, s);
           ctx.fillStyle = face; ctx.fillRect(x, y, s - 1, s - 1);
           ctx.fillStyle = hi; ctx.fillRect(x, y, s - 1, 1); ctx.fillRect(x, y, 1, s - 1);
@@ -7948,9 +8120,12 @@
           text(ln, X + COLS * C - ln.length * 6, 26);
           // the baseplate, studs and all
           ctx.fillStyle = col.dark; ctx.fillRect(X - 2, BY - 2, COLS * C + 4, ROWS * C + 4);
-          ctx.fillStyle = i ? '#3a5a90' : '#2f7a3a'; ctx.fillRect(X, BY, COLS * C, ROWS * C);
-          ctx.fillStyle = i ? '#4668a0' : '#3a8a46';
-          for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) ctx.fillRect(X + x * C + 3, BY + y * C + 3, 3, 3);
+          if (HIRES) { fine(X - 2, BY - 2, COLS * C + 4, 0.5, '#585868'); fine(X - 2, BY - 2, 0.5, ROWS * C + 4, '#585868'); ctx.drawImage(finePlate(i), X, BY); }
+          else {
+            ctx.fillStyle = i ? '#3a5a90' : '#2f7a3a'; ctx.fillRect(X, BY, COLS * C, ROWS * C);
+            ctx.fillStyle = i ? '#4668a0' : '#3a8a46';
+            for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) ctx.fillRect(X + x * C + 3, BY + y * C + 3, 3, 3);
+          }
           p.board.forEach((row, y) => row.forEach((k, x) => {
             if (!k) return;
             if (p.clearing && p.clearing.rows.includes(y) && (p.clearing.t >> 1) & 1) {
@@ -7971,10 +8146,12 @@
             const mx = i ? X + COLS * C + 3 : X - 7, h = Math.min(ROWS, p.pending) * C;
             ctx.fillStyle = (tick >> 3) & 1 ? '#f05040' : '#b83028';
             ctx.fillRect(mx, BY + ROWS * C - h, 4, h);
+            if (HIRES) { fine(mx, BY + ROWS * C - h, 1, h, 'rgba(255,255,255,0.35)'); fine(mx + 3, BY + ROWS * C - h, 1, h, 'rgba(0,0,0,0.2)'); for (let n = C; n < h; n += C) fine(mx, BY + ROWS * C - n, 4, 0.5, 'rgba(0,0,0,0.3)'); }
           }
           // next brick, in the middle
           const NX = solo ? 40 : i ? 164 : 118, NY = 54;
           ctx.fillStyle = col.dark; ring(NX, NY, 38, 30);
+          if (HIRES) { fine(NX + 1, NY + 1, 36, 28, '#eceef4'); fine(NX + 1, NY + 1, 36, 1, '#c8ccd8'); fine(NX + 1, NY + 2, 0.5, 27, '#c8ccd8'); }
           const k = piece(p.next), cells = ROTS[k][0];
           const w = Math.max(...cells.map((q) => q[0])) + 1, hgt = Math.max(...cells.map((q) => q[1])) + 1;
           const ox = NX + ((38 - w * 7) >> 1), oy = NY + ((30 - hgt * 7) >> 1) - (k === 'I' ? 3 : 0);
@@ -8390,7 +8567,6 @@
   // With `vs` (a match with another player) you both get the same arrows, from the match's
   // shared random numbers, and each of you sees the other's score as they dance. The
   // higher score when you've both finished the song wins.
-  const danceArrows = new Map();
   function DanceGame(vs) {
     const LANES = ['left', 'down', 'up', 'right'], LANE_COLS = ['#ff2a6d', '#05d9e8', '#39ff14', '#f9f871'];
     const LX = 104, LW = 28, TY = 34, PX = 9; // first lane, lane width, target row, pixels per step
@@ -8554,25 +8730,20 @@
     // At double resolution the arrow is a smooth one, made once for each way and colour: its
     // top and left edges catch the light, the others are in shade, and a shadow falls behind.
     function arrowPic(k, color, hollow) {
-      const key = k + color + (hollow ? 'h' : '');
-      let cv = danceArrows.get(key);
-      if (cv) return cv;
-      // an up arrow in a 40 x 40 grid: a head on a stem, with its stem's foot rounded off
-      const solid = (u, v) => u >= 0 && v >= 0 && u < 40 && v < 40 && Math.abs(u - 19.5) < (v < 20 ? Math.min(v + 1, 19) : v < 38 ? 8 : 45 - v);
-      const up = (u, v) => solid(u, v) && (!hollow || !(solid(u - 3, v) && solid(u + 3, v) && solid(u, v - 3) && solid(u, v + 3)));
-      const on = (px, py) => (k === 'up' ? up(px, py) : k === 'down' ? up(px, 39 - py) : k === 'left' ? up(py, px) : up(py, 39 - px));
-      cv = document.createElement('canvas');
-      cv.width = 42; cv.height = 42; cv.hi = 2;
-      const c = cv.getContext('2d'), lit = mixHex(color, '#ffffff', 0.55), dim = mixHex(color, '#000000', 0.35);
-      c.fillStyle = '#000000';
-      for (let py = 0; py < 40; py++) for (let px = 0; px < 40; px++) if (on(px, py)) c.fillRect(px + 2, py + 2, 1, 1);
-      for (let py = 0; py < 40; py++) for (let px = 0; px < 40; px++) {
-        if (!on(px, py)) continue;
-        c.fillStyle = !on(px - 1, py) || !on(px, py - 1) ? lit : !on(px + 1, py) || !on(px, py + 1) ? dim : color;
-        c.fillRect(px, py, 1, 1);
-      }
-      danceArrows.set(key, cv);
-      return cv;
+      return finePic('arrow' + k + color + (hollow ? 'h' : ''), 42, 42, (c) => {
+        // an up arrow in a 40 x 40 grid: a head on a stem, with its stem's foot rounded off
+        const solid = (u, v) => u >= 0 && v >= 0 && u < 40 && v < 40 && Math.abs(u - 19.5) < (v < 20 ? Math.min(v + 1, 19) : v < 38 ? 8 : 45 - v);
+        const up = (u, v) => solid(u, v) && (!hollow || !(solid(u - 3, v) && solid(u + 3, v) && solid(u, v - 3) && solid(u, v + 3)));
+        const on = (px, py) => (k === 'up' ? up(px, py) : k === 'down' ? up(px, 39 - py) : k === 'left' ? up(py, px) : up(py, 39 - px));
+        const lit = mixHex(color, '#ffffff', 0.55), dim = mixHex(color, '#000000', 0.35);
+        c.fillStyle = '#000000';
+        for (let py = 0; py < 40; py++) for (let px = 0; px < 40; px++) if (on(px, py)) c.fillRect(px + 2, py + 2, 1, 1);
+        for (let py = 0; py < 40; py++) for (let px = 0; px < 40; px++) {
+          if (!on(px, py)) continue;
+          c.fillStyle = !on(px - 1, py) || !on(px, py - 1) ? lit : !on(px + 1, py) || !on(px, py + 1) ? dim : color;
+          c.fillRect(px, py, 1, 1);
+        }
+      });
     }
     // a chunky pixel arrow pointing k, 20px square at (x, y); hollow for the targets
     function arrow(k, x, y, color, hollow) {
@@ -8658,6 +8829,16 @@
     let round = 0, state = 'look', t = 0, real = 0, guess = 0, hers = 0, score = [0, 0], record = false;
     const theirs = {}; // against a player: their guess, by round
     const decided = () => Math.max(score[0], score[1]) >= 2;
+    // a round boiled sweet: shaded underneath, with a shine on it
+    const fineSweet = (c0) => finePic('sweet' + c0, 14, 14, (c) => {
+      const dim = mixHex(c0, '#000000', 0.3), rim = mixHex(c0, '#000000', 0.5);
+      for (let y = 0; y < 14; y++) for (let x = 0; x < 14; x++) {
+        const dx = x + 0.5 - 7, dy = y + 0.5 - 7, d = Math.hypot(dx, dy);
+        if (d > 7) continue;
+        c.fillStyle = d > 6 ? rim : dx + dy > 4 ? dim : Math.hypot(dx + 2.5, dy + 2.5) < 1.6 ? '#ffffff' : c0;
+        c.fillRect(x, y, 1, 1);
+      }
+    });
     function newJar() {
       real = 18 + Math.floor(rnd() * 75);
       guess = 40; hers = 0; state = 'look'; t = 0;
@@ -8733,17 +8914,32 @@
         if (!vs) text(b, SW - 16 - b.length * 6, 26);
         // the jar, with the sweets drawn in a heap
         const JX = 96, JY = 54, JW = 92, JH = 108;
-        ctx.fillStyle = col.dark; ctx.fillRect(JX - 8, JY - 10, JW + 16, 10);
-        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(JX - 6, JY - 8, JW + 12, 6);
-        ctx.fillStyle = col.dark; ring(JX, JY, JW, JH);
-        ctx.fillStyle = '#eef4ff'; ctx.fillRect(JX + 2, JY + 2, JW - 4, JH - 4);
+        if (HIRES) { // a rounded glass jar under a ridged screw-top lid
+          roundBox(JX, JY, JW, JH, 6, col.dark); roundBox(JX + 1, JY + 1, JW - 2, JH - 2, 5, '#eef4ff');
+          fine(JX + 4, JY + JH - 4, JW - 8, 2, '#cfdcf0'); fine(JX + 2, JY + 1, JW - 4, 2, '#d4dff0');
+          roundBox(JX - 8, JY - 10, JW + 16, 10, 2, col.dark); roundBox(JX - 7, JY - 9, JW + 14, 8, 1.5, '#c8ccd8');
+          fine(JX - 5, JY - 9, JW + 10, 1, '#f0f2f8'); fine(JX - 5, JY - 2, JW + 10, 1, '#9098a8');
+          for (let x = JX - 4; x < JX + JW + 4; x += 3) fine(x, JY - 7.5, 0.5, 5, '#9098a8');
+        } else {
+          ctx.fillStyle = col.dark; ctx.fillRect(JX - 8, JY - 10, JW + 16, 10);
+          ctx.fillStyle = '#c8ccd8'; ctx.fillRect(JX - 6, JY - 8, JW + 12, 6);
+          ctx.fillStyle = col.dark; ring(JX, JY, JW, JH);
+          ctx.fillStyle = '#eef4ff'; ctx.fillRect(JX + 2, JY + 2, JW - 4, JH - 4);
+        }
         const show = state === 'look' || state === 'reveal' ? real : 0;
         for (let i = 0; i < show; i++) {
           const cx = JX + 8 + ((i * 29) % (JW - 22));
           const cy = JY + JH - 12 - Math.floor(i / ((JW - 22) / 9)) * 9 - ((i * 7) % 4);
           if (cy < JY + 6) continue;
-          ctx.fillStyle = COLS[i % COLS.length];
-          ctx.fillRect(cx, cy, 7, 7);
+          if (HIRES) ctx.drawImage(fineSweet(COLS[i % COLS.length]), cx, cy);
+          else {
+            ctx.fillStyle = COLS[i % COLS.length];
+            ctx.fillRect(cx, cy, 7, 7);
+          }
+        }
+        if (HIRES) { // the glass's shine, over the sweets
+          fine(JX + 6, JY + 8, 2.5, JH - 34, 'rgba(255,255,255,0.75)'); fine(JX + 9.5, JY + 10, 1, 22, 'rgba(255,255,255,0.6)');
+          fine(JX + JW - 6, JY + 12, 1, 30, 'rgba(255,255,255,0.6)');
         }
         ctx.drawImage(kiki.down[0], 228, 96, 56, 56);
         text(foe, 256 - foe.length * 3, 158);
