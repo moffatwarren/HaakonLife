@@ -1108,9 +1108,21 @@
         // stand
         ctx.fillStyle = '#181820'; ctx.fillRect(138, 196, 44, 8); ctx.fillRect(112, 204, 96, 4);
         ctx.fillStyle = '#c8ccd8'; ctx.fillRect(140, 196, 40, 7); ctx.fillRect(114, 204, 92, 3);
+        if (HIRES) { // the case's bevels, the wallpaper's fall of light, a round power light and the stand's shine
+          fine(24, 8, 272, 0.5, '#f0f2f8'); fine(24, 8.5, 0.5, 187.5, '#f0f2f8'); fine(24.5, 195.5, 271.5, 0.5, '#888898'); fine(295.5, 8.5, 0.5, 187, '#888898');
+          fine(33, 17, 254, 0.5, '#888898'); fine(33, 17.5, 0.5, 165, '#888898'); fine(33.5, 182, 253.5, 0.5, '#f0f2f8'); fine(286.5, 17.5, 0.5, 165, '#f0f2f8');
+          for (let y = 20; y < 168; y += 4) fine(36, y, 248, 4, mixHex('#3c82bc', '#26608f', (y - 20) / 148));
+          fine(280, 188, 4, 3, '#c8ccd8'); fineDisc(282, 189.5, 2.5, 'rgba(88, 168, 72, 0.3)'); fineDisc(282, 189.5, 1.5, '#58a848'); fine(281.5, 189, 0.5, 0.5, '#d0f0c0');
+          fine(140, 196, 40, 1, '#888898'); fine(140, 202.5, 40, 0.5, '#888898'); fine(114, 204, 92, 0.5, '#f0f2f8'); fine(114, 206.5, 92, 0.5, '#888898');
+        }
         // taskbar
         ctx.fillStyle = '#c8ccd8'; ctx.fillRect(36, 168, 248, 12);
         ctx.fillStyle = '#181820'; ctx.fillRect(36, 168, 248, 1);
+        if (HIRES) { // a raised START button and a sunken clock
+          fine(36, 169, 248, 0.5, '#f0f2f8');
+          fine(37.5, 169.5, 34, 0.5, '#f8f8f8'); fine(37.5, 169.5, 0.5, 10, '#f8f8f8'); fine(71, 170, 0.5, 9.5, '#585868'); fine(38, 179, 33.5, 0.5, '#585868');
+          fine(250.5, 169.5, 32, 0.5, '#888898'); fine(250.5, 170, 0.5, 9.5, '#888898'); fine(251, 179, 32, 0.5, '#f8f8f8'); fine(282.5, 170, 0.5, 9.5, '#f8f8f8');
+        }
         text('START', 40, 170); text('9:41', 254, 170);
         // the programs' icons
         const iy = 54;
@@ -1180,7 +1192,55 @@
       if (c) { ctx.fillStyle = c; ctx.fillRect(x + i * s, y + j * s, s, s); }
     }));
   }
+  // At double resolution those three are smooth pictures, s pixels to a letter as before (the
+  // cane and the snowman with room for their outlines).
+  const humbugPic = (s) => finePic('humbug' + s, 16 * s, 16 * s, (c) => {
+    const ln = (x1, y1, x2, y2) => { c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); };
+    const disc = (co, x, y, rx, ry, a) => { c.fillStyle = co; c.beginPath(); c.ellipse(x, y, rx, ry, a || 0, 0, 7); c.fill(); };
+    c.scale(2 * s, 2 * s);
+    c.fillStyle = '#204818';
+    for (const m of [0, 8]) { c.beginPath(); c.moveTo(Math.abs(m - 0.5), 3); c.lineTo(Math.abs(m - 0.2), 0.3); c.lineTo(Math.abs(m - 3), 1.1); c.fill(); }
+    disc('#204818', 4, 4.1, 3.9, 3.85);
+    disc('#58a838', 4, 4.1, 3.35, 3.3);
+    disc('#88d060', 3, 2.2, 1.6, 0.7, -0.3);
+    disc('#f8e048', 2.6, 4.3, 0.95, 0.85); disc('#f8e048', 5.4, 4.3, 0.95, 0.85);
+    disc('#181820', 2.85, 4.4, 0.42, 0.42); disc('#181820', 5.15, 4.4, 0.42, 0.42);
+    c.strokeStyle = '#181820'; c.lineWidth = 0.55;
+    ln(1.3, 2.6, 3.4, 3.4); ln(6.7, 2.6, 4.6, 3.4);
+    c.beginPath(); c.moveTo(2.3, 6.5); c.quadraticCurveTo(4, 5.3, 5.7, 6.5); c.stroke();
+    crispEdges(c, 16 * s, 16 * s);
+  });
+  const canePic = (s) => finePic('cane' + s, 16 * s, 20 * s, (c) => {
+    const hook = () => { c.beginPath(); c.moveTo(5, 7.5); c.lineTo(5, 2.2); c.arc(3, 2.2, 2, 0, Math.PI, true); c.lineTo(1, 3); };
+    c.scale(2 * s, 2 * s); c.translate(1, 1);
+    c.lineCap = 'round';
+    hook(); c.lineWidth = 2.6; c.strokeStyle = '#701010'; c.stroke();
+    hook(); c.lineWidth = 1.8; c.strokeStyle = '#f8f8f8'; c.stroke();
+    c.lineCap = 'butt'; c.setLineDash([1, 1.2]);
+    hook(); c.strokeStyle = '#d82828'; c.stroke();
+    crispEdges(c, 16 * s, 20 * s);
+  });
+  const snowPic = (state) => finePic('snow' + state, 24, 24, (c) => {
+    const disc = (co, x, y, r) => { c.fillStyle = co; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); };
+    const curve = (x1, y1, cx, cy, x2, y2) => { c.beginPath(); c.moveTo(x1, y1); c.quadraticCurveTo(cx, cy, x2, y2); c.stroke(); };
+    c.scale(2, 2); c.translate(1, 1);
+    disc('#181820', 5, 5, 5.7); disc('#f8f8f8', 5, 5, 4.95);
+    c.save(); c.beginPath(); c.arc(5, 5, 4.95, 0, 7); c.clip();
+    c.fillStyle = '#d4deea'; c.beginPath(); c.arc(5, 5, 5, 0, 7); c.arc(4.1, 4.1, 5, 0, 7); c.fill('evenodd');
+    c.restore();
+    c.strokeStyle = '#181820'; c.fillStyle = '#181820'; c.lineWidth = 0.6;
+    if (state === 'won') { // shades
+      c.beginPath(); c.roundRect(1.3, 2.5, 3.3, 1.9, 0.6); c.roundRect(5.4, 2.5, 3.3, 1.9, 0.6); c.fill();
+      c.fillRect(4.4, 2.8, 1.2, 0.5); c.fillStyle = '#a8b0c0'; c.fillRect(1.9, 2.9, 1, 0.4); c.fillRect(6, 2.9, 1, 0.4);
+    } else if (state === 'lost') { // X eyes
+      for (const x of [3, 7]) { curve(x - 1, 2.5, x, 3.5, x + 1, 4.5); curve(x + 1, 2.5, x, 3.5, x - 1, 4.5); }
+    } else { disc('#181820', 3, 3.5, 0.65); disc('#181820', 7, 3.5, 0.65); }
+    c.fillStyle = '#f08020'; c.beginPath(); c.moveTo(4.6, 4.7); c.lineTo(8, 5.7); c.lineTo(4.6, 6.1); c.fill();
+    if (state === 'lost') curve(2.6, 8.5, 5, 6.8, 7.4, 8.5); else curve(2.6, 7.3, 5, 9.2, 7.4, 7.3);
+    crispEdges(c, 24, 24);
+  });
   function drawHumbugIcon(x, y) {
+    if (HIRES) { ctx.drawImage(humbugPic(5), x + 8, y + 4); ctx.drawImage(canePic(3), x + 37, y + 34); return; }
     pixArt(HUMBUG, HUMBUG_PAL, x + 8, y + 4, 5);
     pixArt(CANE, canePal, x + 40, y + 37, 3, '#701010');
   }
@@ -1270,6 +1330,7 @@
     function led(x, n) {
       ctx.fillStyle = INK; ctx.fillRect(x, 18, 40, 16);
       ctx.fillStyle = '#300808'; ctx.fillRect(x + 1, 19, 38, 14);
+      if (HIRES) { fine(x + 1, 19, 38, 1, '#200404'); fine(x + 1, 32.5, 38, 0.5, '#581818'); text('888', x + 3, 19, 2, '#481010'); }
       text(n < 0 ? '-' + String(Math.min(99, -n)).padStart(2, '0') : String(Math.min(999, n)).padStart(3, '0'), x + 3, 19, 2, '#f83030');
     }
     // the snowman's button (only for show: NEW BOARD is on the menu)
@@ -1299,7 +1360,8 @@
         const over = state === 'won' || state === 'lost';
         ctx.fillStyle = WIN; ctx.fillRect(0, 0, SW, SH);
         ctx.fillStyle = '#2c6a34'; ctx.fillRect(0, 0, SW, 14);
-        pixArt(HUMBUG, HUMBUG_PAL, 4, 3, 1);
+        if (HIRES) { fine(0, 0, SW, 0.5, '#70b878'); fine(0, 0.5, SW, 0.5, '#3c8044'); fine(0, 13.5, SW, 0.5, '#143c1c'); ctx.drawImage(humbugPic(1), 4, 3); }
+        else pixArt(HUMBUG, HUMBUG_PAL, 4, 3, 1);
         text('Humbug Sweeper', 16, 3, 1, '#f8f8f8');
         if (best()) { const b = 'Best ' + tenths(best()); text(b, SW - 6 - b.length * 6, 3, 1, '#f8f8f8'); }
         // the canes you've still to plant, the snowman and the clock
@@ -1311,27 +1373,51 @@
         ctx.fillStyle = '#f8f8f8'; ctx.fillRect(BTN.x + 1, BTN.y + 1, BTN.w - 2, BTN.h - 2);
         ctx.fillStyle = WIN_DARK; ctx.fillRect(BTN.x + 2, BTN.y + 2, BTN.w - 3, BTN.h - 3);
         ctx.fillStyle = WIN; ctx.fillRect(BTN.x + 2, BTN.y + 2, BTN.w - 4, BTN.h - 4);
-        pixArt(snowFace(state), SNOW_PAL, 155, 21, 1, INK);
+        if (HIRES) ctx.drawImage(snowPic(state), 154, 20);
+        else pixArt(snowFace(state), SNOW_PAL, 155, 21, 1, INK);
         // the field: snow on everything you haven't opened
         ctx.fillStyle = INK; ctx.fillRect(HB_X - 2, HB_Y - 2, HB_COLS * HB_CELL + 4, HB_ROWS * HB_CELL + 4);
+        // (at double resolution each kind of square is a picture: there are 480 of them)
+        const dug = (key, base, edge, lip) => finePic(key, 20, 20, (g) => {
+          g.fillStyle = base; g.fillRect(0, 0, 20, 20);
+          g.fillStyle = lip; g.fillRect(0, 0, 20, 1); g.fillRect(0, 0, 1, 20);
+          g.fillStyle = edge; g.fillRect(19, 0, 1, 20); g.fillRect(0, 19, 20, 1);
+        });
+        const snowTile = () => finePic('hbSnow', 20, 20, (g) => {
+          const f = (x, y, w, h, co) => { g.fillStyle = co; g.fillRect(x, y, w, h); };
+          f(0, 0, 20, 20, '#9aaac0'); f(0, 0, 19, 19, '#ffffff'); f(1, 1, 18, 18, '#c4d0e0'); f(1, 1, 17, 17, '#eef3fa'); f(2, 2, 16, 16, '#e4ecf6');
+          f(5, 12, 10, 2, '#d8e2ee'); f(3, 14, 15, 4, '#d8e2ee');
+          f(0, 19, 1, 1, '#c4d0e0'); f(19, 0, 1, 1, '#c4d0e0');
+        });
         for (let r = 0; r < HB_ROWS; r++) for (let c = 0; c < HB_COLS; c++) {
           const i = r * HB_COLS + c, x = HB_X + c * HB_CELL, y = HB_Y + r * HB_CELL;
           if (open[i] || (state === 'lost' && mine[i] && !caned[i])) {
+            if (HIRES) {
+              ctx.drawImage(i === boom ? dug('hbBoom', '#e03030', '#a82020', '#a82020') : dug('hbOpen', '#bcc8d6', '#98a4b4', '#a8b4c4'), x, y);
+              if (mine[i]) ctx.drawImage(humbugPic(1), x + 1, y + 1);
+              else if (near[i]) text(String(near[i]), x + 2, y + 1, 1, HB_INK[near[i]]);
+              continue;
+            }
             ctx.fillStyle = i === boom ? '#e03030' : '#bcc8d6'; ctx.fillRect(x, y, HB_CELL, HB_CELL);
             ctx.fillStyle = '#98a4b4'; ctx.fillRect(x + HB_CELL - 1, y, 1, HB_CELL); ctx.fillRect(x, y + HB_CELL - 1, HB_CELL, 1);
             if (mine[i]) pixArt(HUMBUG, HUMBUG_PAL, x + 1, y + 1, 1);
             else if (near[i]) text(String(near[i]), x + 2, y + 1, 1, HB_INK[near[i]]);
             continue;
           }
-          ctx.fillStyle = '#9aaac0'; ctx.fillRect(x, y, HB_CELL, HB_CELL);
-          ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y, HB_CELL - 1, HB_CELL - 1);
-          ctx.fillStyle = '#e4ecf6'; ctx.fillRect(x + 1, y + 1, HB_CELL - 2, HB_CELL - 2);
+          if (HIRES) ctx.drawImage(snowTile(), x, y);
+          else {
+            ctx.fillStyle = '#9aaac0'; ctx.fillRect(x, y, HB_CELL, HB_CELL);
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y, HB_CELL - 1, HB_CELL - 1);
+            ctx.fillStyle = '#e4ecf6'; ctx.fillRect(x + 1, y + 1, HB_CELL - 2, HB_CELL - 2);
+          }
           if (!caned[i]) continue;
-          pixArt(CANE, canePal, x + 2, y + 1, 1, '#701010');
+          if (HIRES) ctx.drawImage(canePic(1), x + 1, y);
+          else pixArt(CANE, canePal, x + 2, y + 1, 1, '#701010');
           // a cane where there wasn't a humbug after all
           if (state === 'lost' && !mine[i]) {
             ctx.fillStyle = INK;
-            for (let k = 0; k < 8; k++) { ctx.fillRect(x + 1 + k, y + 1 + k, 1, 1); ctx.fillRect(x + 8 - k, y + 1 + k, 1, 1); }
+            if (HIRES) { ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + 9, y + 9); ctx.moveTo(x + 9, y + 1); ctx.lineTo(x + 1, y + 9); ctx.stroke(); }
+            else for (let k = 0; k < 8; k++) { ctx.fillRect(x + 1 + k, y + 1 + k, 1, 1); ctx.fillRect(x + 8 - k, y + 1 + k, 1, 1); }
           }
         }
         // the cursor's border blinks, and shows straight away whenever it moves
@@ -1339,6 +1425,7 @@
           const x = HB_X + cx * HB_CELL, y = HB_Y + cy * HB_CELL;
           ctx.fillStyle = INK; ring(x - 1, y - 1, HB_CELL + 2, HB_CELL + 2);
           ctx.fillStyle = '#f0b030'; ring(x, y, HB_CELL, HB_CELL);
+          if (HIRES) { fine(x, y, HB_CELL, 0.5, '#f8e8b0'); fine(x, y, 0.5, HB_CELL, '#f8e8b0'); fine(x + 0.5, y + HB_CELL - 0.5, HB_CELL - 0.5, 0.5, '#b87818'); fine(x + HB_CELL - 0.5, y + 0.5, 0.5, HB_CELL - 1, '#b87818'); }
         }
         const lines = state === 'won' ? ['Christmas is saved! ' + tenths(time), record ? 'A new record!' : 'Best ' + tenths(best()), 'Space: new board   X: leave']
           : state === 'lost' ? ['Bah, humbug! There was one under there.', Math.floor(100 * (SAFE - left) / SAFE) + '% cleared in ' + tenths(time), 'Space: new board   X: leave']
@@ -1364,9 +1451,11 @@
     // casing
     ctx.fillStyle = INK; ctx.fillRect(x, y0, w, CAS); ctx.fillRect(x, bot, w, CAS);
     ctx.fillStyle = '#a8b0c0'; ctx.fillRect(x, y0 + 1, w, CAS - 2); ctx.fillRect(x, bot + 1, w, CAS - 2);
+    if (HIRES) for (const cy of [y0, bot]) { fine(x, cy + 1, w, 0.5, '#d8dce8'); fine(x, cy + CAS - 1.5, w, 0.5, '#8890a0'); }
     if (type === 'Wall') {
       ctx.fillStyle = INK; ctx.fillRect(x, top, w, bot - top);
       ctx.fillStyle = '#a8b0c0'; ctx.fillRect(x + 1, top, w - 2, bot - top);
+      if (HIRES) { fine(x + 1, top, 0.5, bot - top, '#d8dce8'); fine(x + w - 1.5, top, 0.5, bot - top, '#8890a0'); fine(x + w / 2 - 0.25, top + 2, 0.5, bot - top - 4, '#98a0b0'); }
     } else if (type === 'Fan') {
       // motor on a tall pedestal so the fan sits in the middle of the unit
       const cy = Math.round((top + bot) / 2), motorY = cy - 6;
@@ -1376,10 +1465,24 @@
       ctx.fillStyle = INK; ctx.fillRect(x + 2, motorY, 14, 12);
       ctx.fillStyle = '#585868'; ctx.fillRect(x + 3, motorY + 1, 12, 10);
       ctx.fillStyle = '#8890a0'; ctx.fillRect(x + 4, motorY + 2, 10, 2);
+      if (HIRES) { // the pedestal's lit edge and bracing, the motor's round body and cooling fins
+        fine(x + 5, motorY + 11, 0.5, bot - motorY - 11, '#8890a0'); fine(x + 11.5, motorY + 11, 0.5, bot - motorY - 11, '#484858');
+        for (let by = motorY + 15; by < bot - 2; by += 6) fine(x + 5.5, by, 6, 0.5, '#484858');
+        fine(x + 3, motorY + 1, 12, 0.5, '#a8acb8'); fine(x + 4, motorY + 2, 10, 0.5, '#c8ccd8'); fine(x + 3, motorY + 9, 12, 2, '#484858');
+        for (let fx = x + 5; fx < x + 14; fx += 2) fine(fx, motorY + 4.5, 0.5, 4, '#383848');
+      }
       // shaft
       ctx.fillStyle = INK; ctx.fillRect(x + 16, cy - 1, 4, 2);
       // fan housing flaring out to the right
-      for (let i = 0; i < 14; i++) {
+      if (HIRES) { // (in half steps, shaded top to bottom, with the wheel's blades inside)
+        fine(x + 16, cy - 0.5, 4, 0.5, '#8890a0');
+        for (let i = 0; i < 14; i += 0.5) {
+          const hh = 8 + Math.floor(i * 2), xx = x + 20 + i;
+          fine(xx, cy - hh / 2, 0.5, hh, INK);
+          if (i >= 0.5 && i < 13.5) { fine(xx, cy - hh / 2 + 1, 0.5, hh - 2, '#d8dce8'); fine(xx, cy - hh / 2 + 1, 0.5, 0.5, '#f8f8f8'); fine(xx, cy + hh / 2 - 2, 0.5, 1, '#a8acb8'); }
+        }
+        for (let i = 3; i < 13; i += 2) { const hh = 8 + i * 2; fine(x + 20 + i, cy - hh / 2 + 2.5, 0.5, hh - 5, '#8890a0'); }
+      } else for (let i = 0; i < 14; i++) {
         const hh = 8 + i * 2, xx = x + 20 + i;
         ctx.fillStyle = INK; ctx.fillRect(xx, cy - hh / 2, 1, hh);
         if (i > 0 && i < 13) { ctx.fillStyle = '#d8dce8'; ctx.fillRect(xx, cy - hh / 2 + 1, 1, hh - 2); }
@@ -1389,10 +1492,17 @@
       ctx.fillStyle = INK; ctx.fillRect(x + 1, cTop, w - 2, cBot - cTop);
       ctx.fillStyle = '#e0c898'; ctx.fillRect(x + 2, cTop + 1, w - 4, cBot - cTop - 2);
       ctx.fillStyle = '#9a6434';
-      for (let fx = x + 4; fx < x + w - 3; fx += 3) ctx.fillRect(fx, cTop + 3, 1, cBot - cTop - 14);
+      if (HIRES) { // the fin pack's fine lines, copper tube ends in rows, and a lit frame
+        fine(x + 2, cTop + 1, w - 4, 0.5, '#f8e8c0'); fine(x + 2, cBot - 1.5, w - 4, 0.5, '#a88850');
+        for (let fx = x + 3; fx < x + w - 2; fx += 1) fine(fx, cTop + 2, 0.5, cBot - cTop - 12, '#c8a870');
+        for (let fy = cTop + 5; fy < cBot - 12; fy += 5) for (let fx = x + 4; fx < x + w - 3; fx += 3) { fineDisc(fx + 0.5, fy, 1, '#9a6434'); fine(fx, fy - 0.5, 0.5, 0.5, '#f0b070'); }
+      } else for (let fx = x + 4; fx < x + w - 3; fx += 3) ctx.fillRect(fx, cTop + 3, 1, cBot - cTop - 14);
       // pipe connections near the bottom
       ctx.fillStyle = INK; ctx.fillRect(x + 4, cBot - 8, 3, 3); ctx.fillRect(x + 8, cBot - 9, 4, 5);
       ctx.fillStyle = '#c87830'; ctx.fillRect(x + 9, cBot - 8, 2, 3);
+      if (HIRES) { fine(x + 9, cBot - 8, 0.5, 3, '#f0b070'); fine(x + 4.5, cBot - 7.5, 2, 2, '#c87830'); fine(x + 4.5, cBot - 7.5, 0.5, 2, '#f0b070'); }
+    } else if (HIRES) { // an open section: just the shade under the casing, and a drain in the floor
+      fine(x, top, w, 1, '#eceef4'); fine(x, bot - 1, w, 1, '#eceef4'); fine(x + w / 2 - 2, bot - 0.5, 4, 0.5, '#8890a0');
     }
   }
 
@@ -1407,6 +1517,7 @@
       ctx.fillStyle = pressedIn ? WIN_DARK : '#f8f8f8'; ctx.fillRect(x, y, w - 1, h - 1);
       ctx.fillStyle = pressedIn ? '#f8f8f8' : WIN_DARK; ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
       ctx.fillStyle = WIN; ctx.fillRect(x + 1, y + 1, w - 3, h - 3);
+      if (HIRES && !pressedIn) { fine(x + 1, y + 1, w - 3, 0.5, '#e4e6ee'); fine(x + 1, y + 1.5, 0.5, h - 3.5, '#e4e6ee'); fine(x + 1.5, y + h - 2.5, w - 3.5, 0.5, '#a8acb8'); fine(x + w - 2.5, y + 1.5, 0.5, h - 3.5, '#a8acb8'); }
     }
     function moveSel(d) {
       if (!sdgComps.length) return;
@@ -1452,26 +1563,35 @@
         // window + title bar
         ctx.fillStyle = WIN; ctx.fillRect(0, 0, SW, SH);
         ctx.fillStyle = TITLE; ctx.fillRect(0, 0, SW, 14);
+        if (HIRES) { // the title bar's soft fall of light
+          for (let y = 0; y < 14; y++) fine(0, y, SW, 1, mixHex('#3868c0', '#203e80', y / 13));
+          fine(0, 0, SW, 0.5, '#6890e0'); fine(0, 13.5, SW, 0.5, '#102050');
+        }
         if (sdgIcon.complete && sdgIcon.naturalWidth) ctx.drawImage(sdgIcon, 3, 1, 12, 12);
         text('SDG - Unit Design', 19, 3, 1, '#f8f8f8');
         ctx.fillStyle = INK; ctx.fillRect(SW - 13, 2, 10, 10);
         ctx.fillStyle = WIN; ctx.fillRect(SW - 12, 3, 8, 8);
+        if (HIRES) { fine(SW - 12, 3, 8, 0.5, '#f8f8f8'); fine(SW - 12, 3.5, 0.5, 7.5, '#f8f8f8'); fine(SW - 11.5, 10.5, 7.5, 0.5, WIN_DARK); fine(SW - 4.5, 3.5, 0.5, 7, WIN_DARK); }
         text('x', SW - 11, 1, 1, INK);
 
         // component list, scrolled to keep the selection visible
         const L = LIST;
         ctx.fillStyle = INK; ctx.fillRect(L.x, L.y, L.w, L.h);
         ctx.fillStyle = '#f8f8f8'; ctx.fillRect(L.x + 1, L.y + 1, L.w - 2, L.h - 2);
+        if (HIRES) { fine(L.x + 1, L.y + 1, L.w - 2, 14, '#e8eaf0'); fine(L.x + 1, L.y + 1, L.w - 2, 0.5, '#f8f8f8'); fine(L.x + 1, L.y + 14.5, L.w - 2, 0.5, '#c8ccd8'); }
         text('Comps', L.x + 6, L.y + 4);
-        ctx.fillStyle = INK; ctx.fillRect(L.x + 1, L.y + 15, L.w - 2, 1);
+        ctx.fillStyle = INK; ctx.fillRect(L.x + 1, L.y + 15, L.w - 2, HIRES ? 0.5 : 1);
+        if (HIRES) { fine(L.x + 1, L.y + 15.5, L.w - 2, 1, '#e0e2ea'); fine(L.x + 1, L.y + 16.5, 0.5, L.h - 17.5, '#d8dae2'); }
         const rows = Math.floor((L.h - 20) / 11);
         const first = Math.max(0, Math.min(sel - Math.floor(rows / 2), sdgComps.length - rows));
         sdgComps.slice(first, first + rows).forEach((c, i) => {
           const idx = first + i, yy = L.y + 20 + i * 11;
           let ink = INK;
+          if (HIRES && idx !== sel && idx & 1) fine(L.x + 3, yy - 2, L.w - 6, 11, '#f0f1f6');
           if (idx === sel) {
             ctx.fillStyle = mode === 'move' ? '#c03030' : TITLE;
             ctx.fillRect(L.x + 3, yy - 2, L.w - 6, 11);
+            if (HIRES) { fine(L.x + 3, yy - 2, L.w - 6, 0.5, mode === 'move' ? '#f07868' : '#6890e0'); fine(L.x + 3, yy + 8.5, L.w - 6, 0.5, mode === 'move' ? '#801818' : '#102050'); }
             ink = '#f8f8f8';
           }
           text((idx + 1) + ' ' + c, L.x + 5, yy, 1, ink);
@@ -1482,6 +1602,11 @@
         const V = VIEW;
         ctx.fillStyle = INK; ctx.fillRect(V.x, V.y, V.w, V.h);
         ctx.fillStyle = '#f8f8f8'; ctx.fillRect(V.x + 1, V.y + 1, V.w - 2, V.h - 2);
+        if (HIRES) { // drafting paper, sunk into the window
+          for (let x = V.x + 12; x < V.x + V.w - 1; x += 12) fine(x, V.y + 1, 0.5, V.h - 2, '#eaeef6');
+          for (let y = V.y + 12; y < V.y + V.h - 1; y += 12) fine(V.x + 1, y, V.w - 2, 0.5, '#eaeef6');
+          fine(V.x + 1, V.y + 1, V.w - 2, 1, '#d8dae2'); fine(V.x + 1, V.y + 2, 0.5, V.h - 3, '#d8dae2');
+        }
         if (!sdgComps.length) {
           text('Add a component', V.x + 65, V.y + 82, 1, WIN_DARK);
           text('to start your unit', V.x + 59, V.y + 94, 1, WIN_DARK);
@@ -1505,8 +1630,13 @@
             if (i === sel && (mode !== 'move' || (tick >> 3) & 1)) {
               ctx.fillStyle = mode === 'move' ? '#c03030' : '#3060d0';
               const cw = COMP_W[c];
-              ctx.fillRect(x, -4, cw, 1); ctx.fillRect(x, H + 3, cw, 1);
-              ctx.fillRect(x, -4, 1, H + 8); ctx.fillRect(x + cw - 1, -4, 1, H + 8);
+              if (HIRES) { // (half the thickness, and back to where the old one's outer edge sat)
+                ctx.fillRect(x, -4, cw, 0.5); ctx.fillRect(x, H + 3.5, cw, 0.5);
+                ctx.fillRect(x, -4, 0.5, H + 8); ctx.fillRect(x + cw - 0.5, -4, 0.5, H + 8);
+              } else {
+                ctx.fillRect(x, -4, cw, 1); ctx.fillRect(x, H + 3, cw, 1);
+                ctx.fillRect(x, -4, 1, H + 8); ctx.fillRect(x + cw - 1, -4, 1, H + 8);
+              }
             }
             x += COMP_W[c];
           });
@@ -1531,10 +1661,11 @@
           ctx.fillStyle = 'rgba(24,24,32,0.35)'; ctx.fillRect(0, 14, SW, SH - 14);
           bevel(px, py, pw, ph, false);
           ctx.fillStyle = TITLE; ctx.fillRect(px + 2, py + 2, pw - 5, 12);
+          if (HIRES) { for (let y = 0; y < 12; y++) fine(px + 2, py + 2 + y, pw - 5, 1, mixHex('#3868c0', '#203e80', y / 11)); fine(px + 2, py + 2, pw - 5, 0.5, '#6890e0'); }
           text(mode === 'insert' && sel >= 0 ? 'INSERT COMP' : 'ADD COMP', px + 6, py + 4, 1, '#f8f8f8');
           COMP_TYPES.forEach((c, i) => {
             const yy = py + 20 + i * 14;
-            if (i === addSel) { ctx.fillStyle = TITLE; ctx.fillRect(px + 6, yy - 2, pw - 14, 12); }
+            if (i === addSel) { ctx.fillStyle = TITLE; ctx.fillRect(px + 6, yy - 2, pw - 14, 12); if (HIRES) { fine(px + 6, yy - 2, pw - 14, 0.5, '#6890e0'); fine(px + 6, yy + 9.5, pw - 14, 0.5, '#102050'); } }
             text('- ' + c.toLowerCase(), px + 10, yy, 1, i === addSel ? '#f8f8f8' : INK);
           });
         }
@@ -3807,14 +3938,26 @@
         right('Best ' + (dogBest(n.name) || 0), 20);
         // the park: sky, a couple of clouds, striped grass
         ctx.fillStyle = '#bce0f8'; ctx.fillRect(4, TOP, SW - 8, GY - TOP);
+        if (HIRES) for (let k = 1; k < 8; k++) fine(4, GY - k * 8, SW - 8, 8, 'rgba(255, 255, 255, ' + (0.32 - k * 0.04) + ')'); // paler toward the horizon
         ctx.fillStyle = '#f8f8f8';
         for (const [cx, cy] of [[70, 56], [210, 70]]) {
           const x = Math.round(((cx + tick * 0.1) % (SW + 60)) - 30);
+          if (HIRES) { // (round and soft, with shaded bellies, kept to the sky)
+            ctx.save(); ctx.beginPath(); ctx.rect(4, TOP, SW - 8, GY - TOP); ctx.clip();
+            roundBox(x, cy + 1, 34, 7, 3, '#dcecf8'); fineDisc(x + 9, cy + 1, 4.5, '#f8f8f8'); fineDisc(x + 18, cy - 1, 6, '#f8f8f8'); fineDisc(x + 26, cy + 2, 4, '#f8f8f8'); roundBox(x + 1, cy + 1, 32, 5.5, 2.5, '#f8f8f8');
+            ctx.restore();
+            continue;
+          }
           ctx.fillRect(x, cy, 34, 8); ctx.fillRect(x + 8, cy - 5, 18, 6);
         }
+        if (HIRES) for (let x = 6, i = 0; x < SW - 6; x += 13, i++) { const r = 5 + (i * 7) % 4; fineDisc(x, GY - 1, r, '#8cc484'); fine(x - r + 2, GY - r - 0.5, r, 0.5, '#a8d8a0'); } // a hedge far off
         ctx.fillStyle = '#58a848'; ctx.fillRect(4, GY, SW - 8, SH - GY - 4);
         ctx.fillStyle = '#4c9840';
         for (let x = 4; x < SW - 4; x += 24) ctx.fillRect(x, GY, 12, SH - GY - 4);
+        if (HIRES) { // the grass's lit edge, and tufts of blades
+          fine(4, GY, SW - 8, 0.5, '#88d070'); fine(4, GY + 0.5, SW - 8, 0.5, '#3c8434');
+          for (let y = GY + 5; y < SH - 8; y += 7) for (let x = 7 + (y * 13) % 19; x < SW - 8; x += 23) { fine(x, y, 0.5, 2, '#3c8434'); fine(x + 1, y + 0.5, 0.5, 1.5, '#70c060'); fine(x - 1, y + 1, 0.5, 1, '#70c060'); }
+        }
         // wind
         if (state === 'aim' || state === 'fly') {
           const arrows = Math.round(Math.abs(wind) / 0.05);
@@ -3838,7 +3981,14 @@
           ctx.fillStyle = col.dark; ctx.fillRect(B.x, B.y, B.w, B.h);
           ctx.fillStyle = '#f8f8f8'; ctx.fillRect(B.x + 2, B.y + 2, B.w - 4, B.h - 4);
           ctx.fillStyle = '#f0b030'; ctx.fillRect(B.x + 2, B.y + 2, Math.round((B.w - 4) * p), B.h - 4);
+          if (HIRES) { // the bar's sunken edge, the fill's shine, and quarter marks
+            const fw = Math.round((B.w - 4) * p);
+            if (fw > 0) { fine(B.x + 2, B.y + 2, fw, 1, '#f8d880'); fine(B.x + 2, B.y + 6.5, fw, 1.5, '#c88820'); }
+            if (fw < B.w - 4) fine(B.x + 2 + fw, B.y + 2, B.w - 4 - fw, 0.5, '#c8ccd8');
+            for (let k = 1; k < 4; k++) fine(B.x + 2 + k * (B.w - 4) / 4, B.y + 2, 0.5, 2, '#888898');
+          }
           ctx.fillStyle = col.dark; ctx.fillRect(Math.round(B.x + 2 + p * (B.w - 6)), B.y - 3, 2, B.h + 6);
+          if (HIRES) fine(Math.round(B.x + 2 + p * (B.w - 6)), B.y - 3, 0.5, B.h + 6, '#585868');
         }
         if (state === 'ready') readyBox(t, 'Space: throw, then run + jump!');
         else if (state === 'done') doneBox(d.cat ? [n.name + ' refuses to move.']
@@ -3852,6 +4002,12 @@
     function drawDisc(x, y) {
       const w = (tick >> 2) & 1 ? 10 : 8;
       x = Math.round(x); y = Math.round(y);
+      if (HIRES) { // a round disc seen from the side, its top catching the light
+        const el = (c, rx, ry, dy) => { ctx.fillStyle = c; ctx.beginPath(); ctx.ellipse(x, y + dy, rx, ry, 0, 0, 7); ctx.fill(); };
+        el(col.dark, w / 2 + 1, 2.75, 0.5); el('#a82828', w / 2, 2, 0.5); el('#e04040', w / 2 - 0.25, 1.5, 0);
+        fine(x - w / 2 + 2, y - 1, w - 5, 0.5, '#f8c0c0'); fine(x + 1, y - 0.5, 0.5, 0.5, '#a82828');
+        return;
+      }
       ctx.fillStyle = col.dark; ctx.fillRect(x - w / 2 - 1, y - 2, w + 2, 5);
       ctx.fillStyle = '#e04040'; ctx.fillRect(x - w / 2, y - 1, w, 3);
       ctx.fillStyle = '#f8a0a0'; ctx.fillRect(x - w / 2 + 1, y - 1, w - 3, 1);
@@ -7406,9 +7562,23 @@
         ctx.fillStyle = '#b0b8c8'; ctx.fillRect(10, 10, SW - 20, 158);
         ctx.fillStyle = '#8890a0'; ctx.fillRect(10, 10, SW - 20, 8);
         ctx.fillStyle = col.dark; ctx.fillRect(150, 18, 20, 142); ctx.fillRect(10, 160, SW - 20, 8);
+        if (HIRES) { // brushed steel panels, a rail on each wall, lights in the ceiling, the doors' edges and the floor's tread
+          for (const [x0, x1] of [[10, 150], [170, SW - 10]]) {
+            for (let x = x0 + 4; x < x1 - 1; x += 5) fine(x, 18, 0.5, 142, x % 2 ? '#bcc4d2' : '#a8b0c0');
+            for (const x of [x0 + 46, x0 + 93]) { fine(x, 18, 0.5, 142, '#8890a0'); fine(x + 0.5, 18, 0.5, 142, '#d0d6e0'); }
+            fine(x0, 121, x1 - x0, 1, '#e8ecf4'); fine(x0, 122, x1 - x0, 1, '#8890a0'); fine(x0, 123, x1 - x0, 0.5, '#98a0b0');
+          }
+          fine(10, 10, SW - 20, 0.5, '#b8bcc8'); fine(10, 17, SW - 20, 1, '#686878');
+          for (const x of [28, 80, 226, 278]) { roundBox(x, 12, 14, 3, 1, '#f8f8e8'); fine(x + 1, 12, 12, 0.5, '#ffffff'); fine(x + 1, 15, 12, 1, 'rgba(248, 248, 232, 0.35)'); }
+          fine(150, 18, 0.5, 142, '#585868'); fine(169.5, 18, 0.5, 142, '#585868');
+          if (state !== 'done') for (let k = 0; k < 2; k++) fine(150.5, 18 + (t * 2 + k * 71) % 142, 19, 0.5, '#383848'); // the shaft going by
+          fine(10, 160, SW - 20, 0.5, '#585868');
+          for (let x = 14; x < SW - 12; x += 8) { fine(x, 162, 4, 0.5, '#383848'); fine(x + 4, 165, 4, 0.5, '#383848'); }
+        }
         // floor indicator: a lit panel with the number on it
         ctx.fillStyle = col.dark; ctx.fillRect(126, 20, 68, 16);
         ctx.fillStyle = '#f0b030'; ctx.fillRect(128, 22, 64, 12);
+        if (HIRES) { fine(126, 20, 68, 0.5, '#484858'); fine(128, 22, 64, 0.5, '#f8e0a0'); fine(128, 33.5, 64, 0.5, '#b87818'); fine(128, 22.5, 0.5, 11, '#f8e0a0'); fine(191.5, 22.5, 0.5, 11, '#b87818'); }
         const lbl = state === 'done' ? 'ARRIVED'
           : 'FLOOR ' + (from + Math.round((to - from) * (turn / hops)) + 1);
         text(lbl, 160 - lbl.length * 3, 23, 1, '#181820');
@@ -7422,6 +7592,7 @@
         ctx.fillStyle = '#e8e8e8'; ctx.fillRect(75, 173, 148, 8);
         ctx.fillStyle = silence > 70 ? '#f05040' : silence > 40 ? '#f0b030' : '#58b058';
         ctx.fillRect(75, 173, Math.round(148 * silence / 100), 8);
+        if (HIRES) { const sw = Math.round(148 * silence / 100); fine(75 + sw, 173, 148 - sw, 0.5, '#c8ccd8'); if (sw > 0) { fine(75, 173, sw, 1, 'rgba(255,255,255,0.4)'); fine(75, 180, sw, 1, 'rgba(0,0,0,0.18)'); } }
         if (state === 'done') {
           box(0, SH - 36, SW, 36);
           const m = silence >= 100 ? 'You ride the rest of the way in silence.'
@@ -16493,6 +16664,7 @@
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       chop: ChopGame, mallow: MallowGame, spruce: SpruceGame, snowman: SnowmanGame, cocoa: CocoaGame, snowball: SnowballGame, humbug: HumbugGame,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
+      computer: () => ComputerScreen('sdg'), sdg: SdgApp, elevator: () => ElevatorGame(npcs[0], 0, 2, () => {}),
       fame: HallOfFame, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];
     // &vs=1 plays a head-to-head game (a VERSUS key: duel, jar, lego, dance, coffee, run,
     // snake, simon) against "Echo", a stand-in who sends you back everything you send, a
