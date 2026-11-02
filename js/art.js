@@ -45,11 +45,11 @@ window.Art = (function () {
   const UI = { light: COLORS.w, dark: COLORS.k, mid: COLORS.g };
 
   // ---------- your own character (the character editor) ----------
-  // A look is { g, skin, hair, hairC, hat, shirt, shirtC, pants, pantsC }: the body
+  // A look is { g, skin, hair, hairC, hat, shirt, shirtC, pants, pantsC, extra, flair, champOff }: the body
   // ('male' or 'female') and a place in each list below. It's saved and sent as a short
   // code (lookCode), one base-36 digit per part in LOOK_PARTS order, so only ever add to
   // the end of a list: moving something would change everyone's saved look. A head thing,
-  // shirt or pair of pants with `item` set is a special item, only for the names whose
+  // shirt, pair of pants, extra or flair with `item` set is a special item, only for the names whose
   // number for that item is 1 (see "special items" in js/game.js).
   // In the pictures, h = hair (H a shade darker), s = skin, w = shirt (v a shade darker),
   // u = its accent, K = pants; anything else is the ordinary palette.
@@ -101,9 +101,15 @@ window.Art = (function () {
     // only for the Christmas Cup's champion, the fastest at Humbug Sweeper over Christmas 2026
     // (see js/game.js): gold reindeer antlers, with the hair showing
     { name: 'Golden antlers', hd: 'antlers', item: 'antlers' },
+    // only for a name that's set Linda free (see "the quests' wearables" in js/game.js)
+    { name: 'Ghost mask', hd: 'ghostmask', item: 'ghostmask' },
+    // the same mask on whoever has set her free the most, with ghosts going round it. Like the
+    // crown it's never picked or saved: it's only ever worn, in place of the Ghost mask.
+    { name: 'Haunted mask', hd: 'ghostmask' },
   ];
-  // where the crown, the Santa hat and the golden antlers are in HATS
+  // where the crown, the Santa hat, the golden antlers and the masks are in HATS
   const CROWN = HATS.findIndex((h) => h.hd === 'crown'), SANTA = HATS.findIndex((h) => h.hd === 'santa'), ANTLERS = HATS.findIndex((h) => h.hd === 'antlers');
+  const GHOST_MASK = HATS.findIndex((h) => h.item === 'ghostmask'), HAUNTED_MASK = HATS.findIndex((h) => h.name === 'Haunted mask');
   const SHIRTS = [
     { name: 'Shirt & tie', hd: 'tie' },
     { name: 'Blouse', hd: 'blouse' },
@@ -120,8 +126,30 @@ window.Art = (function () {
     { name: 'Skirt', hd: 'skirt' },
     { name: 'Overalls', hd: 'overalls' },
   ];
+  // Things worn over the top of your clothes, whatever the shirt, sweater or overalls.
+  const EXTRAS = [
+    { name: 'Nothing', hd: 'none' },
+    // only for a name that's been Employee of the Month (see "the quests' wearables" in js/game.js)
+    { name: 'Ribbon', hd: 'ribbon', item: 'ribbon' },
+    // the same ribbon in gold on whoever has been it the most, sparkling. Like the crown it's
+    // never picked or saved: it's only ever worn, in place of the Ribbon.
+    { name: 'Gold ribbon', hd: 'goldribbon' },
+  ];
+  const RIBBON = EXTRAS.findIndex((e) => e.hd === 'ribbon'), GOLD_RIBBON = EXTRAS.findIndex((e) => e.hd === 'goldribbon');
+  // Flair: not something you wear, so it isn't in your picture at all, but something that
+  // goes with you, drawn by js/game.js. `item` works here too, for one that's earned.
+  const FLAIRS = [
+    { name: 'Nothing' },
+    // the trail of gold stars behind you as you walk (glowTick in js/game.js). Only ever the
+    // Office Champion's, like the crown (see champLook there).
+    { name: 'Star trail' },
+  ];
+  const STAR_TRAIL = FLAIRS.findIndex((f) => f.name === 'Star trail');
+  // Not a part you pick from a list: which of the Office Champion's things they've chosen not
+  // to wear, 1 for the crown plus 2 for the star trail (see champLook in js/game.js).
+  const CHAMP_OFF = [0, 1, 2, 3];
   const LOOK_PARTS = [['skin', SKINS], ['hair', HAIRS], ['hairC', HAIR_COLOURS], ['hat', HATS],
-    ['shirt', SHIRTS], ['shirtC', SHIRT_COLOURS], ['pants', PANTS], ['pantsC', PANTS_COLOURS]];
+    ['shirt', SHIRTS], ['shirtC', SHIRT_COLOURS], ['pants', PANTS], ['pantsC', PANTS_COLOURS], ['extra', EXTRAS], ['flair', FLAIRS], ['champOff', CHAMP_OFF]];
   // the special items and where they are, like { santa: { part: 'hat', i: 10 } }
   const LOOK_ITEMS = {};
   for (const [part, list] of LOOK_PARTS) list.forEach((e, i) => { if (e.item) LOOK_ITEMS[e.item] = { part, i }; });
@@ -178,12 +206,12 @@ window.Art = (function () {
   }
 
   // the extra colours a 32 x 32 picture uses, from a look's colours (h, s, w, K)
-  const extras32 = (c) => ({ H: darker(c.h, 0.35), v: darker(c.w, 0.25), S: darker(c.s, 0.2), f: blend(c.s, '#e04848', 0.4), j: blend(c.h, '#ffffff', 0.3), O: '#f8e070', Y: '#a87018', L: darker(c.K, 0.3), b: '#383040' });
+  const extras32 = (c) => ({ H: darker(c.h, 0.35), v: darker(c.w, 0.25), S: darker(c.s, 0.2), f: blend(c.s, '#e04848', 0.4), j: blend(c.h, '#ffffff', 0.3), O: '#f8e070', Y: '#a87018', L: darker(c.K, 0.3), b: '#383040', I: '#fcfcff', J: '#2f62d8', z: '#1c3a94' });
   function lookPalette(look, over) {
     const c = lookColours(look);
     // (and for 32 x 32: S, skin in shadow, f, the cheeks, j, a shine on the hair, and O and
     // Y, light and dark gold, for the crown and the golden antlers, L, the pants in shadow,
-    // and b, shoes)
+    // b, shoes, I, a pure white for the ghost mask, and J and z, the ribbon's blue and its shadow)
     return palette(Object.assign({ H: darker(c.h, 0.35), v: darker(c.w, 0.25) }, extras32(c), c, over));
   }
   // ---------- 32 x 32 characters ----------
@@ -1245,6 +1273,67 @@ window.Art = (function () {
         '.............oY.....Yo.k',
       ],
     },
+    // Linda's face, more or less: white, with big hollow eyes and an "ooo", and a strap round the back
+    ghostmask: {
+      down: [
+        '',
+        '',
+        '',
+        '',
+        '',
+        '...........kkkkkkkkkk',
+        '.........kkkIIIIIIIWkkk',
+        '........kkIIIIIIIIIIIWkk',
+        '.......kkIIIIIIIIIIIIIWkk',
+        '.......kIIIkkIIIIIIkkIIWk',
+        '.......kIIkkkkIIIIkkkkIWk',
+        '.......kIIkkkkIIIIkkkkIWk',
+        '.......kIIkkkkIIIIkkkkIWk',
+        '.......kIIIkkIIIIIIkkIIWk',
+        '.......kIIIIIIIIIIIIIIIWk',
+        '.......kkIIIIIIkkIIIIWGkk',
+        '........kkIIIIkkkkIIWGkk',
+        '.........kkIIIIkkIIWGkk',
+        '..........kkkWWWWWWkkk',
+        '............kkkkkkkk',
+      ],
+      up: [
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '........kkkkkkkkkkkkkkkk',
+        '.......kWWWWWWkkkkWWWWWWk',
+        '........kkkkkkkkkkkkkkkk',
+      ],
+      left: [
+        '',
+        '',
+        '',
+        '',
+        '',
+        '........kkkkkkkk',
+        '.......kkIIIIIWkk',
+        '......kkIIIIIIIWk',
+        '......kIIIIIIIIWk',
+        '......kIIkIIIIIWk',
+        '......kIkkkIIIIWkkkkkkkkk',
+        '......kIkkkIIIIWWWWWWWWWW',
+        '.....kkIkkkIIIIWkkkkkkkkk',
+        '.....kIIIkIIIIIWk',
+        '.....kIIIIIIIIIWk',
+        '.....kIIkIIIIIWGk',
+        '.....kkkkkIIIIWGk',
+        '......kkkIIIIWGkk',
+        '.......kkkWWWWkk',
+        '.........kkkkkk',
+      ],
+    },
   };
   for (const h of HATS) h.hi = HAT32[h.hd];
   // The shirts, by their hd name: the body from the shoulders to the waist (rows 20-25;
@@ -2090,6 +2179,37 @@ window.Art = (function () {
       ],
     },
   };
+  // The extras, by their hd name: rows 32 wide from row 20 of the picture, the chest, looking
+  // down and left (there's nothing to see of them from behind).
+  const EXTRA32 = {
+    // a blue rosette with two tails, pinned over the heart
+    ribbon: {
+      down: [
+        '...............kkkkk',
+        '..............kUUJJzk',
+        '..............kUIIJzk',
+        '..............kJIIJzk',
+        '..............kJJzzzk',
+        '...............kJkzk',
+        '...............kJkzk',
+        '...............kk.kk',
+      ],
+      left: [
+        '..........kkkk',
+        '.........kUUJzk',
+        '.........kUIIzk',
+        '.........kJIIzk',
+        '.........kJJzzk',
+        '..........kJzk',
+        '..........kJzk',
+        '..........kkkk',
+      ],
+    },
+  };
+  // the top Employee of the Month's: the same one in gold
+  EXTRA32.goldribbon = {};
+  for (const view in EXTRA32.ribbon) EXTRA32.goldribbon[view] = EXTRA32.ribbon[view].map((r) => r.replace(/[UJzI]/g, (c) => ({ U: 'I', J: 'O', z: 'Y', I: 'o' }[c])));
+  for (const e of EXTRAS) e.hi = EXTRA32[e.hd];
   // lay rows over a 32 x 32 buffer from column x0, row y0 ('.' leaves what's there)
   function lay32Over(b, rows, x0, y0) {
     rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== '.' && x0 + i < 32 && y0 + j < 32) b[(y0 + j) * 32 + x0 + i] = ch; }));
@@ -2104,7 +2224,7 @@ window.Art = (function () {
   const BALD = HAIRS.findIndex((h) => h.hd === 'bald');
   // One picture of a look at 32 x 32, as a buffer: dir is 'down', 'up' or 'left', and step 0
   // standing, 1 mid-stride or 2 the other stride (which only flips the legs, so a bow or a
-  // side part stays put). noHat leaves the head thing off (under a costume). sweater (a key
+  // side part stays put). noHat leaves the head thing and any extra off (under a costume). sweater (a key
   // in SWEATERS) wears that in place of the shirt, over the top of any overalls.
   function lookBuf32(look, dir, step, noHat, sweater) {
     const hair = HAIRS[look.hair], hat = HATS[look.hat], shirt = SHIRTS[look.shirt], pants = PANTS[look.pants];
@@ -2125,6 +2245,9 @@ window.Art = (function () {
         if (ch === '_') { const h = (head[j] || '')[i]; b[j * 32 + i] = h && h !== '.' ? h : null; } else if (ch !== '.') b[j * 32 + i] = ch;
       }));
     }
+    // (and over everything, hair and all, whatever's worn on top of the clothes: not under a costume)
+    const extra = EXTRAS[look.extra];
+    if (!noHat && extra && extra.hi) lay32(b, extra.hi[dir], 20);
     return b;
   }
   // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look, marked hi: 2 so
@@ -5454,8 +5577,8 @@ window.Art = (function () {
 
   return {
     LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
-    LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
+    LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS, extras: EXTRAS, flairs: FLAIRS },
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, STAR_TRAIL, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
     SWEATERS,
   };
 })();

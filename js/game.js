@@ -64,10 +64,33 @@
   // the character last picked.
   const oldPick = (g, i) => Art.lookLike(g, Art.LOOKS[g][Math.max(0, Math.min(Math.floor(+i) || 0, Art.LOOKS[g].length - 1))]);
   let myLook = Art.lookFrom(store.get('avatar')) || oldPick(GENDERS.includes(store.get('gender')) ? store.get('gender') : 'male', store.get('look'));
-  // The Office Champion (1st in the Hall of Fame) wears the crown in place of whatever head
-  // thing they picked, which stays saved underneath for when they lose it (see crownCheck).
-  let crowned = false;
-  const wornLook = (look) => (crowned ? Object.assign({}, look, { hat: Art.CROWN }) : look);
+  // The Office Champion (1st in the Hall of Fame) gets the crown and the star trail, by the
+  // parts of a look they go in (CHAMP). They start out wearing both, from the moment they get
+  // there, and for as long as they stay there either can be changed in the character editor
+  // and back again. Neither is ever saved in its part of the look: what they picked last stays
+  // saved there, for when they aren't wearing it or lose the title, and the look's champOff
+  // remembers which they've chosen not to wear (CHAMP_BIT). It goes back to 0 when they lose
+  // the title, so each time they get there they start out in both.
+  const CHAMP = { hat: Art.CROWN, flair: Art.STAR_TRAIL }, CHAMP_BIT = { hat: 1, flair: 2 };
+  let crowned = false; // the title
+  const champLook = (look) => {
+    const worn = Object.assign({}, look, { champOff: 0 });
+    if (crowned) for (const part in CHAMP) if (!(look.champOff & CHAMP_BIT[part])) worn[part] = CHAMP[part];
+    return worn;
+  };
+  // Whoever has set Linda free the most wears their ghost mask haunted, and whoever has been
+  // Employee of the Month the most their ribbon in gold, for as long as they're on top. It's
+  // the same choice in the character editor as for anybody else: this is only what they're
+  // seen in, and the look saved underneath stays the plain one (see "the quests' wearables").
+  const questTop = { linda: false, eotm: false };
+  function questLook(look) {
+    const worn = Object.assign({}, look);
+    if (worn.hat === Art.GHOST_MASK && questTop.linda) worn.hat = Art.HAUNTED_MASK;
+    if (worn.extra === Art.RIBBON && questTop.eotm) worn.extra = Art.GOLD_RIBBON;
+    return worn;
+  }
+  // what you're seen in, from the look you've saved
+  const wornLook = (look) => questLook(champLook(look));
   let sprites = lookSprites(myLook);
 
   // Curtains ('C' tiles): closed until the player peeks around them, then
@@ -3398,7 +3421,14 @@
     const fmt = (v) => (b.net ? signed(v) : boardFmt(p.key, v));
     const y0 = b.net ? 50 : 42, gap = b.net ? 15 : 16;
     let rows = null, mine = null, failed = false, t = 0;
-    boardLoad(p.key, name, p.score).then((r) => { rows = r.rows; mine = r.mine; }, () => { failed = true; });
+    boardLoad(p.key, name, p.score).then((r) => {
+      rows = r.rows; mine = r.mine;
+      // (a quest's board has just been sent to, so this says if that's put you on top)
+      if (b.quest && rows.length && name && name !== 'New Hire') setQuestTop(p.key, rows[0].id === id);
+      // (and if a game's has just gone up with you in its top ten, it might have made you number 1)
+      const improved = b.net || (p.score > 0 && !!mine && mine.score === (b.low ? -p.score : p.score));
+      if (!b.quest && improved && rows.some((r) => r.id === id)) champWatch(name);
+    }, () => { failed = true; });
     const right = (str, x, y, c) => text(str, x - str.length * 6, y, 1, c);
     const row = (rank, who, r, y, me) => {
       if (me) pickBar(16, y - 4, SW - 32, 15, col.dark);
@@ -3520,26 +3550,62 @@
     return Object.values(pts).sort((a, b) => b.points - a.points || b.crowns - a.crowns || a.name.localeCompare(b.name));
   }
   // Whether a name is the Office Champion right now, from every game's board as the Hall of
-  // Fame has them. Nobody is if none of the boards can be had, and a New Hire never is.
+  // Fame has them: null if none of the boards can be had. A New Hire never is.
   function crownCheck(name) {
     if (!name || name === 'New Hire' || !(BOARD_URL || boardDemo)) return Promise.resolve(false);
     const { games } = fameBoards();
     return Promise.all(games.map((k) => boardAll(k, name).catch(() => null))).then((all) => {
-      if (all.every((r) => r === null)) return false;
+      if (all.every((r) => r === null)) return null;
       const boards = {};
       games.forEach((k, i) => { boards[k] = all[i] || []; });
       const top = fameStandings(boards, games)[0];
       return !!top && top.id === boardKey(name);
-    }, () => false);
+    }, () => null);
   }
-  // Put the crown on (or take it off). In a costume it waits: a costume has no head thing.
+  // What the boards say about a name and the title (true, false, or null if they can't say,
+  // which only counts as you come in). You get the title or lose it there and then, and you're
+  // told about getting it, once each time you get there (kept in this browser).
+  function champHeard(name, on, comingIn) {
+    if (on === null && !comingIn) return;
+    // (the title's changing hands while you play, so what you chose last time doesn't count;
+    // as you come in, editStart sees to that, with the look saved under your name)
+    if (!comingIn && !!on !== crowned && myLook.champOff) { myLook = Object.assign({}, myLook, { champOff: 0 }); lookKeep(); }
+    setCrowned(!!on);
+    const told = 'champ.told.' + boardKey(name);
+    if (on === false) store.set(told, '');
+    if (!on || store.get(told)) return;
+    store.set(told, '1');
+    questEarned.unshift({ what: 'You\'re number 1! Crown (HEAD), Star trail (FLAIR)', champ: true, told: champSay });
+    if (mode === 'play') questTell();
+  }
+  function champSay() {
+    sfx('cup');
+    say('You\'re number 1! You\'ve taken the top spot in the Hall of Fame, and that makes you the Office Champion. The crown and the star trail are yours for as long as you stay on top. If you don\'t want to wear them, change them under Edit character in the Start menu.');
+  }
+  // A score of yours has just gone up: has that done it?
+  let champWatching = false;
+  function champWatch(name) {
+    if (crowned || champWatching || !name || name === 'New Hire') return;
+    champWatching = true;
+    crownCheck(name).then((on) => {
+      champWatching = false;
+      if (playerName === name) champHeard(name, on, false);
+    });
+  }
+  // You've got the title or lost it. In a costume the crown waits: a costume has no head thing.
   function setCrowned(on) {
     if (on === crowned) return;
     crowned = on;
     if (!hw.worn) sprites = mySprites();
   }
-  // The champion's trail: wherever the Office Champion walks (you, or another player in the
-  // crown), a short path of little gold stars is left on the ground behind them, twinkling
+  // On top of a quest's board, or not any more (see questTop).
+  function setQuestTop(key, on) {
+    if (questTopTest || on === questTop[key]) return;
+    questTop[key] = on;
+    if (!hw.worn) sprites = mySprites();
+  }
+  // The star trail: wherever somebody with it on walks (you, or another player), a short
+  // path of little gold stars is left on the ground behind them, twinkling
   // and drifting up as they fade in half a second. Places are in pixels, where people are
   // drawn (x and y as their sprite's), with jx and jy scattering each star a little either
   // side of the path and s setting when it twinkles. drawWorld and drawYard draw it (drawGlowPix).
@@ -3556,8 +3622,8 @@
         Object.assign(last, { x, y });
       }
     };
-    if (crowned && !out(P.floor)) drop(GLOW.me, P.floor, ...mePx());
-    for (const o of mpHere()) if (o.look.hat === Art.CROWN && !out(o.f)) drop(o.glow || (o.glow = {}), o.f, o.px, o.py);
+    if (wornLook(myLook).flair === Art.STAR_TRAIL && !out(P.floor)) drop(GLOW.me, P.floor, ...mePx());
+    for (const o of mpHere()) if (o.look.flair === Art.STAR_TRAIL && !out(o.f)) drop(o.glow || (o.glow = {}), o.f, o.px, o.py);
     while (GLOW.pts.length && tick - GLOW.pts[0].t >= GLOW_LIFE) GLOW.pts.shift();
   }
   // a four-point twinkle reaching r either side of the real pixel at (x, y), white at its heart
@@ -3599,11 +3665,20 @@
     }
     ctx.globalAlpha = 1;
   }
+  // what the star trail looks like in the character editor, round your feet at (x, y), where
+  // you're only walking on the spot: the same stars, coming and going in turn
+  const TRAIL_SPOTS = [-34, -20, -9, 11, 23, 35];
+  function trailPreview(x, y) {
+    TRAIL_SPOTS.forEach((dx, i) => {
+      const k = ((tick + i * 17) % GLOW_LIFE * 2) / (GLOW_LIFE * 2), pic = starPic(k < 0.4 ? 0 : k < 0.75 ? 1 : 2, GLOW_COLS[(i + (tick >> 3)) % 3]);
+      ctx.globalAlpha = 1 - k * k;
+      ctx.drawImage(pic, realPx(x + dx - pic.width / 4), realPx(y - 3 + (i % 3) * 3 - k * 7 - pic.height / 4));
+    });
+    ctx.globalAlpha = 1;
+  }
   // The crown itself sparkles: a twinkle on each of its points and jewels in turn, so there's
   // always one or two going, and a sliver of light running along the gold now and then. x and
-  // y are the top left of its wearer's picture, drawn over them (a costume hides the crown, so
-  // no sparkle in one).
-  const meCrowned = () => crowned && !hw.worn, mpCrowned = (o) => o.look.hat === Art.CROWN && !o.c;
+  // y are the top left of its wearer's picture, drawn over them (see wornOver).
   const CROWN_GLINTS = [[4.5, 1], [8, 3.5], [11, 1], [5.5, 3.5], [8, 1], [10, 3.5]];
   function crownSparkle(x, y) {
     CROWN_GLINTS.forEach(([gx, gy], i) => {
@@ -3615,6 +3690,68 @@
       const sx = g + 16 - j;
       if (sx < 23) fine(x + sx / 2, y + j / 2, 1, 0.5, 'rgba(255, 255, 255, 0.8)');
     }
+  }
+  // The haunted mask: three little ghosts going round their wearer's head, along the top
+  // behind it and under the mask's eyes in front of it, each with a wisp trailing after it.
+  // Drawn in two goes, either side of the wearer's picture (front: the ones in front). rx is
+  // how far out they go, either side of the head.
+  const HAUNT_FRAMES = [
+    ['...kkk...', '..kIIIk..', '.kIIIIIk.', '.kkIkIIk.', '.kkIkIIk.', '.kIIIIIk.', '.kIIIIGk.', '.kIIIIGk.', '.kIkIkGk.', '..k.k.k..'],
+    ['...kkk...', '..kIIIk..', '.kIIIIIk.', '.kkIkIIk.', '.kkIkIIk.', '.kIIIIIk.', '.kIIIIGk.', '.kIIIIGk.', '.kkIkIkk.', '.k..k..k.'],
+  ];
+  const HAUNT_COLS = { k: '#2c3048', I: '#fcfcff', G: '#c8ccd8' };
+  // (looking left, or flipped to look right)
+  const hauntPic = (frame, flip) => finePic('haunt' + frame + flip, 9, 10, (g) => {
+    HAUNT_FRAMES[frame].forEach((r, y) => [...r].forEach((ch, x) => {
+      if (HAUNT_COLS[ch]) { g.fillStyle = HAUNT_COLS[ch]; g.fillRect(flip ? 8 - x : x, y, 1, 1); }
+    }));
+  });
+  function hauntGhosts(x, y, front, rx) {
+    for (let i = 0; i < 3; i++) {
+      const a = tick / 36 + i * Math.PI * 2 / 3;
+      if (Math.sin(a) > 0 !== front) continue;
+      const at = (b) => [x + 8 + Math.cos(b) * rx, y + 5 + Math.sin(b) * 4.5 + Math.sin(b * 3 + i) * 0.8];
+      for (let j = 4; j >= 1; j--) {
+        const [wx, wy] = at(a - j * 0.17);
+        fine(realPx(wx), realPx(wy), 1, 1, 'rgba(236, 240, 255, ' + (front ? 0.5 : 0.3) * (1 - j / 5) + ')');
+      }
+      const [gx, gy] = at(a);
+      ctx.globalAlpha = front ? 0.92 : 0.6;
+      ctx.drawImage(hauntPic(((tick + i * 5) >> 4) & 1, !front), realPx(gx - 2.25), realPx(gy - 2.5));
+    }
+    ctx.globalAlpha = 1;
+  }
+  // The gold ribbon sparkles: a twinkle on it in turn, like the crown's, and every so often a
+  // little star coming off it, out to one side as it fades. It's on their chest, so there's none
+  // of this from behind.
+  const RIBBON_AT = { down: [8.75, 11.5], left: [6, 11.5], right: [10, 11.5] };
+  const RIBBON_GLINTS = [[-1.5, -1.5], [2, 0], [0, -2], [-2, 1], [1.5, -1.5]];
+  function ribbonSparkle(x, y, dir) {
+    const c = RIBBON_AT[dir];
+    if (!c) return;
+    RIBBON_GLINTS.forEach(([gx, gy], i) => {
+      const t = (tick + i * 12) % 60;
+      if (t < 14) twinkle(realPx(x + c[0] + gx), realPx(y + c[1] + gy), realPx(Math.sin(t / 14 * Math.PI) * 1.75));
+    });
+    for (let i = 0; i < 2; i++) {
+      const k = ((tick + i * 37) % 74) / 74, pic = starPic(2, GLOW_COLS[i]);
+      ctx.globalAlpha = (1 - k) * (1 - k);
+      ctx.drawImage(pic, realPx(x + c[0] + (i ? 7 : -7) * Math.sqrt(k) - 1.5), realPx(y + c[1] - 1.5 - k * 4));
+    }
+    ctx.globalAlpha = 1;
+  }
+  // What's animated about what somebody has on, drawn behind and then over their picture (x
+  // and y its top left; dir the way they're facing; rx as for hauntGhosts). A costume hides
+  // all of it. meWorn and mpWorn are what you and another player have on, or null in a costume.
+  const meWorn = () => (hw.worn ? null : wornLook(myLook)), mpWorn = (o) => (o.c ? null : o.look);
+  function wornBehind(worn, x, y, rx = 10.5) {
+    if (worn && worn.hat === Art.HAUNTED_MASK) hauntGhosts(x, y, false, rx);
+  }
+  function wornOver(worn, x, y, dir, rx = 10.5) {
+    if (!worn) return;
+    if (worn.hat === Art.CROWN) crownSparkle(x, y);
+    if (worn.hat === Art.HAUNTED_MASK) hauntGhosts(x, y, true, rx);
+    if (worn.extra === Art.GOLD_RIBBON) ribbonSparkle(x, y, dir);
   }
   function HallOfFame() {
     const name = playerName || store.get('name') || '', me = name ? boardKey(name) : null;
@@ -3629,8 +3766,11 @@
         boards = {};
         keys.forEach((k, i) => { boards[k] = all[i] || []; });
         standings = fameStandings(boards, games);
-        // (and the crown goes to whoever's on top now, if that's changed since you came in)
-        if (me && name !== 'New Hire') setCrowned(!!standings.length && standings[0].id === me);
+        // (and it might have changed who's on top since you came in)
+        if (me && name !== 'New Hire') {
+          champHeard(name, !!standings.length && standings[0].id === me, false);
+          for (const key in questTop) if (boards[key].length) setQuestTop(key, boards[key][0].id === me);
+        }
         latest = keys.flatMap((k) => boards[k].map((r, i) => Object.assign({ key: k, rank: i }, r)))
           .sort((a, b) => b.t - a.t).slice(0, 7);
       });
@@ -11309,7 +11449,7 @@
   ];
   let quest = null; // { tasks: [{key, need, text, done}], complete }
   let playerName = '';
-  const questQueue = []; // messages to show once you're back walking around
+  const questQueue = []; // messages to show once you're back walking around (or things to do then)
 
   // ---------- Linda's red stapler ----------
   // Linda needs her stapler back AND her list done before she can move on. The stapler
@@ -11389,6 +11529,8 @@
         questQueue.push('Linda floats up through the ceiling tiles, stapler in hand, and is gone.');
         questQueue.push('Somewhere far above, there is a happy "Boooo!" and the click of a stapler.');
         questQueue.push('The Haunted Office feels warm for the first time in years.');
+        questQueue.push(() => questPrize('ghostmask', 'Something white flutters down from the ceiling after her: a ghost mask, with a note on it. "So they know you\'re one of us. Boo. - Linda"',
+          'It\'s one of your head things in the character editor now, for good.', 'You put the ghost mask on. Boo!'));
       },
       draw() {
         // a warm wash over everything, ending in a soft white flash
@@ -11799,6 +11941,7 @@
   function enterOffice() {
     if (edit.back) { editBack(); return; }
     mode = 'play'; roomName = null; curRoom = null; updateRoom();
+    questTell();
     if (HALLOWEEN) questQueue.push('It\'s Halloween at Haakon! When you\'re ready for the party, go and take a seat in the downstairs boardroom.');
     if (CHRISTMAS) questQueue.push('Happy holidays from Haakon! The office is all decked out, and somebody has flooded a rink in the parking lot. Head out through the fitness room\'s side doors.');
   }
@@ -12915,7 +13058,7 @@
     if (!cupLeader) { say('The Christmas Cup. The plaque for Christmas 2026 is blank: nobody cleared a Humbug Sweeper board all Christmas.'); return; }
     const plaque = 'The Christmas Cup. Engraved on the plaque: "HUMBUG SWEEPER CHAMPION, CHRISTMAS 2026: ' + cupLeader.name.toUpperCase() + ', ' + boardFmt(CUP, cupLeader.score) + '".';
     if (!cupMine(playerName) || items.antlers === 0) { ask(plaque, ...board('SEE THE FINAL BOARD')); return; }
-    if (myLook.hat === Art.ANTLERS) { say(plaque + ' That\'s you! The golden antlers that came with it are on your head.'); return; }
+    if (wornLook(myLook).hat === Art.ANTLERS) { say(plaque + ' That\'s you! The golden antlers that came with it are on your head.'); return; }
     cupPrize(plaque + ' That\'s you! A pair of golden antlers hangs off one handle, with your name on the tag.');
   }
   // Winning sets the champion's antlers to 1, unless the database already has a number for
@@ -12930,12 +13073,8 @@
     ask(str + ' They\'re one of your head things in the character editor now, for good. Wear them now?', ['WEAR THEM', 'NOT NOW'], (j) => {
       if (j !== 0) { say('You leave them on the cup in reception for now. They\'re in the character editor whenever you want them.'); return; }
       sfx('menu');
-      myLook = Object.assign({}, myLook, { hat: Art.ANTLERS });
-      store.set('avatar', Art.lookCode(myLook));
-      lookSave(playerName, myLook);
-      sprites = mySprites();
-      say(crowned ? 'You try them on, but the Office Champion has to wear the crown. The golden antlers are saved underneath it for when you need them.'
-        : 'You put on the golden antlers. The bells jingle every time you turn your head. Champion!');
+      wearNow('hat', Art.ANTLERS);
+      say('You put on the golden antlers. The bells jingle every time you turn your head. Champion!');
     });
   }
   // Once it's over, the first time you're walking around: the champion is told they've won
@@ -13085,7 +13224,7 @@
   function openPresent() {
     const name = playerName || 'New Hire';
     if (items.santa === 1) {
-      say(myLook.hat === Art.SANTA ? 'The presents are all open. Yours was the one that rattled: the Santa hat you\'re wearing. The bell on the end still jingles.'
+      say(wornLook(myLook).hat === Art.SANTA ? 'The presents are all open. Yours was the one that rattled: the Santa hat you\'re wearing. The bell on the end still jingles.'
         : 'The presents are all open. Yours was the one that rattled: a Santa hat. It\'s with your other head things in the character editor.');
       return;
     }
@@ -13097,12 +13236,8 @@
       ask('A Santa hat, with a little bell on the end! It\'s yours to keep: it\'s one of your head things in the character editor now. Wear it now?', ['WEAR IT', 'NOT NOW'], (j) => {
         if (j !== 0) { say('You tuck it under your arm. It\'s in the character editor whenever you want it.'); return; }
         sfx('menu');
-        myLook = Object.assign({}, myLook, { hat: Art.SANTA });
-        store.set('avatar', Art.lookCode(myLook));
-        lookSave(playerName, myLook);
-        sprites = mySprites();
-        say(crowned ? 'You try it on, but the Office Champion has to wear the crown. The Santa hat is saved underneath it for when you need it.'
-          : 'You pull the Santa hat on. The bell jingles every time you turn your head. Ho ho ho!');
+        wearNow('hat', Art.SANTA);
+        say('You pull the Santa hat on. The bell jingles every time you turn your head. Ho ho ho!');
       });
     });
   }
@@ -15970,8 +16105,9 @@
       for (const arm of cut.arms) { const pic = armPic(arm, reach(arm.rows.length, arm.k, ARM_REACH)); swing(pic, x + arm.x, y + arm.y, -arm.s * a, pic.width / 2 / arm.k, 1); }
       img = cut.body;
     }
+    wornBehind(it.worn, x, y);
     ctx.drawImage(img, x, y);
-    if (it.crown) crownSparkle(x, y);
+    wornOver(it.worn, x, y, it.dir);
     if (it.throw && it.throw < RELEASE / THROW_T) {
       // the snowball in their hand, drawn back before it goes
       const k = it.throw / (RELEASE / THROW_T), [hx, hy] = { down: [14, 8], up: [14, 4], left: [1, 7], right: [15, 7] }[it.dir];
@@ -16048,8 +16184,10 @@
     const behind = Math.cos(s.ang) < -0.3; // (going away from you, the stick's the far side of them)
     if (behind) drawStick(s.stick, s.ang, fx, fy);
     const f = s.push ? [1, 0, 2, 0][(tick >> 4) & 3] : 0;
+    const worn = s.me ? meWorn() : s.look ? s.look.look : null; // (a hockey player's costume stays in the locker room)
+    wornBehind(worn, realPx(fx - 8), realPx(fy - 15));
     ctx.drawImage(onSkates(sheet[dir][f]), realPx(fx - 8), realPx(fy - 15));
-    if (s.me ? meCrowned() : s.look && s.look.look.hat === Art.CROWN) crownSparkle(realPx(fx - 8), realPx(fy - 15));
+    wornOver(worn, realPx(fx - 8), realPx(fy - 15), dir);
     if (!behind) drawStick(s.stick, s.ang, fx, fy);
   }
   // who a skater is: you, a coworker, or another player
@@ -16079,7 +16217,7 @@
     const seen = (x, y) => x > cx - 32 && x < cx + SW + 16 && y > cy - 16 && y < cy + SH + 32;
     const person = (it) => { if (seen(it.x, it.y)) items.push(Object.assign(it, { z: it.y })); };
     // (in a hockey game, you and whoever you're playing are out on the ice instead)
-    if (!sc) person({ sheet: sprites, x: px, y: py, dir: P.dir, frame: P.glide ? 0 : frameIndex(), skate: iceAt(px, py), crown: meCrowned(),
+    if (!sc) person({ sheet: sprites, x: px, y: py, dir: P.dir, frame: P.glide ? 0 : frameIndex(), skate: iceAt(px, py), worn: meWorn(),
       throw: P.throwing ? throwPose(P.throwing.t) : 0, angel: P.angel ? angelPose(P.angel.t) : null });
     const said = [];
     for (const n of npcs) {
@@ -16091,7 +16229,7 @@
     const others = mpHere().filter((o) => o.f === YARD && !(sc && hockey.ids && hockey.ids.includes(o.id)));
     for (const o of others) {
       // (their throw went out as they let go, so their arm is already partway through it)
-      person({ sheet: mpSprites(o), x: o.px, y: o.py, dir: o.angel ? 'down' : o.dir, frame: o.angel ? 0 : mpFrame(o), skate: iceAt(o.px, o.py), crown: mpCrowned(o),
+      person({ sheet: mpSprites(o), x: o.px, y: o.py, dir: o.angel ? 'down' : o.dir, frame: o.angel ? 0 : mpFrame(o), skate: iceAt(o.px, o.py), worn: mpWorn(o),
         throw: o.throwT !== undefined ? throwPose(o.throwT - RELEASE) : 0, angel: o.angel ? angelPose(tick - o.angel.t) : null });
     }
     if (sc) {
@@ -16356,6 +16494,8 @@
       say(says('Everyone has been talking about you. You helped every single person in this office!'), () =>
         say(says('So this month\'s Employee of the Month is... YOU! I\'ll put your picture up by the entrance.'), () => {
           eotm = true; sfx('cup'); ui.push(EmployeeOfMonth()); questBoard('eotm');
+          questQueue.push(() => questPrize('ribbon', says('And this goes with the picture: your very own ribbon!'),
+            'You\'ll find it under EXTRAS in the character editor, for good.', 'Kiki pins the ribbon on you. You feel very employed.'));
         }));
       return;
     }
@@ -16693,7 +16833,8 @@
     } else if (ui.length) {
       top().update();
     } else if (questQueue.length) {
-      say(questQueue.shift());
+      const next = questQueue.shift();
+      if (typeof next === 'function') next(); else say(next);
     } else if (mode === 'play' && !fade && cupNews()) {
       // (the Christmas Cup's champion has just been told)
     } else {
@@ -16745,8 +16886,9 @@
   // js/art.js) belong to a name, not a browser. Each has a number of its own in the database,
   // at items/<world>/<name>/<item> (the world and the name as for looks, above): 1 means it's
   // theirs, 0 means it isn't, and no number means it's never been given to them. The Santa
-  // hat only comes from opening the present (openPresent) and the antlers from winning the
-  // Christmas Cup (cupAward), and those only ever add a 1 where there's no number. Change
+  // hat only comes from opening the present (openPresent), the antlers from winning the
+  // Christmas Cup (cupAward), and the ghost mask and ribbon from the quests (questAward and
+  // questPrize), and those only ever add a 1 where there's no number. Change
   // them on the Data tab to give one to somebody or take it away: what the database says
   // goes, so a 0 is never turned back into a 1, and anything you're wearing comes off as you
   // come in if its number isn't 1 (see editStart). This browser keeps a copy for when the
@@ -16772,7 +16914,9 @@
     items = {}; itemsHeard = false;
     for (const item in ITEMS) { const v = store.get(itemKey(name, item)); if (v) items[item] = +v; }
     const row = itemFetch(name, '').then((r) => (r.ok ? r.json() : Promise.reject())).then((all) => ({ all: all || {} }), () => null);
-    return Promise.all([row, cupCheck()]).then(([heard]) => {
+    questEarned = [];
+    for (const key in questTop) setQuestTop(key, false);
+    return Promise.all([row, questBoards(name), cupCheck()]).then(([heard, quests]) => {
       if (itemsAsk !== ask) return; // (you've gone back and changed your name since)
       itemsAsk = null;
       if (heard) {
@@ -16786,7 +16930,23 @@
       }
       if (/[#&]santahat=1/.test(location.hash)) items.santa = 1;
       cupAward(name);
+      questAward(name, quests);
+      // (&have=ghostmask,ribbon: as if these were yours, for testing)
+      for (const item of (/[#&]have=([a-z,]+)/.exec(location.hash) || ['', ''])[1].split(',')) if (inTable(ITEMS, item)) items[item] = 1;
     });
+  }
+  // your look's changed outside the editor: keep it, in this browser and under your name
+  function lookKeep() {
+    store.set('avatar', Art.lookCode(myLook));
+    lookSave(playerName, myLook);
+  }
+  // Put a special item on there and then, instead of the champion's crown if it's a head
+  // thing, and save that as your look.
+  function wearNow(part, i) {
+    myLook = Object.assign({}, myLook, { [part]: i });
+    if (crowned && part in CHAMP) myLook.champOff |= CHAMP_BIT[part];
+    lookKeep();
+    if (!hw.worn) sprites = mySprites();
   }
   function itemGive(name, item) {
     items[item] = 1;
@@ -16801,6 +16961,62 @@
       const { part, i } = ITEMS[item];
       if (look[part] === i && (itemsHeard ? items[item] !== 1 : items[item] === 0)) look[part] = 0;
     }
+  }
+
+  // ---------- the quests' wearables ----------
+  // Setting Linda free earns the ghost mask (one of your head things) and being Employee of the
+  // Month the ribbon (one of your extras, worn over your clothes). They're special items like
+  // any other, and the quests' boards are the record of who's done what, so anybody with a row
+  // on one gets its item as they come in: that's how the people who did it before these existed
+  // got theirs, and a 0 on the Data tab still keeps it away. Whoever is 1st on the board (most
+  // times, the first to get there breaking a tie) wears theirs haunted or in gold (see wornLook,
+  // and wornBehind and wornOver for what that looks like), checked as they come in and whenever
+  // they look at that board.
+  const QUEST_PRIZES = [
+    ['linda', 'ghostmask', 'Ghost mask (HEAD)', 'For setting Linda free, the ghost mask is yours to keep! It\'s with your head things, under Edit character in the Start menu.'],
+    ['eotm', 'ribbon', 'Ribbon (EXTRAS)', 'For being Employee of the Month, the ribbon is yours to keep! It\'s under EXTRAS, in Edit character in the Start menu.'],
+  ];
+  // what's just been found on the boards, to tell you about: in the editor, then as you walk
+  // in (and the same for having got to number 1: see champHeard)
+  let questEarned = [];
+  // &top=linda,eotm has you on top of those boards, whoever you are, for testing
+  const questTopTest = /[#&]top=/.test(location.hash);
+  // every row of each quest's board, or null for one that can't be had (a New Hire doesn't count)
+  function questBoards(name) {
+    if (!name || name === 'New Hire' || !(BOARD_URL || boardDemo)) return Promise.resolve([]);
+    return Promise.all(QUEST_PRIZES.map(([key]) => boardAll(key, name).catch(() => null)));
+  }
+  function questAward(name, boards) {
+    const id = boardKey(name);
+    QUEST_PRIZES.forEach(([key, item, what, told], i) => {
+      const rows = boards[i];
+      if (!rows) return;
+      if (items[item] === undefined && rows.some((r) => r.id === id)) { itemGive(name, item); questEarned.push({ what, told }); }
+      setQuestTop(key, !!rows[0] && rows[0].id === id);
+    });
+    if (mode === 'play') questTell(); // (the answer's come after you've already walked in)
+  }
+  // (being number 1 has the whole line to itself, and the rest are still told as you walk in)
+  const questNews = () => {
+    const champ = questEarned.find((e) => e.champ);
+    return champ ? champ.what : questEarned.length ? 'New: ' + questEarned.map((e) => e.what).join(' and ') + '!' : '';
+  };
+  function questTell() {
+    for (const e of questEarned) questQueue.push(e.told);
+    questEarned = [];
+  }
+  // You've just done a quest: its prize, the first time (and never if it's been taken away).
+  // intro is how it turns up and where says where to find it later.
+  function questPrize(item, intro, where, on) {
+    if (items[item] !== undefined) return;
+    itemGive(playerName || 'New Hire', item);
+    sfx('ding');
+    ask(intro + ' ' + where + ' Wear it now?', ['WEAR IT', 'NOT NOW'], (j) => {
+      if (j !== 0) { say('It\'s in the character editor whenever you want it.'); return; }
+      sfx('menu');
+      wearNow(ITEMS[item].part, ITEMS[item].i);
+      say(hw.worn ? 'You put it on under your costume. It\'ll show when you take that off.' : on);
+    });
   }
 
   // ---------- the character editor ----------
@@ -16819,11 +17035,17 @@
     { label: 'SHIRT COLOUR', key: 'shirtC', swatch: (i) => LK.shirtColours[i].slice(1), name: (i) => LK.shirtColours[i][0] },
     { label: 'PANTS', key: 'pants', name: (i) => LK.pants[i].name },
     { label: 'PANTS COLOUR', key: 'pantsC', swatch: (i) => [LK.pantsColours[i][1]], name: (i) => LK.pantsColours[i][0] },
+    { label: 'EXTRAS', key: 'extra', name: (i) => LK.extras[i].name },
+    { label: 'FLAIR', key: 'flair', name: (i) => LK.flairs[i].name },
   ];
+  const editY = (i) => 38 + i * 14;
   // row: the part being changed (EDIT_ROWS.length is the RANDOM / DONE buttons, btn the
   // one picked); wait: ticks left to hold on while your saved look is being looked up;
-  // back: opened from the Start menu, so it goes back to where you were
-  const edit = { row: 0, btn: 1, look: null, wait: 0, ask: null, back: false };
+  // back: opened from the Start menu, so it goes back to where you were; news: anything
+  // you've earned since you were last here, until you press something
+  // under: the look to save under whichever of the champion's things are picked (see CHAMP);
+  // champ: this started out showing them as you wear them, so leaving one out is your choice
+  const edit = { row: 0, btn: 1, look: null, under: null, champ: false, wait: 0, ask: null, back: false, news: '' };
   const editValue = (r, look) => (r.key === 'g' ? (look.g === 'female' ? 1 : 0) : look[r.key]);
   function editSet(r, v) {
     if (r.key === 'g') edit.look.g = v ? 'female' : 'male';
@@ -16831,49 +17053,66 @@
   }
   // Start on your look (called as the name screen closes), and ask the database for the
   // one saved under your name, which takes over if there is one, and whether you're the
-  // Office Champion, which puts the crown on even if the answer's late. It holds on for both.
+  // Office Champion, who starts with the crown and the star trail on, unless they've chosen
+  // not to wear them. It holds on for both, for as long as the boards could take to answer.
   // It asks after your special items too, and takes off any that aren't yours (see "special items").
   function editStart() {
-    Object.assign(edit, { row: 0, btn: 1, look: Object.assign({}, myLook), wait: 240 });
+    Object.assign(edit, { row: 0, btn: 1, look: Object.assign({}, myLook), under: Object.assign({}, myLook), champ: false, wait: 320, news: '' });
     const ask = edit.ask = {}, name = playerName;
     const saved = lookLoad(name).then((look) => {
       if (edit.ask !== ask || edit.wait <= 0) return; // (too late: you might have changed something by now)
       if (look) edit.look = look;
     });
-    const crown = crownCheck(name).then((on) => { if (playerName === name) setCrowned(on); });
+    const crown = crownCheck(name).then((on) => { if (playerName === name) champHeard(name, on, true); return on; });
     const owned = itemsCheck(name);
     Promise.all([saved, owned]).then(() => { if (edit.ask === ask) itemsOff(edit.look); });
-    Promise.all([saved, crown, owned]).then(() => { if (edit.ask === ask) edit.wait = 0; });
+    Promise.all([saved, crown, owned]).then(([, on]) => {
+      if (edit.ask !== ask) return;
+      if (edit.wait > 0) { // (if it's too late, you might have changed something by now)
+        if (on === false) edit.look.champOff = 0; // (you've lost the title, so next time you start in both)
+        edit.under = Object.assign({}, edit.look);
+        edit.champ = crowned;
+        edit.look = champLook(edit.look);
+      }
+      edit.news = questNews();
+      edit.wait = 0;
+    });
   }
   // From the Start menu: start on you as you are now (with nothing to look up, it was all
   // asked when you came in), then the same screens as coming in, and back to where you were.
   function editAgain() {
-    Object.assign(edit, { row: 0, btn: 1, look: Object.assign({}, myLook), wait: 0, ask: null, back: true });
+    Object.assign(edit, { row: 0, btn: 1, look: champLook(myLook), under: Object.assign({}, myLook), champ: crowned, wait: 0, ask: null, back: true, news: '' });
     startFade(() => { mode = 'edit'; });
   }
   function editBack() {
     edit.back = false;
     if (hw.worn) wearCostume(); // (DONE dressed you in your look, without the costume)
     mode = 'play';
+    questTell(); // (in case you got to number 1 while you were in there)
   }
-  // the choices a row has, in order: the head things leave out the crown (only ever the
-  // champion's, who can't change it: see crowned), and any row leaves out the special items,
-  // unless they're yours (or you're already wearing them)
+  // the choices a row has, in order: the crown and the star trail are only for the champion,
+  // the mask and ribbon are one choice each whoever you are (the top of a quest's board just
+  // looks grander in them: see questLook), and any row leaves out the special items, unless they're yours (or
+  // you're already wearing them)
   function editChoices(r) {
     return [...Array(r.n || LOOK_COUNT[r.key]).keys()].filter((i) => {
-      if (r.key === 'hat' && i === Art.CROWN) return false;
+      if (i === CHAMP[r.key]) return crowned;
+      if ((r.key === 'hat' && i === Art.HAUNTED_MASK) || (r.key === 'extra' && i === Art.GOLD_RIBBON)) return false;
       const item = itemAt(r.key, i);
       return !item || items[item] === 1 || edit.look[r.key] === i;
     });
   }
-  const editLocked = (r) => r && r.key === 'hat' && crowned;
   function editRandom() {
     for (const r of EDIT_ROWS) if (r.key !== 'g') { const ch = editChoices(r); editSet(r, ch[Math.floor(Math.random() * ch.length)]); }
     if (Math.random() < 0.4) edit.look.hat = 0; // (most people don't wear anything on their head)
   }
   function editDone() {
     if (fade) return;
-    myLook = Art.lookFix(edit.look);
+    myLook = Object.assign(Art.lookFix(edit.look), { champOff: edit.under.champOff });
+    for (const part in CHAMP) {
+      if (myLook[part] === CHAMP[part]) { myLook[part] = edit.under[part]; myLook.champOff &= ~CHAMP_BIT[part]; } // (they're never saved: see CHAMP)
+      else if (edit.champ) myLook.champOff |= CHAMP_BIT[part];
+    }
     sprites = mySprites();
     store.set('avatar', Art.lookCode(myLook));
     lookSave(playerName, myLook);
@@ -16882,11 +17121,11 @@
   }
   function updateEdit() {
     if (edit.wait > 0) { edit.wait--; return; }
+    if (pressed.size) edit.news = '';
     const n = EDIT_ROWS.length, r = EDIT_ROWS[edit.row], d = pressed.has('left') ? -1 : pressed.has('right') ? 1 : 0;
     if (pressed.has('up')) { edit.row = (edit.row + n) % (n + 1); sfx('select'); }
     if (pressed.has('down')) { edit.row = (edit.row + 1) % (n + 1); sfx('select'); }
-    if (r && (d || pressed.has('a')) && editLocked(r)) sfx('buzz');
-    else if (r && (d || pressed.has('a'))) {
+    if (r && (d || pressed.has('a'))) {
       const ch = editChoices(r), i = Math.max(0, ch.indexOf(editValue(r, edit.look)));
       editSet(r, ch[(i + (d || 1) + ch.length) % ch.length]);
       sfx('select');
@@ -16897,24 +17136,38 @@
     else if (pressed.has('b') && edit.back) { sfx('select'); startFade(editBack); }
     else if (pressed.has('b')) { sfx('select'); nameKeys.fit(playerName); startFade(() => { mode = 'name'; }); }
   }
+  // the line at the bottom, for the row you're on
+  function editHint(worn) {
+    const r = EDIT_ROWS[edit.row];
+    if (r && r.key === 'hat' && worn.hat === Art.CROWN) return 'Office Champion: it\'s yours while you stay on top!';
+    if (r && r.key === 'extra' && editChoices(r).length < 2) return 'Be Employee of the Month to earn a ribbon here!';
+    if (r && r.key === 'flair' && editChoices(r).length < 2) return 'Be the Office Champion to earn a star trail here!';
+    if (r && r.key === 'flair' && worn.flair === Art.STAR_TRAIL) return 'Stars follow you while you stay on top!';
+    if (r && r.key === 'hat' && worn.hat === Art.HAUNTED_MASK) return 'You\'ve set Linda free the most: it\'s haunted!';
+    if (r && r.key === 'extra' && worn.extra === Art.GOLD_RIBBON) return 'Most times Employee of the Month: it\'s gold!';
+    return 'Arrows: choose   Space: change   Enter: done';
+  }
   function drawEdit() {
     menuFrame();
     const title = 'Make your character';
     text(title, (SW - title.length * 12) >> 1, 14, 2);
     // you, walking on the spot and turning round now and then
-    const look = edit.look, sp = lookSprites(wornLook(look));
+    const look = edit.look, worn = questLook(look), sp = lookSprites(worn), dir = ['down', 'left', 'up', 'right'][(tick >> 6) & 3];
+    const big = (paint) => { ctx.save(); ctx.translate(20, 52); ctx.scale(5, 5); paint(); ctx.restore(); };
     floorShadow(60, 130, 20, 4);
-    ctx.drawImage(sp[['down', 'left', 'up', 'right'][(tick >> 6) & 3]][[1, 0, 2, 0][(tick >> 3) & 3]], 20, 52, 80, 80);
-    if (crowned) { ctx.save(); ctx.translate(20, 52); ctx.scale(5, 5); crownSparkle(0, 0); ctx.restore(); }
+    if (worn.flair === Art.STAR_TRAIL) trailPreview(60, 130);
+    big(() => wornBehind(worn, 0, 0, 8.5));
+    ctx.drawImage(sp[dir][[1, 0, 2, 0][(tick >> 3) & 3]], 20, 52, 80, 80);
+    big(() => wornOver(worn, 0, 0, dir, 8.5));
     const who = playerName || 'New Hire';
     text(who, 60 - who.length * 3, 142);
     if (crowned) text('Office Champion', 15, 154, 1, GOLD);
-    // the parts, each with its choice between arrows (the champion's crown has none)
+    // the parts, each with its choice between arrows
     EDIT_ROWS.forEach((r, i) => {
-      const y = 42 + i * 16, sel = edit.row === i, c = sel ? col.light : col.dark, lock = editLocked(r), v = lock ? Art.CROWN : editValue(r, look);
+      const y = editY(i), sel = edit.row === i, c = sel ? col.light : col.dark, v = editValue(r, look);
       if (sel) pickBar(112, y - 3, 198, 14, col.dark);
       text(r.label, 116, y, 1, c);
-      if (!lock) { text('<', 198, y, 1, c); text('>', 300, y, 1, c); }
+      text('<', 198, y, 1, c); text('>', 300, y, 1, c);
       const name = r.name ? r.name(v) : '', sw = r.swatch ? r.swatch(v) : null;
       let x = 252 - (((sw ? 9 : 0) + (sw && name ? 4 : 0) + (name ? name.length * 6 - 1 : 0)) >> 1);
       if (sw) {
@@ -16932,11 +17185,12 @@
       if (name) text(name, x, y, 1, c);
     });
     ['RANDOM', 'DONE'].forEach((label, i) => {
-      const x = 146 + i * 76, y = 42 + EDIT_ROWS.length * 16 + 4, sel = edit.row === EDIT_ROWS.length && edit.btn === i;
+      const x = 146 + i * 76, y = editY(EDIT_ROWS.length) + 4, sel = edit.row === EDIT_ROWS.length && edit.btn === i;
       if (sel) pickBar(x, y - 4, 60, 15, col.dark); else pickRing(x, y - 4, 60, 15);
       text(label, x + 30 - label.length * 3, y, 1, sel ? col.light : col.dark);
     });
-    ctext(editLocked(EDIT_ROWS[edit.row]) ? 'The Office Champion always wears the crown!' : 'Arrows: choose   Space: change   Enter: done', SH - 22);
+    if (edit.news) ctext(edit.news, SH - 22, GOLD);
+    else ctext(editHint(worn), SH - 22);
     if (edit.wait > 0) {
       box(60, 96, SW - 120, 40);
       ctext('Looking you up...', 112);
@@ -17092,13 +17346,13 @@
     if (CHRISTMAS) drawChristmas(cx, cy);
     drawGlowPix(cx, cy);
     // people, drawn back to front so nearer ones overlap farther ones
-    const actors = [{ x: px, y: py, img: sprites[P.dir][frameIndex()] }];
+    const actors = [{ x: px, y: py, img: sprites[P.dir][frameIndex()], dir: P.dir }];
     if (party) {
       // everyone takes turns facing a new way and bouncing, on the beat of the rave song
       const rp = musicPos('rave'), beat = Math.floor(rp === null ? tick / 25.7 : rp / 2);
       const DANCE = ['down', 'left', 'down', 'right', 'up', 'right', 'down', 'left'];
       const hop = (b) => (b & 1 ? 0 : 3);
-      actors[0] = { x: px, y: py - hop(beat), img: sprites[DANCE[beat & 7]][1 + (beat & 1)] };
+      actors[0] = { x: px, y: py - hop(beat), img: sprites[DANCE[beat & 7]][1 + (beat & 1)], dir: DANCE[beat & 7] };
       for (const d of party.dancers) {
         const b = beat + d.phase;
         actors.push({ x: d.x * 16, y: d.y * 16 - hop(b), img: d.sprites[DANCE[b & 7]][1 + (b & 1)] });
@@ -17111,8 +17365,8 @@
         img: n.sprites[n.dir][frame], ghost: n.ghost, freeing: freeing && freeing.npc === n,
         alpha: visit && visit.npc === n ? visit.a : 1 });
     }
-    actors[0].crown = meCrowned();
-    for (const o of mpHere()) if (o.f === P.floor) actors.push({ x: o.px, y: o.py, img: mpSprites(o)[o.dir][mpFrame(o)], crown: mpCrowned(o) });
+    actors[0].worn = meWorn();
+    for (const o of mpHere()) if (o.f === P.floor) actors.push({ x: o.px, y: o.py, img: mpSprites(o)[o.dir][mpFrame(o)], dir: o.dir, worn: mpWorn(o) });
     // a Christmas tree sorts in by the row it stands on (z), not by its top
     if (CHRISTMAS) for (const tr of xmas.trees) if (P.floor === tr.floor)
       actors.push({ x: tr.x * 16, y: (tr.y + 1) * 16 - 48, z: tr.y * 16, img: tr.frames[(tick >> 5) % 3] });
@@ -17130,10 +17384,11 @@
         ctx.globalAlpha = 1;
       } else {
         // a visitor fades in and out as they go through the portal
+        wornBehind(a.worn, sx, sy);
         if (a.alpha < 1) ctx.globalAlpha = a.alpha;
         ctx.drawImage(a.img, sx, sy);
         ctx.globalAlpha = 1;
-        if (a.crown) crownSparkle(sx, sy);
+        wornOver(a.worn, sx, sy, a.dir);
       }
     }
     for (const n of dogs) if (n.dog.cat && n.floor === P.floor) drawZzz(n.x * 16 - cx + 10, n.y * 16 - cy - 2, 1);
@@ -17296,8 +17551,10 @@
     // from the editor (its code, see js/art.js)
     if (q.has('char')) { const [g, i] = q.get('char').split(':'); myLook = oldPick(GENDERS.includes(g) ? g : 'male', i); }
     if (Art.lookFrom(q.get('look'))) myLook = Art.lookFrom(q.get('look'));
-    // &crown=1 wears the Office Champion's crown, whoever you are
-    if (q.has('crown')) crowned = q.get('crown') !== '0';
+    // &crown=1 has you the Office Champion, in the crown and the star trail, whoever you are
+    if (q.has('crown')) setCrowned(q.get('crown') !== '0');
+    // &top=linda,eotm has you on top of those boards (&look= them on for the haunted mask and the gold ribbon)
+    if (questTopTest) for (const key of (q.get('top') || '').split(',')) if (key in questTop) questTop[key] = true;
     // &sweater=moose wears that ugly sweater (&sweater=none, none), at Christmas
     if (q.has('sweater')) xmas.sweater = q.get('sweater');
     sprites = mySprites();
@@ -17370,7 +17627,7 @@
       chop: ChopGame, mallow: MallowGame, spruce: SpruceGame, snowman: SnowmanGame, cocoa: CocoaGame, snowball: SnowballGame, humbug: HumbugGame,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
       computer: () => ComputerScreen('sdg'), sdg: SdgApp, elevator: () => ElevatorGame(npcs[0], 0, 2, () => {}),
-      fame: HallOfFame, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo ? +q.get('score') || 0 : 0 }) }[q.get('game')];
+      fame: HallOfFame, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo || !BOARD_POSTS ? +q.get('score') || 0 : 0 }) }[q.get('game')];
     // &vs=1 plays a head-to-head game (a VERSUS key: duel, jar, lego, dance, coffee, run,
     // snake, simon, golf) against "Echo", a stand-in who sends you back everything you send, a
     // second later

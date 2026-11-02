@@ -42,9 +42,12 @@ upload again without a push.
 - After the title screen, type your name (the game remembers it), then make your
   character: gender, skin, hair and its colour, something on your head (a cap, a toque,
   a hard hat, a cowboy hat, headphones, glasses, shades or a bow, a Santa hat once
-  your name has opened its present on Christmas Day, and golden antlers if your name won
-  the Christmas Cup: see **Christmas**), and a shirt and
-  pants, each in a colour. Up and down pick a part, left and right (or A) change it,
+  your name has opened its present on Christmas Day, golden antlers if your name won
+  the Christmas Cup: see **Christmas**, and a ghost mask once your name has set Linda
+  free: see **Linda's list**), a shirt and pants, each in a colour, any extras worn
+  over your clothes (a ribbon once your name has been Employee of the Month: see
+  **Employee of the Month**), and flair (the Office Champion's star trail: see **The Hall of
+  Fame**). Up and down pick a part, left and right (or A) change it,
   RANDOM picks for you and DONE (or START) heads into the office. Your character is
   saved with your name (see **Saved characters** below), so typing the same name on
   a phone and a computer gets you the same one. Don't try calling yourself Bob,
@@ -54,7 +57,7 @@ upload again without a push.
   where you were standing. B backs out without changing anything, and other players see
   you as busy while you're in there.
 - The parts are in "your own character" in `js/art.js`: the colours, then the hair,
-  head things, shirts and pants, each drawn as rows of pixels. Only ever add to the end
+  head things, shirts, pants and extras, each drawn as rows of pixels, and flair. Only ever add to the end
   of a list, because a saved character is a list of places in them. Coworkers' colours
   are `LOOKS` at the top of the same file.
 
@@ -209,14 +212,21 @@ shows every leaderboard at once. Left and right flip between its pages:
   (10 for 1st, down to 1 for 10th), and holding 1st at a game is a crown. Underneath
   you see your place, how many points it takes to pass the person above you, and how
   many crowns, top tens and games you have. Whoever is on top, the Office Champion,
-  wears a sparkling crown, and wherever they walk a short trail of twinkling gold stars is
-  left on the ground behind them, fading away in half a second (other players see it too).
+  gets a sparkling crown and a star trail: wherever they walk, a short trail of twinkling
+  gold stars is left on the ground behind them, fading away in half a second (other players
+  see both). They start wearing both the moment they get to number 1, with a message to say
+  so. The crown is one of their head things in the character editor from then on and the trail
+  is under FLAIR, so they can change either for anything else and back again, and the game
+  remembers what they chose, on any device, for as long as they stay on top. What they picked
+  last stays saved underneath. Losing the title takes both away, out of the editor too, and
+  the next time they get there they start in both again.
 - **Latest scores**: the newest scores on any board, who set them and where they rank now.
 - **Quests**: everyone who has set Linda free and everyone who has been Employee of the
   Month, side by side, with how many times each name has done it (up and down scroll
   when the lists get long). Each time you finish one, that quest's leaderboard comes up
   once you're back walking around, with your count one higher. The quests don't earn
-  Office Champion points.
+  Office Champion points, but they do earn something to wear: see **Linda's list** and
+  **Employee of the Month**.
 - **Live Hold'em**: the live poker table's top ten, with each name's spring rolls won,
   spring rolls lost and the difference, in order of the difference. Underneath you see
   your place and your own totals. (Live Hold'em is on the casino page too, like the
@@ -360,7 +370,8 @@ kept in the same database, so the same name on a phone and a computer gets the s
 character. They're under `looks/live` (from haakonlife.com) or `looks/test` (from any
 other copy, so trying the editor out never changes anybody's real character), then the
 name, keyed the same way as its scores. A character is stored as a short code (`a`,
-like `f03411604`): one letter for the gender, then one digit per part. Anyone can look
+like `f03411604`): one letter for the gender, then one digit per part (the last says which of
+the Office Champion's things they've chosen not to wear). Anyone can look
 one up or save over it, but not delete it, so like the scores, somebody could type
 your name and change your character. To reset one, delete its row on the Data tab.
 
@@ -370,7 +381,7 @@ there, and just remembers yours in the browser.
 
 ### Special items
 
-The `items` part of the rules is for the head things, shirts and pants nobody starts with.
+The `items` part of the rules is for the head things, shirts, pants, extras and flair nobody starts with.
 Each one has a number of its own for each name, under `items/live` (from haakonlife.com) or `items/test`
 (from any other copy), then the name, keyed the same way as its scores:
 
@@ -379,27 +390,34 @@ items/live/warren/santa: 1
 items/live/warren/antlers: 0
 ```
 
-`santa` is the Santa hat and `antlers` the golden antlers. 1 means it's theirs, so it's one
-of their choices in the character editor. 0 means it isn't, and the game won't offer it to
-them, even from the present or the cup. No number means they've never been given it.
+`santa` is the Santa hat, `antlers` the golden antlers, `ghostmask` the ghost mask and `ribbon`
+the ribbon. 1 means it's theirs, so it's one of their choices in the character editor. 0 means it
+isn't, and the game won't offer it to them, even from the present, the cup or a quest. No number
+means they've never been given it.
 
-In the game the Santa hat only comes from opening the present on Christmas Day and the antlers
-from winning the Christmas Cup, which add a 1 where there's no number. To give an item to
+In the game the Santa hat only comes from opening the present on Christmas Day, the antlers
+from winning the Christmas Cup, and the mask and the ribbon from the quests (see **Linda's list**
+and **Employee of the Month**), which add a 1 where there's no number. To give an item to
 somebody or take it away, change the number on the Data tab (adding the name and the number if
 they aren't there yet). It reaches them the next time they come in, and if they're wearing
-something whose number isn't 1, it comes off (a head thing goes back to nothing, and a shirt
-or pants to the first in its list). Use a 0 to take one away rather than deleting the number:
+something whose number isn't 1, it comes off (a head thing or an extra goes back to nothing, and a
+shirt or pants to the first in its list). Use a 0 to take one away rather than deleting the number:
 a browser that remembers a 1 sends it again if it finds no number there.
 
 The rules let the game add a 1 where there's no number and nothing else, so only the Data tab
 can change one that's there. Like the scores, a determined person could still add a 1 to a
 name that has no number.
 
-To add one, draw it at 32 x 32 (in `HAT32`, `SHIRT32` or `PANTS32` in `js/art.js`) and add it
-to the end of `HATS`, `SHIRTS` or `PANTS` under the same `hd` name, with `item: 'itsname'` (the
+To add one, draw it at 32 x 32 (in `HAT32`, `SHIRT32`, `PANTS32` or `EXTRA32` in `js/art.js`) and add it
+to the end of `HATS`, `SHIRTS`, `PANTS` or `EXTRAS` under the same `hd` name, with `item: 'itsname'` (the
 name its number goes by, up to 16 characters). That keeps it out of the character editor until
 a name's number for it is 1, and the rules already cover it, so they don't need changing. To
 have it earned in the game as well, call `itemGive(name, 'itsname')` where that happens.
+
+Flair isn't drawn in a character's picture, so to add some, put it at the end of `FLAIRS` in
+`js/art.js` (with `item: 'itsname'` if it's earned like the rest) and draw it in `js/game.js` for
+anybody whose `look.flair` is that place in the list, as `glowTick` does for the star trail. Other
+players get it with your look, so there's nothing else to send.
 
 If the database's rules were set up before special items, add the `items` part above and
 press Publish again. Until then the game can't find or save them there, and just remembers
@@ -711,6 +729,15 @@ shelf or table every visit, and Linda drops hints about which room. Finding it
 or finishing the list makes the air feel a little lighter; do both and go and
 see her, and she's finally free: she rises up a beam of light and floats away.
 
+She leaves a white **ghost mask** behind, the first time. It's one of your head things in the
+character editor from then on, on any device, since the leaderboard says you've done it: everyone
+on the `linda` board gets one as they come in, including the people who set her free before the
+mask existed. The editor tells them it's new, and so does a message as they walk in. Whoever is 1st on the board (most times, with the
+first to get there ahead in a tie) wears it haunted, with little ghosts going round their head,
+for as long as they stay there. It's the same one choice in the editor either way: it just looks
+grander when they wear it. Other players see all of it. A costume hides it, and as a head thing it
+can't be worn with another one, like the Office Champion's crown.
+
 ## Employee of the Month
 
 Talk to Kiki at reception and she hands you a list of the coworkers who could
@@ -719,6 +746,12 @@ you can read it from the Start menu and each one ticks itself off as you win.
 Beat them all and Kiki names you **Employee of the Month**, with your picture on
 an easel by the front entrance and the name you entered at the start. Like
 Linda's list, it isn't saved.
+
+She gives you a **ribbon** to go with it, the first time: a blue rosette, under EXTRAS in the
+character editor, pinned over whatever shirt, sweater or overalls you've got on (not a costume).
+Like the ghost mask, it's for everyone on the `eotm` board, whenever they did it. Whoever is 1st
+there (most times, with the first to get there ahead in a tie) wears it in gold, and it sparkles,
+with the same one choice in the editor. Anyone earning it from the board is told the same way as for the mask.
 
 - **Nathan** (office 115): grab the trophy he names off a crowded shelf, before the sweeping hand runs away with you (get 8)
 - **Wade** (2nd floor, office 137): a nine-hole putting grudge match (win 5 holes)
@@ -1066,7 +1099,7 @@ Add these to the end of the address (after `index.html`) and press Enter.
 The screen is drawn at twice the resolution (640 x 480 pixels for the same 320 x 240
 view), and every person and animal is drawn at 32 x 32: your character (`renderLook` in
 `js/art.js`: the head and face `HEAD32`, the hairstyles `HAIR32`, head things `HAT32`,
-shirts `SHIRT32`, pants `PANTS32` and ugly Christmas sweaters `SWEATER32`), the coworkers
+shirts `SHIRT32`, pants `PANTS32`, extras `EXTRA32` and ugly Christmas sweaters `SWEATER32`), the coworkers
 (`renderSprites`: the same parts, short hair, shirt and tie and trousers for a man, long
 hair and a blouse for a woman, in their own colours), the dogs and the cat
 (`renderDog`), and the Halloween costumes and ghosts (`COSTUME32`, `GHOST32`). The
@@ -1152,6 +1185,11 @@ or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
 and `&stapler=near` puts it right in front of you. `&helped=5` counts the
 first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gives you Kiki's list, and
 `game=kiki` opens it.
+`&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
+the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
+`&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
+`&crown=1` makes you the Office Champion, in the crown and the star trail.
+Away from haakonlife.com, `game=board&key=snake&score=40` opens that board as if you'd just scored 40, sending nothing.
 `&halloween=1` turns Halloween on outside October (`&halloween=0` turns it off),
 `&costume=witch` (or `clown`, `vampire`, `skeleton`, `pumpkin`, `mummy`, `fan`, `sdg`)
 wears that costume, `&costumes` opens the costume picker, `&party=1` starts the
