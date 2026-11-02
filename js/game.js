@@ -13385,8 +13385,9 @@
   // Fame from the 27th on (or with &christmas=1), and press A on it: until the New Year it
   // says who's leading, then it has the champion engraved on it. The champion's prize is
   // a pair of golden antlers, one of their head things in the character editor from then on, on
-  // any phone or computer with the same name. &champion=Ada makes Christmas over with Ada
-  // the champion, for testing.
+  // any phone or computer with the same name (see "special items": winning is what sets their
+  // antlers to 1). &champion=Ada makes Christmas over with Ada the champion, for testing,
+  // with the antlers only for this visit.
   const CUP = 'humbug26', CUP_END = new Date(2027, 0, 1);
   const cupTest = (/[#&]champion=([^&]+)/.exec(location.hash) || [])[1];
   const cupSeason = () => !cupTest && Date.now() >= SEASON_FROM.CHRISTMAS && Date.now() < CUP_END; // (scores go on it)
@@ -13439,12 +13440,19 @@
     }
     if (!cupLeader) { say('The Christmas Cup. The plaque for Christmas 2026 is blank: nobody cleared a Humbug Sweeper board all Christmas.'); return; }
     const plaque = 'The Christmas Cup. Engraved on the plaque: "HUMBUG SWEEPER CHAMPION, CHRISTMAS 2026: ' + cupLeader.name.toUpperCase() + ', ' + boardFmt(CUP, cupLeader.score) + '".';
-    if (!cupMine(playerName)) { ask(plaque, ...board('SEE THE FINAL BOARD')); return; }
+    if (!cupMine(playerName) || items.antlers === 0) { ask(plaque, ...board('SEE THE FINAL BOARD')); return; }
     if (myLook.hat === Art.ANTLERS) { say(plaque + ' That\'s you! The golden antlers that came with it are on your head.'); return; }
     cupPrize(plaque + ' That\'s you! A pair of golden antlers hangs off one handle, with your name on the tag.');
   }
+  // Winning sets the champion's antlers to 1, unless the database already has a number for
+  // them (a 0 means they've been taken away, so they stay away).
+  function cupAward(name) {
+    if (!cupMine(name) || items.antlers !== undefined) return;
+    if (cupTest) items.antlers = 1; else itemGive(name, 'antlers');
+  }
   // the champion's golden antlers: they're one of your head things now, so put them on?
   function cupPrize(str) {
+    cupAward(playerName);
     ask(str + ' They\'re one of your head things in the character editor now, for good. Wear them now?', ['WEAR THEM', 'NOT NOW'], (j) => {
       if (j !== 0) { say('You leave them on the cup in reception for now. They\'re in the character editor whenever you want them.'); return; }
       sfx('menu');
@@ -13461,10 +13469,10 @@
   // top saying who won (once in each browser). (Called every tick: it's only true once.)
   let cupNewsDone = false, cupFlag = null;
   function cupNews() {
-    if (cupNewsDone || !cup || !cupOver() || !cupLeader || !playerName) return false;
+    if (cupNewsDone || !cup || !cupOver() || !cupLeader || !playerName || itemsAsk) return false;
     cupNewsDone = true;
     const told = 'cup.told.' + CUP + '.' + boardKey(playerName), seen = 'cup.seen.' + CUP;
-    if (cupMine(playerName) && !store.get(told)) {
+    if (cupMine(playerName) && items.antlers !== 0 && !store.get(told)) {
       store.set(told, '1'); store.set(seen, '1');
       sfx('cup');
       cupPrize('Merry Christmas and a happy New Year! You won the Christmas Cup: nobody cleared Humbug Sweeper faster than your '
@@ -13705,45 +13713,28 @@
   // ---------- Christmas Day: the present with your name on it ----------
   // From December 25 the rattling present under reception's tree has a tag with your name on
   // it. Inside is a Santa hat: from then on it's one of your head things in the character
-  // editor (for good, not just at Christmas), and you can put it on there and then. It
-  // belongs to the name, not the browser: it's noted under the name in the leaderboards'
-  // database (a board of its own, `santahat`, holding 1, that isn't shown anywhere), so the
-  // same name on another phone or computer has it too, and in this browser as well, in case
-  // the database can't be reached. &xmasday=1 (or =0) makes it the 25th (or not) for testing,
-  // and &santahat=1 gives any name its hat as if it had opened the present.
+  // editor (for good, not just at Christmas), and you can put it on there and then. Opening
+  // it is what sets your name's santa to 1 (see "special items"). &xmasday=1 (or =0) makes it
+  // the 25th (or not) for testing, and &santahat=1 gives any name its hat for this visit, as
+  // if it had opened the present.
   const XMAS_DAY = (function () {
     const m = /[#&]xmasday=(\d)/.exec(location.hash);
     if (m) return m[1] !== '0';
     const d = new Date();
     return d.getMonth() === 11 && d.getDate() >= 25;
   })();
-  const GIFT = 'santahat';
-  let santaHat = false; // whether your name has opened its present
-  const giftKey = (name) => 'gift.' + GIFT + '.' + boardKey(name || 'New Hire');
-  const giftHere = (name) => /[#&]santahat=1/.test(location.hash) || !!store.get(giftKey(name)); // known in this browser
-  function giftCheck(name) {
-    if (giftHere(name)) return Promise.resolve(true);
-    if (!BOARD_URL || !name || boardDemo) return Promise.resolve(false);
-    return boardFetch(GIFT + '/' + boardKey(name) + '.json').then((r) => (r.ok ? r.json() : null))
-      .then((r) => { const on = !!(r && r.score >= 1); if (on) store.set(giftKey(name), '1'); return on; }, () => false);
-  }
-  function giftSave(name) {
-    store.set(giftKey(name), '1');
-    if (BOARD_URL && name && name !== 'New Hire' && BOARD_POSTS && !boardDemo) // (everybody who hasn't typed a name is a New Hire)
-      boardFetch(GIFT + '/' + boardKey(name) + '.json', { method: 'PUT', body: JSON.stringify({ name, score: 1, t: { '.sv': 'timestamp' } }) }).catch(() => {});
-  }
   function openPresent() {
     const name = playerName || 'New Hire';
-    if (santaHat) {
+    if (items.santa === 1) {
       say(myLook.hat === Art.SANTA ? 'The presents are all open. Yours was the one that rattled: the Santa hat you\'re wearing. The bell on the end still jingles.'
         : 'The presents are all open. Yours was the one that rattled: a Santa hat. It\'s with your other head things in the character editor.');
       return;
     }
+    if (items.santa === 0) { say('The presents are all open. There\'s nothing left under the tree with your name on it.'); return; }
     ask('Merry Christmas! The present that rattles has a tag on it: "To ' + name + ', from everyone at Haakon. DO NOT OPEN UNTIL THE 25TH." It\'s the 25th.', ['OPEN IT', 'NOT YET'], (i) => {
       if (i !== 0) { say('You put it back under the tree. It rattles.'); return; }
       sfx('ding');
-      santaHat = true;
-      giftSave(name);
+      itemGive(name, 'santa');
       ask('A Santa hat, with a little bell on the end! It\'s yours to keep: it\'s one of your head things in the character editor now. Wear it now?', ['WEAR IT', 'NOT NOW'], (j) => {
         if (j !== 0) { say('You tuck it under your arm. It\'s in the character editor whenever you want it.'); return; }
         sfx('menu');
@@ -17284,6 +17275,69 @@
     lookFetch(name, { method: 'PUT', body: JSON.stringify({ name, a: Art.lookCode(look), t: { '.sv': 'timestamp' } }) }).catch(() => {});
   }
 
+  // ---------- special items ----------
+  // The head things, shirts and pants nobody starts with (the ones marked `item` in
+  // js/art.js) belong to a name, not a browser. Each has a number of its own in the database,
+  // at items/<world>/<name>/<item> (the world and the name as for looks, above): 1 means it's
+  // theirs, 0 means it isn't, and no number means it's never been given to them. The Santa
+  // hat only comes from opening the present (openPresent) and the antlers from winning the
+  // Christmas Cup (cupAward), and those only ever add a 1 where there's no number. Change
+  // them on the Data tab to give one to somebody or take it away: what the database says
+  // goes, so a 0 is never turned back into a 1, and anything you're wearing comes off as you
+  // come in if its number isn't 1 (see editStart). This browser keeps a copy for when the
+  // database can't be reached. They're asked for once, as you come in, so a change reaches
+  // somebody the next time they do. To add one, mark it in js/art.js (the database's rules
+  // already cover it), and call itemGive wherever it's earned.
+  const ITEMS = Art.LOOK_ITEMS;
+  const ITEM_URL = LOOK_URL.replace('/looks/', '/items/');
+  let items = {}; // your name's numbers, like { santa: 1, antlers: 0 } (no entry: no number)
+  let itemsAsk = null, itemsHeard = false; // still waiting for the database; whether it answered
+  const itemKey = (name, item) => 'item.' + item + '.' + boardKey(name || 'New Hire');
+  const itemAt = (part, i) => Object.keys(ITEMS).find((item) => ITEMS[item].part === part && ITEMS[item].i === i);
+  function itemFetch(name, path, opts) {
+    if (!lookName(name) || boardDemo) return Promise.reject();
+    const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 4000);
+    return fetch(ITEM_URL + lookName(name) + path + '.json', Object.assign({ signal: ac.signal }, opts)).finally(() => clearTimeout(timer));
+  }
+  // Start on what this browser remembers for a name, then ask the database (and who won the
+  // Christmas Cup, for the champion's antlers). A 1 here with no number there is a save that
+  // didn't get through, so it's sent again.
+  function itemsCheck(name) {
+    const ask = itemsAsk = {};
+    items = {}; itemsHeard = false;
+    for (const item in ITEMS) { const v = store.get(itemKey(name, item)); if (v) items[item] = +v; }
+    const row = itemFetch(name, '').then((r) => (r.ok ? r.json() : Promise.reject())).then((all) => ({ all: all || {} }), () => null);
+    return Promise.all([row, cupCheck()]).then(([heard]) => {
+      if (itemsAsk !== ask) return; // (you've gone back and changed your name since)
+      itemsAsk = null;
+      if (heard) {
+        itemsHeard = true;
+        for (const item in ITEMS) {
+          const v = heard.all[item];
+          if (v !== undefined) { items[item] = +v === 1 ? 1 : 0; store.set(itemKey(name, item), String(items[item])); }
+          else if (items[item] === 1) itemFetch(name, '/' + item, { method: 'PUT', body: '1' }).catch(() => {});
+          else if (items[item] === 0) { delete items[item]; store.set(itemKey(name, item), ''); }
+        }
+      }
+      if (/[#&]santahat=1/.test(location.hash)) items.santa = 1;
+      cupAward(name);
+    });
+  }
+  function itemGive(name, item) {
+    items[item] = 1;
+    store.set(itemKey(name, item), '1');
+    itemFetch(name, '/' + item, { method: 'PUT', body: '1' }).catch(() => {});
+  }
+  // a look with any special item that isn't yours swapped for the first in its list (going by
+  // the database, or if it didn't answer, only by a 0 this browser remembers, so nobody loses
+  // theirs to a bad connection)
+  function itemsOff(look) {
+    for (const item in ITEMS) {
+      const { part, i } = ITEMS[item];
+      if (look[part] === i && (itemsHeard ? items[item] !== 1 : items[item] === 0)) look[part] = 0;
+    }
+  }
+
   // ---------- the character editor ----------
   // After your name: make your character, one part a row. It starts as the look saved
   // under your name, or if there isn't one the last look made in this browser, and DONE
@@ -17313,19 +17367,18 @@
   // Start on your look (called as the name screen closes), and ask the database for the
   // one saved under your name, which takes over if there is one, and whether you're the
   // Office Champion, which puts the crown on even if the answer's late. It holds on for both.
-  // It asks after your Santa hat too (see "Christmas Day"), and who won the Christmas Cup.
+  // It asks after your special items too, and takes off any that aren't yours (see "special items").
   function editStart() {
     Object.assign(edit, { row: 0, btn: 1, look: Object.assign({}, myLook), wait: 240 });
     const ask = edit.ask = {}, name = playerName;
-    santaHat = giftHere(name); // (this browser knows straight away; the database answers in a moment)
     const saved = lookLoad(name).then((look) => {
-      if (look && look.hat === Art.SANTA && playerName === name) santaHat = true; // (it must be yours, then)
       if (edit.ask !== ask || edit.wait <= 0) return; // (too late: you might have changed something by now)
       if (look) edit.look = look;
     });
     const crown = crownCheck(name).then((on) => { if (playerName === name) setCrowned(on); });
-    const gift = giftCheck(name).then((on) => { if (playerName === name && on) santaHat = true; });
-    Promise.all([saved, crown, gift, cupCheck()]).then(() => { if (edit.ask === ask) edit.wait = 0; });
+    const owned = itemsCheck(name);
+    Promise.all([saved, owned]).then(() => { if (edit.ask === ask) itemsOff(edit.look); });
+    Promise.all([saved, crown, owned]).then(() => { if (edit.ask === ask) edit.wait = 0; });
   }
   // From the Start menu: start on you as you are now (with nothing to look up, it was all
   // asked when you came in), then the same screens as coming in, and back to where you were.
@@ -17339,14 +17392,14 @@
     mode = 'play';
   }
   // the choices a row has, in order: the head things leave out the crown (only ever the
-  // champion's, who can't change it: see crowned), the Santa hat and the Christmas Cup's
-  // golden antlers, unless they're yours (or you're already wearing them)
+  // champion's, who can't change it: see crowned), and any row leaves out the special items,
+  // unless they're yours (or you're already wearing them)
   function editChoices(r) {
-    if (r.key === 'hat') {
-      return [...Array(Art.CROWN).keys()].concat(santaHat || edit.look.hat === Art.SANTA ? [Art.SANTA] : [])
-        .concat(cupMine(playerName) || edit.look.hat === Art.ANTLERS ? [Art.ANTLERS] : []);
-    }
-    return [...Array(r.n || LOOK_COUNT[r.key]).keys()];
+    return [...Array(r.n || LOOK_COUNT[r.key]).keys()].filter((i) => {
+      if (r.key === 'hat' && i === Art.CROWN) return false;
+      const item = itemAt(r.key, i);
+      return !item || items[item] === 1 || edit.look[r.key] === i;
+    });
   }
   const editLocked = (r) => r && r.key === 'hat' && crowned;
   function editRandom() {
@@ -17810,6 +17863,7 @@
     mode = q.has('title') ? 'title' : q.has('naming') ? 'name' : 'play';
     // &editor=1 opens the character editor
     if (q.has('editor') || q.has('select')) { editStart(); mode = 'edit'; }
+    else itemsCheck(playerName);
     if (q.has('costumes')) openCostumes();
     if (q.has('sweaters')) openSweaters();
     updateRoom();

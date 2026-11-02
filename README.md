@@ -304,6 +304,19 @@ The scores live in a free Firebase Realtime Database. To set one up:
           "$other": { ".validate": false }
         }
       }
+    },
+    "items": {
+      "$world": {
+        ".validate": "$world === 'live' || $world === 'test'",
+        "$player": {
+          ".read": true,
+          ".validate": "$player.length <= 12",
+          "$item": {
+            ".write": "!data.exists() && newData.val() === 1",
+            ".validate": "$item.length <= 16 && (newData.val() === 0 || newData.val() === 1)"
+          }
+        }
+      }
     }
   }
 }
@@ -352,6 +365,44 @@ your name and change your character. To reset one, delete its row on the Data ta
 If the database's rules were set up before the character editor, replace them with the
 ones above and press Publish again. Until then the game can't find or save characters
 there, and just remembers yours in the browser.
+
+### Special items
+
+The `items` part of the rules is for the head things, shirts and pants nobody starts with.
+Each one has a number of its own for each name, under `items/live` (from haakonlife.com) or `items/test`
+(from any other copy), then the name, keyed the same way as its scores:
+
+```
+items/live/warren/santa: 1
+items/live/warren/antlers: 0
+```
+
+`santa` is the Santa hat and `antlers` the golden antlers. 1 means it's theirs, so it's one
+of their choices in the character editor. 0 means it isn't, and the game won't offer it to
+them, even from the present or the cup. No number means they've never been given it.
+
+In the game the Santa hat only comes from opening the present on Christmas Day and the antlers
+from winning the Christmas Cup, which add a 1 where there's no number. To give an item to
+somebody or take it away, change the number on the Data tab (adding the name and the number if
+they aren't there yet). It reaches them the next time they come in, and if they're wearing
+something whose number isn't 1, it comes off (a head thing goes back to nothing, and a shirt
+or pants to the first in its list). Use a 0 to take one away rather than deleting the number:
+a browser that remembers a 1 sends it again if it finds no number there.
+
+The rules let the game add a 1 where there's no number and nothing else, so only the Data tab
+can change one that's there. Like the scores, a determined person could still add a 1 to a
+name that has no number.
+
+To add one, draw it and add it to the end of `HATS`, `SHIRTS` or `PANTS` in `js/art.js`, with
+`item: 'itsname'` (the name its number goes by, up to 16 characters). That keeps it out of the
+character editor until a name's number for it is 1, and the rules already cover it, so they
+don't need changing. To have it earned in the game as well, call `itemGive(name, 'itsname')`
+where that happens. A 32 x 32 drawing (`HAT32`, `SHIRT32` or `PANTS32`) is optional: without
+one, the 16 x 16 rows are doubled.
+
+If the database's rules were set up before special items, add the `items` part above and
+press Publish again. Until then the game can't find or save them there, and just remembers
+them in the browser.
 
 ## Playing together
 
@@ -719,10 +770,10 @@ From November 27 to December 31 (by your device's date) the office does Christma
   tag with your name on it. Press A on the tree to open it: it's a **Santa hat**, and it asks
   whether you want to put it on now. From then on the Santa hat is one of your head things
   in the character editor, for good (not just at Christmas). It belongs to your name, not
-  the browser: it's noted under your name in the leaderboards' database (a board of its
-  own, `santahat`, holding 1, that isn't shown anywhere, so the scores rules already cover
-  it), so typing the same name on another phone or computer brings it with you. Before the
-  25th the presents just say not to open them. It's "Christmas Day" in `js/game.js`.
+  the browser: opening the present sets your `santa` number in the database to 1 (see
+  "Special items"), so typing the same name on another phone or computer brings it with you.
+  Before the 25th the presents just say not to open them. It's "Christmas Day" in
+  `js/game.js`.
 - The music changes too: indoors the office tune gives way to Deck the Halls, outside
   it's Jingle Bells, and out on the ice a slow skating waltz.
 - The fitness room's side doors (on its left wall) open onto the **parking lot**, a map
@@ -843,8 +894,9 @@ From November 27 to December 31 (by your device's date) the office does Christma
   antlers**: chunky cartoon antlers in polished gold that catches the light, with a
   jingle bell at the foot of each. From New
   Year's Day they're one of the champion's head things in the character editor, for good,
-  on any phone or computer with the same name, and nobody else can pick them. They go on
-  over the hair like the bow does.
+  on any phone or computer with the same name: winning sets their `antlers` number in the
+  database to 1 (see "Special items"), and nobody else can pick them. They go on over the
+  hair like the bow does.
   The first time the champion is walking around after New Year's, a message tells them
   they've won and offers to put the antlers on (once for each name); pressing A on the cup
   offers them too, until they're wearing them. Everyone else, the first time they're
@@ -952,10 +1004,10 @@ Add these to the end of the address (after `index.html`) and press Enter.
 - `index.html#play&christmas=1&yard=1`: start outside the parking lot's doors.
 - `#christmas=0` switches it off during the holidays.
 - Add `&champion=Ada` to make the Christmas Cup's season over with Ada as its champion (add
-  `&name=Ada` to be Ada, and you're told you've won and offered the golden antlers; any other name sees the
-  banner instead).
+  `&name=Ada` to be Ada, and you're told you've won and offered the golden antlers, for this
+  visit only; any other name sees the banner instead).
 - Add `&xmasday=1` to make it Christmas Day (the present under the tree can be opened), and
-  `&santahat=1` to have the Santa hat already, as if your name had opened it.
+  `&santahat=1` to have the Santa hat for this visit, as if your name had opened it.
 - Add `&sweater=moose` (or `gingerbread`, `reindeer`, `snowflake`, `tree`, `candycane`,
   `santa`, `snowman`, `hvac`, `none`) to a `#play` link to pick your ugly sweater, and
   `&sweaters` to open the sweater picker. In October add `&halloween=0` too, or you're in

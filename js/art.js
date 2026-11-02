@@ -882,7 +882,9 @@ window.Art = (function () {
   // A look is { g, skin, hair, hairC, hat, shirt, shirtC, pants, pantsC }: the body
   // ('male' or 'female') and a place in each list below. It's saved and sent as a short
   // code (lookCode), one base-36 digit per part in LOOK_PARTS order, so only ever add to
-  // the end of a list: moving something would change everyone's saved look.
+  // the end of a list: moving something would change everyone's saved look. A head thing,
+  // shirt or pair of pants with `item` set is a special item, only for the names whose
+  // number for that item is 1 (see "special items" in js/game.js).
   // In the pictures, h = hair (H a shade darker), s = skin, w = shirt (v a shade darker),
   // u = its accent, K = pants; anything else is the ordinary palette.
   const SKINS = ['#f8dcc0', '#f8d8b8', '#f8d0a8', '#e8b48a', '#d8a070', '#b87848', '#8a5838', '#6a4028'];
@@ -1010,14 +1012,14 @@ window.Art = (function () {
     },
     // only for a name that's opened its present under the tree on Christmas Day (see js/game.js)
     {
-      name: 'Santa hat', hd: 'santa',
+      name: 'Santa hat', hd: 'santa', item: 'santa',
       down: ['_______kkk_kWWk_', '______krrrkkWWk_', '....krrrrrrRk___', '...kWWWWWWWWk...', '...kWWWWWWWWk...'],
       up: ['_kWWk_kkk_______', '_kWWkkrrrk______', '___kRrrrrrrk....', '...kWWWWWWWWk...', '...kWWWWWWWWk...'],
     },
     // only for the Christmas Cup's champion, the fastest at Humbug Sweeper over Christmas 2026
     // (see js/game.js): gold reindeer antlers, with the hair showing
     {
-      name: 'Golden antlers', hd: 'antlers',
+      name: 'Golden antlers', hd: 'antlers', item: 'antlers',
       down: ['.k...k....k...k.', 'kyk.kyk..kyk.kyk', 'kyoooqk..kyoooqk', '.kkqqk....kqqkk.'],
     },
   ];
@@ -1121,6 +1123,9 @@ window.Art = (function () {
   ];
   const LOOK_PARTS = [['skin', SKINS], ['hair', HAIRS], ['hairC', HAIR_COLOURS], ['hat', HATS],
     ['shirt', SHIRTS], ['shirtC', SHIRT_COLOURS], ['pants', PANTS], ['pantsC', PANTS_COLOURS]];
+  // the special items and where they are, like { santa: { part: 'hat', i: 10 } }
+  const LOOK_ITEMS = {};
+  for (const [part, list] of LOOK_PARTS) list.forEach((e, i) => { if (e.item) LOOK_ITEMS[e.item] = { part, i }; });
   // a look with every part in range (missing or unknown ones are the first in their list)
   function lookFix(look) {
     const out = { g: look && look.g === 'female' ? 'female' : 'male' };
@@ -7607,7 +7612,7 @@ window.Art = (function () {
   return {
     LOOKS, UI, COSTUMES, scale2x, renderFloor, renderFloor32, renderTileAs32, renderSprites, renderCostume, renderDog, renderDog32, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLook32, renderSprites32, renderLookCostume, renderLookCostume32, renderCostume32, renderGhost32,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLook32, renderSprites32, renderLookCostume, renderLookCostume32, renderCostume32, renderGhost32,
     SWEATERS,
   };
 })();
