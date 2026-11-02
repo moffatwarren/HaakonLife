@@ -6,6 +6,7 @@
 //   { k: 'to', to: id, m: {...} }  a message for one other player (a challenge, a move)
 //   { k: 'in', m: matchId, d: ... }  what they did in a game the server is running
 //   { k: 'sit' | 'stand' | 'tin', t, ... }  at a table anyone can join (see tables.js)
+//   { k: 'ls', g }                 what's on at those tables (see tables.js)
 // and is sent:
 //   { k: 'all', now, players: { id: record }, rooms: [matchId], tables: [key] }  on
 //                                  connecting: everyone here, the server's clock, and any
@@ -17,6 +18,7 @@
 //   { k: 'm', m: {...} }           a message for you, with `from`, `n` (their name) and `t`
 //   { k: 'st', m, s } / { k: 'end', m, r }  a server-run game's state, and its result
 //   { k: 'tb', t, s, r }           what you see at a table (see tables.js)
+//   { k: 'ls', g, l }              what's on at the tables (see tables.js)
 // Records and messages are flat objects of numbers, booleans and short strings, the same
 // shape the database rules allowed before there was a server.
 import { Room } from './rooms.js';
@@ -27,6 +29,8 @@ const MAIL_MAX = 50; // messages kept for someone whose connection has dropped
 const KEEP = 600000; // ms an id stays reserved for its owner after they disconnect
 const ASK_MS = 60000; // ms a challenge stays open
 const PER_SEC = 100; // messages a second from one player before the rest are dropped
+const TABLE_RE = /^[a-z0-9]{1,16}(:[A-Za-z0-9]{1,16})?$/; // a table's name (see tables.js)
+const TABLES_MAX = 40; // tables going at once in a world, since each one is ticking away
 // How often changed records go out to copies that take bundles: 30 times a second. A step
 // from one tile to the next takes four of these, so other players walk as smoothly as when
 // every record went out on its own. (At ten a second they'd stutter.)
@@ -52,7 +56,7 @@ export class World {
     this.moved = new Map(); // id -> record (null once they've gone), changed since the last bundle
     this.asks = new Map(); // matchId -> an open challenge for a server-run game
     this.rooms = new Map(); // matchId -> Room
-    this.tables = new Map(); // key (from kinds) -> Table, while anyone's sitting at it
+    this.tables = new Map(); // its name (see tables.js) -> Table, while anyone's sitting at it
   }
 
   online() { return [...this.players.values()].filter((p) => p.sock).length; }
@@ -111,24 +115,30 @@ export class World {
       const room = this.rooms.get(d.m);
       if (room) room.input(p.id, d.d);
     } else if (d.k === 'sit') {
-      this.sit(p, d.t);
+      this.sit(p, d.t, !!d.j);
     } else if (d.k === 'stand') {
       if (p.table && p.table === d.t) this.tables.get(p.table)?.stand(p.id);
     } else if (d.k === 'tin') {
       if (p.table && p.table === d.t) this.tables.get(p.table)?.input(p.id, d.d);
+    } else if (d.k === 'ls') {
+      this.list(p, d.g);
     }
   }
 
-  // Sit down at a table, starting it if nobody's there. You need a record first (it has
-  // your name), and you can only be at one table at a time.
-  sit(p, t) {
-    if (typeof t !== 'string' || !Object.hasOwn(this.kinds, t)) return;
+  // Sit down at a table, starting it if nobody's there (unless only: then it has to be there
+  // already). You need a record first (it has your name), and you can only be at one table
+  // at a time.
+  sit(p, t, only) {
+    if (typeof t !== 'string' || !TABLE_RE.test(t)) return;
+    const kind = t.split(':')[0];
+    if (!Object.hasOwn(this.kinds, kind)) return;
     if (!p.rec) { this.send(p.id, { k: 'tb', t, s: null, r: 'no' }); return; }
     if (p.table && p.table !== t) this.tables.get(p.table)?.stand(p.id);
     let table = this.tables.get(t);
+    if (!table && (only || this.tables.size >= TABLES_MAX)) { this.send(p.id, { k: 'tb', t, s: null, r: only ? 'ended' : 'many' }); return; }
     if (!table) {
       table = new Table({
-        id: t, game: this.kinds[t],
+        id: t, game: this.kinds[kind],
         send: (pid, msg) => this.send(pid, msg),
         left: (pid) => {
           const q = this.players.get(pid);
@@ -144,6 +154,17 @@ export class World {
       this.send(p.id, { k: 'tb', t, s: null, r: typeof got === 'string' ? got : 'full' });
       if (!table.seated().length) { table.close(); this.tables.delete(t); }
     }
+  }
+
+  // What's on at the tables whose names start with g, for them to pick from.
+  list(p, g) {
+    if (typeof g !== 'string' || !g) return;
+    const l = [];
+    for (const [t, table] of this.tables) {
+      const b = t.startsWith(g) && table.brief();
+      if (b) l.push(b);
+    }
+    this.send(p.id, { k: 'ls', g, l });
   }
 
   // Challenges pass through here, so when one for a server-run game is accepted the

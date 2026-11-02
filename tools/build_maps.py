@@ -42,6 +42,7 @@ all in one go rather than from tiles:
              c parked car (2 wide, 3 tall)   L lamp post   b bench   h hot chocolate stand
              f fire pit   s snowman   * snowbank   Y the big spruce   (space) the woods
              w woodpile (2 wide, the chopping block at its east end)
+             G sign-up booth for live hockey
 Its doors, side by side in the office wall along the top, are the fitness room's two
 'X' doors in order ('yard' in the output).
 
@@ -948,10 +949,12 @@ fy.fill(1, 4, 43, 37, ',')                      # the plowed lot
 fy.rooms.append({'name': 'Parking Lot', 'x1': 1, 'y1': 3, 'x2': 54, 'y2': 38})
 # the rink: boards round a 14 x 30 sheet of ice, a net three metres in from either end
 # and a gate in the east side, facing the way down from the doors (the hockey game's
-# rink attendant stands by it), with a lamp post off each corner
+# rink attendant stands by it, and the sign-up booth for live games is just below it), with
+# a lamp post off each corner
 fy.fill(10, 5, 25, 36, 'B')
 fy.fill(11, 6, 24, 35, '~')
 fy.put(25, 20, '~'); fy.put(25, 21, '~')
+fy.fill(26, 22, 27, 23, 'G')
 fy.fill(17, 8, 18, 8, 'n'); fy.fill(17, 33, 18, 33, 'n')
 fy.rooms.append({'name': 'Ice Rink', 'x1': 11, 'y1': 6, 'x2': 24, 'y2': 35, 'parent': 'Parking Lot'})
 for x, y in ((10, 4), (25, 4), (10, 37), (25, 37)):

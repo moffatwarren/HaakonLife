@@ -2355,15 +2355,141 @@
     return self;
   }
 
-  // ---------- Live Hold'em: the casino's poker table, against other players ----------
-  // Up to four people sit at the table at once. The game server deals and keeps the
+  // ---------- the sign-up sheet: which live game to join, or start a new one ----------
+  // At the booth by the rink's gate (g: 'hockey') or the casino's poker table ('poker'). The
+  // game server has as many games going at once as people start (see server/tables.js), so
+  // this asks it what's on, every second while it's up, and lists the ones with room: a lobby
+  // still filling up, a game on with a skater the computer's playing (see sit in
+  // server/tables/hockey.js), or a table with a seat free, each with who's there. Or you start
+  // a new one, which comes straight up if there's nothing to join: for hockey it asks what
+  // size of game first, and then you're in its lobby.
+  const newTable = (kind) => kind + ':' + Math.random().toString(36).slice(2, 10);
+  function SignUp(g) {
+    const hk = g === 'hockey', sheet = mp.sheet = { g, list: null }, SHOWN = 5;
+    const SIZES = [['1 ON 1', 'You and one other player'], ['2 ON 2', '2 to 4 players, and the computer fills in'], ['3 ON 3', '2 to 6 players, and the computer fills in']];
+    // t: ticks it's been up; pick: the game picked (null for starting a new one); at: where that
+    // is in the list, for when it's gone; first: the top game showing; sizes: asking what size
+    // of game (size: the one picked)
+    let t = 0, begun = false, pick = null, at = 0, first = 0, sizes = false, size = 0;
+    const open = () => sheet.list.filter((x) => x.open > 0);
+    const close = () => { remove(self); if (mp.sheet === sheet) mp.sheet = null; };
+    const go = (Game) => { close(); sfx('menu'); if (hk) startFade(() => ui.push(Game()), '#f8f8f8'); else ui.push(Game()); };
+    const startNew = () => {
+      if (hk) { sizes = true; sfx('select'); } else go(() => LivePoker(newTable('poker')));
+    };
+    const self = {
+      update() {
+        if (t++ % 60 === 0) wsSend({ k: 'ls', g });
+        if (!sheet.list) {
+          if (pressed.has('b') || t > 300) {
+            close();
+            if (t > 300) say('Nobody\'s answering about live games right now. Try again in a bit.');
+            else sfx('select');
+          }
+          return;
+        }
+        const games = open();
+        if (!begun) {
+          begun = true;
+          if (games.length) pick = games[0].t;
+          else if (hk) sizes = true;
+          else { go(() => LivePoker(newTable('poker'))); return; }
+        }
+        if (sizes) {
+          if (pressed.has('up')) { size = (size + SIZES.length - 1) % SIZES.length; sfx('select'); }
+          if (pressed.has('down')) { size = (size + 1) % SIZES.length; sfx('select'); }
+          if (pressed.has('a')) {
+            const n = (size + 1) * 2;
+            go(() => LiveHockey(n, newTable('hockey' + (size + 1))));
+          } else if (pressed.has('b')) {
+            sfx('select');
+            if (games.length) sizes = false; else close();
+          }
+          return;
+        }
+        // (stay on the game you picked as the list changes, or if it's gone, where it was)
+        let i = pick ? games.findIndex((x) => x.t === pick) : games.length;
+        if (i < 0) i = Math.min(at, games.length);
+        if (pressed.has('up')) { i = (i + games.length) % (games.length + 1); sfx('select'); }
+        if (pressed.has('down')) { i = (i + 1) % (games.length + 1); sfx('select'); }
+        at = i; pick = i < games.length ? games[i].t : null;
+        first = Math.max(0, Math.min(first, games.length - SHOWN, i < games.length ? i : first));
+        if (i < games.length && i >= first + SHOWN) first = i - SHOWN + 1;
+        if (pressed.has('a')) {
+          const x = games[i];
+          if (!x) startNew();
+          else go(() => (hk ? LiveHockey(x.size, x.t, true) : LivePoker(x.t, true)));
+        } else if (pressed.has('b')) { sfx('select'); close(); }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        const title = hk ? 'LIVE HOCKEY SIGN-UP' : 'LIVE HOLD\'EM TABLES';
+        text(title, (SW - title.length * 6) >> 1, 10);
+        if (!sheet.list || !begun) {
+          ctext('Checking the sheet' + '.'.repeat(1 + ((tick >> 4) % 3)), 104);
+          text('Esc: never mind', 10, SH - 18);
+          return;
+        }
+        const games = open(), row = (y, on, a, b) => {
+          if (on) {
+            if (HIRES) roundBox(12, y - 3, SW - 24, b ? 25 : 14, 2.5, 'rgba(120, 110, 90, 0.16)');
+            text('>', 14, y);
+          }
+          text(a, 24, y);
+          if (b) text(b, 24, y + 11, 1, col.mid);
+        };
+        if (sizes) {
+          ctext(sheet.list.length ? 'What size of game?' : 'Nobody\'s playing yet. What size of game?', 30);
+          SIZES.forEach(([a, b], i) => row(56 + i * 32, i === size, a, b));
+          text('Arrows: choose  Space: OK  Esc: back', 10, SH - 18);
+          return;
+        }
+        ctext(hk ? 'Join a game, or start a new one' : 'Pull up a chair, or start a new table', 26);
+        games.slice(first, first + SHOWN).forEach((x, i) => row(44 + i * 28, x.t === pick, sheetLine(x, hk), sheetNames(x.who)));
+        if (games.length > SHOWN) {
+          const more = first + 1 + '-' + (first + SHOWN) + ' of ' + games.length;
+          text(more, SW - 12 - more.length * 6, 10, 1, col.mid);
+        }
+        const y = 44 + Math.min(SHOWN, games.length) * 28 + 2, full = sheet.list.length - games.length;
+        row(y, !pick, hk ? 'START A NEW GAME' : 'START A NEW TABLE');
+        if (!games.length) ctext('Nothing to join right now.', y + 20, col.mid);
+        else if (full) ctext(full + ' more ' + (hk ? (full > 1 ? 'games are' : 'game is') : (full > 1 ? 'tables are' : 'table is')) + ' going, with no room.', y + 20, col.mid);
+        text('Arrows: choose  Space: OK  Esc: back', 10, SH - 18);
+      },
+    };
+    return self;
+  }
+  // a game's first line on the sign-up sheet: what it is and how much room it has
+  function sheetLine(x, hk) {
+    const left = x.open + (hk ? ' spot' : ' seat') + (x.open > 1 ? 's' : '') + ' open';
+    if (!hk) return (x.ph === 'wait' ? 'Waiting for players' : 'Playing') + ': ' + left;
+    const kind = x.size / 2 + ' ON ' + x.size / 2 + '  ';
+    if (x.ph !== 'play' || !Array.isArray(x.sc)) return kind + 'In the lobby: ' + left;
+    const when = x.ot ? 'overtime' : Math.floor(x.clk / 60) + ':' + String(x.clk % 60).padStart(2, '0') + ' left';
+    return kind + 'Playing ' + x.sc[0] + '-' + x.sc[1] + ', ' + when + ': ' + left;
+  }
+  // and its second: who's there, as many as fit
+  function sheetNames(who) {
+    let line = '';
+    for (let i = 0; i < who.length; i++) {
+      const next = (i ? line + ', ' : '') + who[i], rest = who.length - i - 1;
+      if (next.length + (rest ? 8 : 0) > 46) return line + ' +' + (rest + 1) + ' more';
+      line = next;
+    }
+    return line;
+  }
+
+  // ---------- Live Hold'em: a poker table in the casino, against other players ----------
+  // Up to four people sit at a table at once. The game server deals and keeps the
   // rules (server/tables/poker.js); this shows what it says (mp.table.view, see view()
   // there) and sends what you do. You sit bottom left, and the others go round clockwise
-  // from you. Sitting down mid-hand, you're dealt in from the next one.
+  // from you. Sitting down mid-hand, you're dealt in from the next one. name is which table
+  // (see server/tables.js), and join is for one picked off the sign-up sheet, which has to
+  // still be there.
   const LIVE_SEAT_BG = ['#3868c8', '#9868c8', '#c86838', '#38a868'];
   const LIVE_BUY_IN = 200; // what everyone sits down with (BUY_IN in server/tables/poker.js)
-  function LivePoker() {
-    const tb = mp.table = { t: 'poker', view: null, out: null, asked: false };
+  function LivePoker(name, join) {
+    const tb = mp.table = { t: name || 'poker', j: !!join, view: null, out: null, asked: false };
     // where each seat goes, counting clockwise from yours: a for its face, c its cards,
     // d the dealer chip, and n its two lines of notes (its bet, then its hand or its
     // clock), which end at nx on a seat down the right
@@ -2439,7 +2565,9 @@
         if (tb.out) {
           gone();
           say({
-            full: 'All four seats are taken. Try again in a bit, or play solo.',
+            full: 'All four seats at that table are taken. Try another, or play solo.',
+            ended: 'That table has packed up. Try another, or play solo.',
+            many: 'Zin has too many tables going right now. Try again in a bit, or play solo.',
             bust: 'You\'re out of spring rolls! Sit back down any time for another 200.',
             idle: 'You took too long, so Zin gave your seat to someone else.',
           }[tb.out] || 'You lost your seat at the table. The connection to the game server dropped.');
@@ -2448,7 +2576,7 @@
         const v = tb.view;
         if (!v) {
           // sit down once the server's there and knows who you are
-          if (!tb.asked && ws.sock && ws.sock.readyState === 1 && mp.sentKey) { tb.asked = true; wsSend({ k: 'sit', t: tb.t }); }
+          if (!tb.asked && ws.sock && ws.sock.readyState === 1 && mp.sentKey) { tb.asked = true; wsSend({ k: 'sit', t: tb.t, j: tb.j }); }
           if (pressed.has('b') || t > 600) {
             if (tb.asked) wsSend({ k: 'stand', t: tb.t });
             gone();
@@ -12656,7 +12784,7 @@
   const MP_DOING = {
     poker: 'Playing poker', blackjack: 'Playing blackjack', slots: 'Playing the slots',
     pokerlive: (n) => 'Playing live poker (' + n + ' players)', pokerwait: 'Waiting for poker players',
-    hockey: 'Playing hockey', hockey1v1: 'Playing live hockey (1 on 1)', hockey2v2: 'Playing live hockey (2 on 2)',
+    hockey: 'Playing hockey', hockey1v1: 'Playing live hockey (1 on 1)', hockey2v2: 'Playing live hockey (2 on 2)', hockey3v3: 'Playing live hockey (3 on 3)',
     hockeywait: 'Waiting for hockey players',
     coffee: 'Playing Coffee Machine', catch: 'Playing Frisbee Catch', punch: 'Playing Punching Bag', run: 'Playing Treadmill',
     pong: 'Playing Pong', toss: 'Playing Paper Toss', stack: 'Playing Photocopier', simon: 'Playing Control Panel',
@@ -12680,7 +12808,7 @@
   const mp = {
     id: Math.random().toString(36).slice(2, 12), on: false, heard: false, others: {}, mail: [],
     sending: false, sentKey: '', lastSend: 0, tickAt: Date.now(), say: -1, sayText: '', sayN: 0, bubble: null, newer: false, nudged: false,
-    pending: null, invite: null, held: null, match: null, table: null,
+    pending: null, invite: null, held: null, match: null, table: null, sheet: null,
   };
   // the head-to-head games: a challenge names one by key. These all run in each player's
   // own browser, passing moves back and forth. A game with `server: true` is run by the
@@ -12779,7 +12907,8 @@
   // asks for those, and a server from before them sends a 'p' for each instead), 'm' (a
   // message for you), 'st' and 'end' (a server-run game's state and result), and 'tb'
   // (what you see at the live poker table or in live hockey, or null once you're not
-  // there; mp.table.feed, if it's set, hears every one). See server/world.js.
+  // there; mp.table.feed, if it's set, hears every one), and 'ls' (what's on at those
+  // tables, for a sign-up sheet). See server/world.js.
   const mpKey = Math.random().toString(36).slice(2, 12);
   const ws = { sock: null, tree: {}, skew: 0, retry: 0 };
   const wsSend = (d) => { if (ws.sock && ws.sock.readyState === 1) ws.sock.send(JSON.stringify(d)); };
@@ -12820,6 +12949,8 @@
       if (tb && d.t === tb.t && !tb.out) {
         if (d.s && typeof d.s === 'object') { tb.view = d.s; if (tb.feed) tb.feed(d.s); } else tb.out = d.r || 'gone';
       }
+    } else if (d.k === 'ls') {
+      if (mp.sheet && d.g === mp.sheet.g && Array.isArray(d.l)) mp.sheet.list = d.l;
     } else if (d.k === 'p' && typeof d.id === 'string') {
       if (d.r && typeof d.r === 'object') ws.tree[d.id] = wsRec(d.r); else delete ws.tree[d.id];
       mpPlayers(ws.tree);
@@ -13139,7 +13270,8 @@
   function mpSaying(o, now) {
     const said = o.s >= 0 ? mpLine(o.s) : o.w;
     if (o.said && o.sn !== o.sn0 && said && now - o.said < mpSayFor(said) * 1000 / 60) return said;
-    if (!o.b) return null;
+    // (not out on the ice: there may be people signed up for other games all round the rink)
+    if (!o.b || hockey) return null;
     const doing = MP_DOING[o.do];
     return typeof doing === 'function' ? doing(o.dn) : doing || '.'.repeat(1 + ((tick >> 4) % 3)).padEnd(3);
   }
@@ -13810,6 +13942,7 @@
     L: ['A lamp post with a wreath on it. Strings of lights run from it round the rink.'],
     B: ['The boards around the rink. HAAKON, HAAKON, HAPPY HOLIDAYS.'],
     n: ['A hockey net. Whoever is minding the gate has the pucks.'],
+    G: ['The sign-up booth for live games, with nobody in it today.'],
     b: ['A bench. Someone has left their skate guards on it.'],
     '#': ['The office. It looks warm in there.'],
     ' ': ['Snowy woods. It is very quiet in there.'],
@@ -13837,7 +13970,7 @@
       });
       return;
     }
-    if (MP_WS && 'B~n'.includes(t)) { rinkTalk(); return; } // the boards, the ice, a net
+    if (MP_WS && t === 'G') { sfx('select'); ui.push(SignUp('hockey')); return; }
     if (YARD_GAMES[t]) {
       const [msg, opt, Game] = YARD_GAMES[t];
       sfx('select');
@@ -13870,7 +14003,7 @@
   const BALL_V = 0.2, BALL_G = 0.0045, BALL_Z = 1.5; // tiles a tick across, metres a tick per tick down, metres up out of the hand
   const THROW_T = 24, RELEASE = 13, ANGEL_T = 200, PRINT_LIFE = 5400, ANGEL_LIFE = 21600; // all in ticks
   // how tall what stands on each kind of tile is: a snowball lower than that hits it
-  const SNOW_TALL = { '#': 99, X: 99, ' ': 99, L: 99, h: 99, Y: 99, c: 1.4, B: 1.1, n: 1.2, b: 0.5, f: 0.4, s: 1.7, '*': 0.8, w: 0.9 };
+  const SNOW_TALL = { '#': 99, X: 99, ' ': 99, L: 99, h: 99, G: 99, Y: 99, c: 1.4, B: 1.1, n: 1.2, b: 0.5, f: 0.4, s: 1.7, '*': 0.8, w: 0.9 };
   const HIT_LINES = ['Hey!', 'Oh, it is ON.', 'Right in the toque!', 'Who threw that?', 'You\'ll regret that!', 'Not the face!',
     'Brrr! Down my collar!', 'Nice arm!', 'My hot chocolate!', 'Okay, okay, truce!', 'Ha! Missed me. Wait, no.'];
   const deepSnow = (x, y) => tileAt(YARD, Math.round(x), Math.round(y)) === '.';
@@ -15924,8 +16057,8 @@
   // The game itself (the rules, the skating, the puck and how your coworker plays) is
   // js/hockey.js. This feeds it your keys, plays its sounds and puts the score and the
   // clock up, while drawYard draws the two of you out on the ice (hockey) with the camera
-  // down low at the end of the rink. With a game server, the rink itself (its boards, its
-  // ice or a net) puts you in a live game against other players (LiveHockey, below).
+  // down low at the end of the rink. With a game server, the sign-up booth by the gate puts
+  // you in a live game against other players (SignUp, then LiveHockey, below).
   const HOCKEY_RINGS = ['#f8d040', '#e84848']; // round your skates and theirs, to tell you apart
   const HOCKEY_SFX = { go: 'whistle', lunge: 'dash', pass: 'tap', steal: 'tap', block: 'tap', post: 'post', net: 'mesh', goal: 'horn', buzzer: 'buzz', bump: 'bump' };
   // a team's colour on the scoreboard (at double resolution, a round chip with a light on it)
@@ -15942,14 +16075,6 @@
       if (i !== 0) { say(says('The ice isn\'t going anywhere.')); return; }
       sfx('menu');
       startFade(() => ui.push(HockeyGame(npc)), '#f8f8f8');
-    });
-  }
-  function rinkTalk() {
-    sfx('select');
-    ask('The rink. Play a live game against other players?', ['1 ON 1', '2 ON 2', 'NOT NOW'], (i) => {
-      if (i < 0 || i > 1) return;
-      sfx('menu');
-      startFade(() => ui.push(LiveHockey(i ? 4 : 2)), '#f8f8f8');
     });
   }
   // a hockey game's sound for one of js/hockey.js's events; mine: a stride is yours
@@ -16056,14 +16181,17 @@
     return self;
   }
 
-  // ---------- live hockey: one on one or two on two, against other players ----------
+  // ---------- live hockey: up to three on three, against other players ----------
   // The game server runs it (server/tables/hockey.js, with js/hockey.js) and this shows what
   // it says (mp.table.view, see view() there). First the lobby: whoever's first waits there
   // for everyone else, anyone can move over to the other team, and once every spot is taken
-  // and everyone's pressed start, the puck drops (or in two on two, once the two or three
-  // there have all pressed start and waited a few seconds, with the computer in the empty
-  // spots, playing them as coworkers, the same ones on every screen). Then the game, out on
-  // the rink just like one against a coworker. Everyone shoots up the ice on their own
+  // and everyone's pressed start, the puck drops (or in two on two or three on three, once
+  // at least two are there, have all pressed start and waited a few seconds, with the computer
+  // in the empty spots, playing them as coworkers, the same ones on every screen). Then the
+  // game, out on the rink just like one against a coworker. Someone joining a game that's on
+  // goes straight onto the ice, in place of one of the computer's skaters. There can be any
+  // number of these going at once, all on the one rink: you only see your own game's skaters.
+  // Everyone shoots up the ice on their own
   // screen: for the team attacking the bottom net, the rink is turned end for end, and so is
   // the way they steer before it's sent. The server sends where everyone is 30 times a
   // second, and they're drawn a little behind the newest, between the views either side, so
@@ -16071,8 +16199,10 @@
   // views come in late now and then (a phone on Wi-Fi), so there's still a view either side.
   const HOCKEY_TEAMS = ['YELLOW', 'RED']; // after their rings, team 0 then team 1
   const LIVE_LAG = 4, LIVE_LAG_MAX = 12; // game ticks (60ths of a second)
-  function LiveHockey(size) {
-    const tb = mp.table = { t: size === 2 ? 'hockey1' : 'hockey2', view: null, out: null, asked: false, feed: (v) => got(v) };
+  // size: how many players (2, 4 or 6). table: which game (see server/tables.js), and join is
+  // for one picked off the sign-up sheet, which has to still be there.
+  function LiveHockey(size, table, join) {
+    const tb = mp.table = { t: table || 'hockey' + size / 2, j: !!join, view: null, out: null, asked: false, feed: (v) => got(v) };
     const R = HOCKEY.rink(MAPS.floors[YARD]);
     // ", or play <whoever's minding the gate> one on one", for when there's no live game for you
     const orSolo = () => (gateKeeper ? ', or play ' + gateKeeper.name + ' one on one' : '');
@@ -16085,8 +16215,9 @@
     let snaps = [], est = -1, lag = LIVE_LAG, late = 0, heard = -1, gn = -1, me = -1, scene = null, mates = [];
     // rink: showing the game (rather than the lobby); menu: the option picked on the menu
     // (-1 while it's shut); go: ticks since the puck dropped; scored: the latest goal; left:
-    // who's just left the game, and when
-    let t = 0, rink = false, menu = -1, go = 99, scored = null, won = null, left = null, ais = '', lobby = null;
+    // who's just left the game or come into it (came), and when; intro: ticks left of showing
+    // the controls to someone who's joined a game that's on
+    let t = 0, rink = false, menu = -1, go = 99, scored = null, won = null, left = null, ais = '', lobby = null, intro = 0;
     // what you're doing on the ice, as last sent to a server from before it took it a tick at
     // a time: A and B presses are counted (ap, bp)
     let ap = 0, bp = 0, sent = '', sentBtn = '', sendT = 0;
@@ -16108,6 +16239,12 @@
       if (v.gn !== gn) {
         gn = v.gn; snaps = []; est = -1; heard = v.n - 1; ap = bp = 0; sent = sentBtn = ''; won = null; ais = ''; pickMates(v.who);
         pg = null; loaded = -1; pend = []; q = 0; out = []; off = [];
+        intro = v.n > 30 ? 360 : 0;
+      }
+      // someone's taken over a spot the computer had: that coworker's off the ice
+      if (mates.some((m, j) => m && v.who[j] && v.who[j].id)) {
+        mates = mates.map((m, j) => (v.who[j] && v.who[j].id ? null : m));
+        live.npcs = mates.filter(Boolean);
       }
       if (snaps.length && v.n <= snaps[snaps.length - 1].n) return;
       me = v.me;
@@ -16294,15 +16431,17 @@
       // over your head for everyone else: waiting in the lobby for more players, or the game
       get doing() {
         const v = tb.view;
-        return !v || (v.ph === 'lobby' && v.slots.includes(null)) ? 'hockeywait' : size === 2 ? 'hockey1v1' : 'hockey2v2';
+        return !v || (v.ph === 'lobby' && v.slots.includes(null)) ? 'hockeywait' : 'hockey' + size / 2 + 'v' + size / 2;
       },
       update() {
         t++; go++;
         updateNpcs(); // everyone else carries on round the lot
         if (tb.out) {
           gone({
-            busy: 'There\'s a live game on the ice already. Try again once it\'s over' + orSolo() + '.',
-            full: 'Both teams are full right now. Try again in a bit' + orSolo() + '.',
+            busy: 'Someone got that spot first. Have another look at the sign-up sheet' + orSolo() + '.',
+            full: 'Both teams in that game are full now. Have another look at the sign-up sheet' + orSolo() + '.',
+            ended: 'That game has finished. Have another look at the sign-up sheet' + orSolo() + '.',
+            many: 'The rink is booked solid right now. Try again in a bit' + orSolo() + '.',
             off: 'Live hockey isn\'t set up on the game server yet.' + (gateKeeper ? ' ' + gateKeeper.name + ' will play you one on one, though.' : ''),
           }[tb.out] || 'You lost your spot. The connection to the game server dropped.');
           return;
@@ -16310,7 +16449,7 @@
         const v = tb.view;
         if (!v) {
           // into the lobby once the server's there and knows who you are
-          if (!tb.asked && ws.sock && ws.sock.readyState === 1 && mp.sentKey) { tb.asked = true; wsSend({ k: 'sit', t: tb.t }); }
+          if (!tb.asked && ws.sock && ws.sock.readyState === 1 && mp.sentKey) { tb.asked = true; wsSend({ k: 'sit', t: tb.t, j: tb.j }); }
           if (pressed.has('b') || t > 600) {
             if (tb.asked) wsSend({ k: 'stand', t: tb.t });
             gone(t > 600 ? 'Nobody\'s answering about the live game right now. Try again in a bit' + orSolo() + '.' : '');
@@ -16333,11 +16472,15 @@
         // the puck's about to drop: out onto the ice
         if (!rink) { show(null); startFade(() => { rink = true; hockey = live; }, '#f8f8f8'); return; }
         live.ids = last.who.filter((w) => !w.ai).map((w) => w.id);
-        // someone's left, and the computer's playing them
+        // someone's left, and the computer's playing them, or someone's taken over from it
         const now = last.who.map((w) => (w.ai ? 1 : 0)).join('');
-        if (ais && now !== ais) { const j = [...now].findIndex((c, i) => c === '1' && ais[i] === '0'); if (j >= 0) left = { j, t: 0 }; }
+        if (ais && now !== ais) {
+          const j = [...now].findIndex((c, i) => c === '1' && ais[i] === '0'), k = [...now].findIndex((c, i) => c === '0' && ais[i] === '1');
+          if (j >= 0) left = { j, t: 0 }; else if (k >= 0) left = { j: k, t: 0, came: true };
+        }
         ais = now;
         if (left) left.t++;
+        if (intro > 0) intro--;
         if (v.ph === 'over' && won === null && v.last && Array.isArray(v.last.sc)) {
           const my = v.me % 2;
           won = v.last.sc[my] > v.last.sc[1 - my];
@@ -16371,7 +16514,7 @@
         }
         // the scoreboard: your team, the clock, theirs
         const team = (tm) => sc.who.map((w, j) => j).filter((j) => j % 2 === tm).sort((a, b) => (b === sc.me) - (a === sc.me))
-          .map((j) => (size === 2 ? name(j).slice(0, 9) : name(j).slice(0, j === sc.me ? 3 : 4))).join('+');
+          .map((j) => (size === 2 ? name(j).slice(0, 9) : name(j).slice(0, size === 4 && j !== sc.me ? 4 : 3))).join('+');
         const secs = Math.ceil(sc.clk / 60), mine = team(my) + ' ' + sc.sc[my], theirs = sc.sc[1 - my] + ' ' + team(1 - my);
         box(50, 0, 220, 20);
         teamMark(57, HOCKEY_RINGS[my]);
@@ -16402,9 +16545,11 @@
           const by = scored && scored.p !== undefined ? scored.p : -1, tm = scored ? scored.team : 0;
           msg([by === sc.me ? 'You score!' : by >= 0 ? name(by) + ' scores!' : tm === my ? 'Your team scores!' : 'They score!'], 'GOAL!');
         } else if (sc.gp === 'buzzer') msg([sc.sc[0] === sc.sc[1] ? 'Tied: overtime!' : ''], 'TIME!');
-        // someone's gone, and the computer's playing them
+        // the controls for someone who's joined a game that's on, out of the way along the bottom
+        if (intro > 0 && v.ph === 'play') { box(0, SH - 34, SW, 18); ctext('Arrows: skate  Space: shoot  X: pass or check', SH - 28); }
+        // someone's gone, and the computer's playing them, or someone's joined
         if (left && left.t < 240 && v.ph === 'play') {
-          const l = name(left.j) + ' left. The computer has them.';
+          const l = name(left.j) + (left.came ? ' has joined the game.' : ' left. The computer has them.');
           box(0, 22, SW, 18); ctext(l, 28);
         }
         if (menu >= 0) {
@@ -16419,28 +16564,28 @@
     // front row (who take the faceoffs) at the bottom, and start underneath.
     function drawLobby(v) {
       box(0, 0, SW, SH);
-      const title = 'LIVE HOCKEY: ' + (size === 2 ? '1 ON 1' : '2 ON 2'), dots = '.'.repeat(1 + ((tick >> 4) % 3));
+      const title = 'LIVE HOCKEY: ' + size / 2 + ' ON ' + size / 2, dots = '.'.repeat(1 + ((tick >> 4) % 3));
       text(title, (SW - title.length * 6) >> 1, 10);
       if (!v) {
         ctext('Finding you a spot' + dots, 104);
         text('Esc: never mind', 10, SH - 18);
         return;
       }
-      const four = size === 4, top = four ? 40 : 62, w = 128, h = four ? 48 : 74;
+      const rows = size / 2, top = [62, 40, 34][rows - 1], w = 128, h = [74, 48, 36][rows - 1], gap = rows > 2 ? 4 : 6;
       [0, 1].forEach((tm) => {
         const x = tm ? 182 : 10;
         ctx.fillStyle = HOCKEY_RINGS[tm]; ctx.fillRect(x + 6, top - 14, 5, 5);
         text(HOCKEY_TEAMS[tm], x + 14, top - 14);
       });
-      v.slots.forEach((q, i) => slot(v, q, i, i % 2 ? 182 : 10, four && !(i >> 1) ? top + h + 6 : top, w, h));
-      text('VS', 148, four ? top + h - 4 : top + (h >> 1) - 7, 2);
+      v.slots.forEach((q, i) => slot(v, q, i, i % 2 ? 182 : 10, top + (rows - 1 - (i >> 1)) * (h + gap), w, h));
+      text('VS', 148, top + ((rows * h + (rows - 1) * gap) >> 1) - 7, 2);
       // start, and what it's waiting for
-      const mine = v.slots[v.me], by = four ? 156 : 152, waiting = v.slots.filter((q) => !q).length;
+      const mine = v.slots[v.me], by = rows > 1 ? 156 : 152, waiting = v.slots.filter((q) => !q).length;
       box(90, by, 140, 24);
       const lbl = mine && mine.r ? 'READY!' : 'START';
       text(lbl, 160 - lbl.length * 6, by + 6, 2);
       if (!(mine && mine.r) && (tick >> 4) & 1) text('>', 100, by + 9);
-      // (two or three in a two on two can start without the rest, and have the computer)
+      // (at least two in a bigger game can start without the rest, and have the computer)
       const slow = v.slots.filter((q) => q && !q.r), who = slow.length === 1 ? slow[0].n : slow.length + ' players', ready = mine && mine.r;
       const note = v.cd ? 'The computer takes the empty spot' + (waiting > 1 ? 's' : '') + ' in ' + v.cd
         : waiting && size - waiting < 2 ? 'Waiting for ' + waiting + ' more player' + (waiting > 1 ? 's' : '') + dots
@@ -16448,7 +16593,7 @@
             : !ready ? 'Get the teams right, then press start' : 'Waiting for ' + who + ' to press start';
       ctext(note, by + 30);
       if (v.last && Array.isArray(v.last.sc)) ctext('Last game: ' + HOCKEY_TEAMS[0] + ' ' + v.last.sc[0] + ' - ' + v.last.sc[1] + ' ' + HOCKEY_TEAMS[1] + (v.last.ot ? ' (OT)' : ''), by + 44);
-      const hint = 'Arrows: ' + (four ? 'move' : 'switch team') + '  Space: ' + (ready ? 'not yet' : 'start') + '  Esc: leave';
+      const hint = 'Arrows: ' + (rows > 1 ? 'move' : 'switch team') + '  Space: ' + (ready ? 'not yet' : 'start') + '  Esc: leave';
       text(hint, (SW - hint.length * 6) >> 1, SH - 16);
     }
     // one spot in the lobby: who's in it (their face, name, and whether they've pressed
@@ -16456,15 +16601,17 @@
     function slot(v, q, i, x, y, w, h) {
       box(x, y, w, h);
       if (i === v.me && (tick >> 4) & 1) { ctx.fillStyle = HOCKEY_RINGS[i % 2]; ring(x - 2, y - 2, w + 4, h + 4); ring(x - 1, y - 1, w + 2, h + 2); }
-      ctx.fillStyle = HOCKEY_RINGS[i % 2]; ctx.fillRect(x + 8, y + 8, 5, 5);
-      text('PLAYER ' + (i + 1), x + 16, y + 8);
-      const big = h > 60, tx = x + (big ? 46 : 30);
-      if (!q) { text(v.cd ? 'The computer' : 'Waiting' + '.'.repeat(1 + ((tick >> 4) % 3)), tx, y + (big ? 36 : 24), 1, col.mid); return; }
+      // (where things go: the label, the name beside their face, the tag under it, and what an
+      // empty spot says, for one spot on a team, two rows of them and three)
+      const big = h > 60, tight = h < 40, tx = x + (big ? 46 : 30), [ly, ny, gy, ey] = big ? [8, 26, 40, 36] : tight ? [6, 15, 24, 19] : [8, 22, 34, 24];
+      ctx.fillStyle = HOCKEY_RINGS[i % 2]; ctx.fillRect(x + 8, y + ly, 5, 5);
+      text('PLAYER ' + (i + 1), x + 16, y + ly);
+      if (!q) { text(v.cd ? 'The computer' : 'Waiting' + '.'.repeat(1 + ((tick >> 4) % 3)), tx, y + ey, 1, col.mid); return; }
       const o = mp.others[q.id], sheet = i === v.me ? sprites : o ? mpSprites(o) : charSprites.male[0];
-      ctx.drawImage(sheet.down[0], x + 8, y + (big ? 26 : 22), big ? 32 : 16, big ? 32 : 16);
-      text(q.n, tx, y + (big ? 26 : 22));
+      ctx.drawImage(sheet.down[0], x + 8, y + ny, big ? 32 : 16, big ? 32 : 16);
+      text(q.n, tx, y + ny);
       const tag = (i === v.me ? 'YOU' : '') + (q.r ? (i === v.me ? '  ' : '') + 'READY' : '');
-      if (tag) text(tag, tx, y + (big ? 40 : 34));
+      if (tag) text(tag, tx, y + gy);
     }
     return self;
   }
@@ -16862,9 +17009,13 @@
   }
 
   // Pressing A: turn to whoever is in front of you, or use the first thing there that does
-  // anything.
+  // anything. Everyone in a live game stays standing where they signed up while they play, so
+  // someone busy doesn't get in the way of you signing up too, at the rink's booth or the
+  // poker table.
   function interact() {
-    const near = personAhead();
+    const signUp = P.floor === YARD ? 'G' : P.floor === CASINO ? ']' : '';
+    let near = personAhead();
+    if (near && near.other && near.other.b && tilesAhead().some(([x, y]) => tileAt(P.floor, x, y) === signUp)) near = null;
     if (near) {
       if (near.dx || near.dy) { P.face = Math.atan2(near.dx, near.dy); P.dir = wayOf(near.dx, near.dy); }
       if (near.npc) talkTo(near.npc); else mpTalk(near.other);
@@ -17050,7 +17201,7 @@
       '[': ['Cody\'s blackjack table. Blackjack pays 3 to 2.', 'DEAL ME IN', () => BlackjackApp(null, true)],
       // with a game server, you can play the people here instead of Cody and Dmitriy
       ']': MP_WS ? ['The poker table. Zin is dealing Texas Hold\'em. Play Cody and Dmitriy, or sit in with other players?',
-        ['PLAY SOLO', 'PLAY LIVE'], [() => PokerApp(null, true), LivePoker]]
+        ['PLAY SOLO', 'PLAY LIVE'], [() => PokerApp(null, true), () => SignUp('poker')]]
         : ['The poker table. Zin is dealing Texas Hold\'em, and Cody and Dmitriy are already in.', 'TAKE A SEAT', () => PokerApp(null, true)],
       7: ['A slot machine, all lit up. It plays for spring rolls.', 'PULL THE LEVER', SlotsGame],
     };
@@ -17831,7 +17982,7 @@
   addEventListener('resize', layout);
   addEventListener('orientationchange', layout);
 
-  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|lego|wok|carrot|jar|poker|blackjack|slots|pokertable|pokerlive|bjtable|hockey1|hockey2, or locker|list|eotm with &quest=)
+  // Testing shortcut: index.html#play&f=1&x=40&y=20&char=female:2 (add &game=punch|run|pong|toss|stack|simon|lunch|candy|squat|golf|dark|coffee|battle|fan|coil|damper|filter|snake|parts|cable|cpr|engrave|pulldown|ball|desk|jam|laundry|forms|nathan|wade|lego|wok|carrot|jar|poker|blackjack|slots|pokertable|pokerlive|bjtable|hockey1|hockey2|hockey3|signhockey|signpoker, or locker|list|eotm with &quest=)
   if (location.hash.startsWith('#play')) {
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
@@ -17909,7 +18060,7 @@
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
       dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp, slots: SlotsGame,
       pokertable: () => PokerApp(null, true), pokerlive: LivePoker, bjtable: () => BlackjackApp(null, true),
-      hockey: () => HockeyGame(gateKeeper || npcs.find((n) => !n.ghost && !n.extra)), hockey1: () => LiveHockey(2), hockey2: () => LiveHockey(4),
+      hockey: () => HockeyGame(gateKeeper || npcs.find((n) => !n.ghost && !n.extra)), hockey1: () => LiveHockey(2), hockey2: () => LiveHockey(4), hockey3: () => LiveHockey(6), signhockey: () => SignUp('hockey'), signpoker: () => SignUp('poker'),
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       chop: ChopGame, mallow: MallowGame, spruce: SpruceGame, snowman: SnowmanGame, cocoa: CocoaGame, snowball: SnowballGame, humbug: HumbugGame,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),

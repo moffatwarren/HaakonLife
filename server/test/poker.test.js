@@ -37,6 +37,18 @@ test('four seats at most', () => {
   assert.ok(poker.sit(s, 'e', 'e'));
 });
 
+test('a list of tables says who\'s there and how many seats are open', () => {
+  const s = table();
+  poker.sit(s, 'a', 'Ann');
+  assert.deepEqual(poker.brief(s), { size: 4, ph: 'wait', who: ['Ann'], open: 3 });
+  poker.sit(s, 'b', 'Bob');
+  until(s, () => s.ph === 'play');
+  assert.deepEqual(poker.brief(s), { size: 4, ph: 'play', who: ['Ann', 'Bob'], open: 2 });
+  poker.stand(s, 'a');
+  assert.deepEqual(poker.brief(s).who, ['Bob']);
+  assert.equal(poker.brief(s).open, 2, 'Ann\'s seat isn\'t free until the hand is over');
+});
+
 test('someone who sits down mid-hand is dealt in from the next one', () => {
   const s = table();
   poker.sit(s, 'a', 'Ann'); poker.sit(s, 'b', 'Bob');

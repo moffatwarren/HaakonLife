@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import * as hockey from '../tables/hockey.js';
 import { seeded } from '../rooms.js';
 
-const { one, two } = hockey;
+const { one, two, three } = hockey;
 const table = (kind, seed = 1) => kind.create({ rng: seeded(seed) });
 const ids = (s) => s.slots.map((q) => q && q.id);
 // everyone presses start, and the game begins on the next tick
@@ -156,6 +156,129 @@ test('one on one has just the two spots to swap between', () => {
   assert.deepEqual(ids(s), ['b', 'a']);
   one.input(s, 'b', { mv: 'right' });
   assert.deepEqual(ids(s), ['a', 'b']);
+});
+
+test('three on three: six spots, two teams, three rows to move between', () => {
+  const s = table(three);
+  for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) assert.equal(three.sit(s, id, id), true);
+  assert.deepEqual(ids(s), ['a', 'b', 'c', 'd', 'e', 'f']);
+  assert.equal(three.sit(s, 'g', 'g'), 'full');
+  three.input(s, 'a', { mv: 'down' });
+  assert.deepEqual(ids(s), ['a', 'b', 'c', 'd', 'e', 'f'], 'already in the front row');
+  three.input(s, 'a', { mv: 'up' });
+  assert.deepEqual(ids(s), ['c', 'b', 'a', 'd', 'e', 'f'], 'up a row');
+  three.input(s, 'a', { mv: 'up' });
+  assert.deepEqual(ids(s), ['c', 'b', 'e', 'd', 'a', 'f'], 'up to the back row');
+  three.input(s, 'a', { mv: 'up' });
+  assert.deepEqual(ids(s), ['c', 'b', 'e', 'd', 'a', 'f'], 'already in the back row');
+  three.input(s, 'a', { mv: 'right' });
+  assert.deepEqual(ids(s), ['c', 'b', 'e', 'd', 'f', 'a'], 'swapped with whoever\'s level');
+  begin(three, s);
+  assert.deepEqual(s.g.players.map((p) => [p.name, p.team]), [['c', 0], ['b', 1], ['e', 0], ['d', 1], ['f', 0], ['a', 1]]);
+});
+
+test('three on three: everyone starts in a spot of their own, and each team shoots at the right net', () => {
+  const s = table(three);
+  for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) three.sit(s, id, id);
+  begin(three, s);
+  const spots = s.g.players.map((p) => p.x + ',' + p.y);
+  assert.equal(new Set(spots).size, 6);
+  const { cy } = s.g.rink;
+  for (const p of s.g.players) assert.ok(p.team === 0 ? p.y > cy : p.y < cy, 'on their own end');
+});
+
+test('three on three: two players with the computer in the empty spots, who spread out and score', () => {
+  const s = table(three);
+  three.sit(s, 'a', 'Ann'); three.sit(s, 'b', 'Bob');
+  three.input(s, 'b', { mv: 'left' });
+  three.input(s, 'a', { go: true }); three.input(s, 'b', { go: true });
+  for (let i = 0; i < 5 * three.hz; i++) three.tick(s);
+  assert.equal(s.ph, 'play');
+  assert.deepEqual(s.g.players.map((p) => p.ai), [false, true, false, true, true, true]);
+  // red is all the computer's: how far apart they keep, not all three after the puck
+  const red = s.g.players.filter((p) => p.team === 1);
+  let gap = 0, n = 0;
+  for (let i = 0; i < 2000 && s.ph === 'play'; i++) {
+    three.tick(s);
+    if (s.g.phase !== 'play') continue;
+    n++;
+    gap += red.reduce((d, p, j) => d + Math.hypot(p.x - red[(j + 1) % 3].x, p.y - red[(j + 1) % 3].y), 0) / 3;
+  }
+  assert.ok(n > 500);
+  assert.ok(gap / n > 2.5, 'they\'re on average ' + (gap / n).toFixed(1) + ' m apart');
+  until(three, s, () => s.g.score[1] > 0);
+});
+
+test('sitting down in a game that\'s on takes over a skater the computer has from the start', () => {
+  const s = table(two);
+  two.sit(s, 'a', 'Ann'); two.sit(s, 'b', 'Bob');
+  two.input(s, 'b', { mv: 'left' });
+  two.input(s, 'a', { go: true }); two.input(s, 'b', { go: true });
+  for (let i = 0; i < 5 * two.hz; i++) two.tick(s);
+  assert.equal(s.ph, 'play');
+  assert.deepEqual(ids(s), ['a', null, 'b', null], 'both on yellow, with the computer on red');
+  assert.equal(two.sit(s, 'c', 'Cat'), true);
+  assert.deepEqual(ids(s), ['a', 'c', 'b', null], 'on the team with fewer players');
+  assert.deepEqual(s.g.players.map((p) => p.ai), [false, false, false, true]);
+  const v = two.view(s, 'c');
+  assert.equal(v.me, 1);
+  assert.deepEqual(v.who[1], { id: 'c', n: 'Cat', ai: false }, 'not the computer\'s any more');
+  assert.equal(v.who[3].id, null);
+  // it's theirs: they steer it, and the server takes their ticks from the start
+  until(two, s, () => s.g.phase === 'play');
+  const p = s.g.players[1], y0 = p.y;
+  two.input(s, 'c', { q: 1, i: Array(20).fill([0, 1, 0, 0]) });
+  for (let i = 0; i < 10; i++) two.tick(s);
+  assert.equal(two.view(s, 'c').aq, 20);
+  assert.ok(p.y > y0 + 0.5, 'skated down the ice');
+  // and it's in the next game too
+  s.g.clock = 120; s.g.score = [2, 1];
+  until(two, s, () => s.ph === 'lobby');
+  assert.deepEqual(ids(s), ['a', 'c', 'b', null]);
+});
+
+test('sitting down takes over the skater of someone who left', () => {
+  const s = table(one);
+  one.sit(s, 'a', 'Ann'); one.sit(s, 'b', 'Bob');
+  begin(one, s);
+  assert.equal(one.sit(s, 'c', 'Cat'), 'busy', 'nobody\'s left yet');
+  one.stand(s, 'b');
+  assert.equal(s.g.players[1].ai, true);
+  assert.equal(one.sit(s, 'c', 'Cat'), true);
+  assert.equal(s.g.players[1].ai, false);
+  assert.deepEqual(one.view(s, 'a').who.map((w) => [w.id, w.n, w.ai]), [['a', 'Ann', false], ['c', 'Cat', false]]);
+  assert.deepEqual(one.seated(s), ['a', 'c']);
+  // the same goes for Bob, coming back to a game with nothing free
+  assert.equal(one.sit(s, 'b', 'Bob'), 'busy');
+});
+
+test('nobody can join a game that\'s been won until it\'s back in the lobby', () => {
+  const s = table(two);
+  two.sit(s, 'a', 'Ann'); two.sit(s, 'b', 'Bob');
+  two.input(s, 'a', { go: true }); two.input(s, 'b', { go: true });
+  for (let i = 0; i < 5 * two.hz; i++) two.tick(s);
+  s.g.clock = 120; s.g.score = [2, 1];
+  until(two, s, () => s.ph === 'over');
+  assert.equal(two.sit(s, 'c', 'Cat'), 'busy');
+  assert.equal(two.brief(s).open, 0);
+  until(two, s, () => s.ph === 'lobby');
+  assert.equal(two.brief(s).open, 2);
+  assert.equal(two.sit(s, 'c', 'Cat'), true);
+});
+
+test('a list of tables says who\'s there and what\'s open', () => {
+  const s = table(three);
+  three.sit(s, 'a', 'Ann'); three.sit(s, 'b', 'Bob');
+  assert.deepEqual(three.brief(s), { size: 6, ph: 'lobby', who: ['Ann', 'Bob'], open: 4 });
+  three.input(s, 'a', { go: true }); three.input(s, 'b', { go: true });
+  for (let i = 0; i < 5 * three.hz; i++) three.tick(s);
+  const b = three.brief(s);
+  assert.deepEqual([b.ph, b.who, b.open, b.ot], ['play', ['Ann', 'Bob'], 4, false]);
+  assert.deepEqual([...b.sc], [0, 0]);
+  assert.equal(b.clk, 180);
+  assert.doesNotThrow(() => JSON.stringify(b));
+  for (const id of ['c', 'd', 'e', 'f']) three.sit(s, id, id);
+  assert.equal(three.brief(s).open, 0, 'full');
 });
 
 test('steering moves your skater, and a tap of A too quick for a tick still shoots', () => {

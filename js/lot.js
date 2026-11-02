@@ -307,6 +307,40 @@ window.LotArt = (function () {
       for (let x = 4; x < 110; x += 14) p.oval(x + (x * 7) % 5, 12, 9 + (x % 3), 5, '#f4f7fc');
     });
   }
+  // The sign-up booth for live hockey, by the rink's gate: a little wooden booth two tiles wide
+  // under a blue and white awning, the rink's colours, with the sheet on a clipboard on its
+  // counter and a spare stick leaning against it
+  function signUpBooth() {
+    return pic(76, 108, (p) => {
+      p.rect(8, 30, 60, 44, '#6a4628');
+      for (let x = 8; x < 68; x += 12) { p.rect(x, 30, 1, 44, '#4e3219'); p.rect(x + 1, 30, 1, 44, '#7e5632'); }
+      p.rect(5, 28, 4, 46, '#3a2c20'); p.rect(67, 28, 4, 46, '#3a2c20');
+      // pinned up inside: the rink, with its two nets
+      p.rect(25, 40, 26, 22, K); p.rect(27, 42, 22, 18, '#e2f1fa');
+      p.rect(27, 50, 22, 2, '#d24a4a'); p.rect(27, 46, 22, 1, '#4a74d0'); p.rect(27, 55, 22, 1, '#4a74d0');
+      p.rect(35, 43, 6, 1, '#d24a4a'); p.rect(35, 58, 6, 1, '#d24a4a');
+      // the counter, in planks, with the sign on it
+      p.rect(3, 70, 70, 36, '#9a6434');
+      for (let x = 3; x < 73; x += 14) { p.rect(x, 76, 1, 30, '#6a4020'); p.rect(x + 1, 76, 1, 30, '#b47c48'); }
+      p.rect(0, 68, 76, 8, '#f0d0a0'); p.rect(0, 74, 76, 2, '#c89058');
+      p.rect(3, 101, 70, 5, '#6a4020');
+      p.rect(11, 80, 54, 16, K); p.rect(13, 82, 50, 12, '#2f5cc0'); p.word('SIGN UP', 17, 85, '#ffffff');
+      // the clipboard, its sheet half filled in, and the pen on a string
+      p.rect(45, 58, 20, 12, K); p.rect(46, 59, 18, 10, '#7a4c28'); p.rect(48, 60, 14, 9, '#f4f6fa');
+      for (const y of [62, 64, 66]) p.rect(50, y, y === 66 ? 5 : 10, 1, '#5868a8');
+      p.rect(52, 57, 6, 3, '#c8ccd8');
+      // the spare stick, leaning on the counter
+      for (let i = 0; i < 40; i++) p.rect(10 + (i >> 2), 34 + i, 3, 1, i < 6 ? K : '#c89058');
+      p.rect(19, 74, 10, 4, '#c89058'); p.rect(19, 77, 10, 1, '#6a4020');
+      // the awning, its edge scalloped, and snow along the top
+      for (let i = 0; i < 6; i++) {
+        const x = 2 + i * 12, c = i & 1 ? '#f4f7fc' : '#2f5cc0', lo = i & 1 ? '#c4d2e6' : '#21449a';
+        p.rect(x, 10, 12, 20, c); p.rect(x, 10, 2, 20, mix(c, '#ffffff', 0.25)); p.rect(x + 10, 10, 2, 20, lo);
+        p.oval(x + 6, 30, 6, 4, lo); p.oval(x + 6, 29, 6, 4, c);
+      }
+      for (let x = 5; x < 74; x += 11) p.oval(x + (x * 7) % 3, 10, 8 + (x % 3), 5, '#f4f7fc');
+    });
+  }
   // the steam off the urn, going up in turn
   function steam() {
     return [0, 1, 2].map((k) => pic(24, 30, (p) => {
@@ -408,7 +442,7 @@ window.LotArt = (function () {
   function paint(floor) {
     const W = floor.tiles[0].length, H = floor.tiles.length, PW = W * 32, PH = H * 32;
     const at = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? ' ' : floor.tiles[y][x]);
-    const paved = (t) => ',cLBn~'.includes(t);
+    const paved = (t) => ',cLBn~G'.includes(t);
     const R = HOCKEY.rink(floor);
     const cv = canvas(PW, PH), c = cv.getContext('2d'), img = c.createImageData(PW, PH), d = new Uint32Array(img.data.buffer);
     let wallH = 0;
@@ -678,6 +712,8 @@ window.LotArt = (function () {
           stand(im, bx, by);
           const sm = steam();
           props.push({ x: (bx - 56 + 33 - 12) / 2, y: (by - 120 + 44 - 30) / 2, z: by / 2 - 11, frames: sm, every: 14 });
+        } else if (t === 'G' && at(x - 1, y) !== 'G' && at(x, y - 1) !== 'G') {
+          stand(signUpBooth(), x * 32 + 32, (y + 2) * 32 - 2);
         } else if (t === 'b') {
           const faces = at(x + 2, y) === 'f';
           c.drawImage(bench(faces), x * 32, y * 32);

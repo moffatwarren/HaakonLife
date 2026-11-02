@@ -1,8 +1,9 @@
 // Live hockey on the parking lot's rink, against other players: one on one (the 'hockey1'
-// table) or two on two ('hockey2'). Whoever turns up first waits in the lobby for the rest.
-// Anyone there can move over to the other team (swapping places with someone if it's full),
-// and once every spot is taken and everyone has pressed start, the puck drops. Two or three
-// players needn't wait for a fourth, though: once everyone there has pressed start, the
+// kind of table), two on two ('hockey2') or three on three ('hockey3'). Whoever turns up first
+// waits in the lobby for the rest. Anyone there can move over to the other team (swapping
+// places with someone if it's full), and once every spot is taken and everyone has pressed
+// start, the puck drops. In two on two or three on three, the players there needn't wait for
+// the rest, though: once at least two have turned up and they've all pressed start, the
 // computer takes the empty spots after a few seconds (unless someone else turns up first).
 // LiveHockey in js/game.js draws it.
 //
@@ -12,9 +13,10 @@
 // read, live hockey is off (sitting down gets 'off') and everything else carries on.
 //
 // Someone who leaves partway through (or drops out for too long) has their skater played by
-// the computer for the rest of the game, so it carries on without them (unless nobody's
-// left, when it's called off and the lobby is open again). Once it's over,
-// everyone still there is back in the lobby, on the same teams, for another.
+// the computer, so it carries on without them (unless nobody's left, when it's called off and
+// the lobby is open again). Anyone can sit down in a game that's on, and take over a skater
+// the computer's playing. Once it's over, everyone still there is back in the lobby, on the
+// same teams, for another.
 import fs from 'node:fs';
 import vm from 'node:vm';
 
@@ -41,7 +43,8 @@ export function load() {
 
 // Spots in the lobby, which are also the players' places in the game: even ones are team 0
 // (on the left in the lobby, the yellow rings), odd ones team 1 (on the right, red). 0 and 1
-// are the front row (players 1 and 2, who take the faceoffs); 2 and 3 are behind them.
+// are the front row (players 1 and 2, who take the faceoffs); 2 and 3 are behind them, and
+// 4 and 5 behind them.
 const teamOf = (i) => i % 2;
 
 function kind(size) {
@@ -55,24 +58,29 @@ function kind(size) {
     // games), n (counts the game's ticks), fo (counts faceoffs), ev (what happened this tick)
     // and last (the final score, once it's over)
     create: ({ rng }) => ({ size, rng, slots: Array(size).fill(null), ph: 'lobby', t: 0, cd: 0, g: null, ids: [], cpu: [], hold: [], gn: 0, n: 0, fo: 0, ev: [], last: null }),
-    sit, stand, away, input, tick, seated, view,
+    sit, stand, away, input, tick, seated, view, brief,
   };
 }
 
 const slotOf = (s, id) => s.slots.findIndex((q) => q && q.id === id);
 
-// Into the lobby, on whichever team has fewer players (team 0 if it's even). Not while a
-// game's on ('busy'), or if every spot is taken ('full').
+// Into a spot on whichever team has fewer players (team 0 if it's even): in the lobby, or with
+// a game on, a skater the computer's playing, who's theirs from here on. Not if every spot is
+// taken ('full', or 'busy' with a game on), or once the game's been won ('busy').
 export function sit(s, id, name) {
   if (slotOf(s, id) >= 0) return true;
   if (!load()) return 'off';
-  if (s.ph !== 'lobby') return 'busy';
+  if (s.ph === 'over') return 'busy';
   const free = s.slots.map((q, i) => i).filter((i) => !s.slots[i]);
-  if (!free.length) return 'full';
+  if (!free.length) return s.ph === 'play' ? 'busy' : 'full';
   const count = (team) => s.slots.filter((q, i) => q && teamOf(i) === team).length;
   const team = count(1) < count(0) ? 1 : 0;
   const i = free.find((j) => teamOf(j) === team) ?? free[0];
-  s.slots[i] = { id, n: String(name).slice(0, 12), r: false };
+  const q = s.slots[i] = { id, n: String(name).slice(0, 12), r: false };
+  if (s.ph === 'play') {
+    Object.assign(s.g.players[i], { ai: false, name: q.n });
+    s.ids[i] = id; s.cpu[i] = -1; s.hold[i] = still();
+  }
   return true;
 }
 
@@ -138,8 +146,9 @@ export function input(s, id, d) {
 }
 
 // Left and right go over to that team: into a free spot there (the same row if it can),
-// otherwise swapping with whoever's level with them. Up and down (two on two) swap rows
-// within their team. Anyone who's moved has to press start again.
+// otherwise swapping with whoever's level with them. Up and down (with more than one row)
+// swap rows within their team, the front row being at the bottom. Anyone who's moved has to
+// press start again.
 function move(s, i, dir) {
   const team = teamOf(i), row = i >> 1, rows = s.size / 2;
   let j;
@@ -149,8 +158,9 @@ function move(s, i, dir) {
     j = row * 2 + to;
     for (let k = 0; k < rows && s.slots[j]; k++) if (!s.slots[k * 2 + to]) j = k * 2 + to;
   } else {
-    if (rows < 2 || (dir === 'up') === (row === 1)) return;
-    j = (1 - row) * 2 + team;
+    const r = row + (dir === 'up' ? 1 : -1);
+    if (r < 0 || r >= rows) return;
+    j = r * 2 + team;
   }
   [s.slots[i], s.slots[j]] = [s.slots[j], s.slots[i]];
   for (const q of [s.slots[i], s.slots[j]]) if (q) q.r = false;
@@ -233,6 +243,15 @@ export function tick(s) {
 
 export function seated(s) { return s.slots.filter(Boolean).map((q) => q.id); }
 
+// For a list of tables (see tables.js), with a game on: the score (sc), seconds left (clk)
+// and whether it's in overtime (ot). Nobody can join a game that's been won until it's back
+// in the lobby.
+export function brief(s) {
+  const b = { size: s.size, ph: s.ph, who: s.slots.filter(Boolean).map((q) => q.n), open: s.ph === 'over' ? 0 : s.slots.filter((q) => !q).length };
+  if (s.g) Object.assign(b, { sc: s.g.score.slice(), clk: Math.ceil(s.g.clock / 60), ot: s.g.ot });
+  return b;
+}
+
 // What id sees. In the lobby: ph, size, me (their spot), slots ({ id, n, r } or null), cd
 // (seconds until the computer fills the empty spots, or 0 if it isn't about to) and last
 // (the last game's final score, { sc, ot }, if there was one). In a game ('play', or 'over'
@@ -267,5 +286,5 @@ export function view(s, id) {
 // (to the millimetre, for sending)
 const mm = (v) => (typeof v === 'number' ? round(v) : Array.isArray(v) ? v.map(mm) : v);
 
-// The two tables: the same game, for two players or four.
-export const one = kind(2), two = kind(4);
+// The kinds of table: the same game, for two players, four or six.
+export const one = kind(2), two = kind(4), three = kind(6);

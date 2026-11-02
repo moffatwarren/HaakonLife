@@ -129,7 +129,9 @@ start each game with 200:
   the dealer stands on all 17s, and you break the bank at 1000
 - **Poker table**: Spring Roll Hold'em, no-limit Texas Hold'em. PLAY SOLO is against
   Cody and Dmitriy (the same game as on Zin's computer). PLAY LIVE (only when there's a
-  game server) sits you down with whoever else is playing, up to four at once: you get
+  game server) lists the live tables with a seat free and who's at each, so you can pull up
+  a chair at one or start a new table (with none going, you go straight to a new one).
+  There can be any number of tables at once, up to four at each: you get
   200 spring rolls, the blinds stay at 2/4, and if a hand is going you're dealt in from
   the next one. On your own you wait for somebody to join. You have 30 seconds to act
   (run out twice in a row and you lose your seat), and running out of rolls gets you up
@@ -611,8 +613,19 @@ up whenever they like. `server/tables.js` describes what a table game exports, a
 `server/tables/index.js` lists them. To try it, open
 `tools/test.html#play&game=pokerlive&server=ws://localhost:8080` in two tabs.
 
-Live hockey is two tables of this kind, `hockey1` (one on one) and `hockey2` (two on
-two), both `server/tables/hockey.js`: a lobby, then `js/hockey.js`'s game played 60 ticks
+A world can have any number of tables of each kind at once, up to `TABLES_MAX` (40) in all;
+past that, starting another is refused until one's put away, and joining one still works. A
+table starts when the first person sits down and goes when the last one has got up. Its
+name is its kind's key, on its own or followed by `:` and whatever the browser that started
+it made up (`hockey2:x3kf9a`). That way a browser knows what to call a table before it's
+there, reconnecting works as before, and a copy from before there were many tables, which
+only knows the plain names, still gets a game. `{ k: 'ls', g }` asks what's on at the tables
+whose names start with `g`, and each comes back with what the game's `brief` says about it,
+which is how the sign-up sheet (`SignUp` in `js/game.js`) fills itself in. Sitting down with
+`j` set only works if the table's still there, for someone picking it from that list.
+
+Live hockey is three kinds of table, `hockey1` (one on one), `hockey2` (two on two) and
+`hockey3` (three on three), all `server/tables/hockey.js`: a lobby, then `js/hockey.js`'s game played 60 ticks
 a second, with the game sent out 30 times a second. (Tables tick on a clock of their own
 that makes up late ticks, so a game really is 60 ticks a second.) The server reads
 `js/hockey.js` and `js/maps.js` (for the rink) from the site's files, so it needs the
@@ -631,7 +644,17 @@ falls back to drawing the server's views a little behind, as before. So on Rende
 the server on its own, deploy it by hand then (or change something in `server/` too):
 until you do, players get the slower fallback. To try it, open
 `tools/test.html#play&yard=1&christmas=1&game=hockey1&server=ws://localhost:8080`
-(or `hockey2`) in two tabs (four for two on two, or two and wait for the computer).
+(or `hockey2`, or `hockey3`) in two tabs (four for two on two and six for three on three, or
+two and wait for the computer). These all sit down at the one table with the plain name;
+`game=signhockey` and `game=signpoker` open the sign-up sheet instead.
+
+For what it costs: bots playing every game flat out against a copy of the server on a
+desktop (i7-14700K, November 2026) took about 1 to 2% of a core per game with a few games
+on, and 33% with 40 full three on threes (240 players, 137 MB of memory), every one still
+getting all 30 views a second. Each player is sent 20 KB a second in one on one, 30 in two on
+two and 40 in three on three, so an hour of a full game is about 0.14, 0.41 and 0.85 GB out.
+Render's Starter plan has half of a slower core, so it probably wouldn't manage all 40 (this
+hasn't been measured there), but that would take 240 people at once.
 
 ## Coworker games
 
@@ -924,15 +947,20 @@ From November 27 to December 31 (by your device's date) the office does Christma
   puck). The most goals you've
   scored in one game (played to the end, win or lose) go on the **HOCKEY GOALS**
   leaderboard, on the Christmas page of the Hall of Fame.
-- **Live hockey**: with a game server, go up to the rink itself (its boards, a net, or
-  the ice once you're out on it) and pick **1 ON 1** or **2 ON 2**. Whoever's minding the
-  gate only plays you one on one. The first one there waits in the lobby, which
-  shows each team's spots (YELLOW on the left, RED on the right; in two on two, players
-  3 and 4 sit behind 1 and 2, who take the faceoffs) and START underneath. Left and
+- **Live hockey**: with a game server, go up to the sign-up booth just outside the rink's
+  gate. (Whoever's minding the gate only plays you one on one.) With nothing going, it asks
+  what size of game to start: **1 ON 1**, **2 ON 2** or **3 ON 3**. Otherwise it lists every
+  game you could join, with who's in it, how many spots are open and, once it's on, the
+  score and the time left, and **START A NEW GAME** underneath. There can be any number
+  going at once, each with its own lobby and clock. The first one there waits in the lobby, which
+  shows each team's spots (YELLOW on the left, RED on the right; in two on two and three on
+  three, the rest sit in rows behind players 1 and 2, who take the faceoffs) and START
+  underneath. Left and
   right move you to the other team, swapping places with whoever's level with you if
   it's full (up and down swap rows with your teammate). Once every spot is taken and
   everyone has pressed start (moving means pressing it again), the puck drops. In two
-  on two, two or three of you needn't wait for the rest: once everyone there has pressed
+  on two or three on three, the players there needn't wait for the rest: once at least two
+  have turned up and they've all pressed
   start, the computer takes the empty spots five seconds later (unless someone else turns
   up first), playing them as coworkers, the same ones on everyone's screen. Press start
   again to take it back and wait for more players. It's
@@ -946,10 +974,10 @@ From November 27 to December 31 (by your device's date) the office does Christma
   (or Esc) brings up a menu but doesn't pause, since the others are still playing.
   Leave partway through (or drop out for more than about 12 seconds) and the computer
   plays your skater for the rest of the game, marked (CPU); if everyone leaves, the game
-  is called off and the lobby is open again. After the final score,
-  everyone still there goes back to the lobby, on the same teams, for another. There's
-  one lobby each for one on one and two on two, so while a game is on, anyone else is
-  told to try again once it's over.
+  is called off and the lobby is open again. Picking a game that's on from the list puts you
+  straight onto the ice, in place of a skater the computer's playing, and the others are told
+  you've joined. After the final score,
+  everyone still there goes back to the lobby, on the same teams, for another.
 
 The parking lot is painted by `js/lot.js`, in the same pixels as the office: 16 to a tile
 (32 at double resolution), a 2-pixel outline round everything and the light from the top
@@ -1096,7 +1124,7 @@ Best scores are saved in the browser, and sent to the online leaderboards when
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
-`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `pokerlive`, `hockey1` and `hockey2` (live hockey, with `&yard=1` to be out at the rink; these three need `&server=`), `blackjack`, `build`, `forklift`, `paint`,
+`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `pokerlive`, `hockey1`, `hockey2` and `hockey3` (live hockey, with `&yard=1` to be out at the rink), `signhockey` and `signpoker` (the sign-up sheets; all of these from `pokerlive` on need `&server=`), `blackjack`, `build`, `forklift`, `paint`,
 `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `hockey`) opens a game straight away.
 `&dog=Bella` puts that dog right in front of you; `game=catch` plays catch with it
 and `game=dogs` shows the frisbee leaderboard.

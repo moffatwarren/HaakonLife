@@ -342,3 +342,167 @@ test('live hockey: two in the lobby press start and play; a third is told a game
   assert.equal(srv.worlds.test.tables.size, 0);
   for (const x of [a, b, c]) x.ws.close();
 });
+
+// up from wherever they are, and gone
+async function done(...cs) {
+  for (const c of cs) {
+    const t = srv.worlds.test.players.get(c.id)?.table;
+    if (t) { c.send({ k: 'stand', t }); await c.for((d) => d.k === 'tb' && d.t === t && !d.s); }
+    c.ws.close();
+  }
+}
+const listed = (c, g) => { c.send({ k: 'ls', g }); return c.for((d) => d.k === 'ls' && d.g === g); };
+
+test('two hockey games at once: each with its own players, its own lobby and its own score', async () => {
+  const a = client(), b = client(), c = client(), d = client();
+  await lobby('hockey1:one', a, b);
+  await lobby('hockey1:two', c, d);
+  assert.equal(srv.worlds.test.tables.size, 2);
+  for (const x of [a, b]) x.send({ k: 'tin', t: 'hockey1:one', d: { go: true } });
+  const v = await a.for((m) => m.k === 'tb' && m.s.ph === 'play');
+  assert.equal(v.t, 'hockey1:one');
+  assert.deepEqual(v.s.who.map((w) => w.id), [a.id, b.id]);
+  // the other game hasn't started, and nothing of the first reached it
+  await pause(100);
+  const seen = c.got.filter((m) => m.k === 'tb');
+  assert.ok(seen.every((m) => m.t === 'hockey1:two' && m.s.ph === 'lobby'));
+  assert.deepEqual(seen[seen.length - 1].s.slots.map((q) => q.id), [c.id, d.id]);
+  for (const x of [c, d]) x.send({ k: 'tin', t: 'hockey1:two', d: { go: true } });
+  const w = await c.for((m) => m.k === 'tb' && m.s.ph === 'play');
+  assert.deepEqual(w.s.who.map((q) => q.id), [c.id, d.id]);
+  assert.equal(srv.worlds.test.tables.get('hockey1:one').state.gn, 1);
+  assert.equal(srv.worlds.test.tables.get('hockey1:two').state.gn, 1);
+  // what you send only reaches the game you're in
+  a.send({ k: 'tin', t: 'hockey1:two', d: { x: 1, y: 0, a: 0, ap: 0, bp: 0 } });
+  await pause(50);
+  assert.deepEqual([srv.worlds.test.tables.get('hockey1:two').state.hold[0].x, srv.worlds.test.tables.get('hockey1:one').state.hold[0].x], [0, 0]);
+  await done(a, b, c, d);
+  assert.equal(srv.worlds.test.tables.size, 0);
+});
+
+test('two poker tables at once, and sitting at another gets you up from the first', async () => {
+  const a = client(), b = client();
+  for (const c of [a, b]) { await c.open(); c.me(); }
+  await pause(20);
+  a.send({ k: 'sit', t: 'poker:red' });
+  b.send({ k: 'sit', t: 'poker:blue' });
+  assert.equal((await a.for((d) => d.k === 'tb' && d.s)).t, 'poker:red');
+  assert.equal((await b.for((d) => d.k === 'tb' && d.s)).t, 'poker:blue');
+  assert.deepEqual([...srv.worlds.test.tables.keys()].sort(), ['poker:blue', 'poker:red']);
+  b.send({ k: 'sit', t: 'poker:red' });
+  assert.equal((await b.for((d) => d.k === 'tb' && d.t === 'poker:blue' && !d.s)).r, 'left');
+  await b.for((d) => d.k === 'tb' && d.t === 'poker:red' && d.s);
+  assert.deepEqual([...srv.worlds.test.tables.keys()], ['poker:red'], 'the empty one is put away');
+  await done(a, b);
+});
+
+test('a list of what\'s on: only the sort you ask for, oldest first, with who\'s there', async () => {
+  const a = client(), b = client(), c = client(), d = client();
+  await lobby('hockey2:first', a, b);
+  await lobby('hockey3:second', c);
+  await seated(d);
+  const { l } = await listed(a, 'hockey');
+  assert.deepEqual(l.map((g) => g.t), ['hockey2:first', 'hockey3:second']);
+  assert.deepEqual(l[0], { t: 'hockey2:first', size: 4, ph: 'lobby', who: ['P' + a.id, 'P' + b.id], open: 2 });
+  assert.equal(l[1].size, 6);
+  assert.deepEqual((await listed(a, 'poker')).l.map((g) => [g.t, g.open]), [['poker', 3]]);
+  assert.deepEqual((await listed(a, 'pong')).l, []);
+  assert.equal(b.got.filter((m) => m.k === 'ls').length, 0, 'just to whoever asked');
+  await done(a, b, c, d);
+});
+
+test('anyone connected can ask what\'s on, and nothing odd gets through', async () => {
+  const a = client();
+  await a.open();
+  assert.deepEqual((await listed(a, 'hockey')).l, [], 'without a record yet, or a seat');
+  a.send({ k: 'ls' }); a.send({ k: 'ls', g: 5 }); a.send({ k: 'ls', g: '' });
+  await pause(50);
+  assert.equal(a.got.filter((m) => m.k === 'ls').length, 0);
+  a.me();
+  await pause(20);
+  for (const t of ['nosuch', 'nosuch:x', 'poker:', ':x', 'poker:a:b', 'poker:' + 'x'.repeat(17), 'poker: x', 'constructor', '__proto__', 7, null]) a.send({ k: 'sit', t });
+  await pause(50);
+  assert.equal(srv.worlds.test.tables.size, 0);
+  assert.equal(a.got.filter((m) => m.k === 'tb').length, 0);
+  a.ws.close();
+});
+
+test('joining from a list: told if it\'s gone, and doesn\'t start a new one', async () => {
+  const a = client(), b = client();
+  await lobby('hockey2:mine', a);
+  await b.open(); b.me();
+  await pause(20);
+  b.send({ k: 'sit', t: 'hockey2:gone', j: 1 });
+  assert.equal((await b.for((d) => d.k === 'tb' && d.t === 'hockey2:gone')).r, 'ended');
+  assert.equal(srv.worlds.test.tables.size, 1);
+  b.send({ k: 'sit', t: 'hockey2:mine', j: 1 });
+  assert.equal((await b.for((d) => d.k === 'tb' && d.t === 'hockey2:mine' && d.s)).s.me, 1);
+  await done(a, b);
+});
+
+test('sitting down in a game on the ice: the computer\'s spot is theirs, on every screen', async () => {
+  const a = client(), b = client(), c = client(), d = client();
+  await lobby('hockey2:ice', a, b);
+  for (const x of [a, b]) x.send({ k: 'tin', t: 'hockey2:ice', d: { go: true } });
+  await a.for((m) => m.k === 'tb' && m.s.ph === 'play', 7000);
+  assert.deepEqual((await listed(a, 'hockey')).l.map((g) => [g.ph, g.open, g.who.length]), [['play', 2, 2]]);
+  await c.open(); c.me();
+  await pause(20);
+  c.send({ k: 'sit', t: 'hockey2:ice', j: 1 });
+  const v = await c.for((m) => m.k === 'tb' && m.s);
+  assert.equal(v.s.ph, 'play', 'straight into the game');
+  assert.equal(v.s.me, 2);
+  const w = await a.for((m) => m.k === 'tb' && m.s.who && m.s.who[2].id === c.id);
+  assert.equal(w.s.who[2].ai, false);
+  assert.equal((await listed(a, 'hockey')).l[0].open, 1);
+  await d.open(); d.me();
+  await pause(20);
+  d.send({ k: 'sit', t: 'hockey2:ice', j: 1 });
+  await d.for((m) => m.k === 'tb' && m.s);
+  assert.equal((await listed(a, 'hockey')).l[0].open, 0, 'full now');
+  await done(a, b, c, d);
+});
+
+test('dropping out and coming back keeps your place at one table of several', async () => {
+  const a = client(), b = client();
+  await lobby('hockey2:other', a);
+  await lobby('hockey2:mine', b);
+  b.ws.close();
+  await pause(100);
+  const b2 = client('test', b.id, 'k' + b.id);
+  await b2.open();
+  assert.deepEqual((await b2.for((d) => d.k === 'all')).tables, ['hockey2:mine']);
+  const v = await b2.for((d) => d.k === 'tb' && d.s);
+  assert.equal(v.t, 'hockey2:mine');
+  await done(a, b2);
+});
+
+test('a copy from before there could be several still gets its one table of each', async () => {
+  const a = client(), b = client();
+  await lobby('hockey1', a);
+  await lobby('hockey1', b);
+  assert.deepEqual(srv.worlds.test.tables.get('hockey1').seated().sort(), [a.id, b.id].sort());
+  const n = client();
+  await n.open();
+  const { l } = await listed(n, 'hockey');
+  assert.deepEqual(l.map((g) => [g.t, g.size, g.open]), [['hockey1', 2, 0]], 'and it shows up in everyone\'s list');
+  await done(a, b, n);
+});
+
+test('there\'s only so many tables at once', async () => {
+  const cs = [];
+  for (let i = 0; i < 40; i++) { const c = client(); await c.open(); c.me(); cs.push(c); }
+  await pause(50);
+  cs.forEach((c, i) => c.send({ k: 'sit', t: 'poker:t' + i }));
+  await Promise.all(cs.map((c) => c.for((d) => d.k === 'tb' && d.s)));
+  assert.equal(srv.worlds.test.tables.size, 40);
+  const e = client();
+  await e.open(); e.me();
+  await pause(20);
+  e.send({ k: 'sit', t: 'poker:more' });
+  assert.equal((await e.for((d) => d.k === 'tb')).r, 'many');
+  e.send({ k: 'sit', t: 'poker:t3' });
+  await e.for((d) => d.k === 'tb' && d.s);
+  await done(...cs, e);
+  assert.equal(srv.worlds.test.tables.size, 0);
+});

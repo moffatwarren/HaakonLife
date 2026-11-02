@@ -1,10 +1,17 @@
 // Tables anyone can sit down at and get up from whenever they like, unlike a Room, which
-// is a match two players agreed to. There's one of each kind in a world, started when the
-// first person sits down and put away when the last one gets up. A browser sends
-//   { k: 'sit', t }  { k: 'stand', t }  { k: 'tin', t, d }  (what they did at it)
-// and while they're sitting there it's sent { k: 'tb', t, s } whenever what they see
-// changes, then { k: 'tb', t, s: null, r: why } once they're no longer at it ('left',
-// 'full', 'gone' (dropped out too long), or whatever the game says, like 'bust').
+// is a match two players agreed to. A world can have any number of each kind at once, each
+// started when the first person sits down and put away when the last one gets up. A table's
+// name, t, is its kind's key, on its own or followed by ':' and whatever the browser that
+// started it made up (hockey2:x3kf9a), so a browser knows what to call a table before it's
+// there. A browser sends
+//   { k: 'sit', t, j }  { k: 'stand', t }  { k: 'tin', t, d }  (what they did at it)
+//   { k: 'ls', g }     what's on at the tables whose names start with g
+// (j: only if that table's still there, for someone picking it from a list) and while they're
+// sitting there it's sent { k: 'tb', t, s } whenever what they see changes, then
+// { k: 'tb', t, s: null, r: why } once they're no longer at it ('left', 'full', 'gone'
+// (dropped out too long), 'ended' (there's no such table any more), 'many' (too many tables
+// going already), or whatever the game says, like 'bust'). A list comes back as
+// { k: 'ls', g, l: [{ t, ...what brief says }] }, oldest first.
 //
 // A table game is a module in tables/, listed by its key in tables/index.js, that exports:
 //   hz                 how many times a second it ticks (default 10)
@@ -17,6 +24,9 @@
 //   tick(s)            one step. Returns who it's got up, as [{ id, r: why }]
 //   seated(s)          the ids of everyone sitting there
 //   view(s, id)        what they're sent
+//   brief(s)           what a list of tables says about it: size (how many it can take), ph,
+//                      who (the names of everyone sitting there) and open (how many more could
+//                      sit down right now), and anything else the game likes
 import { GRACE } from './rooms.js';
 
 export class Table {
@@ -39,6 +49,11 @@ export class Table {
   }
 
   seated() { return this.game.seated(this.state); }
+
+  // its line in a list of tables, or null if the game can't say
+  brief() {
+    try { return Object.assign({ t: this.id }, this.game.brief(this.state)); } catch (e) { return null; }
+  }
 
   sit(pid, name) {
     const got = this.game.sit(this.state, pid, name);

@@ -1,5 +1,5 @@
-// Pond hockey on the parking lot's rink: one on one against a coworker, or one on one or two
-// on two against other players. This is the rules, the skating, the puck and how the players
+// Pond hockey on the parking lot's rink: one on one against a coworker, or up to three on
+// three against other players. This is the rules, the skating, the puck and how the players
 // nobody's playing play; nothing in here draws or reads keys (js/game.js's HockeyGame and
 // LiveHockey do that, and drawYard draws the players and the puck), so the game server
 // runs it as it is for a live game (server/tables/hockey.js).
@@ -442,6 +442,9 @@ window.HOCKEY = (function engine() {
       const inp = { x: 0, y: 0, shoot: false, pass: false };
       const foes = g.players.filter((q) => q.team !== p.team && !q.down);
       const foe = foes.reduce((a, q) => (!a || dist(p, q) < dist(p, a) ? q : a), null);
+      const mates = g.players.filter((q) => q !== p && q.team === p.team);
+      // how many of their team are nearer the puck, for three on a team to spread out by
+      const rank = mates.filter((q) => dist(q, pk) < dist(p, pk)).length;
       if (g.phase !== 'play') return inp;
       if (m.wait > 0) { m.wait--; return inp; }
       // a check coming at them with the puck: half the time they see it and cut away to
@@ -473,13 +476,22 @@ window.HOCKEY = (function engine() {
             }
           }
         } else if (o && o.team !== p.team) {
-          // defending: between them and the net, a stride off them
-          const dn = Math.hypot(own.x - o.x, own.y - o.y) || 1, k = Math.min(1.4, dn * 0.5);
-          m.gx = o.x + ((own.x - o.x) / dn) * k + o.vx * 0.2; m.gy = o.y + ((own.y - o.y) / dn) * k + o.vy * 0.2;
+          // defending: between them and the net, a stride off them. With three on a team, only
+          // the nearest does; the others each mark someone else, nearest the net first
+          const open = mates.length > 1 && rank > 0 ? foes.filter((q) => q !== o).sort((a, b) => dist(a, own) - dist(b, own)) : [];
+          const a = open[Math.min(rank, open.length) - 1] || o, dn = Math.hypot(own.x - a.x, own.y - a.y) || 1, k = Math.min(1.4, dn * 0.5);
+          m.gx = a.x + ((own.x - a.x) / dn) * k + a.vx * 0.2; m.gy = a.y + ((own.y - a.y) / dn) * k + a.vy * 0.2;
+        } else if (!o && mates.length > 1 && rank > 1) {
+          // a loose puck, with two teammates already after it: back in case they miss it
+          m.gx = own.x + (pk.x - own.x) * 0.45; m.gy = own.y + (pk.y - own.y) * 0.45;
         } else if (!o) {
           // a loose puck: get to where it's going
           const lead = Math.min(0.7, dist(p, pk) / 7);
           m.gx = pk.x + pk.vx * lead; m.gy = pk.y + pk.vy * lead;
+        } else if (mates.some((q) => q !== o && q.i < p.i)) {
+          // a teammate has it and another's getting open in front of the net: back up the ice
+          // from them, for the pass back
+          m.gx = tgt.x + (o.x - tgt.x) * 0.3; m.gy = tgt.y + tgt.dir * 8.5;
         } else {
           // a teammate has it: get open, across from them in front of the net
           m.gx = tgt.x - (o.x - tgt.x) * 0.8; m.gy = tgt.y + tgt.dir * 4;
@@ -502,9 +514,9 @@ window.HOCKEY = (function engine() {
           if (toNet < m.range) { m.hold = 2; inp.shoot = true; m.range = 3.5 + r() * 3.5; }
           else if (toNet < 10 && (!foe || dist(p, foe) > 4.5) && r() < 0.006) { m.hold = 24 + Math.floor(r() * 14); inp.shoot = true; }
         }
-        // two on two: pass to a teammate who's open and nearer the net
-        const mate = g.players.find((q) => q !== p && q.team === p.team && !q.down);
-        if (mate && Math.hypot(tgt.x - mate.x, tgt.y - mate.y) < toNet - 3 && (!foe || dist(mate, foe) > 2.5) && r() < 0.05) {
+        // on a team: pass to a teammate who's open and nearer the net
+        const mate = mates.find((q) => !q.down && Math.hypot(tgt.x - q.x, tgt.y - q.y) < toNet - 3 && (!foe || dist(q, foe) > 2.5));
+        if (mate && r() < 0.05) {
           const d = dist(p, mate) || 1; // (steering at them, so it goes their way)
           inp.pass = true; inp.x = (mate.x - p.x) / d; inp.y = (mate.y - p.y) / d;
         }
@@ -520,9 +532,9 @@ window.HOCKEY = (function engine() {
     // ---------- the game ----------
     g.faceoff = function () {
       if (g.clock <= 0) g.ot = true;
-      const spots = [[[0, 4], [-3.5, 7]], [[0, -4], [3.5, -7]]], seen = [0, 0];
+      const spots = [[[0, 4], [-3.5, 7], [3.5, 7]], [[0, -4], [3.5, -7], [-3.5, -7]]], seen = [0, 0];
       for (const p of g.players) {
-        const [dx, dy] = spots[p.team][seen[p.team]++ % 2];
+        const [dx, dy] = spots[p.team][seen[p.team]++ % 3];
         Object.assign(p, { x: R.cx + dx, y: R.cy + dy, vx: 0, vy: 0, ang: p.team === 0 ? Math.PI : 0, act: null, swing: null, wind: 0, down: 0, guard: 0, recover: 0, cheer: false });
         p.mem.next = 0; p.mem.hold = 0; p.mem.wait = 8 + Math.floor(r() * 14); // a moment to react to the drop
       }

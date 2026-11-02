@@ -282,6 +282,10 @@ export function tick(s) {
 
 export const seated = (s) => s.seats.filter((p) => p && !p.left).map((p) => p.id);
 
+// For a list of tables (see tables.js). A seat someone got up from mid-hand isn't free until
+// the hand's over.
+export const brief = (s) => ({ size: MAX, ph: s.ph, who: s.seats.filter((p) => p && !p.left).map((p) => p.n), open: s.seats.filter((p) => !p).length });
+
 // What `id` sees: me (their seat), ph, hn (the hand number), btn (the button's seat),
 // act (whose turn it is, or -1) and clk (their seconds left), bet (the bet to call),
 // min (the smallest raise), sb/bb, pot, board, and the seats (null when empty): each
