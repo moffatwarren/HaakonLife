@@ -44,840 +44,6 @@ window.Art = (function () {
   }
   const UI = { light: COLORS.w, dark: COLORS.k, mid: COLORS.g };
 
-  // ---------- 16x16 indexed buffers ----------
-  const buf = () => new Array(256).fill(null);
-  function set(b, x, y, c) { if (x >= 0 && x < 16 && y >= 0 && y < 16 && c) b[y * 16 + x] = c; }
-  function rect(b, x, y, w, h, c) { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) set(b, i, j, c); }
-  function stamp(b, art) { stampArt(b, art); }
-  function stampArt(b, art) {
-    for (let j = 0; j < art.length; j++)
-      for (let i = 0; i < art[j].length; i++) {
-        const ch = art[j][i];
-        if (ch !== '.') set(b, i, j, ch);
-      }
-  }
-
-  // ---------- object art ----------
-  const ART = {
-    forklift: [
-      '....K......K....',
-      '....K......K....',
-      '....K......K....',
-      '...kKkkkkkkKk...',
-      '...kGGGGGGGGk...',
-      '.kkkkkkkkkkkkkk.',
-      '.kkooooooooookk.',
-      '.kkokkkkkkkkokk.',
-      '..kokKKKKKKkok..',
-      '..kokKKKKKKkok..',
-      '..kokkkkkkkkok..',
-      '..kooooooooook..',
-      '.kkKKKKKKKKKKkk.',
-      '.kkKKKKKKKKKKkk.',
-      '..kkkkkkkkkkkk..',
-      '................',
-    ],
-    chair: [
-      '................',
-      '................',
-      '....kkkkkkkk....',
-      '...kuuuuuuuuk...',
-      '...kuUUUUUUuk...',
-      '...kuUUUUUUuk...',
-      '...kkkkkkkkkk...',
-      '..kuUUUUUUUUuk..',
-      '..kuUUUUUUUUuk..',
-      '..kuUUUUUUUUuk..',
-      '..kkuuuuuuuukk..',
-      '...kkkkkkkkkk...',
-      '......kKKk......',
-      '....kkkKKkkk....',
-      '...kK..kk..Kk...',
-      '................',
-    ],
-    plant: [
-      '......kkkk......',
-      '....kkEElEkk....',
-      '...kEElEEEElk...',
-      '..kEEllEEeElEk..',
-      '.kEleEElEEleEEk.',
-      '.kEEEeElleEEeEk.',
-      '.keElEEeEEElEek.',
-      '..kEEeElEEeEEk..',
-      '..kkeEEeEEEekk..',
-      '....kkeeeekk....',
-      '.....knnnnk.....',
-      '....knNNNNnk....',
-      '....knNNNNnk....',
-      '....knnNNnnk....',
-      '.....knnnnk.....',
-      '......kkkk......',
-    ],
-    toilet: [
-      '................',
-      '...kkkkkkkkkk...',
-      '...kwwwwwwwwk...',
-      '...kGGGGGGGGk...',
-      '...kkkkkkkkkk...',
-      '....kwwwwwwk....',
-      '...kwwGGGGwwk...',
-      '...kwGiiiiGwk...',
-      '...kwGiiiiGwk...',
-      '...kwGiiiiGwk...',
-      '...kwwGiiGwwk...',
-      '....kwwGGwwk....',
-      '.....kwwwwk.....',
-      '......kkkk......',
-      '................',
-      '................',
-    ],
-    sink: [
-      '................',
-      '................',
-      'kkkkkkkkkkkkkkkk',
-      'kWWWWWWggWWWWWWk',
-      'kWWWWWWKKWWWWWWk',
-      'kWWkkkkkkkkkkWWk',
-      'kWkiiiiiiiiiikWk',
-      'kWkiiiiiiiiiikWk',
-      'kWkiiiiKKiiiikWk',
-      'kWkiiiiiiiiiikWk',
-      'kWWkkkkkkkkkkWWk',
-      'kWWWWWWWWWWWWWWk',
-      'kGGGGGGGGGGGGGGk',
-      'kkkkkkkkkkkkkkkk',
-      '................',
-      '................',
-    ],
-    fridge: [
-      '..kkkkkkkkkkkk..',
-      '..kGGGGGGGGGGk..',
-      '..kWWWWWWWWWWk..',
-      '..kkkkkkkkkkkk..',
-      '..kwwwwwwwwwwk..',
-      '..kwwwwwwwwKwk..',
-      '..kwwwwwwwwKwk..',
-      '..kGGGGGGGGGGk..',
-      '..kwwwwwwwwwwk..',
-      '..kwwwwwwwwKwk..',
-      '..kwwwwwwwwKwk..',
-      '..kwwwwwwwwKwk..',
-      '..kwwwwwwwwwwk..',
-      '..kGGGGGGGGGGk..',
-      '..kkkkkkkkkkkk..',
-      '................',
-    ],
-    recycling: [
-      '................',
-      '...kkkkkkkkkk...',
-      '..kUUUUUUUUUUk..',
-      '..kuuuuuuuuuuk..',
-      '..kkkkkkkkkkkk..',
-      '...kUUUUUUUUk...',
-      '...kUUUwwUUUk...',
-      '...kUUwUUwUUk...',
-      '...kUwUUUUwUk...',
-      '...kUUwwwwUUk...',
-      '...kUUUUUUUUk...',
-      '...kuUUUUUUuk...',
-      '...kuuuuuuuuk...',
-      '....kkkkkkkk....',
-      '................',
-      '................',
-    ],
-    copier: [
-      '................',
-      '.kkkkkkkkkkkkkk.',
-      '.kGGGGGGGGGGGGk.',
-      '.kGkkkkkkkkkkGk.',
-      '.kGkiiiiiiiikGk.',
-      '.kGkkkkkkkkkkGk.',
-      '.kWWWWWWWWuUoWk.',
-      '.kkkkkkkkkkkkkk.',
-      '.kWWWWWWWWWWWWk.',
-      '.kWkkkkkkkkkkWk.',
-      '.kWkwwwwwwwwkWk.',
-      '.kWkkkkkkkkkkWk.',
-      '.kGGGGGGGGGGGGk.',
-      '.kkkkkkkkkkkkkk.',
-      '................',
-      '................',
-    ],
-    shelf: [
-      'kkkkkkkkkkkkkkkk',
-      'knnnnnnnnnnnnnnk',
-      'knkkkkkkkkkkkknk',
-      'knrRuUeEoyrRuUnk',
-      'knrRuUeEoyrRuUnk',
-      'knrRuUeEoyrRuUnk',
-      'knnnnnnnnnnnnnnk',
-      'knuUeEyrRuUoeEnk',
-      'knuUeEyrRuUoeEnk',
-      'knuUeEyrRuUoeEnk',
-      'knnnnnnnnnnnnnnk',
-      'knNNNNNNNNNNNNnk',
-      'knNNNNNNNNNNNNnk',
-      'knnnnnnnnnnnnnnk',
-      'kkkkkkkkkkkkkkkk',
-      '................',
-    ],
-    // One treadmill seen from the side, 3 tiles wide (console on the left).
-    treadmill: [
-      '................................................',
-      '.kkkkkkkk.......................................',
-      '.kiiiiiUk.......................................',
-      '.kUiiiiik.......................................',
-      '.kkkkkkkk.......................................',
-      '...kKkgggggggkk.................................',
-      '...kKkkkkkkkkKk.................................',
-      '....kKk......kk.................................',
-      '....kKk......kk.................................',
-      '.kkkkkkkkkk.....................................',
-      '.kRRRRRRRRkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.',
-      '.krrrrrrrrggKgggggKgggggKgggggKgggggKgggggKgGGk.',
-      '.krrrrrrrrkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.',
-      '.kkkkkkkkkkKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKk.',
-      '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.',
-      '..kkk.....................................kkk...',
-    ],
-    appliance: [
-      '................',
-      '................',
-      '.kkkkkkkkkkkkkk.',
-      '.kGGGGGGGGGGGGk.',
-      '.kGkkkkkkkkKGGk.',
-      '.kGkiiiiiikKoGk.',
-      '.kGkiiiiiikKGGk.',
-      '.kGkiiiiiikKuGk.',
-      '.kGkkkkkkkkKGGk.',
-      '.kGGGGGGGGGGGGk.',
-      '.kkkkkkkkkkkkkk.',
-      '................',
-    ],
-    monitor: [
-      '................',
-      '....kkkkkkkk....',
-      '....kKKKKKKk....',
-      '....kKiiiiKk....',
-      '....kKiUiiKk....',
-      '....kKiiiiKk....',
-      '....kKKKKKKk....',
-      '....kkkkkkkk....',
-      '......kKKk......',
-      '.....kkkkkk.....',
-      '................',
-      '...kkkkkkkkk....',
-      '...kWWWWWWWk....',
-      '...kkkkkkkkk....',
-    ],
-    ball: [
-      '................',
-      '................',
-      '.....kkkkkk.....',
-      '...kkRRRRRRkk...',
-      '..kRwwRRRRRRrk..',
-      '..kRwRRRRRRRrk..',
-      '.kRRRRRRRRRRRrk.',
-      '.kRRRRRRRRRRrrk.',
-      '.kRRRRRRRRRRrrk.',
-      '.krRRRRRRRRrrrk.',
-      '..krRRRRRRrrrk..',
-      '..krrrrrrrrrrk..',
-      '...kkrrrrrrkk...',
-      '.....kkkkkk.....',
-      '....KKKKKKKK....',
-      '................',
-    ],
-    box: [
-      '................',
-      '................',
-      '..kkkkkkkkkkkk..',
-      '..kyyyyNNyyyyk..',
-      '..kyyyyNNyyyyk..',
-      '..kyyyyNNyyyyk..',
-      '..kkkkkkkkkkkk..',
-      '..kNNNNNNNNNNk..',
-      '..kNNNNNNNNNNk..',
-      '..kNNkkkkNNNNk..',
-      '..kNNkwwkNNNNk..',
-      '..kNNkkkkNNNNk..',
-      '..kNNNNNNNNNNk..',
-      '..knnnnnnnnnnk..',
-      '..kkkkkkkkkkkk..',
-      '................',
-    ],
-    partsShelf: [
-      'kkkkkkkkkkkkkkkk',
-      'knnnnnnnnnnnnnnk',
-      'knkkkkkkkkkkkknk',
-      'knKKKgDEoEoDKink',
-      'knKgKgDEEEEDKKnk',
-      'knKKKgDoEoEDggnk',
-      'knnnnnnnnnnnnnnk',
-      'knDGGGgDKiiKDonk',
-      'knDGgGgDKiiKDonk',
-      'knDggggDKKKKDknk',
-      'knnnnnnnnnnnnnnk',
-      'knNNNNNNNNNNNNnk',
-      'knNNNNNNNNNNNNnk',
-      'knnnnnnnnnnnnnnk',
-      'kkkkkkkkkkkkkkkk',
-      '................',
-    ],
-    junk: [
-      '................',
-      '...kkkkkkk......',
-      '...kGGGGGk......',
-      '...kGkkkGk......',
-      '...kGkikGk......',
-      '...kGkkkGkkkkk..',
-      '...kGGGGGkKKKk..',
-      '..kkkkkkkkKgKk..',
-      '..kKKKKKKKkKKKk.',
-      '..kKgKKoKKkKgKk.',
-      '..kKKKKKKKkKKKk.',
-      '..kEoEEoEEkkkkk.',
-      '.kEEEoEEEoEk....',
-      '.kkkkkkkkkkk....',
-      '................',
-      '................',
-    ],
-    floorParts: [
-      '................',
-      '.kkkkkkk........',
-      '.kEoEoEk........',
-      '.kkkkkkk....K...',
-      '...........K.K..',
-      '..........K...K.',
-      '...KK....K......',
-      '..K..K..K.......',
-      '.K....KK........',
-      '................',
-      '.........kkk....',
-      '........kGgGk...',
-      '...g....kgGgk...',
-      '..gGg....kkk....',
-      '...g............',
-      '................',
-    ],
-    cupboard: [
-      'kkkkkkkkkkkkkkkk',
-      'knnnnnnnnnnnnnnk',
-      'knkkkkkkkkkkkknk',
-      'knwwwkwwwkuUrRnk',
-      'knGGGkGGGkuUrRnk',
-      'knwwwkwwwkuUrRnk',
-      'knnnnnnnnnnnnnnk',
-      'knNNNNNkkNNNNNnk',
-      'knNyyyNkkNyyyNnk',
-      'knNNNNokkoNNNNnk',
-      'knNyyyNkkNyyyNnk',
-      'knNNNNNkkNNNNNnk',
-      'knnnnnnnnnnnnnnk',
-      'kDDDDDDDDDDDDDDk',
-      'kkkkkkkkkkkkkkkk',
-      '................',
-    ],
-    printer: [
-      '................',
-      '................',
-      '...kkkkkkkkkk...',
-      '...kwwwwwwwwk...',
-      '..kkkkkkkkkkkk..',
-      '..kGGGGGGGGGGk..',
-      '..kGKKKKKKKKGk..',
-      '..kGGGGGGuoGGk..',
-      '..kggggggggggk..',
-      '..kkkkkkkkkkkk..',
-      '...kwwwwwwwwk...',
-      '...kkkkkkkkkk...',
-      '..knnnnnnnnnnk..',
-      '..knNNNNNNNNnk..',
-      '..kk........kk..',
-      '................',
-    ],
-    fan: [
-      '................',
-      '.kkkkkkkkkkkkkk.',
-      '.kGGGGGGGGGGGGk.',
-      '.kGGGkkkkkkGGGk.',
-      '.kGGkKgKKgKkGGk.',
-      '.kGkKKgKKgKKkGk.',
-      '.kGkgggkkgggkGk.',
-      '.kGkKKgkkgKKkGk.',
-      '.kGkKgKKKKgKkGk.',
-      '.kGGkKKgKKKkGGk.',
-      '.kGGGkkkkkkGGGk.',
-      '.kGGGGGGGGGGGGk.',
-      '.kggggggggggggk.',
-      '.kkkkkkkkkkkkkk.',
-      '................',
-      '................',
-    ],
-    coil: [
-      '................',
-      '.kkkkkkkkkkkkkk.',
-      '.kKKKKKKKKKKKKk.',
-      '.kGgGgGgGgGgGgk.',
-      '.knooooooooooGk.',
-      '.kGgGgGgGgGgGgk.',
-      '.kGgGgGgGgGgGgk.',
-      '.kGoooooooooonk.',
-      '.kGgGgGgGgGgGgk.',
-      '.kGgGgGgGgGgGgk.',
-      '.knooooooooooGk.',
-      '.kGgGgGgGgGgGgk.',
-      '.kKKKKKKKKKKKKk.',
-      '.kkkkkkkkkkkkkk.',
-      '................',
-      '................',
-    ],
-    // A damper: angled louvre blades in a frame, with a linkage rod down the side.
-    damper: [
-      '................',
-      '.kkkkkkkkkkkkkk.',
-      '.kKKKKKKKKKKKKk.',
-      '.kGGgkGGGgkGGKk.',
-      '.kGgkGGgkGGgkKk.',
-      '.kgkGGgkGGgkGKk.',
-      '.kKKKKKKKKKKKKk.',
-      '.kGGgkGGGgkGGKk.',
-      '.kGgkGGgkGGgkKk.',
-      '.kgkGGgkGGgkGKk.',
-      '.kKKKKKKKKKKKKk.',
-      '.kGGgkGGGgkGGKk.',
-      '.kGgkGGgkGGgkKk.',
-      '.kkkkkkkkkkkkkk.',
-      '................',
-      '................',
-    ],
-    // An engraving machine: a gantry over a bed, with a nameplate under the head.
-    engraver: [
-      '................',
-      '..kkkkkkkkkkkk..',
-      '..kKKKKKKKKKKk..',
-      '..kKGGGGGGGGKk..',
-      '..kKGkkkkkkGKk..',
-      '..kKGkooooKGKk..',
-      '..kKGkkkkkkGKk..',
-      '..kKGGGGGGGGKk..',
-      '..kKKKkwwkKKKk..',
-      '..kGGGkwwkGGGk..',
-      '..kGwwwwwwwwGk..',
-      '..kGwkkkkkkwGk..',
-      '..kKKKKKKKKKKk..',
-      '..kkkkkkkkkkkk..',
-      '................',
-      '................',
-    ],
-    // Status lights at (4,3), (7,3), (10,3) are drawn dark here; game.js blinks them.
-    panel: [
-      '.kkkkkkkkkkkkkk.',
-      '.kGGGGGGGGGGGGk.',
-      '.kGkkkkkkkkkkGk.',
-      '.kGkKKkKKkKKkGk.',
-      '.kGkKKkKKkKKkGk.',
-      '.kGkkkkkkkkkkGk.',
-      '.kGGGGGGGGGGGGk.',
-      '.kGKKGGKKGGKKGk.',
-      '.kGKwGGKwGGKwGk.',
-      '.kGKKGGKKGGKKGk.',
-      '.kGGGGGGGGGGGGk.',
-      '.kGkkkkkkkkkkGk.',
-      '.kGkiiiiUiiikGk.',
-      '.kGkkkkkkkkkkGk.',
-      '.kkkkkkkkkkkkkk.',
-      '................',
-    ],
-    candy: [
-      '................',
-      '................',
-      '.....RoUEr......',
-      '....kkkkkkkk....',
-      '....kwwwwwwk....',
-      '.....kwwwwk.....',
-      '......kkkk......',
-      '..R.....U..o....',
-      '.......E........',
-    ],
-    candyB: [
-      '................',
-      '................',
-      '...o.....R......',
-      '.......E....U...',
-      '..U.............',
-      '.....R...o......',
-      '..........E.....',
-      '...E.r..........',
-      '........U.......',
-    ],
-    washer: [
-      '................',
-      '.kkkkkkkkkkkkkk.',
-      '.kWWWWWWWWoKWWk.',
-      '.kGGGGGGGGGGGGk.',
-      '.kwwwwkkkkwwwwk.',
-      '.kwwwkiiiikwwwk.',
-      '.kwwkiUiiiikwwk.',
-      '.kwwkiiUiiikwwk.',
-      '.kwwkiiiiiikwwk.',
-      '.kwwwkiiiikwwwk.',
-      '.kwwwwkkkkwwwwk.',
-      '.kwwwwwwwwwwwwk.',
-      '.kGGGGGGGGGGGGk.',
-      '.kkkkkkkkkkkkkk.',
-      '................',
-      '................',
-    ],
-    punchingBag: [
-      '.......kk.......',
-      '.......Kk.......',
-      '.......kK.......',
-      '.....kkkkkk.....',
-      '....kRRRRRrk....',
-      '....kRwRRRrk....',
-      '....kRwRRRrk....',
-      '....kRRRRRrk....',
-      '....kkkkkkkk....',
-      '....kRRRRRrk....',
-      '....kRRRRRrk....',
-      '....kRRRRRrk....',
-      '....krrrrrrk....',
-      '.....kkkkkk.....',
-      '....KKKKKKKK....',
-      '................',
-    ],
-    locker: [
-      'kkkkkkkkkkkkkkkk',
-      'kuUUUUUUUUUUUUuk',
-      'kuUkkkkkkkkkkUuk',
-      'kuUUUUUUUUUUUUuk',
-      'kuUkkkkkkkkkkUuk',
-      'kuUUUUUUUUUUUUuk',
-      'kuUUUUUUUUUUUUuk',
-      'kuUUUUUUUUUkUUuk',
-      'kuUUUUUUUUUkUUuk',
-      'kuUUUUUUUUUUUUuk',
-      'kuUUUUUUUUUUUUuk',
-      'kuUUUUUUUUUUUUuk',
-      'kuUUUUUUUUUUUUuk',
-      'kuUUUUUUUUUUUUuk',
-      'kuuuuuuuuuuuuuuk',
-      'kkkkkkkkkkkkkkkk',
-    ],
-    pulldown: [
-      '..kkkkkkkkkkkk..',
-      '..kKKKKKKKKKKk..',
-      '..kKkkkkkkkkKk..',
-      '..kKk..g...kKk..',
-      '..kKk..g...kKk..',
-      '.kkkkkkkkkkkkkk.',
-      '..kKk..g...kKk..',
-      '..kKk.kKKk.kKk..',
-      '..kKk.kggk.kKk..',
-      '..kKk.kKKk.kKk..',
-      '..kKk.kggk.kKk..',
-      '..kKkkkkkkkkKk..',
-      '..kKkuUUUukkKk..',
-      '..kKkkkkkkkkKk..',
-      '..kkk......kkk..',
-      '................',
-    ],
-    dumbbells: [
-      '................',
-      '................',
-      '................',
-      '.kkk.....kkk....',
-      '.kKkgggggkKk....',
-      '.kkk.....kkk....',
-      '................',
-      '....kkk.....kkk.',
-      '....kKkgggggkKk.',
-      '....kkk.....kkk.',
-    ],
-    snackShelf: [
-      'kkkkkkkkkkkkkkkk',
-      'knnnnnnnnnnnnnnk',
-      'knkkkkkkkkkkkknk',
-      'knooDRRDuuDooRnk',
-      'knoyDRwDUUDoyRnk',
-      'knooDRRDuuDooRnk',
-      'knnnnnnnnnnnnnnk',
-      'knrDrDEEDyyDrDnk',
-      'knrDrDElDyyDrDnk',
-      'knrDrDEEDooDrDnk',
-      'knnnnnnnnnnnnnnk',
-      'knNNNNNNNNNNNNnk',
-      'knNNNNNNNNNNNNnk',
-      'knnnnnnnnnnnnnnk',
-      'kkkkkkkkkkkkkkkk',
-      '................',
-    ],
-    serverRack: [
-      '..kkkkkkkkkkkk..',
-      '..kKKKKKKKKKKk..',
-      '..kKkkkkkkkkKk..',
-      '..kKkgggggEkKk..',
-      '..kKkkkkkkkkKk..',
-      '..kKkgggggokKk..',
-      '..kKkkkkkkkkKk..',
-      '..kKkggggEEkKk..',
-      '..kKkkkkkkkkKk..',
-      '..kKkgggggEkKk..',
-      '..kKkkkkkkkkKk..',
-      '..kKkgggggrkKk..',
-      '..kKkkkkkkkkKk..',
-      '..kKKKKKKKKKKk..',
-      '..kkkkkkkkkkkk..',
-      '................',
-    ],
-    computerRack: [
-      '.kkkkkkkkkkkkkk.',
-      '.kg..........gk.',
-      '.kg.kkkk.kkk.gk.',
-      '.kg.kiik.kEk.gk.',
-      '.kg.kkkk.kKk.gk.',
-      '.kg..kk..kkk.gk.',
-      '.kkkkkkkkkkkkkk.',
-      '.kg..........gk.',
-      '.kg.kkk.kkk..gk.',
-      '.kg.kEk.koK..gk.',
-      '.kg.kKk.kKk..gk.',
-      '.kg.kkk.kkk..gk.',
-      '.kkkkkkkkkkkkkk.',
-      '.kg..........gk.',
-      '.kk..........kk.',
-      '................',
-    ],
-    slotTop: [
-      '................',
-      '.kkkkkkkkkkkkkk.',
-      '.kqoqoqoqoqoqok.',
-      '.kokkkkkkkkkkok.',
-      '.kokrRrRrRrRkok.',
-      '.kokkkkkkkkkkok.',
-      '.kqoqoqoqoqoqok.',
-      '.kkkkkkkkkkkkkk.',
-      '.krrrrrrrrrrrrk.',
-      '.krkkkkkkkkkkrk.',
-      '.krkwwkwwkwwkrk.',
-      '.krkrwkowkwrkrk.',
-      '.krkwwkwwkwwkrk.',
-      '.krkkkkkkkkkkrk.',
-      '.krrrrrrrrrrrrk.',
-      '.kRRRRRRRRRRRRk.',
-    ],
-    slotBottom: [
-      '.krrrrrrrrrrrrk.',
-      '.kkkkkkkkkkkkkk.',
-      '.kWWWWWWWWWWWWk.',
-      '.kWoWWrWWuWWWWk.',
-      '.kkkkkkkkkkkkkk.',
-      '.krrrrrrrrrrrrk.',
-      '.krrrrrrrrrrrrk.',
-      '.krrkkkkkkkkrrk.',
-      '.krrkKKKKKKkrrk.',
-      '.krrkkkkkkkkrrk.',
-      '.krrrrrrrrrrrrk.',
-      '.kqqqqqqqqqqqqk.',
-      '.kkkkkkkkkkkkkk.',
-      '................',
-      '................',
-      '................',
-    ],
-    coffeeTop: [
-      '................',
-      '..kkkkkkkkkkkk..',
-      '..kKKKKKKKKKKk..',
-      '..kKkkkkkkkkKk..',
-      '..kKknnnnnnkKk..',
-      '..kKknNnnNnkKk..',
-      '..kKknnnnnnkKk..',
-      '..kKkkkkkkkkKk..',
-      '..kKKKKKKKKKKk..',
-      '..kKkiiiiiikKk..',
-      '..kKkiUiiiikKk..',
-      '..kKkkkkkkkkKk..',
-      '..kKKoKKrKKKKk..',
-      '..kKKKKKKKKKKk..',
-      '..kKKKKKKKKKKk..',
-      '..kKKKKKKKKKKk..',
-    ],
-    coffeeBottom: [
-      '..kKKKKKKKKKKk..',
-      '..kKKkkkkkkKKk..',
-      '..kKKkgggkkKKk..',
-      '..kKkkkgkkkkKk..',
-      '..kKk..g...kKk..',
-      '..kKk..n...kKk..',
-      '..kKk.kwwk.kKk..',
-      '..kKk.kwwk.kKk..',
-      '..kKk.kkkk.kKk..',
-      '..kKkkkkkkkkKk..',
-      '..kKggggggggKk..',
-      '..kKKKKKKKKKKk..',
-      '..kkkkkkkkkkkk..',
-    ],
-    trophies: [
-      'kkkkkkkkkkkkkkkk',
-      'knnnnnnnnnnnnnnk',
-      'knDDDDDDDDDDDDnk',
-      'knDoooDDDGGGDDnk',
-      'knDoyoDDDGWGDDnk',
-      'knDDoDDDDDGDDDnk',
-      'knDoooDDDGGGDDnk',
-      'knnnnnnnnnnnnnnk',
-      'knDDDDDDDDDDDDnk',
-      'knDDDooooDDDDDnk',
-      'knDDDoyooDGGGDnk',
-      'knDDDDooDDDGDDnk',
-      'knDDDooooDGGGDnk',
-      'knnnnnnnnnnnnnnk',
-      'kkkkkkkkkkkkkkkk',
-      '................',
-    ],
-    papers: [
-      '................',
-      '................',
-      '................',
-      '................',
-      '...kkkkk........',
-      '...kwwwk..kkk...',
-      '...kwGwk.krrk...',
-      '...kwwwk.kRrkk..',
-      '...kwGwk.krrk...',
-      '...kkkkk..kk....',
-    ],
-  };
-
-  ART.dryer = ART.washer.map((row) => row.replace(/i/g, 'K').replace(/U/g, 'g'));
-  ART.floorPartsB = ART.floorParts.map((row) => row.split('').reverse().join(''));
-
-  // ---------- player sprite (office new-hire) ----------
-  const LEGS_A = ['....kKKKKKKk....', '...kKKkk.kKk....', '...kkk....kk....'];
-  const HEAD_DOWN = [
-    '................',
-    '.....kkkkkk.....',
-    '....khhhhhhk....',
-    '...khhhhhhhhk...',
-    '...khhhhhhhhk...',
-    '...khsshhsshk...',
-    '...kssssssssk...',
-    '...kskssssksk...',
-    '....kssssssk....',
-    '.....kkkkkk.....',
-  ];
-  const HEAD_UP = [
-    '................',
-    '.....kkkkkk.....',
-    '....khhhhhhk....',
-    '...khhhhhhhhk...',
-    '...khhhhhhhhk...',
-    '...khhhhhhhhk...',
-    '...khhhhhhhhk...',
-    '...kshhhhhhsk...',
-    '....khhhhhhk....',
-    '.....kkkkkk.....',
-  ];
-  const HEAD_LEFT = [
-    '................',
-    '.....kkkkkk.....',
-    '....khhhhhhk....',
-    '...khhhhhhhhk...',
-    '...khhhhhhhhk...',
-    '...ksshhhhhhk...',
-    '..ksssshhhhhk...',
-    '..ksksssshhhk...',
-    '...kssssshhk....',
-    '....kkkkkkk.....',
-  ];
-  const BODY_DOWN = ['...kswwwwwwsk...', '...kswwwwwwsk...', '....kKKKKKKk....', '....kKKkkKKk....', '.....kk..kk.....'];
-  const FEMALE = {
-    down: [
-      '................',
-      '.....kkkkkk.....',
-      '....khhhhhhk....',
-      '...khhhhhhhhk...',
-      '..khhhhhhhhhhk..',
-      '..khhsshhsshhk..',
-      '..khsssssssshk..',
-      '..khsksssskshk..',
-      '..khhsssssshhk..',
-      '..khhkkkkkkhhk..',
-      '..khkwwuuwwkhk..',
-    ],
-    up: [
-      '................',
-      '.....kkkkkk.....',
-      '....khhhhhhk....',
-      '...khhhhhhhhk...',
-      '..khhhhhhhhhhk..',
-      '..khhhhhhhhhhk..',
-      '..khhhhhhhhhhk..',
-      '..khhhhhhhhhhk..',
-      '..khhhhhhhhhhk..',
-      '..kkhhhhhhhhkk..',
-      '...kshhhhhhsk...',
-      '...kswhhhhwsk...',
-    ],
-    left: [
-      '................',
-      '.....kkkkkk.....',
-      '....khhhhhhk....',
-      '...khhhhhhhhk...',
-      '...khhhhhhhhhk..',
-      '...ksshhhhhhhk..',
-      '..ksssshhhhhhk..',
-      '..ksksssshhhhk..',
-      '...kssssshhhhk..',
-      '....kkkkkhhhhk..',
-      '....kwwwwwhhk...',
-    ],
-  };
-  const SPRITES_F = {
-    down: [
-      FEMALE.down.concat(BODY_DOWN),
-      FEMALE.down.concat(BODY_DOWN.slice(0, 2), LEGS_A),
-    ],
-    up: [
-      FEMALE.up.concat(['...kswwwwwwsk...', '....kKKKKKKk....', '....kKKkkKKk....', '.....kk..kk.....']),
-      FEMALE.up.concat(['...kswwwwwwsk...'], LEGS_A),
-    ],
-    left: [
-      FEMALE.left.concat(['....kwwsswwk....', '....kwwsswwk....', '....kKKKKKKk....', '....kKKkKKk.....', '.....kk.kk......']),
-      FEMALE.left.concat(['...kswwwwwwk....', '....kwwwwwsk....', '....kKKKKKKk....', '...kKKk..kKKk...', '...kkk....kkk...']),
-    ],
-  };
-  // Ghost: a floating sheet. Walking frames ripple the hem.
-  const GHOST_TOP = ['................', '.....kkkkkk.....', '....kwwwwwwk....', '...kwwwwwwwwk...', '...kwwwwwwwwk...'];
-  const GHOST_BODY = ['..kwwwwwwwwwGk..', '..kwwwwwwwwwGk..', '..kWwwwwwwwwGk..', '..kWWwwwwwwGGk..', '..kWWWwwwwGGGk..'];
-  const HEM_A = ['..kwkWWkkWWkwk..', '..k.k..kk..k.k..'];
-  const HEM_B = ['..kkWWkwwkWWkk..', '...kk..kk..kk...'];
-  const GHOST_FACE_DOWN = ['..kwwkkwwkkwwk..', '..kwwkkwwkkwwk..', '..kwwwwwwwwwwk..', '..kwwwwkkwwwwk..'];
-  const GHOST_FACE_UP = ['..kwwwwwwwwwwk..', '..kwwwwwwwwwwk..', '..kwwwwwwwwwwk..', '..kwwwwwwwwwwk..'];
-  const GHOST_FACE_LEFT = ['..kwkkwwkkwwwk..', '..kwkkwwkkwwwk..', '..kwwwwwwwwwwk..', '..kwkkwwwwwwwk..'];
-  const ghost = (face, hem) => GHOST_TOP.concat(face, GHOST_BODY.slice(0, 5), hem).slice(0, 16);
-  const SPRITES_GHOST = {
-    down: [ghost(GHOST_FACE_DOWN, HEM_A), ghost(GHOST_FACE_DOWN, HEM_B)],
-    up: [ghost(GHOST_FACE_UP, HEM_A), ghost(GHOST_FACE_UP, HEM_B)],
-    left: [ghost(GHOST_FACE_LEFT, HEM_A), ghost(GHOST_FACE_LEFT, HEM_B)],
-  };
-
-  const SPRITES = {
-    down: [
-      HEAD_DOWN.concat(['....kwwuuwwk....', '...kswwuuwwsk...', '...kswwwwwwsk...', '....kKKKKKKk....', '....kKKkkKKk....', '.....kk..kk.....']),
-      HEAD_DOWN.concat(['....kwwuuwwk....', '...kswwuuwwsk...', '...kswwwwwwsk...'], LEGS_A),
-    ],
-    up: [
-      HEAD_UP.concat(['....kwwwwwwk....', '...kswwwwwwsk...', '...kswwwwwwsk...', '....kKKKKKKk....', '....kKKkkKKk....', '.....kk..kk.....']),
-      HEAD_UP.concat(['....kwwwwwwk....', '...kswwwwwwsk...', '...kswwwwwwsk...'], LEGS_A),
-    ],
-    left: [
-      HEAD_LEFT.concat(['....kwwwwwwk....', '....kwwsswwk....', '....kwwsswwk....', '....kKKKKKKk....', '....kKKkKKk.....', '.....kk.kk......']),
-      HEAD_LEFT.concat(['....kwwwwwwk....', '...kswwwwwwk....', '....kwwwwwsk....', '....kKKKKKKk....', '...kKKk..kKKk...', '...kkk....kkk...']),
-    ],
-  };
-
   // ---------- your own character (the character editor) ----------
   // A look is { g, skin, hair, hairC, hat, shirt, shirtC, pants, pantsC }: the body
   // ('male' or 'female') and a place in each list below. It's saved and sent as a short
@@ -905,221 +71,54 @@ window.Art = (function () {
     ['Plum', '#3a3050'], ['Denim', '#4a6c9e'], ['Navy', '#283878'], ['Brown', '#6a4428'], ['Olive', '#5a6a30'],
     ['Red', '#9a2820'], ['Cream', '#e0d8c0'],
   ];
-  // Hair: the whole head, from row 0, looking down (at you), up (away) and left (right is
-  // the same flipped). Rows past the chin (row 9) are laid over the shirt, where '.'
-  // leaves the shirt showing. `hd` is its name in the 32 x 32 tables below.
+  // Hair. `hd` is its name in the 32 x 32 tables below, as it is for the head things, shirts and pants.
   const HAIRS = [
-    { name: 'Short', hd: 'short', down: HEAD_DOWN, up: HEAD_UP, left: HEAD_LEFT },
-    {
-      name: 'Long', hd: 'long',
-      down: FEMALE.down.slice(0, 10).concat(['..khk......khk..']),
-      up: FEMALE.up.slice(0, 10).concat(['.....hhhhhh.....', '......hhhh......']),
-      left: FEMALE.left.slice(0, 10).concat(['..........hhk...']),
-    },
-    {
-      name: 'Buzz cut', hd: 'buzz',
-      down: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...khhhhhhhhk...', '...kssssssssk...', '...kssssssssk...', '...kskssssksk...', '....kssssssk....', '.....kkkkkk.....'],
-      up: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...kshhhhhhsk...', '....kssssssk....', '.....kkkkkk.....'],
-      left: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...kshhhhhhhk...', '...ksssshhhhk...', '..ksssssshhhk...', '..ksksssssshk...', '...ksssssshk....', '....kkkkkkk.....'],
-    },
-    {
-      name: 'Spiky', hd: 'spiky',
-      down: ['....k.k..k.k....', '...khkhkkhkhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhshhshhk...', '...kssssssssk...', '...kskssssksk...', '....kssssssk....', '.....kkkkkk.....'],
-      up: ['....k.k..k.k....', '...khkhkkhkhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...kshhhhhhsk...', '....khhhhhhk....', '.....kkkkkk.....'],
-      left: ['.....k.k.k......', '....khkhkhkk....', '...khhhhhhhhk...', '...khhhhhhhhhk..', '...khhhhhhhhk...', '...ksshhhhhhk...', '..ksssshhhhhk...', '..ksksssshhhk...', '...kssssshhk....', '....kkkkkkk.....'],
-    },
-    {
-      name: 'Curly', hd: 'curly',
-      down: ['....kkkkkkkk....', '...khhHhhHhhk...', '..khHhhhhhhHhk..', '..khhhhHhhhhhk..', '..khHhhhhhhHhk..', '..khhsssssshhk..', '...kssssssssk...', '...kskssssksk...', '....kssssssk....', '.....kkkkkk.....'],
-      up: ['....kkkkkkkk....', '...khhHhhHhhk...', '..khHhhhhhhHhk..', '..khhhhHhhhhhk..', '..khHhhhhhhHhk..', '..khhhhHhhhhhk..', '..khhHhhhhHhhk..', '...kshhhhhhsk...', '....khhhhhhk....', '.....kkkkkk.....'],
-      left: ['....kkkkkkkk....', '...khhHhhHhhk...', '..khHhhhhhhHhk..', '..khhhhHhhhhhk..', '..kshhhhhhHhhk..', '..kssshhhhhhhk..', '..ksssshhHhhhk..', '..ksksssshhhk...', '...kssssshhk....', '....kkkkkkk.....'],
-    },
-    {
-      name: 'Bob', hd: 'bob',
-      down: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '..khhhhhhhhhhk..', '..khhhhhhhhhhk..', '..khsssssssshk..', '..khsksssskshk..', '..khhsssssshhk..', '..kkkkkkkkkkkk..'],
-      up: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '..khhhhhhhhhhk..', '..khhhhhhhhhhk..', '..khhhhhhhhhhk..', '..khhhhhhhhhhk..', '..khhhhhhhhhhk..', '..kkkkkkkkkkkk..'],
-      left: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '..khhhhhhhhhhk..', '..khhhhhhhhhhk..', '..ksssshhhhhhk..', '..ksksssshhhhk..', '...kssssshhhhk..', '....kkkkkkkkkk..'],
-    },
-    {
-      name: 'Ponytail', hd: 'ponytail',
-      down: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhsssshhk...', '...khsssssshk...', '...kskssssksk...', '....kssssssk....', '.....kkkkkk.....'],
-      up: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...khhhrrhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...kshhhhhhsk...', '....khhhhhhk....', '.....kkhhkk.....', '......khhk......', '.......hh.......'],
-      left: ['................', '.....kkkkkk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...khhhhhhhhkk..', '...ksshhhhhhkhk.', '..ksssshhhhhkhk.', '..ksksssshhhkhk.', '...kssssshhk.kk.', '....kkkkkkk.....'],
-    },
-    {
-      name: 'Bun', hd: 'bun',
-      down: ['......kkkk......', '.....kHHHHk.....', '....khhhhhhk....', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhsssshhk...', '...khsssssshk...', '...kskssssksk...', '....kssssssk....', '.....kkkkkk.....'],
-      up: ['......kkkk......', '.....khhhhk.....', '....khHHHHhk....', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...kshhhhhhsk...', '....kssssssk....', '.....kkkkkk.....'],
-      left: ['........kkk.....', '.....kkkhhhk....', '....khhhHHhhk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...ksshhhhhhk...', '..ksssshhhhhk...', '..ksksssshhhk...', '...kssssshhk....', '....kkkkkkk.....'],
-    },
-    {
-      name: 'Bald', hd: 'bald',
-      down: ['................', '.....kkkkkk.....', '....kssssssk....', '...kssssssssk...', '...kssssssssk...', '...khsssssshk...', '...khsssssshk...', '...kskssssksk...', '....kssssssk....', '.....kkkkkk.....'],
-      up: ['................', '.....kkkkkk.....', '....kssssssk....', '...kssssssssk...', '...kssssssssk...', '...khhhhhhhhk...', '...khhhhhhhhk...', '...kshhhhhhsk...', '....khhhhhhk....', '.....kkkkkk.....'],
-      left: ['................', '.....kkkkkk.....', '....kssssssk....', '...kssssssssk...', '...kssssssssk...', '...ksssssshhk...', '..ksssssshhhk...', '..ksksssshhhk...', '...kssssshhk....', '....kkkkkkk.....'],
-    },
+    { name: 'Short', hd: 'short' },
+    { name: 'Long', hd: 'long' },
+    { name: 'Buzz cut', hd: 'buzz' },
+    { name: 'Spiky', hd: 'spiky' },
+    { name: 'Curly', hd: 'curly' },
+    { name: 'Bob', hd: 'bob' },
+    { name: 'Ponytail', hd: 'ponytail' },
+    { name: 'Bun', hd: 'bun' },
+    { name: 'Bald', hd: 'bald' },
   ];
-  // Head things: laid over the hair, from row 0 ('.' leaves it, '_' rubs it out).
-  // `hd` is its name in the 32 x 32 tables below, as it is for the hair, shirts and pants.
+  // Head things, laid over the hair.
   const HATS = [
     { name: 'Nothing', hd: 'none' },
-    {
-      name: 'Cap', hd: 'cap',
-      down: ['________________', '_____kkkkkk_____', '....krrrrrrk....', '...krrrWWrrrk...', '..kRRRRRRRRRRk..'],
-      up: ['________________', '_____kkkkkk_____', '....krrrrrrk....', '...krrrrrrrrk...', '...krrkhhkrrk...'],
-      left: ['________________', '_____kkkkkk_____', '....krrrrrrk....', '...krrrrrrrrk...', '.kRRRRRrrrrrk...', '.kkk............'],
-    },
-    {
-      name: 'Toque', hd: 'toque',
-      down: ['______kWWk______', '_____kEEEEk_____', '....kEEEEEEk....', '...kEEEEEEEEk...', '...keeeeeeeek...'],
-    },
-    {
-      name: 'Hard hat', hd: 'hardhat',
-      down: ['________________', '_____kkkkkk_____', '....kooyyook....', '...kooooooook...', '..kqqqqqqqqqqk..'],
-      left: ['________________', '_____kkkkkk_____', '....kooyyook....', '...kooooooook...', '.kqqqqqqqqqqqk..'],
-    },
-    {
-      name: 'Cowboy hat', hd: 'cowboy',
-      down: ['______kkkk______', '_____knNNnk_____', '....knnnnnnk....', '...kkDDDDDDkk...', 'knnnnnnnnnnnnnnk', '.kkkkkkkkkkkkkk.'],
-    },
-    {
-      name: 'Headphones', hd: 'headphones',
-      down: ['', '', '....kggggggk....', '...kg......gk...', '...kg......gk...', '..kkk......kkk..', '..krk......krk..', '..kkk......kkk..'],
-      left: ['', '........kkk.....', '.........gk.....', '.........gk.....', '.........gk.....', '........kkkk....', '........krrk....', '........kkkk....'],
-    },
-    {
-      name: 'Glasses', hd: 'glasses',
-      down: ['', '', '', '', '', '', '....kkk..kkk....', '....kik..kik....'],
-      up: [],
-      left: ['', '', '', '', '', '', '', '...kikkkk.......'],
-    },
-    {
-      name: 'Shades', hd: 'shades',
-      down: ['', '', '', '', '', '', '', '...kkgkkkkgkk...'],
-      up: [],
-      left: ['', '', '', '', '', '', '', '...kgkkkk.......'],
-    },
-    {
-      name: 'Bow', hd: 'bow',
-      down: ['..........kk.kk.', '..........kRkRk.', '..........krrrk.', '..........kRkRk.', '..........kk.kk.'],
-      up: ['.kk.kk..........', '.kRkRk..........', '.krrrk..........', '.kRkRk..........', '.kk.kk..........'],
-      left: ['.......kk.kk....', '.......kRkRk....', '.......krrrk....', '.......kRkRk....'],
-    },
+    { name: 'Cap', hd: 'cap' },
+    { name: 'Toque', hd: 'toque' },
+    { name: 'Hard hat', hd: 'hardhat' },
+    { name: 'Cowboy hat', hd: 'cowboy' },
+    { name: 'Headphones', hd: 'headphones' },
+    { name: 'Glasses', hd: 'glasses' },
+    { name: 'Shades', hd: 'shades' },
+    { name: 'Bow', hd: 'bow' },
     // only ever worn by the Office Champion, and they can't wear anything else (see js/game.js)
-    {
-      name: 'Crown', hd: 'crown',
-      down: ['____k__kk__k____', '___kokkookkok___', '...koyooooook...', '...kqrqiiqrqk...'],
-    },
+    { name: 'Crown', hd: 'crown' },
     // only for a name that's opened its present under the tree on Christmas Day (see js/game.js)
-    {
-      name: 'Santa hat', hd: 'santa', item: 'santa',
-      down: ['_______kkk_kWWk_', '______krrrkkWWk_', '....krrrrrrRk___', '...kWWWWWWWWk...', '...kWWWWWWWWk...'],
-      up: ['_kWWk_kkk_______', '_kWWkkrrrk______', '___kRrrrrrrk....', '...kWWWWWWWWk...', '...kWWWWWWWWk...'],
-    },
+    { name: 'Santa hat', hd: 'santa', item: 'santa' },
     // only for the Christmas Cup's champion, the fastest at Humbug Sweeper over Christmas 2026
     // (see js/game.js): gold reindeer antlers, with the hair showing
-    {
-      name: 'Golden antlers', hd: 'antlers', item: 'antlers',
-      down: ['.k...k....k...k.', 'kyk.kyk..kyk.kyk', 'kyoooqk..kyoooqk', '.kkqqk....kqqkk.'],
-    },
+    { name: 'Golden antlers', hd: 'antlers', item: 'antlers' },
   ];
   // where the crown, the Santa hat and the golden antlers are in HATS
   const CROWN = HATS.findIndex((h) => h.hd === 'crown'), SANTA = HATS.findIndex((h) => h.hd === 'santa'), ANTLERS = HATS.findIndex((h) => h.hd === 'antlers');
-  // Shirts: rows 10-12 (or from row 9, when `from` says so), looking down, up (the same
-  // as down unless it says), left standing and left mid-stride.
   const SHIRTS = [
-    {
-      name: 'Shirt & tie', hd: 'tie',
-      down: ['....kwwuuwwk....', '...kswwuuwwsk...', '...kswwwwwwsk...'],
-      up: ['....kwwwwwwk....', '...kswwwwwwsk...', '...kswwwwwwsk...'],
-      left: ['....kuwwwwwk....', '....kuwsswwk....', '....kwwsswwk....'],
-      leftWalk: ['....kuwwwwwk....', '...ksuwwwwwk....', '....kwwwwwsk....'],
-    },
-    {
-      name: 'Blouse', hd: 'blouse',
-      down: ['....kwwuuwwk....', '...kswwwwwwsk...', '...kswwwwwwsk...'],
-      up: ['....kwwwwwwk....', '...kswwwwwwsk...', '...kswwwwwwsk...'],
-      left: ['....kwwwwwwk....', '....kwwsswwk....', '....kwwsswwk....'],
-      leftWalk: ['....kwwwwwwk....', '...kswwwwwwk....', '....kwwwwwsk....'],
-    },
-    {
-      name: 'T-shirt', hd: 'tee',
-      down: ['...kwwuuuuwwk...', '...kswwwwwwsk...', '...kswwwwwwsk...'],
-      up: ['...kwwwwwwwwk...', '...kswwwwwwsk...', '...kswwwwwwsk...'],
-      left: ['....kwwwwwwk....', '....kwwwwwwk....', '....kwwsswwk....'],
-      leftWalk: ['....kwwwwwwk....', '...kswwwwwwk....', '....kwwwwwsk....'],
-    },
-    {
-      name: 'Stripes', hd: 'stripes',
-      down: ['....kwwwwwwk....', '...ksuuuuuusk...', '...kswwwwwwsk...'],
-      left: ['....kwwwwwwk....', '....kuussuuk....', '....kwwsswwk....'],
-      leftWalk: ['....kwwwwwwk....', '...ksuuuuuuk....', '....kwwwwwsk....'],
-    },
-    {
-      name: 'Hoodie', hd: 'hoodie', from: 9,
-      down: ['...kw......wk...', '...kwwuwwuwwk...', '...kwwuwwuwwk...', '...kswuuuuwsk...'],
-      up: ['...kv......vk...', '....kvvvvvvk....', '...kwwvvvvwwk...', '...kswwwwwwsk...'],
-      left: ['', '....kwwwwvvk....', '....kwwwwwwk....', '....kwwsswwk....'],
-      leftWalk: ['', '....kwwwwvvk....', '...kwwwwwwwk....', '....kwwwwwsk....'],
-    },
-    {
-      name: 'Suit', hd: 'suit',
-      down: ['....kwWuuWwk....', '...kwwwuuwwwk...', '...kswwwwwwsk...'],
-      up: ['....kwwwwwwk....', '...kwwwwwwwwk...', '...kswwwwwwsk...'],
-      left: ['....kWwwwwwk....', '....kuwwwwwk....', '....kwwsswwk....'],
-      leftWalk: ['....kWwwwwwk....', '...kwuwwwwwk....', '....kwwwwwsk....'],
-    },
-    {
-      name: 'Sweater', hd: 'sweater',
-      down: ['....kwwwwwwk....', '...kwuwuuwuwk...', '...kswuwwuwsk...'],
-      left: ['....kwwwwwwk....', '....kuwuwuwk....', '....kwussuwk....'],
-      leftWalk: ['....kwwwwwwk....', '...kwuwuwuwk....', '....kwuwuwsk....'],
-    },
-    {
-      name: 'Hi-vis vest', hd: 'hivis',
-      down: ['....kowwwwok....', '...ksoWWWWosk...', '...ksoooooosk...'],
-      up: ['....kooooook....', '...ksWWWWWWsk...', '...ksoooooosk...'],
-      left: ['....kooooook....', '....kWWssWWk....', '....koossook....'],
-      leftWalk: ['....kooooook....', '...ksWWWWWWk....', '....kooooosk....'],
-    },
+    { name: 'Shirt & tie', hd: 'tie' },
+    { name: 'Blouse', hd: 'blouse' },
+    { name: 'T-shirt', hd: 'tee' },
+    { name: 'Stripes', hd: 'stripes' },
+    { name: 'Hoodie', hd: 'hoodie' },
+    { name: 'Suit', hd: 'suit' },
+    { name: 'Sweater', hd: 'sweater' },
+    { name: 'Hi-vis vest', hd: 'hivis' },
   ];
-  // Pants: rows 13-15, looking down (up is the same), down mid-stride, left standing and
-  // left mid-stride; `top` is laid over the shirt (rows 10-12) the same four ways.
   const PANTS = [
-    {
-      name: 'Trousers', hd: 'trousers',
-      down: ['....kKKKKKKk....', '....kKKkkKKk....', '.....kk..kk.....'],
-      downWalk: LEGS_A,
-      left: ['....kKKKKKKk....', '....kKKkKKk.....', '.....kk.kk......'],
-      leftWalk: ['....kKKKKKKk....', '...kKKk..kKKk...', '...kkk....kkk...'],
-    },
-    {
-      name: 'Shorts', hd: 'shorts',
-      down: ['....kKKKKKKk....', '....ksskkssk....', '.....kk..kk.....'],
-      downWalk: ['....kKKKKKKk....', '...ksskk.ksk....', '...kkk....kk....'],
-      left: ['....kKKKKKKk....', '....ksskssk.....', '.....kk.kk......'],
-      leftWalk: ['....kKKKKKKk....', '...kssk..kssk...', '...kkk....kkk...'],
-    },
-    {
-      name: 'Skirt', hd: 'skirt',
-      down: ['....kKKKKKKk....', '...kKKKKKKKKk...', '.....kk..kk.....'],
-      downWalk: ['....kKKKKKKk....', '...kKKKKKKKKk...', '....kk....kk....'],
-      left: ['....kKKKKKKk....', '...kKKKKKKKk....', '.....kk.kk......'],
-      leftWalk: ['....kKKKKKKk....', '...kKKKKKKKKk...', '...kk......kk...'],
-    },
-    {
-      name: 'Overalls', hd: 'overalls',
-      down: ['....kKKKKKKk....', '....kKKkkKKk....', '.....kk..kk.....'],
-      downWalk: LEGS_A,
-      left: ['....kKKKKKKk....', '....kKKkKKk.....', '.....kk.kk......'],
-      leftWalk: ['....kKKKKKKk....', '...kKKk..kKKk...', '...kkk....kkk...'],
-      top: {
-        down: ['.....K....K.....', '.....K....K.....', '...ksKKKKKKsk...'],
-        up: ['.....K....K.....', '......KKKK......', '...ksKKKKKKsk...'],
-        left: ['......K.........', '......K.........', '....kKKssKKk....'],
-        leftWalk: ['......K.........', '......K.........', '....kKKKKKsk....'],
-      },
-    },
+    { name: 'Trousers', hd: 'trousers' },
+    { name: 'Shorts', hd: 'shorts' },
+    { name: 'Skirt', hd: 'skirt' },
+    { name: 'Overalls', hd: 'overalls' },
   ];
   const LOOK_PARTS = [['skin', SKINS], ['hair', HAIRS], ['hairC', HAIR_COLOURS], ['hat', HATS],
     ['shirt', SHIRTS], ['shirtC', SHIRT_COLOURS], ['pants', PANTS], ['pantsC', PANTS_COLOURS]];
@@ -1178,29 +177,6 @@ window.Art = (function () {
     return { h: HAIR_COLOURS[look.hairC][1], s: SKINS[look.skin], w: sc[1], u: sc[2], K: PANTS_COLOURS[look.pantsC][1] };
   }
 
-  // lay rows over a buffer from row y0: '.' (or past a row's end) leaves what's there, '_' rubs it out
-  function lay(b, rows, y0) {
-    (rows || []).forEach((row, j) => [...row].forEach((ch, i) => {
-      if (ch === '_') b[(y0 + j) * 16 + i] = null; else if (ch !== '.') set(b, i, y0 + j, ch);
-    }));
-  }
-  const mirror = (rows) => rows.map((r) => [...r].reverse().join(''));
-  // One picture of a look, as a buffer: dir is 'down', 'up' or 'left', and step 0 standing,
-  // 1 mid-stride or 2 the other stride (which only flips the legs, so a bow or a side
-  // part stays put). noHat leaves the head thing off (under a costume). sweater (a key in
-  // SWEATERS) wears that in place of the shirt, over the top of any overalls.
-  function lookBuf(look, dir, step, noHat, sweater) {
-    const sw = SWEATERS[sweater], b = buf(), shirt = sw ? sweaterRows(sw) : SHIRTS[look.shirt], pants = PANTS[look.pants], hair = HAIRS[look.hair], hat = HATS[look.hat];
-    const side = dir === 'left', walk = step > 0;
-    const torso = side ? (walk ? shirt.leftWalk : shirt.left) : (dir === 'up' && shirt.up) || shirt.down;
-    lay(b, torso, shirt.from || 10);
-    if (pants.top && !sw) lay(b, side ? (walk ? pants.top.leftWalk : pants.top.left) : pants.top[dir], 10);
-    const legs = side ? (walk ? pants.leftWalk : pants.left) : walk ? pants.downWalk : pants.down;
-    lay(b, step === 2 && !side ? mirror(legs) : legs, 13);
-    lay(b, hair[dir], 0);
-    if (!noHat) lay(b, hat[dir] || hat.down, 0);
-    return b;
-  }
   // the extra colours a 32 x 32 picture uses, from a look's colours (h, s, w, K)
   const extras32 = (c) => ({ H: darker(c.h, 0.35), v: darker(c.w, 0.25), S: darker(c.s, 0.2), f: blend(c.s, '#e04848', 0.4), j: blend(c.h, '#ffffff', 0.3), O: '#f8e070', Y: '#a87018', L: darker(c.K, 0.3), b: '#383040' });
   function lookPalette(look, over) {
@@ -1210,34 +186,11 @@ window.Art = (function () {
     // and b, shoes)
     return palette(Object.assign({ H: darker(c.h, 0.35), v: darker(c.w, 0.25) }, extras32(c), c, over));
   }
-  // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look, the same
-  // shape renderSprites gives, in an ugly sweater if `sweater` names one.
-  function renderLook(look, sweater) {
-    const sw = SWEATERS[sweater], pal = lookPalette(look, sw ? sweaterPal(sw) : null), out = {};
-    const make = (dir, step, flip) => {
-      const cv = document.createElement('canvas');
-      cv.width = cv.height = 16;
-      const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16);
-      blit(img, lookBuf(look, dir, step, false, sw && sweater), 0, 0, pal, flip);
-      ctx.putImageData(img, 0, 0);
-      return cv;
-    };
-    out.down = [make('down', 0), make('down', 1), make('down', 2)];
-    out.up = [make('up', 0), make('up', 1), make('up', 2)];
-    out.left = [make('left', 0), make('left', 1), make('left', 1)];
-    out.right = [make('left', 0, true), make('left', 1, true), make('left', 1, true)];
-    return out;
-  }
-
   // ---------- 32 x 32 characters ----------
-  // The looks drawn at double resolution (for &hires: see js/game.js), a part at a time. A
-  // part that's been redrawn has a `hi` of its own, the same shape as at 16 (down, up,
-  // left; rows 32 wide, laid from row 0), drawn with 2-pixel outlines and the light from
-  // the top left; one that hasn't is today's, doubled with Scale2x, so a look always comes
-  // out whole. Once a look's hair has been redrawn the face is HEAD32 underneath it (at 16
-  // the hair and the face are one picture, so until then it's the old head, doubled).
-  // Letters as at 16, plus S (skin in shadow), f (the cheeks) and j (a shine on the hair):
-  // see lookPalette.
+  // A look is drawn a part at a time. Each part has a `hi` of its own (down, up, left; rows
+  // 32 wide, laid from row 0), drawn with 2-pixel outlines and the light from the top left,
+  // and the face is HEAD32 underneath the hair. Letters as above, plus S (skin in shadow),
+  // f (the cheeks) and j (a shine on the hair): see lookPalette.
   const HEAD32 = {
     down: [
       '................................',
@@ -1817,7 +770,7 @@ window.Art = (function () {
     },
     bald: { down: [], up: [], left: [] },
   };
-  for (const h of HAIRS) if (HAIR32[h.hd]) h.hi = HAIR32[h.hd];
+  for (const h of HAIRS) h.hi = HAIR32[h.hd];
   // The head things, by their hd name: laid over the hair. A hat that covers the top of the
   // head starts with rows of '_', which tuck the hair in under it: the bare head goes back
   // there (see lookBuf32), so hair can't poke out through the top of a hat.
@@ -2293,7 +1246,7 @@ window.Art = (function () {
       ],
     },
   };
-  for (const h of HATS) if (HAT32[h.hd]) h.hi = HAT32[h.hd];
+  for (const h of HATS) h.hi = HAT32[h.hd];
   // The shirts, by their hd name: the body from the shoulders to the waist (rows 20-25;
   // the hoodie's hood from 18, behind the head), arms and hands and all, looking down, up,
   // left, and left mid-stride (the near arm swung forward). `from` is the row they start on.
@@ -2647,7 +1600,7 @@ window.Art = (function () {
       ],
     },
   };
-  for (const s of SHIRTS) if (SHIRT32[s.hd]) s.hi = SHIRT32[s.hd];
+  for (const s of SHIRTS) s.hi = SHIRT32[s.hd];
   // The pants, by their hd name: hips, legs and shoes, rows 26-31, looking down (up is the
   // same), down mid-stride (the other stride is the same mirrored), left and left
   // mid-stride; overalls' `top` is laid over the shirt from row 20. L is the pants' shade
@@ -2825,7 +1778,7 @@ window.Art = (function () {
       },
     },
   };
-  for (const p of PANTS) if (PANTS32[p.hd]) p.hi = PANTS32[p.hd];
+  for (const p of PANTS) p.hi = PANTS32[p.hd];
   // The ugly Christmas sweaters, by their key in SWEATERS: on the same body as the shirts
   // (rows 20-25), in the sweater's own colours ('1' to '5', the knit first) and '0', the
   // knit in shadow (see sweaterPal): a motif on the front, a band across the back.
@@ -3137,25 +2090,11 @@ window.Art = (function () {
       ],
     },
   };
-  // a buffer of letters, doubled by Scale2x (the same rule as scale2x, on letters); null is clear
-  function double(b) {
-    const out = new Array(1024).fill(null), at = (x, y) => b[Math.min(15, Math.max(0, y)) * 16 + Math.min(15, Math.max(0, x))];
-    for (let y = 0; y < 16; y++)
-      for (let x = 0; x < 16; x++) {
-        const p = at(x, y), a = at(x, y - 1), r = at(x + 1, y), l = at(x - 1, y), d = at(x, y + 1), o = y * 64 + x * 2;
-        const edge = a !== d && l !== r;
-        out[o] = edge && l === a ? l : p;
-        out[o + 1] = edge && a === r ? r : p;
-        out[o + 32] = edge && l === d ? l : p;
-        out[o + 33] = edge && d === r ? r : p;
-      }
-    return out;
-  }
   // lay rows over a 32 x 32 buffer from column x0, row y0 ('.' leaves what's there)
   function lay32Over(b, rows, x0, y0) {
     rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== '.' && x0 + i < 32 && y0 + j < 32) b[(y0 + j) * 32 + x0 + i] = ch; }));
   }
-  // lay 32-wide rows over a 32 x 32 buffer, as lay does at 16
+  // lay 32-wide rows over a 32 x 32 buffer from row y0: '.' (or past a row's end) leaves what's there, '_' rubs it out
   function lay32(b, rows, y0) {
     (rows || []).forEach((row, j) => [...row].forEach((ch, i) => {
       if (i >= 32 || y0 + j >= 32) return;
@@ -3163,62 +2102,46 @@ window.Art = (function () {
     }));
   }
   const BALD = HAIRS.findIndex((h) => h.hd === 'bald');
-  // lay today's 16-wide rows (from row y0 at 16) over a 32 x 32 buffer, doubled: '_'
-  // (rubbing out) and '.' (leaving what's there) carried through
-  function doubleOver(b, rows, y0) {
-    const o = new Array(256).fill(null);
-    (rows || []).forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== '.' && y0 + j < 16) o[(y0 + j) * 16 + i] = ch; }));
-    double(o).forEach((ch, i) => { if (ch === '_') b[i] = null; else if (ch) b[i] = ch; });
-  }
-  // One picture of a look at 32 x 32, as lookBuf at 16.
+  // One picture of a look at 32 x 32, as a buffer: dir is 'down', 'up' or 'left', and step 0
+  // standing, 1 mid-stride or 2 the other stride (which only flips the legs, so a bow or a
+  // side part stays put). noHat leaves the head thing off (under a costume). sweater (a key
+  // in SWEATERS) wears that in place of the shirt, over the top of any overalls.
   function lookBuf32(look, dir, step, noHat, sweater) {
     const hair = HAIRS[look.hair], hat = HATS[look.hat], shirt = SHIRTS[look.shirt], pants = PANTS[look.pants];
-    // today's picture without the head thing, doubled: the body, and the head till the hair's
-    // redrawn (once it is, today's hair is left off, or long hair would show twice)
-    const b = double(lookBuf(hair.hi ? Object.assign({}, look, { hair: BALD }) : look, dir, step, true, sweater));
-    if (hair.hi) b.fill(null, 0, 20 * 32); // (the head is rows 0-19; the body starts at 20)
+    const b = new Array(1024).fill(null);
     // the shirt (or an ugly sweater in its place) goes on before the head, so the hoodie's
     // hood is behind it, and overalls' bib and straps over a shirt (not over a sweater)
     const sw = SWEATERS[sweater], top = sw ? sw.hi : shirt.hi;
-    if (top) {
-      const view = dir === 'left' && step > 0 ? 'leftWalk' : dir;
-      b.fill(null, 20 * 32, 26 * 32);
-      lay32(b, top[view], top.from || 20);
-      if (sw) { /* (no bib over a sweater) */ } else if (pants.hi && pants.hi.top) lay32(b, pants.hi.top[view], 20);
-      else if (pants.top) doubleOver(b, pants.top[view] || pants.top[dir], 10);
-    }
-    if (pants.hi) {
-      const side = dir === 'left', legs = pants.hi[side ? (step > 0 ? 'leftWalk' : 'left') : step > 0 ? 'downWalk' : 'down'];
-      b.fill(null, 26 * 32);
-      lay32(b, step === 2 && !side ? legs.map((r) => [...r.padEnd(32, '.')].reverse().join('')) : legs, 26);
-    }
-    if (hair.hi) {
-      lay32(b, HEAD32[dir], 0);
-      lay32(b, hair.hi[dir], 0);
-    }
-    if (!noHat) {
-      if (hat.hi) {
-        const head = HEAD32[dir];
-        (hat.hi[dir] || hat.hi.down).forEach((row, j) => [...row].forEach((ch, i) => {
-          if (ch === '_') { const h = (head[j] || '')[i]; b[j * 32 + i] = h && h !== '.' ? h : null; } else if (ch !== '.') b[j * 32 + i] = ch;
-        }));
-      } else doubleOver(b, hat[dir] || hat.down, 0);
+    const view = dir === 'left' && step > 0 ? 'leftWalk' : dir;
+    lay32(b, top[view], top.from || 20);
+    if (!sw && pants.hi.top) lay32(b, pants.hi.top[view], 20);
+    const side = dir === 'left', legs = pants.hi[side ? (step > 0 ? 'leftWalk' : 'left') : step > 0 ? 'downWalk' : 'down'];
+    lay32(b, step === 2 && !side ? legs.map((r) => [...r.padEnd(32, '.')].reverse().join('')) : legs, 26);
+    lay32(b, HEAD32[dir], 0);
+    lay32(b, hair.hi[dir], 0);
+    if (!noHat && hat.hi) { // (the first head thing is nothing at all)
+      const head = HEAD32[dir];
+      (hat.hi[dir] || hat.hi.down).forEach((row, j) => [...row].forEach((ch, i) => {
+        if (ch === '_') { const h = (head[j] || '')[i]; b[j * 32 + i] = h && h !== '.' ? h : null; } else if (ch !== '.') b[j * 32 + i] = ch;
+      }));
     }
     return b;
   }
-  // renderLook at 32 x 32: canvases marked hi: 2, drawn at the usual size (see js/game.js)
-  function renderLook32(look, sweater) {
+  // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look, marked hi: 2 so
+  // they're drawn at the usual size (see js/game.js), in an ugly sweater if `sweater` names one.
+  function renderLook(look, sweater) {
     const sw = SWEATERS[sweater];
     return sheet32(look, sw && sweater, lookPalette(look, sw ? sweaterPal(sw) : null));
   }
-  // renderSprites at 32 x 32, for a coworker: their body is the character editor's parts
-  // (short hair, a shirt and tie and trousers; long hair and a blouse for a woman) in their
-  // own colours (look: h, s, w, u, K), in an ugly sweater if `sweater` names one.
+  // The same for a coworker: their body is the character editor's parts (short hair, a shirt
+  // and tie and trousers; long hair and a blouse for a woman) in their own colours (look: h,
+  // s, w, u, K), in an ugly sweater if `sweater` names one. Or the ghost, a sheet of its own.
   const COWORKER32 = {
     male: { hair: HAIRS.findIndex((h) => h.hd === 'short'), shirt: SHIRTS.findIndex((s) => s.hd === 'tie') },
     female: { hair: HAIRS.findIndex((h) => h.hd === 'long'), shirt: SHIRTS.findIndex((s) => s.hd === 'blouse') },
   };
-  function renderSprites32(gender, look, sweater) {
+  function renderSprites(gender, look, sweater) {
+    if (gender === 'ghost') return renderGhost();
     const sw = SWEATERS[sweater], parts = Object.assign({ hat: 0, pants: 0 }, COWORKER32[gender] || COWORKER32.male);
     return sheet32(parts, sw && sweater, palette(Object.assign(extras32(look), look, sw ? sweaterPal(sw) : null)));
   }
@@ -3230,7 +2153,7 @@ window.Art = (function () {
       const cv = document.createElement('canvas');
       cv.width = cv.height = 32; cv.hi = 2;
       const ctx = cv.getContext('2d'), img = ctx.createImageData(32, 32);
-      blit(img, lookBuf32(body, dir, step, false, sweater), 0, 0, pal, flip, 32);
+      blit(img, lookBuf32(body, dir, step, false, sweater), 0, 0, pal, flip);
       ctx.putImageData(img, 0, 0);
       return cv;
     };
@@ -3244,636 +2167,49 @@ window.Art = (function () {
   }
 
   // ---------- Halloween costumes ----------
-  // Each costume is drawn over the ordinary body: `pal` recolours it (and adds any new
-  // colour letters), and down / up / left are overlays stamped on top, row 0 first.
-  // In an overlay '.' leaves the body showing and '_' rubs it out (long hair under a mask).
-  const below = (n, rows) => new Array(n).fill('').concat(rows);
+  // Each costume's name, and its `pal`, which recolours the body under it (and adds any new
+  // colour letters). Their pictures are in COSTUME32.
   const COSTUMES = {
-    clown: {
-      name: 'Clown',
-      pal: { h: '#e03030', M: '#e03030', F: '#f8f8f8', w: '#f8e040', u: '#3868c8', K: '#7b3fb8' },
-      down: [
-        '',
-        '...kkkkkkkkkk...',
-        '..kMMMMMMMMMMk..',
-        '.kMMMMMMMMMMMMk.',
-        '.kMMMMMMMMMMMMk.',
-        '.kMMkFFFFFFkMMk.',
-        '.kMMkFkFFkFkMMk.',
-        '..kkkFFMMFFkkk..',
-        '..__kMFFFFMk__..',
-        '..___kkkkkk___..',
-        '..__kFGFFGFk__..',
-      ],
-      up: [
-        '',
-        '...kkkkkkkkkk...',
-        '..kMMMMMMMMMMk..',
-        '.kMMMMMMMMMMMMk.',
-        '.kMMMMMMMMMMMMk.',
-        '.kMMMMMMMMMMMMk.',
-        '.kMMMMMMMMMMMMk.',
-        '..kkMMMMMMMMkk..',
-        '..__kMMMMMMk__..',
-        '..___kkkkkk___..',
-        '..__kFGFFGFk__..',
-      ],
-      left: [
-        '',
-        '...kkkkkkkkk....',
-        '..kMMMMMMMMMk...',
-        '.kMMMMMMMMMMMk..',
-        '.kMMMMMMMMMMMk..',
-        '..kFFFkMMMMMMk..',
-        '..kFFFFkMMMMMk..',
-        '.MFFkFFFkMMMMk..',
-        '...kFFFFFkMMk_..',
-        '....kkkkkkkk__..',
-        '....kFGFFGFk_...',
-      ],
-    },
-    vampire: {
-      name: 'Vampire',
-      pal: { h: '#181018', s: '#e4e4f0', w: '#f8f8f8', u: '#d02030', K: '#30303c', M: '#d02030', x: '#3a2848' },
-      down: [
-        '', '', '', '', '', '',
-        '.k............k.',
-        '.kM..........Mk.',
-        '.kMk..w..w..kMk.',
-        '.kMMk......kMMk.',
-        '.kxk........kxk.',
-        '.kxk........kxk.',
-        '.kxk........kxk.',
-        '.kxk........kxk.',
-        '..k..........k..',
-      ],
-      up: [
-        '', '', '', '', '', '',
-        '.k............k.',
-        '.kx..........xk.',
-        '.kxk........kxk.',
-        '.kxxkkkkkkkkxxk.',
-        '.kxxxxxxxxxxxxk.',
-        '.kxxxxxxxxxxxxk.',
-        '.kxxxxxxxxxxxxk.',
-        '.kxxxxxxxxxxxxk.',
-        '..kkk......kkk..',
-      ],
-      left: [
-        '', '', '', '', '', '', '',
-        '............kk..',
-        '....w......kMk..',
-        '...........kMk..',
-        '.........xxxxk..',
-        '.........xxxxk..',
-        '.........xxxxk..',
-        '..........kxxk..',
-        '...........kk...',
-      ],
-    },
-    skeleton: {
-      name: 'Skeleton',
-      pal: { h: '#f0ecd8', s: '#f0ecd8', b: '#f0ecd8', w: '#2c2c38', x: '#2c2c38', u: '#f0ecd8', K: '#3c3c4a' },
-      down: [
-        '',
-        '.....kkkkkk.....',
-        '....kbbbbbbk....',
-        '...kbbbbbbbbk...',
-        '.._kbbbbbbbbk_..',
-        '.._kbkkbbkkbk_..',
-        '.._kbkkbbkkbk_..',
-        '.._kbbbkkbbbk_..',
-        '..__kbkbbkbk__..',
-        '..___kkkkkk___..',
-        '..__kxbbbbxk__..',
-        '...kbxbkkbxbk...',
-        '...kbxbbbbxbk...',
-      ],
-      up: [
-        '',
-        '.....kkkkkk.....',
-        '....kbbbbbbk....',
-        '...kbbbbbbbbk...',
-        '.._kbbbbbbbbk_..',
-        '.._kbbbbbbbbk_..',
-        '.._kbbbbbbbbk_..',
-        '.._kbbbbbbbbk_..',
-        '..__kbbbbbbk__..',
-        '..___kkkkkk___..',
-        '..__kxxbbxxk__..',
-        '...kbxbbbbxbk...',
-        '...kbxxbbxxbk...',
-      ],
-      left: [
-        '',
-        '.....kkkkkk.....',
-        '....kbbbbbbk....',
-        '...kbbbbbbbbk...',
-        '...kbbbbbbbbk_..',
-        '...kkkbbbbbbk_..',
-        '..kbkkbbbbbbk_..',
-        '..kbbbbbbbbbk_..',
-        '...kbkbkbbbk__..',
-        '....kkkkkkk___..',
-        '....kxbbxxxk_...',
-      ],
-    },
-    witch: {
-      name: 'Witch',
-      pal: { s: '#80c868', w: '#7b3fb8', u: '#f08020', K: '#30283c', x: '#30283c', V: '#7b3fb8', O: '#f0b030' },
-      down: [
-        '.......kk.......',
-        '......kxxk......',
-        '.....kxxxxk.....',
-        '....kVVOOVVk....',
-        '.kkkxxxxxxxxkkk.',
-        '.kxxxxxxxxxxxxk.',
-        '.kk..........kk.',
-      ],
-      up: [
-        '.......kk.......',
-        '......kxxk......',
-        '.....kxxxxk.....',
-        '....kVVVVVVk....',
-        '.kkkxxxxxxxxkkk.',
-        '.kxxxxxxxxxxxxk.',
-        '.kk..........kk.',
-      ],
-      left: [
-        '.......kk.......',
-        '......kxxk......',
-        '.....kxxxxk.....',
-        '....kVVVVVVk....',
-        '.kkkxxxxxxxxkkk.',
-        '.kxxxxxxxxxxxxk.',
-        '.kk..........kk.',
-      ],
-    },
-    pumpkin: {
-      name: 'Pumpkin',
-      pal: { O: '#f08020', q: '#c05810', h: '#58a848', w: '#58a848', u: '#2c6a34', K: '#5a4a30' },
-      down: [
-        '.......ee.......',
-        '....kkkeekkk....',
-        '...kOOOOOOOOk...',
-        '..kOOqOOOOqOOk..',
-        '..kOOOOOOOOOOk..',
-        '..kOOkOOOOkOOk..',
-        '..kOkkkOOkkkOk..',
-        '..kOOOOOOOOOOk..',
-        '..kOkkOkkOkkOk..',
-        '...kOOOOOOOOk...',
-        '..__kkkkkkkk__..',
-      ],
-      up: [
-        '.......ee.......',
-        '....kkkeekkk....',
-        '...kOOOOOOOOk...',
-        '..kOOqOOOOqOOk..',
-        '..kOOqOOOOqOOk..',
-        '..kOOqOOOOqOOk..',
-        '..kOOqOOOOqOOk..',
-        '..kOOqOOOOqOOk..',
-        '..kOOqOOOOqOOk..',
-        '...kOOOOOOOOk...',
-        '..__kkkkkkkk__..',
-      ],
-      left: [
-        '.......ee.......',
-        '....kkkeekkk....',
-        '...kOOOOOOOOk...',
-        '..kOOOOOqOOOOk..',
-        '..kOOOOOqOOOOk..',
-        '..kOkOOOqOOOOk..',
-        '..kkkOOOqOOOOk..',
-        '..kOOOOOqOOOOk..',
-        '..kkOkOOqOOOOk..',
-        '...kOOOOOOOOk...',
-        '....kkkkkkkk_...',
-      ],
-    },
-    mummy: {
-      name: 'Mummy',
-      pal: { h: '#e8e0c8', s: '#e8e0c8', b: '#e8e0c8', B: '#a89c78', w: '#e8e0c8', u: '#a89c78', K: '#c8c0a0', Y: '#f8e040' },
-      down: [
-        '',
-        '.....kkkkkk.....',
-        '....kbbbbbbk....',
-        '...kbBBbbbbbk...',
-        '.._kbbbbBBBbk_..',
-        '.._kBBbbbbbbk_..',
-        '.._kbbbBBbbbk_..',
-        '.._kkYkkkkYkk_..',
-        '..__kbbBBbbk__..',
-        '..___kkkkkk___..',
-        '..__kbBBbbBk__..',
-        '...kbbbbBBbbk...',
-        '...kbBBbbbbbk...',
-      ],
-      up: [
-        '',
-        '.....kkkkkk.....',
-        '....kbbbbbbk....',
-        '...kbBBbbbbbk...',
-        '.._kbbbbBBBbk_..',
-        '.._kBBbbbbbbk_..',
-        '.._kbbbBBbbbk_..',
-        '.._kbBBbbbBBk_..',
-        '..__kbbbbbbk__..',
-        '..___kkkkkk___..',
-        '..__kbBBbbBk__..',
-        '...kbbbbBBbbk...',
-        '...kbBBbbbbbk...',
-      ],
-      left: [
-        '',
-        '.....kkkkkk.....',
-        '....kbbbbbbk....',
-        '...kbBBbbbbbk...',
-        '...kbbbbBBBbk_..',
-        '...kBBbbbbbbk_..',
-        '..kbbbBBbbbbk_..',
-        '..kkYkkkbBBbk_..',
-        '...kbbBBbbbk__..',
-        '....kkkkkkk___..',
-        '....kbBBbbbk_...',
-      ],
-    },
+    clown: { name: 'Clown', pal: { h: '#e03030', M: '#e03030', F: '#f8f8f8', w: '#f8e040', u: '#3868c8', K: '#7b3fb8' } },
+    vampire: { name: 'Vampire', pal: { h: '#181018', s: '#e4e4f0', w: '#f8f8f8', u: '#d02030', K: '#30303c', M: '#d02030', x: '#3a2848' } },
+    skeleton: { name: 'Skeleton', pal: { h: '#f0ecd8', s: '#f0ecd8', b: '#f0ecd8', w: '#2c2c38', x: '#2c2c38', u: '#f0ecd8', K: '#3c3c4a' } },
+    witch: { name: 'Witch', pal: { s: '#80c868', w: '#7b3fb8', u: '#f08020', K: '#30283c', x: '#30283c', V: '#7b3fb8', O: '#f0b030' } },
+    pumpkin: { name: 'Pumpkin', pal: { O: '#f08020', q: '#c05810', h: '#58a848', w: '#58a848', u: '#2c6a34', K: '#5a4a30' } },
+    mummy: { name: 'Mummy', pal: { h: '#e8e0c8', s: '#e8e0c8', b: '#e8e0c8', B: '#a89c78', w: '#e8e0c8', u: '#a89c78', K: '#c8c0a0', Y: '#f8e040' } },
     // an air handling fan: a whole blower housing with the outlet duct up by one
     // shoulder, and the wearer's face looking out of the round inlet
-    fan: {
-      name: 'Haakon Fan',
-      pal: { x: '#484858' },
-      down: [
-        'kkkkkkk.........',
-        'kGGGGGkkkkkkk...',
-        'kGGGGGGGGGGGGkk.',
-        'kGGxxxxxxxxxxGGk',
-        'kGxk........kxGk',
-        'kGxk........kxGk',
-        'kGxk........kxGk',
-        'kGxk........kxGk',
-        'kGxk........kxGk',
-        'kGGxkkkkkkkkxGGk',
-        'kgGGxxxxxxxxGGgk',
-        '.kggGGGGGGGGggk.',
-        '..kkkkkkkkkkkk..',
-      ],
-      up: [
-        '.........kkkkkkk',
-        '...kkkkkkkGGGGGk',
-        '.kkGGGGGGGGGGGGk',
-        'kGGGGGGGGGGGGGGk',
-        'kGGGGGkkkkGGGGGk',
-        'kGGGGkxxxxkGGGGk',
-        'kGGGGkxggxkGGGGk',
-        'kGGGGkxggxkGGGGk',
-        'kGGGGkxxxxkGGGGk',
-        'kGGGGGkkkkGGGGGk',
-        'kgGGGGGGGGGGGGgk',
-        '.kggGGGGGGGGggk.',
-        '..kkkkkkkkkkkk..',
-      ],
-      left: [
-        '...kkkkkkkkkkk..',
-        '...kGGGGGGGGgk..',
-        '...kGGGGGGGGgk..',
-        '...kGGGGGGGGgk..',
-        '...kxxxGGGGGgk..',
-        '......xGGGGGgk..',
-        '......xGGGGGgk..',
-        '......xGGGGGgk..',
-        '......xGGGGGgk..',
-        '...kxxxGGGGGgk..',
-        '...kGGGGGGGGgk..',
-        '...kgggggggggk..',
-        '...kkkkkkkkkkk..',
-      ],
-    },
-    // a sandwich board with the SDG logo on the front (the logo itself is drawn on
-    // by renderCostume, from assets/sdg.png)
-    sdg: {
-      name: 'SDG Sign',
-      pal: { Y: '#f8d838', O: '#c8a020' },
-      sign: [4, 10, 8, 4],
-      down: below(9, [
-        '...kkkkkkkkkk...',
-        '...kYYYYYYYYk...',
-        '..skYYYYYYYYks..',
-        '...kYYYYYYYYk...',
-        '...kYYYYYYYYk...',
-        '...kkkkkkkkkk...',
-      ]),
-      up: below(9, [
-        '...kkkkkkkkkk...',
-        '...kYYYYYYYYk...',
-        '..skYOOOOOOYks..',
-        '...kYYYYYYYYk...',
-        '...kYOOOOOOYk...',
-        '...kkkkkkkkkk...',
-      ]),
-      left: below(9, [
-        '...kkkkkkkkk....',
-        '..kYk.....kYk...',
-        '..kYk.....kYk...',
-        '..kYk.....kYk...',
-        '..kYk.....kYk...',
-        '..kkk.....kkk...',
-      ]),
-    },
+    fan: { name: 'Haakon Fan', pal: { x: '#484858' } },
+    // a sandwich board with the SDG logo on the front
+    sdg: { name: 'SDG Sign', pal: { Y: '#f8d838', O: '#c8a020' } },
   };
   // ---------- Christmas: ugly sweaters ----------
   // Picked after the character editor at Christmas and worn over the look you made in
   // place of its shirt (your hair, head thing and pants stay), in this order on the picker.
-  // `cols` are the sweater's
-  // colours, the knit first: in the rows they're '1' to '5'. `front` and `back` are the
-  // chest across rows 10-12 (six pixels wide, between the arms); the side view has the
-  // back's pattern.
+  // `cols` are the sweater's colours, the knit first: in SWEATER32's rows they're '1' to '5'.
   const SWEATERS = {
-    gingerbread: { name: 'Gingerbread', cols: ['#efe2c4', '#a8642e', '#f8f8f8', '#d03a3a'], front: ['112211', '224422', '121121'], back: ['111111', '212121', '111111'] },
-    reindeer: { name: 'Reindeer', cols: ['#2e6b3a', '#d23a3a', '#f4f1ea', '#8a5a34'], front: ['141141', '114411', '132231'], back: ['111111', '323232', '111111'] },
-    snowflake: { name: 'Snowflakes', cols: ['#23366e', '#f4f1ea', '#c8303a', '#8fb4e8'], front: ['121121', '212212', '333333'], back: ['121121', '111111', '333333'] },
-    tree: { name: 'Xmas tree', cols: ['#c22c34', '#2e8a44', '#f0c838', '#f4f1ea', '#5ab0f0'], front: ['113311', '122421', '252242'], back: ['111111', '414141', '111111'] },
-    candycane: { name: 'Candy cane', cols: ['#2e7a44', '#d0283a', '#f0c838', '#f4f1ea'], front: ['242424', '424242', '333333'], back: ['121212', '111111', '333333'] },
-    santa: { name: 'Santa suit', cols: ['#c8202a', '#f6f4ee', '#1e1a22', '#f0c838'], front: ['112211', '112211', '334433'], back: ['111111', '111111', '333333'] },
-    snowman: { name: 'Snowman', cols: ['#6fa8d8', '#f6f6f2', '#f08a24', '#1e1a22', '#d03a3a'], front: ['114411', '112311', '125521'], back: ['121112', '111211', '211121'] },
-    moose: { name: 'Moose', cols: ['#9a2c2c', '#a8763e', '#efe6cf', '#2e6b3a'], front: ['221122', '112211', '343434'], back: ['111111', '111111', '343434'] },
-    hvac: { name: 'Ho Ho HVAC', cols: ['#1f5a8a', '#f4f1ea', '#d03a3a', '#cfd6e2'], front: ['142241', '124421', '333333'], back: ['111111', '212121', '333333'] },
+    gingerbread: { name: 'Gingerbread', cols: ['#efe2c4', '#a8642e', '#f8f8f8', '#d03a3a'] },
+    reindeer: { name: 'Reindeer', cols: ['#2e6b3a', '#d23a3a', '#f4f1ea', '#8a5a34'] },
+    snowflake: { name: 'Snowflakes', cols: ['#23366e', '#f4f1ea', '#c8303a', '#8fb4e8'] },
+    tree: { name: 'Xmas tree', cols: ['#c22c34', '#2e8a44', '#f0c838', '#f4f1ea', '#5ab0f0'] },
+    candycane: { name: 'Candy cane', cols: ['#2e7a44', '#d0283a', '#f0c838', '#f4f1ea'] },
+    santa: { name: 'Santa suit', cols: ['#c8202a', '#f6f4ee', '#1e1a22', '#f0c838'] },
+    snowman: { name: 'Snowman', cols: ['#6fa8d8', '#f6f6f2', '#f08a24', '#1e1a22', '#d03a3a'] },
+    moose: { name: 'Moose', cols: ['#9a2c2c', '#a8763e', '#efe6cf', '#2e6b3a'] },
+    hvac: { name: 'Ho Ho HVAC', cols: ['#1f5a8a', '#f4f1ea', '#d03a3a', '#cfd6e2'] },
   };
-  // a sweater's rows, laid out the way SHIRTS are (long sleeves, knit, with the hands below)
-  const sweaterRows = (sw) => sw.rows || (sw.rows = {
-    down: ['....k' + sw.front[0] + 'k....', '...k1' + sw.front[1] + '1k...', '...ks' + sw.front[2] + 'sk...'],
-    up: ['....k' + sw.back[0] + 'k....', '...k1' + sw.back[1] + '1k...', '...ks' + sw.back[2] + 'sk...'],
-    left: ['....k' + sw.back[0] + 'k....', '....k' + sw.back[1] + 'k....', '....k' + sw.back[2].slice(0, 2) + 'ss' + sw.back[2].slice(4) + 'k....'],
-    leftWalk: ['....k' + sw.back[0] + 'k....', '...k1' + sw.back[1] + 'k....', '....k' + sw.back[2].slice(0, 5) + 'sk....'],
-  });
-  // (and '0', the knit in shadow, for 32 x 32)
+  // (and '0', the knit in shadow)
   const sweaterPal = (sw) => { const o = { 0: darker(sw.cols[0], 0.25) }; sw.cols.forEach((c, i) => { o[i + 1] = c; }); return o; };
   // (and each one's 32 x 32 knit: see SWEATER32)
-  for (const k in SWEATERS) if (SWEATER32[k]) SWEATERS[k].hi = SWEATER32[k];
+  for (const k in SWEATERS) SWEATERS[k].hi = SWEATER32[k];
 
-  // The sprite sheet for someone in a costume: the same shape renderSprites returns.
-  // base(dir, i) is the body under it (i: 0 standing, 1 mid-stride), and `logo` is the
-  // SDG logo image, for the costume that wears it.
-  function costumeSheet(c, base, pal, logo) {
-    const out = {};
-    const make = (dir, i, flip, sign) => {
-      const cv = document.createElement('canvas');
-      cv.width = cv.height = 16;
-      const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16), b = base(dir, i);
-      lay(b, c[dir], 0);
-      blit(img, b, 0, 0, pal, flip);
-      ctx.putImageData(img, 0, 0);
-      if (sign && logo && logo.complete && logo.naturalWidth) ctx.drawImage(logo, sign[0], sign[1], sign[2], sign[3]);
-      return cv;
-    };
-    out.down = [make('down', 0, false, c.sign), make('down', 1, false, c.sign), make('down', 1, true, c.sign)];
-    out.up = [make('up', 0), make('up', 1), make('up', 1, true)];
-    out.left = [make('left', 0), make('left', 1), make('left', 1)];
-    out.right = [make('left', 0, true), make('left', 1, true), make('left', 1, true)];
-    return out;
-  }
-  // a coworker in a costume: their body and colours, like renderSprites
-  function renderCostume(gender, look, key, logo) {
-    const c = COSTUMES[key];
-    if (!c) return renderSprites(gender, look);
-    const SP = gender === 'female' ? SPRITES_F : SPRITES;
-    return costumeSheet(c, (dir, i) => { const b = buf(); stamp(b, SP[dir][i]); return b; }, palette(Object.assign({}, look, c.pal)), logo);
-  }
-  // a player in a costume, over the look they made (minus any head thing)
-  function renderLookCostume(look, key, logo) {
-    const c = COSTUMES[key];
-    if (!c) return renderLook(look);
-    return costumeSheet(c, (dir, i) => lookBuf(look, dir, i, true), lookPalette(look, c.pal), logo);
-  }
-
-  // ---------- tile painters ----------
-  const isWall = (c) => c === '#' || c === 'X' || c === 'E';
-
-  function paintFloor(b, f, tx, ty) {
-    for (let y = 0; y < 16; y++)
-      for (let x = 0; x < 16; x++) {
-        let c;
-        switch (f) {
-          case '.': c = ((x % 8 === 0 && y % 8 === 0) || (x % 8 === 4 && y % 8 === 4)) ? 'p' : 'P'; break;
-          case ',': c = (x === 0 || y === 0) ? 'A' : ((tx + ty) & 1 ? 'a' : 'Z'); break;
-          case ':': c = (x % 8 === 0 || y % 8 === 0) ? 'G' : 'w'; break;
-          case ';': {
-            // plant concrete: big poured slabs with saw cuts, and a few flecks of aggregate
-            const gx = tx * 16 + x, gy = ty * 16 + y;
-            c = gx % 64 === 0 || gy % 64 === 0 ? 'p' : (gx * 13 + gy * 7) % 29 === 0 ? 'p' : 'G';
-            break;
-          }
-          case '-': {
-            // casino carpet: a dark red diamond lattice with a gold stud in each diamond
-            const gx = tx * 16 + x, gy = ty * 16 + y, p = (gx + gy) & 15, q = (gx - gy) & 15;
-            c = p === 0 || q === 0 ? 'm' : Math.abs(p - 8) + Math.abs(q - 8) <= 2 ? 'q' : 'M';
-            break;
-          }
-          case '_': {
-            // long planks: 4px tall, a joint every 48px, staggered per row
-            const gx = tx * 16 + x, row = Math.floor((ty * 16 + y) / 4);
-            const joint = (gx + row * 19) % 48 === 0;
-            const grain = y % 4 === 1 && (gx * 7 + row * 3) % 13 < 3;
-            c = y % 4 === 3 || joint || grain ? 'N' : 'y';
-            break;
-          }
-          default: c = 'k';
-        }
-        b[y * 16 + x] = c;
-      }
-  }
-
-  // A wall standing on casino carpet is a casino wall: burgundy with gold pinstripes.
-  function paintWall(b, get, x, y, casino) {
-    const [cap, wall, stripe, base, foot] = casino ? ['t', 'M', 'q', 'T', 't'] : ['d', 'c', 'C', 'n', 'D'];
-    const up = get(x, y - 1), dn = get(x, y + 1), lf = get(x - 1, y), rt = get(x + 1, y);
-    const face = !isWall(dn) && dn !== ' ';
-    const capH = face ? 5 : 16;
-    for (let yy = 0; yy < 16; yy++)
-      for (let xx = 0; xx < 16; xx++) {
-        let c;
-        if (yy < capH) c = cap;
-        else if (yy === capH) c = 'k';
-        else if (yy >= 13) c = yy === 15 ? foot : base;
-        else c = (xx % 8 === 3 && yy >= capH + 2 && yy <= 11) ? stripe : wall;
-        if ((xx === 0 && !isWall(lf)) || (xx === 15 && !isWall(rt))) c = 'k';
-        if (yy === 0 && !isWall(up)) c = 'k';
-        if (yy === 15 && !face && !isWall(dn)) c = 'k';
-        b[yy * 16 + xx] = c;
-      }
-  }
-
-  // Auto-connecting block (desks, tables, counters).
-  function blockAt(b, con, top, face, hi) {
-    const x0 = con.l ? 0 : 1, x1 = con.r ? 15 : 14, y0 = con.u ? 0 : 2, y1 = con.d ? 15 : 14;
-    for (let y = y0; y <= y1; y++)
-      for (let x = x0; x <= x1; x++) {
-        let c = top;
-        if (!con.u && y === y0 + 1) c = hi;
-        if (!con.d && y >= y1 - 3) c = face;
-        if (!con.d && y === y1 - 4) c = 'k';
-        if ((!con.l && x === x0) || (!con.r && x === x1) || (!con.u && y === y0) || (!con.d && y === y1)) c = 'k';
-        set(b, x, y, c);
-      }
-  }
-
-  function partition(b, con) {
-    const inM = (x, y) =>
-      (y >= 3 && y <= 11 && ((x >= 5 && x <= 10) || (con.l && x <= 10) || (con.r && x >= 5))) ||
-      (x >= 5 && x <= 10 && ((con.u && y <= 11) || (con.d && y >= 3)));
-    for (let y = 0; y < 16; y++)
-      for (let x = 0; x < 16; x++) {
-        if (!inM(x, y)) continue;
-        let c = 'G';
-        if (!inM(x - 1, y) || !inM(x + 1, y) || !inM(x, y - 1) || !inM(x, y + 1)) c = 'k';
-        else if (!inM(x, y + 3)) c = 'g';
-        else if (!inM(x, y - 2)) c = 'w';
-        set(b, x, y, c);
-      }
-  }
-
-  // A steel work table on the plant floor: a grey top with seams where the tables meet,
-  // and a drawer with a handle in the blue front.
-  function paintWorkTable(b, con) {
-    blockAt(b, con, 'W', 'u', 'w');
-    const top = con.u ? 0 : 3, bottom = con.d ? 16 : 10;
-    if (con.r) rect(b, 15, top, 1, bottom - top, 'G');
-    if (!con.d) {
-      if (con.r) rect(b, 15, 11, 1, 3, 'k');
-      rect(b, 3, 11, 10, 3, 'k');
-      rect(b, 4, 11, 8, 2, 'U');
-      set(b, 10, 12, 'w');
-    }
-  }
-
-  // Something drawn whole across the block of touching t tiles and then cut into tiles,
-  // so its details can sit anywhere on it. draw(W, H, s, r) paints it (s = set a pixel,
-  // r = fill a rectangle).
-  function paintWhole(b, get, x, y, t, draw) {
-    let x0 = x, y0 = y, x1 = x, y1 = y;
-    while (get(x0 - 1, y) === t) x0--;
-    while (get(x, y0 - 1) === t) y0--;
-    while (get(x1 + 1, y) === t) x1++;
-    while (get(x, y1 + 1) === t) y1++;
-    const W = (x1 - x0 + 1) * 16, H = (y1 - y0 + 1) * 16, u = new Array(W * H).fill(null);
-    const s = (px, py, c) => { if (px >= 0 && px < W && py >= 0 && py < H) u[py * W + px] = c; };
-    const r = (px, py, w, h, c) => { for (let j = py; j < py + h; j++) for (let i = px; i < px + w; i++) s(i, j, c); };
-    draw(W, H, s, r);
-    const ox = (x - x0) * 16, oy = (y - y0) * 16;
-    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) set(b, i, j, u[(oy + j) * W + ox + i]);
-  }
-
+  // ---------- the plant's finished units ----------
   // Finished air handling units in shipping, waiting for the truck. The digit on the
-  // map picks the design ('0' is the one in the paint booth).
-  const paintShipUnit = (b, get, x, y, t) => paintWhole(b, get, x, y, t, SHIP_UNITS[t]);
-
-  // The tables in Cody's casino: green felt inside a padded wooden rail.
-  const CASINO_TABLES = {
-    // blackjack: a half-moon, with the dealer along the straight side at the top, the
-    // chip rack and the cards in front of them, and the betting spots round the curve
-    '['(W, H, s, r) {
-      const cx = W / 2, rx = W / 2 - 0.5, ry = H - 3.5;
-      const inside = (i, j, k) => ((i + 0.5 - cx) / (rx - k)) ** 2 + ((j + 0.5 - 2) / (ry - k)) ** 2 <= 1;
-      for (let j = 2; j < H; j++)
-        for (let i = 0; i < W; i++) {
-          if (!inside(i, j, 0)) continue;
-          let c = 'k';
-          if (inside(i, j, 1) && j > 2) c = inside(i, j, 2) && j > 3 ? 'T' : 'N';
-          if (inside(i, j, 4) && j > 5) c = inside(i, j, 9) && !inside(i, j, 10) ? 'F' : 'Q';
-          s(i, j, c);
-        }
-      r(cx - 9, 6, 18, 4, 'k');
-      ['r', 'w', 'u', 'o', 'r', 'w', 'u', 'o'].forEach((c, k) => r(cx - 8 + k * 2, 7, 2, 2, c));
-      for (const dx of [-5, 1]) { r(cx + dx, 12, 5, 7, 'k'); r(cx + dx + 1, 13, 3, 5, 'w'); s(cx + dx + 2, 15, 'r'); }
-      for (const a of [0.5, 1.57, 2.64]) {
-        const px = Math.round(cx + Math.cos(a) * (rx - 7)) - 2, py = Math.round(2 + Math.sin(a) * (ry - 7)) - 2;
-        r(px, py, 4, 4, 'F'); r(px + 1, py + 1, 2, 2, 'Q');
-      }
-    },
-    // poker: a long oval, the five community cards in the middle and everyone's chips
-    // round the edge
-    ']'(W, H, s, r) {
-      const R = 14.5, cy = 16.5, half = W / 2 - R - 0.5;
-      const dist = (i, j) => Math.hypot(Math.max(0, Math.abs(i + 0.5 - W / 2) - half), j + 0.5 - cy);
-      for (let j = 0; j < H; j++)
-        for (let i = 0; i < W; i++) {
-          const d = dist(i, j);
-          if (d > R) continue;
-          s(i, j, d > R - 1 ? 'k' : d > R - 2 ? 'N' : d > R - 4 ? 'T' : d > R - 7 && d <= R - 6 ? 'F' : 'Q');
-        }
-      for (let k = 0; k < 5; k++) { const x = W / 2 - 15 + k * 6; r(x, 13, 5, 7, 'k'); r(x + 1, 14, 3, 5, 'w'); s(x + 2, 16, k & 1 ? 'r' : 'k'); }
-      [[12, 15, 'r'], [64, 15, 'u'], [28, 7, 'o'], [48, 7, 'r'], [28, 23, 'u'], [48, 23, 'o']].forEach(([x, y, c]) => {
-        r(x, y, 4, 3, 'k'); r(x + 1, y + 1, 2, 1, c);
-      });
-      r(57, 9, 3, 3, 'k'); s(58, 10, 'w'); // the dealer button
-    },
-  };
-
-  // Pieces the shipping units are built from (s = set a pixel, r = fill a rectangle).
-  const ahu = {
-    // Casing: the roof from y=2 to `roof`, the front face below it down to `base`,
-    // then the steel base rail with lifting holes. Returns where the face starts.
-    casing(W, H, s, r, roof, base, top, face, seam) {
-      r(1, 2, W - 2, base - 2, 'k');
-      r(2, 3, W - 4, roof - 3, top);
-      r(2, 3, W - 4, 1, 'w');
-      r(2, roof, W - 4, 1, 'g');
-      r(2, roof + 1, W - 4, base - roof - 2, face);
-      for (let i = 16; i < W - 8; i += 16) { r(i, 4, 1, roof - 4, seam); r(i, roof + 1, 1, base - roof - 2, seam); }
-      r(1, base, W - 2, H - base - 1, 'k');
-      r(2, base + 1, W - 4, H - base - 3, 'K');
-      for (let i = 6; i < W - 6; i += 12) r(i, base + 1, 3, H - base - 3, 'k');
-      return roof + 1;
-    },
-    // A round porthole: grey rim, dark glass, a glint.
-    porthole(s, r, x, y) {
-      r(x + 1, y, 4, 6, 'g'); r(x, y + 1, 6, 4, 'g');
-      r(x + 1, y + 1, 4, 4, 'k');
-      s(x + 2, y + 2, 'i');
-    },
-    // An access door, hinged on the left with lever latches on the right.
-    door(s, r, x, y, w, h, window, fill = 'w') {
-      r(x, y, w, h, 'g');
-      r(x + 1, y + 1, w - 2, h - 2, fill);
-      r(x, y + 2, 2, 2, 'K'); r(x, y + h - 4, 2, 2, 'K');
-      for (const ly of h > 14 ? [y + 3, y + h - 5] : [y + (h >> 1) - 1]) { r(x + w - 4, ly, 3, 2, 'K'); s(x + w - 4, ly + 2, 'K'); }
-      if (window) ahu.porthole(s, r, x + (w >> 1) - 4, y + 3);
-    },
-    // A louvred intake or discharge: a frame with sloping blades.
-    louvre(s, r, x, y, w, h) {
-      r(x, y, w, h, 'k');
-      r(x + 1, y + 1, w - 2, h - 2, 'G');
-      for (let j = y + 2; j < y + h - 2; j += 3) { r(x + 2, j, w - 4, 1, 'K'); r(x + 2, j + 1, w - 4, 1, 'g'); }
-    },
-    // The shipping tag taped on, with the job number scribbled across it.
-    tag(s, r, x, y) {
-      r(x, y, 8, 6, 'k');
-      r(x + 1, y + 1, 6, 4, 'o');
-      r(x + 2, y + 2, 4, 1, 'k'); r(x + 2, y + 3, 2, 1, 'k');
-    },
-    // The rooftop unit's condenser fan, in a round grille, seen from above, centred on (cx, cy).
-    fan(s, r, cx, cy) {
-      for (let j = -10; j <= 10; j++)
-        for (let i = -10; i <= 10; i++) {
-          const d = i * i + j * j;
-          if (d <= 100) s(cx + i, cy + j, d > 81 ? 'k' : (i + j) % 3 === 0 || (i - j) % 3 === 0 ? 'K' : 'k');
-        }
-      for (let k = -7; k <= 7; k++) { s(cx + k, cy + (k >> 1), 'g'); s(cx - (k >> 1), cy + k, 'g'); }
-      r(cx - 1, cy - 1, 3, 3, 'G');
-    },
-    // A wooden shipping skid along the bottom.
-    skid(W, H, s, r, y) {
-      r(0, y, W, H - y - 1, 'D');
-      r(0, y, W, 2, 'N');
-      for (let i = 2; i < W - 4; i += 10) r(i, y + 2, 6, H - y - 3, 'n');
-    },
-  };
-
+  // map picks the design ('0' is the one in the paint booth). Each is laid out at half size
+  // (s = set a pixel, r = fill a rectangle, A = the parts: see ahu32).
   const SHIP_UNITS = {
     // The unit in the paint booth, still in grey primer. P and p are its paint, so once
     // you've painted it (Even Coat) the game redraws it with those two swapped out.
-    0(W, H, s, r, A = ahu) {
+    0(W, H, s, r, A) {
       const f = A.casing(W, H, s, r, 13, H - 5, 'P', 'p', 'g');
       A.door(s, r, 3, f + 1, 12, 12, true, 'P');
       A.door(s, r, 19, f + 1, 10, 12, false, 'P');
@@ -3881,7 +2217,7 @@ window.Art = (function () {
     },
     // Like the photo: white casing, a louvred intake on the end, a big fan door and a
     // smaller coil door, both with portholes, and a little panel between them.
-    1(W, H, s, r, A = ahu) {
+    1(W, H, s, r, A) {
       const f = A.casing(W, H, s, r, 20, H - 5, 'W', 'w', 'G');
       A.louvre(s, r, 3, f + 14, 10, 17);
       A.door(s, r, 15, f + 3, 17, 31, true);
@@ -3892,7 +2228,7 @@ window.Art = (function () {
     },
     // A long, low unit: intake louvre, filter door, coil with its pipe stubs poking
     // out, then the fan section and a discharge opening on the far end.
-    2(W, H, s, r, A = ahu) {
+    2(W, H, s, r, A) {
       const f = A.casing(W, H, s, r, 13, H - 5, 'W', 'w', 'G');
       A.louvre(s, r, 3, f + 1, 9, 12);
       A.door(s, r, 15, f + 1, 12, 12, false);
@@ -3903,7 +2239,7 @@ window.Art = (function () {
     },
     // A stacked unit: a supply tier on top of a return tier, with a rain hood over the
     // outdoor air intake on the roof and the main disconnect on the bottom tier.
-    3(W, H, s, r, A = ahu) {
+    3(W, H, s, r, A) {
       const f = A.casing(W, H, s, r, 34, H - 5, 'W', 'w', 'G'), mid = f + 19;
       r(2, mid, W - 4, 2, 'g'); r(2, mid + 2, W - 4, 1, 'G');
       A.door(s, r, 6, f + 2, 14, 15, true);
@@ -3919,7 +2255,7 @@ window.Art = (function () {
       A.tag(s, r, 66, 8);
     },
     // Shrink-wrapped and strapped down to a skid, ready to go on the truck.
-    4(W, H, s, r, A = ahu) {
+    4(W, H, s, r, A) {
       const base = H - 8;
       A.skid(W, H, s, r, base);
       r(1, 2, W - 2, base - 2, 'k');
@@ -3933,7 +2269,7 @@ window.Art = (function () {
     },
     // A rooftop unit: grey casing with the condenser fan in a grille on top, and its
     // access doors along the front.
-    5(W, H, s, r, A = ahu) {
+    5(W, H, s, r, A) {
       const f = A.casing(W, H, s, r, 27, H - 5, 'G', 'W', 'g');
       A.fan(s, r, 40, 14);
       r(5, 6, 14, 16, 'k'); for (let j = 7; j < 21; j += 2) r(6, j, 12, 1, 'g');   // condenser coil
@@ -3944,332 +2280,9 @@ window.Art = (function () {
     },
   };
 
-  function paintDoor(b, get, x, y) {
-    const lf = get(x - 1, y), rt = get(x + 1, y), up = get(x, y - 1), dn = get(x, y + 1);
-    const horiz = isWall(lf) || isWall(rt) || lf === 'D' || rt === 'D';
-    let x0, x1, y0, y1;
-    if (horiz) { x0 = lf === 'D' ? 0 : 2; x1 = rt === 'D' ? 15 : 13; y0 = 3; y1 = 12; }
-    else { y0 = up === 'D' ? 0 : 2; y1 = dn === 'D' ? 15 : 13; x0 = 3; x1 = 12; }
-    for (let yy = y0; yy <= y1; yy++)
-      for (let xx = x0; xx <= x1; xx++) {
-        const edge = (xx === x0 && x0 > 0) || (xx === x1 && x1 < 15) || (yy === y0 && y0 > 0) || (yy === y1 && y1 < 15);
-        set(b, xx, yy, edge ? 'd' : ((xx + yy) % 4 === 0 ? 'A' : 'C'));
-      }
-  }
-
-  function paintStairs(b, get, x, y) {
-    const lf = get(x - 1, y), rt = get(x + 1, y), up = get(x, y - 1);
-    for (let yy = 0; yy < 16; yy++)
-      for (let xx = 0; xx < 16; xx++) {
-        let c = yy % 4 === 0 ? 'w' : yy % 4 === 3 ? 'd' : 'C';
-        if ((xx === 0 && lf !== 'S') || (xx === 15 && rt !== 'S')) c = 'K';
-        if (yy === 0 && up !== 'S') c = 'k';
-        b[yy * 16 + xx] = c;
-      }
-  }
-
-  function paintExit(b) {
-    rect(b, 0, 0, 16, 16, 'c');
-    rect(b, 1, 0, 14, 16, 'k');
-    rect(b, 2, 1, 12, 15, 'r');
-    rect(b, 3, 2, 10, 1, 'R');
-    rect(b, 4, 4, 8, 5, 'k');
-    rect(b, 5, 5, 6, 3, 'i');
-    set(b, 11, 10, 'o'); set(b, 11, 11, 'o');
-  }
-
-  function paintElevator(b, get, x, y) {
-    rect(b, 0, 0, 16, 16, 'g');
-    rect(b, 0, 0, 16, 1, get(x, y - 1) === 'E' ? 'g' : 'k');
-    rect(b, 2, 2, 12, 13, 'K');
-    rect(b, 3, 3, 10, 11, 'G');
-    rect(b, 3, 8, 10, 1, 'g');
-    if (get(x, y - 1) !== 'E') { set(b, 7, 5, 'o'); set(b, 8, 5, 'o'); }
-  }
-
-  function paintShower(b) {
-    rect(b, 1, 1, 14, 14, 'k');
-    rect(b, 2, 2, 12, 12, 'W');
-    for (let i = 2; i < 14; i++) { set(b, i, i, 'G'); set(b, 15 - i, i, 'G'); }
-    rect(b, 7, 7, 2, 2, 'K');
-  }
-
-  // Wall-mounted TV seen from the side; joins up with TV tiles above/below.
-  function paintTV(b, get, x, y, t) {
-    const up = get(x, y - 1) === t, dn = get(x, y + 1) === t;
-    const x0 = t === 'V' ? 9 : 1, x1 = x0 + 5;
-    const y0 = up ? 0 : 2, y1 = dn ? 15 : 13;
-    rect(b, x0, y0, 6, y1 - y0 + 1, 'k');
-    rect(b, x0 + 1, up ? 0 : y0 + 1, 4, (dn ? 16 : y1) - (up ? 0 : y0 + 1), 'u');
-    for (let i = 0; i < 16; i++) {
-      const sy = (y * 16 + i) % 40;
-      if (sy < 6 && i >= y0 + 1 && i <= y1 - 1) set(b, x0 + 1 + (sy >> 1) % 4, i, 'U');
-    }
-    // wall bracket
-    rect(b, t === 'V' ? 15 : 0, 7, 1, 2, 'K');
-  }
-
-  // The Hall of Fame board on reception's left wall: a gold-framed screen running down
-  // the wall, with a crown and the top three up top and the rest of the standings below.
-  function paintFame(b, get, x, y) {
-    const up = get(x, y - 1) === '*', dn = get(x, y + 1) === '*';
-    const y0 = up ? 0 : 1, y1 = dn ? 15 : 14;
-    rect(b, 0, y0, 12, y1 - y0 + 1, 'n');
-    rect(b, 1, y0, 10, y1 - y0 + 1, 'o');
-    rect(b, 2, up ? 0 : y0 + 1, 8, (dn ? 16 : y1) - (up ? 0 : y0 + 1), 'k');
-    if (!up) {
-      // the crown, then gold, silver and bronze
-      set(b, 3, 3, 'o'); set(b, 6, 3, 'o'); set(b, 8, 3, 'o');
-      rect(b, 3, 4, 2, 1, 'o'); rect(b, 6, 4, 1, 1, 'o'); rect(b, 8, 4, 1, 1, 'o');
-      rect(b, 3, 5, 6, 2, 'o'); set(b, 5, 5, 'r');
-      rect(b, 3, 9, 6, 1, 'o'); rect(b, 3, 11, 5, 1, 'G'); rect(b, 3, 13, 4, 1, 'N');
-    } else {
-      for (let j = 1; j < (dn ? 16 : 13); j += 2) {
-        set(b, 3, j, 'U');
-        rect(b, 5, j, 2 + ((x * 3 + y * 7 + j) % 4), 1, 'W');
-      }
-    }
-  }
-
-  // Putting green: striped turf with a dark edge, a flag in the top-right
-  // tile and a ball waiting in the bottom-left one.
-  function paintGreen(b, get, x, y) {
-    const l = get(x - 1, y) === 'i', r = get(x + 1, y) === 'i', u = get(x, y - 1) === 'i', d = get(x, y + 1) === 'i';
-    const x0 = l ? 0 : 1, x1 = r ? 16 : 15, y0 = u ? 0 : 1, y1 = d ? 16 : 15;
-    rect(b, x0, y0, x1 - x0, y1 - y0, 'e');
-    const ix0 = l ? 0 : 2, ix1 = r ? 16 : 14, iy0 = u ? 0 : 2, iy1 = d ? 16 : 14;
-    for (let j = iy0; j < iy1; j++) rect(b, ix0, j, ix1 - ix0, 1, ((y * 16 + j) >> 2) & 1 ? 'l' : 'E');
-    let ix = 0, iy = 0;
-    while (get(x - 1 - ix, y) === 'i') ix++;
-    while (get(x, y - 1 - iy) === 'i') iy++;
-    if (iy === 0 && !r) {
-      rect(b, 8, 11, 5, 3, 'k'); rect(b, 9, 10, 3, 5, 'k');   // hole
-      rect(b, 10, 2, 1, 10, 'k');                             // pole
-      rect(b, 11, 2, 4, 1, 'r'); rect(b, 11, 3, 3, 1, 'r'); rect(b, 11, 4, 2, 1, 'r');
-    }
-    if (!d && ix === 0) {
-      rect(b, 6, 6, 3, 3, 'w'); set(b, 7, 9, 'e'); set(b, 8, 9, 'e');  // ball + shadow
-    }
-  }
-
-  // Squat rack: uprights at the ends, barbell with plates across the middle.
-  function paintSquatRack(b, get, x, y) {
-    const l = get(x - 1, y) === 'A', r = get(x + 1, y) === 'A';
-    rect(b, l ? 0 : 3, 13, (l ? 3 : 0) + (r ? 16 : 13) - 3, 2, 'K');
-    rect(b, 0, 7, 16, 1, 'g');
-    rect(b, 0, 6, 16, 1, 'k'); rect(b, 0, 8, 16, 1, 'k');
-    if (!l) {
-      rect(b, 0, 6, 3, 3, '.'); rect(b, 2, 1, 3, 14, 'k'); rect(b, 3, 2, 1, 12, 'K');
-      for (let i = 3; i < 13; i += 3) set(b, 3, i, 'g');
-      rect(b, 6, 3, 2, 9, 'k'); rect(b, 6, 4, 1, 7, 'r');
-    }
-    if (!r) {
-      rect(b, 11, 1, 3, 14, 'k'); rect(b, 12, 2, 1, 12, 'K');
-      for (let i = 3; i < 13; i += 3) set(b, 12, i, 'g');
-      rect(b, 8, 3, 2, 9, 'k'); rect(b, 9, 4, 1, 7, 'r');
-    }
-    for (let i = 0; i < 256; i++) if (b[i] === '.') b[i] = null;
-  }
-
-  // Metal railing running left-right; joins neighbouring railings and walls.
-  function paintRailing(b, get, x, y) {
-    const joins = (c) => c === 'l' || c === '#';
-    const x0 = joins(get(x - 1, y)) ? 0 : 1, x1 = joins(get(x + 1, y)) ? 15 : 14;
-    rect(b, x0, 5, x1 - x0 + 1, 3, 'k');
-    rect(b, x0, 6, x1 - x0 + 1, 1, 'G');
-    for (const px of [3, 12]) { rect(b, px - 1, 7, 3, 7, 'k'); rect(b, px, 7, 1, 6, 'g'); }
-    if (x0) rect(b, 1, 5, 1, 9, 'k');
-    if (x1 < 15) rect(b, 14, 5, 1, 9, 'k');
-  }
-
-  // Hospital curtain across a doorway. 'C' is drawn closed, '~' drawn open
-  // (fabric bunched against the outer edge of the doorway).
-  function paintCurtain(b, get, x, y, open) {
-    const isC = (c) => c === 'C' || c === '~';
-    const l = isC(get(x - 1, y)), r = isC(get(x + 1, y));
-    if (!open) {
-      for (let yy = 3; yy < 16; yy++)
-        for (let xx = 0; xx < 16; xx++)
-          set(b, xx, yy, yy === 15 ? 'e' : xx % 4 === 0 ? 'E' : 'l');
-    } else {
-      const bx = r && !l ? 0 : 11;
-      rect(b, bx, 3, 5, 13, 'l');
-      rect(b, bx + 1, 3, 1, 12, 'E'); rect(b, bx + 3, 3, 1, 12, 'E');
-      rect(b, bx, 15, 5, 1, 'e');
-    }
-    rect(b, 0, 1, 16, 2, 'K'); rect(b, 0, 1, 16, 1, 'g');
-    for (let xx = 2; xx < 16; xx += 4) if (!open || (xx >= (r && !l ? 0 : 11) && xx < (r && !l ? 5 : 16))) set(b, xx, 3, 'k');
-  }
-
-  // Stretcher / hospital bed running left-right, pillow on the left end.
-  function paintStretcher(b, get, x, y) {
-    const l = get(x - 1, y) === 'u', r = get(x + 1, y) === 'u';
-    const x0 = l ? 0 : 1, x1 = r ? 15 : 14;
-    rect(b, x0, 4, x1 - x0 + 1, 7, 'k');
-    const m0 = l ? 0 : 2, m1 = r ? 15 : 13;
-    rect(b, m0, 5, m1 - m0 + 1, 5, 'w');
-    if (!l) { rect(b, 3, 5, 4, 5, 'W'); rect(b, 3, 5, 4, 1, 'G'); }
-    const b0 = l ? 0 : 8;
-    rect(b, b0, 6, m1 - b0 + 1, 4, 'U'); rect(b, b0, 6, m1 - b0 + 1, 1, 'i');
-    rect(b, x0, 11, x1 - x0 + 1, 1, 'g');
-    if (!l) { rect(b, 2, 12, 1, 2, 'K'); set(b, 2, 14, 'k'); }
-    if (!r) { rect(b, 13, 12, 1, 2, 'K'); set(b, 13, 14, 'k'); }
-  }
-
-  // One Lego brick seen from above: outlined, with a raised stud on every
-  // second pixel in the lighter shade.
-  function legoBrick(b, x, y, w, h, c, hi) {
-    rect(b, x, y, w, h, 'k');
-    rect(b, x + 1, y + 1, w - 2, h - 2, c);
-    for (let j = y + 2; j < y + h - 1; j += 2)
-      for (let i = x + 2; i < x + w - 1; i += 2) set(b, i, j, hi);
-  }
-
-  // Joe's Lego shelf, fixed to a left-hand wall: a wooden plank running down the
-  // tile with a different little build on each tile.
-  function paintLegoShelf(b, get, x, y) {
-    const up = get(x, y - 1) === '&', dn = get(x, y + 1) === '&';
-    const y0 = up ? 0 : 1, y1 = dn ? 15 : 14;
-    rect(b, 0, y0, 14, y1 - y0 + 1, 'k');
-    rect(b, 0, y0 + (up ? 0 : 1), 13, y1 - y0 + 1 - (up ? 0 : 1) - (dn ? 0 : 1), 'N');
-    rect(b, 0, y0, 2, y1 - y0 + 1, 'n');
-    switch (y % 3) {
-      case 0: // a red house with a white door and a yellow minifig out front
-        legoBrick(b, 2, 2, 10, 8, 'r', 'R');
-        rect(b, 5, 6, 3, 3, 'w');
-        legoBrick(b, 4, 10, 5, 5, 'o', 'y');
-        break;
-      case 1: // a blue spaceship with white wings and a cockpit
-        legoBrick(b, 2, 1, 4, 14, 'W', 'w');
-        legoBrick(b, 9, 1, 4, 14, 'W', 'w');
-        legoBrick(b, 4, 3, 7, 10, 'u', 'U');
-        rect(b, 6, 6, 3, 3, 'i');
-        break;
-      default: // a green tree and a stack of loose bricks
-        legoBrick(b, 2, 1, 8, 7, 'E', 'l');
-        rect(b, 5, 8, 2, 2, 'n');
-        legoBrick(b, 2, 10, 5, 5, 'o', 'y');
-        legoBrick(b, 7, 9, 6, 6, 'u', 'U');
-        break;
-    }
-  }
-
-  // A desk with one of Joe's builds sitting on it.
-  function paintLegoDesk(b, x, y) {
-    if ((x + y) & 1) { // a half-built red and yellow tower, with spare bricks
-      legoBrick(b, 1, 1, 8, 10, 'r', 'R');
-      legoBrick(b, 3, 3, 4, 6, 'o', 'y');
-      legoBrick(b, 9, 1, 6, 5, 'E', 'l');
-      legoBrick(b, 9, 6, 5, 5, 'u', 'U');
-    } else { // a little blue car with a minifig driver
-      rect(b, 2, 1, 3, 2, 'k'); rect(b, 11, 1, 3, 2, 'k');
-      rect(b, 2, 10, 3, 2, 'k'); rect(b, 11, 10, 3, 2, 'k');
-      legoBrick(b, 1, 2, 14, 9, 'u', 'U');
-      rect(b, 6, 4, 4, 5, 'i');
-      rect(b, 7, 5, 2, 2, 'o'); set(b, 7, 7, 'r'); set(b, 8, 7, 'r');
-    }
-  }
-
-  // Build the 16x16 buffer for map tile (x, y).
-  // (objOnly: just what stands on the floor, for renderFloor32, which draws the floor, the
-  // walls, doors, desks and counters and partitions itself, at 32 x 32)
-  function tile(get, floorCh, x, y, objOnly) {
-    const b = buf();
-    const t = get(x, y);
-    const block = objOnly ? () => {} : blockAt;
-    // (anything with a 32 x 32 picture is left out for renderFloor32 and noted in b.hi, for it to draw)
-    const art32 = (k, draw) => { if (objOnly && OBJ32[k]) (b.hi = b.hi || []).push(k); else draw(); };
-    // (and the things drawn by code: renderFloor32 runs their 32 x 32 painter instead)
-    const paint32 = (k, draw) => { if (objOnly && PAINT32[k]) (b.hi = b.hi || []).push((bb) => PAINT32[k](bb, get, x, y, t)); else draw(); };
-    const stamp = (bb, art) => art32(ART_KEY.get(art), () => stampArt(bb, art));
-    if (t === ' ') { if (!objOnly) rect(b, 0, 0, 16, 16, 'k'); return b; }
-    if (t === '#') { if (!objOnly) paintWall(b, get, x, y, floorCh === '-'); return b; }
-    if (t === 'X' || t === 'E') {
-      if (objOnly && PAINT32[t]) b.hi = [(bb) => PAINT32[t](bb, get, x, y, t)];
-      else if (t === 'X') paintExit(b); else paintElevator(b, get, x, y);
-      return b;
-    }
-    if (!objOnly) paintFloor(b, floorCh, x, y);
-    const con = (chars) => ({
-      u: chars.includes(get(x, y - 1)), d: chars.includes(get(x, y + 1)),
-      l: chars.includes(get(x - 1, y)), r: chars.includes(get(x + 1, y)),
-    });
-    switch (t) {
-      case 'D': if (!objOnly) paintDoor(b, get, x, y); break;
-      case 'S': paint32('S', () => paintStairs(b, get, x, y)); break;
-      case 'd': case 'm':
-        block(b, con('dm%!'), 'N', 'n', 'y');
-        stamp(b, t === 'm' ? ART.monitor : ((x * 7 + y * 5) % 3 === 0 ? ART.papers : []));
-        break;
-      case '%': block(b, con('dm%!'), 'N', 'n', 'y'); paint32('%', () => paintLegoDesk(b, x, y)); break;
-      case '!': block(b, con('dm%!'), 'N', 'n', 'y'); break; // the phone itself is drawn by the game, so it can ring
-      case '+': if (!objOnly) paintWorkTable(b, con('+')); break; // (at 32 x 32 a desk like any other: see BLOCKS32)
-      case '0': case '1': case '2': case '3': case '4': case '5': paint32(t, () => paintShipUnit(b, get, x, y, t)); break;
-      case '[': case ']': paint32(t, () => paintWhole(b, get, x, y, t, CASINO_TABLES[t])); break;
-      case '7': stamp(b, get(x, y + 1) === '7' ? ART.slotTop : ART.slotBottom); break;
-      case '^': stamp(b, ART.forklift); break;
-      case '&': paint32('&', () => paintLegoShelf(b, get, x, y)); break;
-      case 'T': block(b, con('T'), 'y', 'N', 'w'); break;
-      case 'k': case 'M': block(b, con('kMnP'), 'W', 'g', 'w'); if (t === 'M') stamp(b, ART.appliance); break;
-      case 'P':
-        block(b, con('kMnP'), 'W', 'g', 'w');
-        stamp(b, get(x, y + 1) === 'P' ? ART.coffeeTop : ART.coffeeBottom);
-        break;
-      case 'r': case 'R': block(b, con('rR'), 'y', 'u', 'w'); if (t === 'R') stamp(b, ART.monitor); break;
-      case 'Z': block(b, con('Z'), 'y', 'N', 'w'); stamp(b, (y & 1) ? ART.candyB : ART.candy); break;
-      case '=': if (!objOnly) partition(b, con('=#')); break;
-      case 'c': stamp(b, ART.chair); break;
-      case 'p': stamp(b, ART.plant); break;
-      case 'w': stamp(b, ART.toilet); break;
-      case 'n': stamp(b, ART.sink); break;
-      case 'f': stamp(b, ART.fridge); break;
-      case 'v': stamp(b, ART.recycling); break;
-      case 'x': stamp(b, ART.copier); break;
-      case 'b': stamp(b, ART.shelf); break;
-      case 'q': { // each 'q' tile shows its third of the treadmill, counting from the left
-        let i = 0;
-        while (get(x - 1 - i, y) === 'q') i++;
-        art32('treadmill' + (i % 3), () => stamp(b, ART.treadmill.map((row) => row.substr((i % 3) * 16, 16))));
-        break;
-      }
-      case 'h': art32('shower', () => paintShower(b)); break;
-      case 'o': stamp(b, ART.ball); break;
-      case 'W': stamp(b, ART.washer); break;
-      case 't': stamp(b, ART.trophies); break;
-      case 'g': stamp(b, ART.snackShelf); break;
-      case 'l': paint32('l', () => paintRailing(b, get, x, y)); break;
-      case 'C': paint32('C', () => paintCurtain(b, get, x, y, false)); break;
-      case '~': paint32('~', () => paintCurtain(b, get, x, y, true)); break;
-      case 'u': paint32('u', () => paintStretcher(b, get, x, y)); break;
-      case 'z': stamp(b, ART.serverRack); break;
-      case 'y': stamp(b, ART.computerRack); break;
-      case 'O': stamp(b, ART.dryer); break;
-      case 'G': stamp(b, ART.punchingBag); break;
-      case 'N': stamp(b, ART.locker); break;
-      case 'I': stamp(b, ART.pulldown); break;
-      case 'A': paint32('A', () => paintSquatRack(b, get, x, y)); break;
-      case 'i': paint32('i', () => paintGreen(b, get, x, y)); break;
-      case 'e': block(b, con('e'), 'g', 'K', 'G'); stamp(b, ART.dumbbells); break;
-      case 'F': stamp(b, ART.fan); break;
-      case 'a': stamp(b, ART.damper); break;
-      case 's': stamp(b, ART.engraver); break;
-      case 'L': stamp(b, ART.coil); break;
-      case 'K': stamp(b, ART.panel); break;
-      case 'V': case 'Q': paint32('V', () => paintTV(b, get, x, y, t)); break;
-      case '*': paint32('*', () => paintFame(b, get, x, y)); break;
-      case 'U': stamp(b, ART.cupboard); break;
-      case 'Y': stamp(b, ART.printer); break;
-      case 'B': stamp(b, ART.box); break;
-      case 'H': stamp(b, ART.partsShelf); break;
-      case 'J': stamp(b, ART.junk); break;
-      case 'j': stamp(b, (x + y) % 3 === 0 ? ART.floorPartsB : ART.floorParts); break;
-    }
-    return b;
-  }
-
-  // Paint a buffer into ImageData at pixel (ox, oy).
-  function blit(img, b, ox, oy, pal, flip, n) {
-    const d = img.data, W = img.width, N = n || 16;
+  // Paint a 32 x 32 buffer into ImageData at pixel (ox, oy).
+  function blit(img, b, ox, oy, pal, flip) {
+    const d = img.data, W = img.width, N = 32;
     for (let y = 0; y < N; y++)
       for (let x = 0; x < N; x++) {
         const c = b[y * N + (flip ? N - 1 - x : x)];
@@ -4279,24 +2292,8 @@ window.Art = (function () {
       }
   }
 
-  function renderFloor(floor) {
-    const H = floor.tiles.length, W = floor.tiles[0].length;
-    const cv = document.createElement('canvas');
-    cv.width = W * 16; cv.height = H * 16;
-    const ctx = cv.getContext('2d');
-    const img = ctx.createImageData(cv.width, cv.height);
-    const pal = palette();
-    const get = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? ' ' : floor.tiles[y][x];
-    for (let y = 0; y < H; y++)
-      for (let x = 0; x < W; x++)
-        blit(img, tile(get, floor.floor[y][x], x, y), x * 16, y * 16, pal, false);
-    ctx.putImageData(img, 0, 0);
-    return cv;
-  }
-
-  // The things that stand on the floor at 32 x 32, by their name in ART (the treadmill a
-  // third at a time, and the shower): laid over the tile from its top left ('.' clear).
-  // Anything not here is today's, doubled (see renderFloor32).
+  // The things that stand on the floor at 32 x 32, by name (the treadmill a third at a time):
+  // laid over the tile from its top left ('.' clear). objAt says which tile has which.
   const OBJ32 = {
     chair: [
       '',
@@ -5712,12 +3709,11 @@ window.Art = (function () {
       '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk',
     ],
   };
-  const ART_KEY = new Map(Object.entries(ART).map(([k, v]) => [v, k]));
 
   // ---------- the plant's finished units and the casino's tables at 32 x 32 ----------
-  // A thing several tiles big, at 32 x 32: drawn whole into a buffer twice the size and the
-  // tile's own piece cut out, as paintWhole does at 16. draw(W, H, s, r, S, R): s and r take
-  // the 16 x 16 picture's own coordinates (each pixel drawn 2 x 2), S and R the 32 x 32's.
+  // A thing several tiles big, at 32 x 32: drawn whole into a buffer and the tile's own piece
+  // cut out. draw(W, H, s, r, S, R): s and r take half-size coordinates (each pixel drawn
+  // 2 x 2), with W and H at that size too, and S and R the 32 x 32's.
   function paintWhole32(b, get, x, y, t, draw) {
     let x0 = x, y0 = y, x1 = x, y1 = y;
     while (get(x0 - 1, y) === t) x0--;
@@ -5731,8 +3727,8 @@ window.Art = (function () {
     const ox = (x - x0) * 32, oy = (y - y0) * 32;
     for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) { const c = u[(oy + j) * W + ox + i]; if (c) b[j * 32 + i] = c; }
   }
-  // the units' parts at 32 x 32: the same calls as ahu's (in the 16 x 16 picture's
-  // coordinates), drawn with 2-pixel outlines, rivets, hinges, a glint on the portholes
+  // the units' parts: called in half-size coordinates, drawn with 2-pixel outlines, rivets,
+  // hinges, a glint on the portholes
   const ahu32 = (S, R) => ({
     casing(W, H, s, r, roof, base, top, face, seam) {
       R(2, 4, W * 2 - 4, base * 2 - 4, 'k');
@@ -5793,7 +3789,7 @@ window.Art = (function () {
         }
     },
   });
-  // the casino's tables at 32 x 32, as CASINO_TABLES at 16 (W and H the 32 x 32 size)
+  // the tables in Cody's casino: green felt inside a padded wooden rail (W and H the 32 x 32 size)
   const CASINO_TABLES32 = {
     '['(W, H, S, R) {
       const cx = W / 2, rx = W / 2 - 1, ry = H - 7;
@@ -5836,8 +3832,8 @@ window.Art = (function () {
   };
 
   // ---------- things drawn by code, at 32 x 32 ----------
-  // Each takes a 32 x 32 buffer and the same (get, x, y, t) as its painter at 16, and draws
-  // what stands on the tile (renderFloor32 lays it over the floor and the rest).
+  // Each takes a 32 x 32 buffer and the tile's (get, x, y, t), and draws what stands on the
+  // tile (standing32 lays it over the floor and the rest).
   function r32(b, x, y, w, h, c) { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (i >= 0 && i < 32 && j >= 0 && j < 32) b[j * 32 + i] = c; }
   const s32 = (b, x, y, c) => { if (x >= 0 && x < 32 && y >= 0 && y < 32) b[y * 32 + x] = c; };
   // a box with an outline n pixels thick
@@ -6019,17 +4015,17 @@ window.Art = (function () {
     },
   };
   PAINT32['~'] = PAINT32.C; // (open curtains: the same painter, which looks at t)
-  // the plant's finished units (their layouts as at 16, drawn with the 32 x 32 parts) and the casino's tables
+  PAINT32.Q = PAINT32.V; // (as with the TVs)
+  // the plant's finished units (SHIP_UNITS' layouts, drawn with the 32 x 32 parts) and the casino's tables
   for (const t of '012345') PAINT32[t] = (b, get, x, y) => paintWhole32(b, get, x, y, t, (W, H, s, r, S, R) => SHIP_UNITS[t](W, H, s, r, ahu32(S, R)));
   for (const t of '[]') PAINT32[t] = (b, get, x, y) => paintWhole32(b, get, x, y, t, (W, H, s, r, S, R) => CASINO_TABLES32[t](W * 2, H * 2, S, R));
 
   // ---------- the office at 32 x 32 ----------
-  // A floor at double resolution (renderFloor32): the floors, walls, doors, desks and
-  // counters and the cubicle partitions are drawn at 32 x 32 here, a tile at a time, and
-  // everything that stands on the floor (chairs, plants, machines and the rest) is today's,
-  // laid out at 16 for the whole floor and doubled in one go with Scale2x, so anything that
-  // spans tiles stays whole, then laid over the top. Outlines are 2 pixels, light from the
-  // top left, as for the people.
+  // A floor (renderFloor): the floors, walls, doors, desks and counters and the cubicle
+  // partitions a tile at a time, with everything that stands on the floor (chairs, plants,
+  // machines and the rest) laid over the top. Outlines are 2 pixels, light from the top
+  // left, as for the people.
+  const isWall = (c) => c === '#' || c === 'X' || c === 'E';
   function floor32(b, f, tx, ty) {
     for (let y = 0; y < 32; y++)
       for (let x = 0; x < 32; x++) {
@@ -6190,230 +4186,76 @@ window.Art = (function () {
     else if (BLOCKS32[t]) { const [joins, top, face, hi] = BLOCKS32[t]; block32(b, get, joins, top, face, hi, x, y); }
     return b;
   }
-  // a whole floor at 32 x 32: a canvas marked hi: 2 (see js/game.js)
-  function renderFloor32(floor) {
-    const H = floor.tiles.length, W = floor.tiles[0].length, PW = W * 32, PH = H * 32;
-    const get = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? ' ' : floor.tiles[y][x];
-    // everything standing on the floor, at 16, as letters for the whole floor
-    const W16 = W * 16, H16 = H * 16, obj = new Array(W16 * H16).fill(null);
-    const hi = [];
-    for (let ty = 0; ty < H; ty++)
-      for (let tx = 0; tx < W; tx++) {
-        const t = tile(get, floor.floor[ty][tx], tx, ty, true);
-        for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) obj[(ty * 16 + y) * W16 + tx * 16 + x] = t[y * 16 + x];
-        if (t.hi) hi.push([tx, ty, t.hi]);
+  // the tiles with one picture from OBJ32 standing on them
+  const OBJ_AT = {
+    m: 'monitor', R: 'monitor', '^': 'forklift', M: 'appliance', c: 'chair', p: 'plant', w: 'toilet', n: 'sink', f: 'fridge',
+    v: 'recycling', x: 'copier', b: 'shelf', h: 'shower', o: 'ball', W: 'washer', t: 'trophies', g: 'snackShelf', z: 'serverRack',
+    y: 'computerRack', O: 'dryer', G: 'punchingBag', N: 'locker', I: 'pulldown', e: 'dumbbells', F: 'fan', a: 'damper', s: 'engraver',
+    L: 'coil', K: 'panel', U: 'cupboard', Y: 'printer', B: 'box', H: 'partsShelf', J: 'junk',
+  };
+  // what's standing on map tile (x, y), if it's a picture: its name in OBJ32
+  function objAt(get, x, y) {
+    const t = get(x, y);
+    switch (t) {
+      case 'd': return (x * 7 + y * 5) % 3 === 0 ? 'papers' : null;
+      case '7': return get(x, y + 1) === '7' ? 'slotTop' : 'slotBottom';
+      case 'P': return get(x, y + 1) === 'P' ? 'coffeeTop' : 'coffeeBottom';
+      case 'Z': return y & 1 ? 'candyB' : 'candy';
+      case 'j': return (x + y) % 3 === 0 ? 'floorPartsB' : 'floorParts';
+      case 'q': { // each 'q' tile shows its third of the treadmill, counting from the left
+        let i = 0;
+        while (get(x - 1 - i, y) === 'q') i++;
+        return 'treadmill' + (i % 3);
       }
-    // ... doubled by Scale2x, over the floors, walls and desks drawn at 32
+    }
+    return OBJ_AT[t] || null;
+  }
+  // lay what's standing on map tile (x, y) over a 32 x 32 buffer: a picture, or something drawn by code
+  function standing32(b, get, x, y) {
+    const t = get(x, y), k = objAt(get, x, y);
+    if (k) lay32Over(b, OBJ32[k], 0, 0);
+    else if (PAINT32[t]) {
+      const bb = new Array(1024).fill(null);
+      PAINT32[t](bb, get, x, y, t);
+      bb.forEach((c, i) => { if (c) b[i] = c; });
+    }
+  }
+  // a whole floor: a canvas marked hi: 2 (see js/game.js)
+  function renderFloor(floor) {
+    const H = floor.tiles.length, W = floor.tiles[0].length;
+    const get = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? ' ' : floor.tiles[y][x];
     const cv = document.createElement('canvas');
-    cv.width = PW; cv.height = PH; cv.hi = 2;
-    const ctx = cv.getContext('2d'), img = ctx.createImageData(PW, PH), d = img.data, pal = palette({ J: '#e4b47c' });
-    const at = (x, y) => obj[Math.min(H16 - 1, Math.max(0, y)) * W16 + Math.min(W16 - 1, Math.max(0, x))];
-    const put = (X, Y, c) => { if (!c) return; const rgb = pal[c], i = (Y * PW + X) * 4; d[i] = rgb[0]; d[i + 1] = rgb[1]; d[i + 2] = rgb[2]; d[i + 3] = 255; };
+    cv.width = W * 32; cv.height = H * 32; cv.hi = 2;
+    const ctx = cv.getContext('2d'), img = ctx.createImageData(cv.width, cv.height), pal = palette({ J: '#e4b47c' });
     for (let ty = 0; ty < H; ty++)
       for (let tx = 0; tx < W; tx++) {
         const b = structure32(get, floor.floor[ty][tx], tx, ty);
-        for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) put(tx * 32 + x, ty * 32 + y, b[y * 32 + x]);
-      }
-    for (let y = 0; y < H16; y++)
-      for (let x = 0; x < W16; x++) {
-        const p = at(x, y);
-        const a = at(x, y - 1), r = at(x + 1, y), l = at(x - 1, y), dn = at(x, y + 1), edge = a !== dn && l !== r;
-        put(x * 2, y * 2, edge && l === a ? l : p);
-        put(x * 2 + 1, y * 2, edge && a === r ? r : p);
-        put(x * 2, y * 2 + 1, edge && l === dn ? l : p);
-        put(x * 2 + 1, y * 2 + 1, edge && dn === r ? r : p);
-      }
-    // and the things drawn at 32 x 32, in their places
-    for (const [tx, ty, keys] of hi)
-      for (const k of keys) {
-        if (typeof k === 'function') { const bb = new Array(1024).fill(null); k(bb); bb.forEach((c, i) => put(tx * 32 + (i & 31), ty * 32 + (i >> 5), c)); }
-        else OBJ32[k].forEach((row, y) => [...row].forEach((c, x) => { if (c !== '.') put(tx * 32 + x, ty * 32 + y, c); }));
+        standing32(b, get, tx, ty);
+        blit(img, b, tx * 32, ty * 32, pal, false);
       }
     ctx.putImageData(img, 0, 0);
     return cv;
   }
 
-  // renderTileAs at 32 x 32: one tile drawn as if it were `ch`, with `over` swapping any
-  // colours (the floor and so on at 32, what stands on it doubled, or at 32 where it's been redrawn)
-  function renderTileAs32(floor, x, y, ch, over) {
+  // One tile drawn as if it were `ch` (used for things that change at runtime, like a
+  // curtain being pulled open), with `over` swapping any colours.
+  function renderTileAs(floor, x, y, ch, over) {
     const H = floor.tiles.length, W = floor.tiles[0].length;
     const get = (xx, yy) => (xx === x && yy === y) ? ch : (xx < 0 || yy < 0 || xx >= W || yy >= H) ? ' ' : floor.tiles[yy][xx];
-    const b = structure32(get, floor.floor[y][x], x, y), t = tile(get, floor.floor[y][x], x, y, true);
-    double(t).forEach((c, i) => { if (c) b[i] = c; });
-    for (const k of t.hi || []) {
-      if (typeof k === 'function') { const bb = new Array(1024).fill(null); k(bb); bb.forEach((c, i) => { if (c) b[i] = c; }); }
-      else lay32Over(b, OBJ32[k], 0, 0);
-    }
+    const b = structure32(get, floor.floor[y][x], x, y);
+    standing32(b, get, x, y);
     const cv = document.createElement('canvas');
     cv.width = cv.height = 32; cv.hi = 2;
     const ctx = cv.getContext('2d'), img = ctx.createImageData(32, 32);
-    blit(img, b, 0, 0, palette(Object.assign({ J: '#e4b47c' }, over)), false, 32);
-    ctx.putImageData(img, 0, 0);
-    return cv;
-  }
-  // One tile drawn as if it were `ch` (used for things that change at runtime,
-  // like a curtain being pulled open), with `over` swapping any colours.
-  function renderTileAs(floor, x, y, ch, over) {
-    const H = floor.tiles.length, W = floor.tiles[0].length;
-    const get = (xx, yy) => (xx === x && yy === y) ? ch
-      : (xx < 0 || yy < 0 || xx >= W || yy >= H) ? ' ' : floor.tiles[yy][xx];
-    const cv = document.createElement('canvas');
-    cv.width = cv.height = 16;
-    const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16);
-    blit(img, tile(get, floor.floor[y][x], x, y), 0, 0, palette(over), false);
+    blit(img, b, 0, 0, palette(Object.assign({ J: '#e4b47c' }, over)), false);
     ctx.putImageData(img, 0, 0);
     return cv;
   }
 
-  // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look.
-  // `sweater` (a key in SWEATERS) knits an ugly Christmas sweater over their shirt.
-  function renderSprites(gender, look, sweater) {
-    const sw = gender !== 'ghost' && SWEATERS[sweater], rows = sw ? sweaterRows(sw) : {};
-    const pal = palette(gender === 'ghost' ? {} : Object.assign({}, look, sw ? sweaterPal(sw) : null)), out = {};
-    const SP = gender === 'female' ? SPRITES_F : gender === 'ghost' ? SPRITES_GHOST : SPRITES;
-    const make = (art, flip, knit) => {
-      const cv = document.createElement('canvas');
-      cv.width = cv.height = 16;
-      const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16), b = buf();
-      stamp(b, art);
-      if (knit) knitOver(b, knit);
-      blit(img, b, 0, 0, pal, flip);
-      ctx.putImageData(img, 0, 0);
-      return cv;
-    };
-    out.down = [make(SP.down[0], false, rows.down), make(SP.down[1], false, rows.down), make(SP.down[1], true, rows.down)];
-    out.up = [make(SP.up[0], false, rows.up), make(SP.up[1], false, rows.up), make(SP.up[1], true, rows.up)];
-    out.left = [make(SP.left[0], false, rows.left), make(SP.left[1], false, rows.leftWalk), make(SP.left[1], false, rows.leftWalk)];
-    out.right = [make(SP.left[0], true, rows.left), make(SP.left[1], true, rows.leftWalk), make(SP.left[1], true, rows.leftWalk)];
-    return out;
-  }
-  // A sweater's rows over a coworker's body (rows 10-12, as on the look sprites), only where
-  // their shirt is, or a bare arm it has a sleeve over: long hair down their back stays put.
-  function knitOver(b, rows) {
-    rows.forEach((row, j) => [...row].forEach((ch, i) => {
-      const k = (10 + j) * 16 + i;
-      if (ch >= '1' && ch <= '9' && ['w', 'u', 's'].includes(b[k])) b[k] = ch;
-    }));
-  }
-
-  // Dogs: h = coat, D = ears and darker patches, y = chest and belly, u = collar.
-  const DOG_TOP = ['................', '................', '................', '................'];
-  const DOG = {
-    down: DOG_TOP.concat([
-      '...kk......kk...',
-      '..kDDk....kDDk..',
-      '..kDhhkkkkhhDk..',
-      '...khhhhhhhhk...',
-      '...khkhhhhkhk...',
-      '...khhhhhhhhk...',
-      '....khhkkhhk....',
-      '....kuuuuuuk....',
-      '...khyyyyyyhk...',
-    ]),
-    up: DOG_TOP.concat([
-      '...kk......kk...',
-      '..kDDk....kDDk..',
-      '..kDhhkkkkhhDk..',
-      '...khhhhhhhhk...',
-      '...khhhhhhhhk...',
-      '....khhhhhhk....',
-      '....kuuuuuuk....',
-      '...khhhhhhhhk...',
-      '...khhhkkhhhk...',
-    ]),
-    left: DOG_TOP.concat([
-      '...kk...........',
-      '..kDDk..........',
-      '.khhhDk.......k.',
-      'kkhkhhhk.....khk',
-      'khhhhhhhkkkkkhk.',
-      '.kkhhuhhhhhhhhk.',
-      '...kuhhhhhhhhhk.',
-      '...khhhhhhhhhhk.',
-      '...khyyyyyyyhhk.',
-    ]),
-  };
-  const DOG_LEGS = {
-    down: [['...khk....khk...', '...khk....khk...', '...kkk....kkk...'],
-      ['...khk....khk...', '...kkk....khk...', '..........kkk...']],
-    up: [['...khk.kk.khk...', '...khk....khk...', '...kkk....kkk...'],
-      ['...khk.kk.khk...', '...kkk....khk...', '..........kkk...']],
-    left: [['...khk.....khk..', '...khk.....khk..', '...kk......kk...'],
-      ['..khk......khk..', '.khk........khk.', '.kk..........kk.']],
-  };
-  // A cat, curled up sitting and fast asleep. h = coat, D = stripes, y = chest.
-  const CAT = [
-    '................',
-    '................',
-    '................',
-    '................',
-    '....kk....kk....',
-    '....khk..khk....',
-    '....khhkkhhk....',
-    '...khhDhhDhhk...',
-    '...khkkhhkkhk...',
-    '...khhhyyhhhk...',
-    '....khhkkhhk....',
-    '...khDhhhhDhk...',
-    '..khhhyyyyhhhk..',
-    '..khDhyyyyhDhkk.',
-    '..khhhyyyyhhkDk.',
-    '...kkkkkkkkkkk..',
-  ];
-  // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a dog (or, with
-  // look.cat, the same sleeping cat every way round).
-  function renderDog(look) {
-    const { cat, ...colours } = look, pal = palette(colours), out = {};
-    const make = (art, flip) => {
-      const cv = document.createElement('canvas');
-      cv.width = cv.height = 16;
-      const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16), b = buf();
-      stamp(b, art);
-      blit(img, b, 0, 0, pal, flip);
-      ctx.putImageData(img, 0, 0);
-      return cv;
-    };
-    if (cat) {
-      const img = make(CAT);
-      for (const d of ['down', 'up', 'left', 'right']) out[d] = [img, img, img];
-      return out;
-    }
-    const frame = (d, i) => DOG[d].concat(DOG_LEGS[d][i]);
-    out.down = [make(frame('down', 0)), make(frame('down', 1)), make(frame('down', 1), true)];
-    out.up = [make(frame('up', 0)), make(frame('up', 1)), make(frame('up', 1), true)];
-    out.left = [make(frame('left', 0)), make(frame('left', 1)), make(frame('left', 1))];
-    out.right = [make(frame('left', 0), true), make(frame('left', 1), true), make(frame('left', 1), true)];
-    return out;
-  }
-
-  // A picture at double resolution, by Scale2x: each pixel becomes four, and where two
-  // neighbours of the same colour meet at a corner that corner takes their colour, so
-  // diagonals and curves come out smoother instead of just blockier. The canvas it gives
-  // back is marked hi: 2, so the game draws it at the original's size (see js/game.js).
-  function scale2x(src) {
-    const w = src.width, h = src.height;
-    const inp = new Uint32Array(src.getContext('2d').getImageData(0, 0, w, h).data.buffer);
-    const cv = document.createElement('canvas');
-    cv.width = w * 2; cv.height = h * 2;
-    const c = cv.getContext('2d'), img = c.createImageData(w * 2, h * 2), out = new Uint32Array(img.data.buffer);
-    const at = (x, y) => inp[Math.min(h - 1, Math.max(0, y)) * w + Math.min(w - 1, Math.max(0, x))];
-    for (let y = 0; y < h; y++)
-      for (let x = 0; x < w; x++) {
-        const p = at(x, y), a = at(x, y - 1), b = at(x + 1, y), l = at(x - 1, y), d = at(x, y + 1), o = (y * 2 * w + x) * 2;
-        const edge = a !== d && l !== b;
-        out[o] = edge && l === a ? l : p;
-        out[o + 1] = edge && a === b ? b : p;
-        out[o + w * 2] = edge && l === d ? l : p;
-        out[o + w * 2 + 1] = edge && d === b ? b : p;
-      }
-    c.putImageData(img, 0, 0);
-    cv.hi = 2;
-    return cv;
-  }
-
-  // ---------- dogs and the cat at 32 x 32 (for &hires: see js/game.js) ----------
+  // ---------- dogs and the cat at 32 x 32 ----------
   // Each way a dog faces, standing and mid-step (from row DOG32.from); the cat curled up
-  // asleep (from row DOG32.catFrom). Their own colours (h, D, y, u, as at 16) plus H, the
+  // asleep (from row DOG32.catFrom). Their own colours (h = coat, D = ears and darker patches,
+  // y = chest and belly, u = collar) plus H, the
   // coat in shadow, j, a shine on it, R, the tongue and nose, and o, the collar's tag.
   const DOG32 = {
     from: 7,
@@ -6599,7 +4441,7 @@ window.Art = (function () {
       '............kkkkkkkkkkkk',
     ],
   };
-  function renderDog32(look) {
+  function renderDog(look) {
     const { cat, ...c } = look, out = {};
     const pal = palette(Object.assign({ H: darker(c.h, 0.25), j: blend(c.h, '#ffffff', 0.35), R: '#f07878', o: '#f0c838', W: '#ffffff' }, c));
     const make = (rows, y0, flip) => {
@@ -6607,7 +4449,7 @@ window.Art = (function () {
       cv.width = cv.height = 32; cv.hi = 2;
       const ctx = cv.getContext('2d'), img = ctx.createImageData(32, 32), b = new Array(1024).fill(null);
       lay32(b, rows, y0);
-      blit(img, b, 0, 0, pal, flip, 32);
+      blit(img, b, 0, 0, pal, flip);
       ctx.putImageData(img, 0, 0);
       return cv;
     };
@@ -6626,8 +4468,8 @@ window.Art = (function () {
 
   // ---------- Halloween costumes at 32 x 32 ----------
   // Each is laid over the look (or the coworker) drawn bald, or with their own hair where
-  // it says `own`, in the costume's colours (its `pal` at 16, then any more here, which are
-  // the 32 x 32 ones only). '.' leaves what's underneath and '_' rubs it out, as at 16. A
+  // it says `own`, in the costume's colours (its `pal` in COSTUMES, then any more here). '.'
+  // leaves what's underneath and '_' rubs it out (long hair under a mask). A
   // `logo` is laid at `sign`, front and back (the SDG sign's).
   const COSTUME32 = {
     clown: {
@@ -7553,7 +5395,7 @@ window.Art = (function () {
       const ctx = cv.getContext('2d'), img = ctx.createImageData(32, 32), b = lookBuf32(body, dir, step, true);
       k[dir].forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '_') b[j * 32 + i] = null; else if (ch !== '.') b[j * 32 + i] = ch; }));
       if (k.logo && dir !== 'left') lay32Over(b, k.logo, k.sign[0], k.sign[1]);
-      blit(img, b, 0, 0, pal, flip, 32);
+      blit(img, b, 0, 0, pal, flip);
       ctx.putImageData(img, 0, 0);
       return cv;
     };
@@ -7564,23 +5406,22 @@ window.Art = (function () {
       right: [make('left', 0, true), make('left', 1, true), make('left', 1, true)],
     };
   }
-  // renderLookCostume at 32 x 32: a player in a costume, over the look they made (the SDG
-  // sign's logo is pixelled in, so unlike at 16 it doesn't need the logo image)
-  function renderLookCostume32(look, key) {
-    return COSTUME32[key] ? costumeSheet32(look, key, lookColours(look)) : renderLook32(look);
+  // a player in a costume, over the look they made
+  function renderLookCostume(look, key) {
+    return COSTUME32[key] ? costumeSheet32(look, key, lookColours(look)) : renderLook(look);
   }
-  // renderCostume at 32 x 32: a coworker in a costume (or the ghost, a sheet of its own)
-  function renderCostume32(gender, look, key) {
-    if (gender === 'ghost') return renderGhost32();
-    return COSTUME32[key] ? costumeSheet32(COWORKER32[gender] || COWORKER32.male, key, look) : renderSprites32(gender, look);
+  // a coworker in a costume (or the ghost, a sheet of its own)
+  function renderCostume(gender, look, key) {
+    if (gender === 'ghost') return renderGhost();
+    return COSTUME32[key] ? costumeSheet32(COWORKER32[gender] || COWORKER32.male, key, look) : renderSprites(gender, look);
   }
-  function renderGhost32() {
+  function renderGhost() {
     const pal = palette(), make = (rows, flip) => {
       const cv = document.createElement('canvas');
       cv.width = cv.height = 32; cv.hi = 2;
       const ctx = cv.getContext('2d'), img = ctx.createImageData(32, 32), b = new Array(1024).fill(null);
       lay32(b, rows, 0);
-      blit(img, b, 0, 0, pal, flip, 32);
+      blit(img, b, 0, 0, pal, flip);
       ctx.putImageData(img, 0, 0);
       return cv;
     };
@@ -7612,9 +5453,9 @@ window.Art = (function () {
   }
 
   return {
-    LOOKS, UI, COSTUMES, scale2x, renderFloor, renderFloor32, renderTileAs32, renderSprites, renderCostume, renderDog, renderDog32, renderMini, renderTileAs,
+    LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLook32, renderSprites32, renderLookCostume, renderLookCostume32, renderCostume32, renderGhost32,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
     SWEATERS,
   };
 })();

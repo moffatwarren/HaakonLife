@@ -395,12 +395,11 @@ The rules let the game add a 1 where there's no number and nothing else, so only
 can change one that's there. Like the scores, a determined person could still add a 1 to a
 name that has no number.
 
-To add one, draw it and add it to the end of `HATS`, `SHIRTS` or `PANTS` in `js/art.js`, with
-`item: 'itsname'` (the name its number goes by, up to 16 characters). That keeps it out of the
-character editor until a name's number for it is 1, and the rules already cover it, so they
-don't need changing. To have it earned in the game as well, call `itemGive(name, 'itsname')`
-where that happens. A 32 x 32 drawing (`HAT32`, `SHIRT32` or `PANTS32`) is optional: without
-one, the 16 x 16 rows are doubled.
+To add one, draw it at 32 x 32 (in `HAT32`, `SHIRT32` or `PANTS32` in `js/art.js`) and add it
+to the end of `HATS`, `SHIRTS` or `PANTS` under the same `hd` name, with `item: 'itsname'` (the
+name its number goes by, up to 16 characters). That keeps it out of the character editor until
+a name's number for it is 1, and the rules already cover it, so they don't need changing. To
+have it earned in the game as well, call `itemGive(name, 'itsname')` where that happens.
 
 If the database's rules were set up before special items, add the `items` part above and
 press Publish again. Until then the game can't find or save them there, and just remembers
@@ -765,7 +764,7 @@ Press A on it to pick any of the five party games or the costume contest, withou
 party. For the contest you change into the costume you last picked (the Clown if you
 never picked one), and back again afterwards. The scores go on the same leaderboards.
 
-The costumes are drawn in `COSTUMES` in `js/art.js`. What people say about their
+The costumes are drawn in `COSTUME32` in `js/art.js`. What people say about their
 costume is `COSTUME_LINES` at the bottom of `js/people.js`, and anyone in `PEOPLE` can
 have a `halloween:` line of their own.
 
@@ -849,16 +848,30 @@ From November 27 to December 31 (by your device's date) the office does Christma
     meter on the left follows it), and now and then it crackles and flares right up. Let
     a side go black and the marshmallow catches fire: blow it out with A, quick, or it's
     charcoal.
-  - **Big spruce**: 45 seconds to hang everything the box hands you (baubles in five
-    colours, candy canes and bows, with the next one shown in the box), all the way round
-    the tree. Left and right turn the tree, up and down move your hand up and down the
-    front of it, and A hangs the decoration there. A dotted circle round your hand shows
-    what it's worth there before you hang it, with the points beside it: green +20 with the circle
-    to itself, yellow +15 with something else in it, orange +10 with one the same in it
-    (whatever's in the circle is outlined, the same kind in red), and red where it's right
-    up against another and would slip off and break (-5). The end screen counts how many
-    of each you got. Then the star swings back and forth over the top: press A to drop
-    it, up to 50 more the straighter it lands.
+  - **Big spruce**: 60 seconds to deck the tree off a ladder that has seen better days.
+    Down at the bottom, left and right carry the ladder along the tree; up and down climb
+    it. Your hand goes to any branch tip in reach (the twinkling ones), and holding A hooks
+    a decoration on: +10 on the bottom tier, +20 on the middle, +30 on the top. You get
+    whatever the box hands you (it's in your hand), and it's worth half next to one the
+    same: the points beside the tip go orange, with the one it matches ringed in red, so
+    you might want a different tip. The star is +100, from the very top rung, but wiring it
+    on takes about a second and a half and shakes the ladder harder and harder as you go:
+    let go of A and you start again, once it's settled. Left and right lean the ladder, so
+    you can reach further without going all the way down to move it. Lean far enough and it
+    comes up on one foot and creaks; past the tipping point (a red **!** over your head,
+    and it comes sooner the higher you are) it stops pulling back and starts going over by
+    itself. Lean back hard straight away and you might save it. If not, you land in the
+    snow, the clock keeps running, and up to three of the nearest decorations come off and
+    smash (you lose what they earned, and those tips can be hung again; the star stays
+    on). Climbing rattles the ladder, and
+    gusts of wind blow it about, more the higher you are: the snow streaks across and a
+    message warns you just before each one hits, and they get stronger as the minute goes
+    on. Each one you hang on the same trip up the ladder makes the next worth one times
+    more (**x2**, **x3** and so on, shown beside your score, and that goes for the star
+    too, so keeping it for the end of a long climb can be worth hundreds), back to x1 when
+    you touch the ground, fall, or hang one next to one the same. Hang every tip and the
+    star before time's up and each second left is worth 20 more. At the end you climb down, carry the ladder out of the way and the lights come on,
+    from the bottom of the tree up.
   - **Snowman**: roll the bottom, then the middle, then the head, in 60 seconds. A ball
     picks up the fresh snow it rolls over, leaving bare ground behind, and slows down as
     it grows; A stands it where it is and starts the next one. Then they're stacked, and
@@ -996,7 +1009,7 @@ Everyone is drawn with the same sprites as in the office, each placed from where
 really are, to the nearest real pixel, and on the ice they're on skates (`onSkates` paints white boots and steel over their feet). Coworkers
 look just as they do in the office, in the colours they already have (`js/people.js`).
 Players wear just what they made in the character editor, with their ugly sweater over the
-top. The sweaters are `SWEATERS` in `js/art.js`. What they say out there is
+top. The sweaters are `SWEATERS` and `SWEATER32` in `js/art.js`. What they say out there is
 `CHRISTMAS_LINES` at the bottom of `js/people.js`, and anyone in `PEOPLE` can have a
 `christmas:` line of their own. The rink's layout is in `tools/build_maps.py`.
 
@@ -1051,17 +1064,17 @@ Add these to the end of the address (after `index.html`) and press Enter.
 **Double resolution**
 
 The screen is drawn at twice the resolution (640 x 480 pixels for the same 320 x 240
-view), and every person and animal is drawn at 32 x 32: your character (`renderLook32` in
+view), and every person and animal is drawn at 32 x 32: your character (`renderLook` in
 `js/art.js`: the head and face `HEAD32`, the hairstyles `HAIR32`, head things `HAT32`,
 shirts `SHIRT32`, pants `PANTS32` and ugly Christmas sweaters `SWEATER32`), the coworkers
-(`renderSprites32`: the same parts, short hair, shirt and tie and trousers for a man, long
+(`renderSprites`: the same parts, short hair, shirt and tie and trousers for a man, long
 hair and a blouse for a woman, in their own colours), the dogs and the cat
-(`renderDog32`), and the Halloween costumes and ghosts (`COSTUME32`, `GHOST32`). The
-office is drawn at 32 x 32 too (`renderFloor32`, "the office at 32 x 32" in `js/art.js`):
+(`renderDog`), and the Halloween costumes and ghosts (`COSTUME32`, `GHOST32`). The
+office is drawn at 32 x 32 too (`renderFloor`, "the office at 32 x 32" in `js/art.js`):
 the floors (carpet, reception's stone, white tile, wood, concrete, the casino's carpet),
 walls, doorways, desks and counters and cubicle partitions (a desk's outline is worked
 out from its whole shape, so its corners join up cleanly), and the things standing on the
-floor that have been redrawn (`OBJ32`: chairs, plants, monitors, papers, the copier,
+floor (`OBJ32`: chairs, plants, monitors, papers, the copier,
 printer, fridge, sink, toilet, recycling, shelves, cupboards, the microwave, the coffee
 machine, candy and boxes; the fitness room's treadmill, punching bag, washer, dryer, lockers,
 lat pulldown, dumbbells, ball, trophies and showers; the HVAC kit and tech: the fan, coil,
@@ -1078,10 +1091,9 @@ stockings, mistletoe, poinsettias, candy canes, the gingerbread house and the ri
 bows, and the Halloween party's bunting, cobwebs, spider, candy, candles, apple tub, toilet
 rolls and the rest.
 The text is drawn with smoothed letters (`FONT.glyphs2` in `js/font.js`), and the
-mini-games keep their layouts and sizes (so nothing about how they play, or what
-multiplayer sends, changes) but add finer detail under `if (HIRES)` with `fine()` (a
-rectangle that can be half a pixel across), `fineDisc()` and `roundBox()`. All of them are
-done: the locker, Linda's and Kiki's lists, the Employee of the Month certificate, coffee, paper toss,
+mini-games are laid out in the same 320 x 240 view, with their finer detail drawn by `fine()`
+(a rectangle that can be half a pixel across), `fineDisc()` and `roundBox()`. That goes for
+all of them: the locker, Linda's and Kiki's lists, the Employee of the Month certificate, coffee, paper toss,
 the copier, lunch, candy, lights, punch, treadmill, squat, golf, snake, pong, fan, coil,
 dampers, filters, parts, patch panel, CPR, engraving, pulldown, balance ball, battle, front
 desk, paper jam, laundry, forms, Nathan's trophies, wok, carrot, Wade's golf, dance, dark, Lego,
@@ -1090,8 +1102,11 @@ games (bob, mummy, carve, treat, ghosts), catch, Humbug Sweeper, the SDG app and
 the elevator, the winter games, the parking lot and hockey, and the menus and title screen.
 Linda's departure keeps its timing and places too, with its beam, streaks and twinkles
 redrawn (`freeingLight`).
-Add `&hires=0` to a `#play` link to see it all at 16 x 16 as it was, e.g.
-`index.html#play&hires=0`. A look code, as in `&look=m20000000`, is the body, then the
+Anything new is built this way only, with no 16 x 16 version and no lower resolution to fall
+back to: lay it out in the 320 x 240 view and its 16-pixel tiles, and draw it as a 32 x 32
+picture (a canvas marked `hi: 2`) or with `fine()` and the rest.
+
+A look code, as in `&look=m20000000`, is the body, then the
 skin 0 to 7, the hairstyle 0 to 8, the hair colour, the head thing, then the shirt and
 pants and their colours.
 

@@ -210,5 +210,6 @@ window.CHRISTMAS_LINES = {
   snowman: ["Somebody gave him a lanyard. He has better building access than I do.", "I did the head. I'm very proud of the head.",
     "I tried building him a friend. The head kept rolling off."],
   tree: ["Whoever strung all these lights deserves a raise.", "I tried counting the bulbs. I lost count at forty.",
-    "There's a whole box of decorations at the bottom. Nobody's hung a single one."],
+    "There's a whole box of decorations at the bottom. Nobody's hung a single one.",
+    "I'd hold that ladder for you, but I've seen what it does."],
 };
