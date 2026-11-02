@@ -7001,18 +7001,26 @@
         if (HIRES) for (let xx = X0; xx < X1; xx += 0.5) { const yy = Math.round(lineAt(xx) * 2) / 2; fine(xx, yy - 1, 0.5, 2.5, '#9a7a40'); fine(xx, yy + 1.5, 0.5, 0.5, '#f0dca8'); }
         else for (let xx = X0; xx < X1; xx += 2) ctx.fillRect(xx, Math.round(lineAt(xx)) - 1, 2, 3);
         // what you actually cut
-        for (const c of cut) {
+        if (HIRES) { // (a smooth line between where the head has been, lit along the top and shaded under it)
+          for (let i = 1; i < cut.length; i++) {
+            const a = cut[i - 1], b = cut[i], [m, lit, dim] = a.on ? ['#f8f8f8', '#ffffff', '#a8acb8'] : ['#b83028', '#e06048', '#701810'];
+            for (let xx = realPx(a.x); xx < realPx(b.x); xx += 0.5) {
+              const yy = realPx(a.y + (b.y - a.y) * (xx - a.x) / (b.x - a.x));
+              fine(xx, yy - 1, 0.5, 2.5, m); fine(xx, yy - 1, 0.5, 0.5, lit); fine(xx, yy + 1.5, 0.5, 0.5, dim);
+            }
+          }
+        } else for (const c of cut) {
           ctx.fillStyle = c.on ? '#f8f8f8' : '#b83028';
           ctx.fillRect(Math.round(c.x), Math.round(c.y) - 1, 2, 3);
         }
         // the cutting head
         if (state === 'play') {
-          const real = head + Math.sin(wob) * 1.6;
-          ctx.fillStyle = col.dark; ctx.fillRect(Math.round(x) - 4, Math.round(real) - 18, 9, 16);
-          ctx.fillStyle = '#8890a0'; ctx.fillRect(Math.round(x) - 3, Math.round(real) - 17, 7, 14);
-          ctx.fillStyle = col.dark; ctx.fillRect(Math.round(x) - 1, Math.round(real) - 3, 3, 5);
+          const real = head + Math.sin(wob) * 1.6, snap = HIRES ? realPx : Math.round;
+          ctx.fillStyle = col.dark; ctx.fillRect(snap(x) - 4, snap(real) - 18, 9, 16);
+          ctx.fillStyle = '#8890a0'; ctx.fillRect(snap(x) - 3, snap(real) - 17, 7, 14);
+          ctx.fillStyle = col.dark; ctx.fillRect(snap(x) - 1, snap(real) - 3, 3, 5);
           if (HIRES) { // the tool's shine and grip, and a sharp bit
-            const hx = Math.round(x), hy = Math.round(real);
+            const hx = snap(x), hy = snap(real);
             fine(hx - 2.5, hy - 17, 1, 14, '#c8ccd8'); fine(hx + 2.5, hy - 17, 1, 14, '#686878');
             for (let gy = hy - 15; gy < hy - 9; gy += 1.5) fine(hx - 3, gy, 7, 0.5, '#686878');
             fine(hx - 0.5, hy + 1, 2, 1, '#c8ccd8'); fine(hx, hy + 2, 1, 1, '#f8f8f8');
@@ -7222,10 +7230,22 @@
         // a gust, shown blowing in from the side it came from
         if (puff) {
           const dx = Math.cos(puff.a), dy = Math.sin(puff.a);
-          ctx.fillStyle = (puff.t >> 1) & 1 ? '#3868c8' : '#a8d8f0';
-          for (let i = 0; i < 4; i++) {
-            const d = R + 20 - puff.t * 1.6 - i * 7;
-            ctx.fillRect(Math.round(CX - dx * d) - 4, Math.round(CY - dy * d) - 1, 9, 3);
+          if (HIRES) { // wisps of wind along the way it's blowing, thick at the front and thinning away behind
+            const fade = Math.min(1, (23 - puff.t) / 6);
+            for (const [side, lag, len] of [[-8, 6, 16], [-3, 0, 24], [3, 9, 18], [8, 3, 20]]) {
+              for (let s = 0; s < len; s += 0.5) {
+                const d = R + 14 - puff.t * 1.6 + lag + s, off = side + Math.sin((s - puff.t * 2) / 4), k = s / len, w = k < 0.3 ? 1.5 : k < 0.65 ? 1 : 0.5;
+                ctx.globalAlpha = fade * (1 - k * k);
+                fine(realPx(CX - dx * d - dy * off), realPx(CY - dy * d + dx * off), w, w, k < 0.65 ? '#3868c8' : '#a8d8f0');
+              }
+            }
+            ctx.globalAlpha = 1;
+          } else {
+            ctx.fillStyle = (puff.t >> 1) & 1 ? '#3868c8' : '#a8d8f0';
+            for (let i = 0; i < 4; i++) {
+              const d = R + 20 - puff.t * 1.6 - i * 7;
+              ctx.fillRect(Math.round(CX - dx * d) - 4, Math.round(CY - dy * d) - 1, 9, 3);
+            }
           }
         }
         // where your weight is
@@ -9216,6 +9236,8 @@
     dancers.forEach((d, i) => { d.phase = (i * 3) % 8; });
     party = { names: new Set(dancers.map((d) => d.name)), dancers };
     const bits = [];
+    // (at double resolution, each colour's two sides of paper: shaded and catching the light)
+    const paper = HIRES && new Map(RAVE_COLS.map((c) => [c, [mixHex(c, '#181820', 0.35), mixHex(c, '#ffffff', 0.45)]]));
     let t = 0;
     sfx('cup');
     const self = {
@@ -9231,9 +9253,20 @@
         }
       },
       draw() {
-        for (const b of bits) { ctx.fillStyle = b.c; ctx.fillRect(Math.round(b.x), Math.round(b.y), 3, 2); }
+        if (HIRES) bits.forEach((b, i) => {
+          const [shade, lit] = paper.get(b.c), y = realPx(b.y);
+          if (i % 5 === 0) { // a curl of streamer
+            for (let k = 0; k < 14; k++) fine(realPx(b.x + 1.5 + Math.sin((t + b.w * 20 + k * 2.2) / 5)), y + k / 2, 1, 0.5, k < 4 ? lit : b.c);
+            return;
+          }
+          // a scrap of paper, tumbling: nearly edge on, then round to its other side
+          const turn = Math.sin((t + b.w * 20) / 6), wide = Math.max(1, realPx(Math.abs(turn) * 3.5)), x = realPx(b.x + 1.5 - wide / 2);
+          fine(x, y, wide, 2, turn > 0 ? b.c : shade);
+          fine(x, y, wide, 0.5, turn > 0 ? lit : b.c);
+        });
+        else for (const b of bits) { ctx.fillStyle = b.c; ctx.fillRect(Math.round(b.x), Math.round(b.y), 3, 2); }
         const msg = 'DANCE PARTY!';
-        const y = 18 + Math.round(Math.sin(t / 8) * 3);
+        const y = 18 + (HIRES ? realPx : Math.round)(Math.sin(t / 8) * 3);
         text(msg, ((SW - msg.length * 12) >> 1) + 1, y + 1, 2, '#000000');
         text(msg, (SW - msg.length * 12) >> 1, y, 2, RAVE_COLS[(t >> 3) % RAVE_COLS.length]);
       },
@@ -9500,6 +9533,12 @@
     ctx.fillRect(x - 5, wy, 4, 2); ctx.fillRect(x + 1, wy, 4, 2);
     ctx.fillRect(x - 7, wy + (up ? -1 : 1), 2, 2); ctx.fillRect(x + 5, wy + (up ? -1 : 1), 2, 2);
   }
+  // A candle's flame, leaning one way then the other, stood on the wick of a candle whose top
+  // is 3 below (x, y). i keeps each candle out of step with the others.
+  const FLAME_COLS = { W: '#fff8d0', o: '#f8d848', A: '#f08020' };
+  function drawFlame(x, y, i) {
+    ctx.drawImage(pic(((tick + i * 5) >> 3) & 1 ? 'flameL' : 'flameR', FLAME_COLS), x - 0.5, y - 1);
+  }
   const BUNTING = ['#f08020', '#7b3fb8', '#181820'];
   function drawHalloween(cx, cy, pass) {
     const r = hw.room, on = hw.state === 'party';
@@ -9524,7 +9563,7 @@
       ctx.drawImage(pic('spider'), sx - 2.75, y0 - 11 + drop);
       ctx.drawImage(pic('candybowl'), X(r.x1 + 10), Y(r.y1 + 7) + 4);
       for (const [ppx, ppy] of pumpkins) drawPumpkinAt(ppx, ppy, false);
-      for (const [cx2, cy2] of candles) { ctx.drawImage(pic('candle'), cx2, cy2 + 3); ctx.drawImage(pic('flame'), cx2, cy2 + (tick >> 3 & 1)); }
+      candles.forEach(([cx2, cy2], i) => { ctx.drawImage(pic('candle'), cx2, cy2 + 3); drawFlame(cx2, cy2, i); });
       if (on) {
         for (const p of hw.props) {
           const ppx = X(p.x), ppy = Y(p.y);
@@ -9608,13 +9647,21 @@
       ctx.globalCompositeOperation = 'lighter';
       pumpkins.concat(candles).forEach(([px, py], i) => {
         const flick = Math.sin(tick / 5 + i * 2.3) * 2;
+        if (HIRES) { // (a soft pool of light, round the pumpkin's middle or the candle's flame)
+          const mid = i < pumpkins.length ? 5 : 1, gx = px + mid, gy = py + mid, rad = 34 + flick;
+          const glow = ctx.createRadialGradient(gx, gy, 1, gx, gy, rad);
+          glow.addColorStop(0, 'rgba(240, 128, 32, 0.55)'); glow.addColorStop(0.45, 'rgba(240, 128, 32, 0.26)'); glow.addColorStop(0.8, 'rgba(240, 128, 32, 0.07)'); glow.addColorStop(1, 'rgba(240, 128, 32, 0)');
+          ctx.fillStyle = glow; ctx.fillRect(gx - rad, gy - rad, rad * 2, rad * 2);
+          return;
+        }
         ctx.fillStyle = '#f08020';
         ctx.globalAlpha = 0.16; ctx.beginPath(); ctx.arc(px + 5, py + 5, 26 + flick, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 0.2; ctx.beginPath(); ctx.arc(px + 5, py + 5, 13 + flick, 0, Math.PI * 2); ctx.fill();
       });
       ctx.restore();
       for (const [px, py] of pumpkins) drawPumpkinAt(px, py, true);
-      for (const [px, py] of candles) { ctx.fillStyle = '#f8e040'; ctx.fillRect(px, py + (tick >> 3 & 1), 2, 3); }
+      if (HIRES) candles.forEach(([px, py], i) => drawFlame(px, py, i));
+      else for (const [px, py] of candles) { ctx.fillStyle = '#f8e040'; ctx.fillRect(px, py + (tick >> 3 & 1), 2, 3); }
     }
     for (let i = 0; i < 4; i++) {
       const a = tick / (50 + i * 9) + i * 1.9;
@@ -10559,7 +10606,8 @@
     spider: ['', '..k.......k', '...kkkkk.k', '.k.kkrkrk..k', '..kkkkkkk.k', '....kkkk', '..k.kkkk..k', '.k..kkkk...k', '...k.kk..k', '..k.......k'],
     candybowl: ['..........kkkk......kkkk', '.....kkkkkwwwwkkkkkkwLLLkkkkk', '....kwaaakwwwwkwOOOkLLLLkwaaak', '.kkkkaaaakwwwwkOOOOkLLLLkaaaakk', 'kppppaaawrrrpwuuuOOpppwOOOaaappk', 'kppppppprrrrpuuuupppppOOOOpppppk', 'kppppppprrrrpuuuupppppOOOOpppppk', 'kppppppppppppppppppppppppppppPPk', 'kppppppppppppppppppppppppppppPPk', 'kPppppppppppppppppppppppppppPPPk', '.kppppppppppppppppppppppppppPPk', '.kPppppppppppppppppppppppppPPPk', '..kPppppppppppppppppppppppPPPk', '...kPppppppppppppppppppppPPPk', '....kPppppppppppppppppppPPPk', '.....kkPppppppppppppppPPPkk', '.......kPPPppppppppPPPPPk', '........kkkkPPPPPPPPkkkk'],
     candle: ['wkwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW', 'wwwW'],
-    flame: ['', '.oo', 'oooo', 'oOOo', 'oOOo', '.OO'],
+    flameL: ['..o', '..o', '..oo', '.oooo', '.oWWo', 'AoWWoA', 'AoWWoA', '.AooA', '..AA'],
+    flameR: ['...o', '...o', '..oo', '.oooo', '.oWWo', 'AoWWoA', 'AoWWoA', '.AooA', '..AA'],
     tub: ['', '', '..kkkkkkkkkkkkkkkkkkkkkkkk', '.kkkkkkkkkkkkkkkkkkkkkkkkkk', 'kkyyyyyyyyyyyyyyyyyyyyyyyykk', 'kknnUUUUUUUUUUUUUUUUUUUUBBkk', 'kknnvvvvvvvvvvvvvvvvvvvvBBkk', 'kknnvvvvwvvvvvvvvvvvvvvvBBkk', 'kknnvvvvvvvvvvvvvvwvvvvvBBkk', 'kknnvvvvvvvvvvvvvvvvvvvvBBkk', 'kknnvvvvvvvvvvvvvvvvvvvvBBkk', 'kknnvvvvvvvvvvvvvvvvvvvvBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kkiiiiiiiiiiiiiiiiiiiiBBBBkk', 'kkiiiiiiiiiiiiiiiiiiiiBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk', 'kknnnnnnnnnnnnnnnnnnnnBBBBkk'],
     apple: ['.rE', 'rRrr', 'rrrr', '.rr'],
     roll: ['.kkkkkkkkkk', 'kwwwwwwwwWWk', 'kwwwwiiwwWWk', 'kwwwiiiiwWWk', 'kwwwiigiwWWk', 'kwwwwiiwwWWk', 'kwwwwwwwwWWk', 'kwwwwwwwwWWk', 'kwwwwwwwwWWk', 'kwwwwwwwwWWk', 'kwwwwwwwwWWk', 'kwwwwwwwwWWk', 'kwwwwwwwwWWk', '.kkkkkkkkkk'],
@@ -11817,6 +11865,46 @@
     };
     return self;
   }
+  // At double resolution: the same beam in the same place, in bands brighter towards the
+  // middle with their edges on real pixels, fading into a pool of light on the floor, with
+  // streaks climbing it and the sparkles twinkling on their way up.
+  const FREE_BANDS = [[1, '#f8d870', 0.14], [0.8, '#f8d870', 0.12], [0.6, '#f8d870', 0.1], [0.4, '#fff8d0', 0.22], [0.22, '#fff8d0', 0.28]];
+  const FREE_POOL = [[1.35, '#f8d870', 0.05], [1.1, '#f8d870', 0.06], [0.85, '#fff8d0', 0.07], [0.6, '#fff8d0', 0.09], [0.35, '#fff8d0', 0.12]];
+  function freeingLight(bx, sy, rise, t, grow) {
+    const half = 2 + grow * 10 + Math.sin(t / 6), foot = sy + 18;
+    for (const [k, c, a] of FREE_BANDS) {
+      const w = realPx(half * k);
+      ctx.globalAlpha = a * grow;
+      fine(bx - w, 0, w * 2, foot - 8, c);
+      for (let i = 0; i < 16; i++) {
+        ctx.globalAlpha = a * grow * (1 - (i + 0.5) / 16);
+        fine(bx - w, foot - 8 + i / 2, w * 2, 0.5, c);
+      }
+    }
+    for (const [k, c, a] of FREE_POOL) {
+      const rx = half * k, ry = rx * 0.32;
+      ctx.globalAlpha = a * grow;
+      for (let y = -ry + 0.25; y < ry; y += 0.5) {
+        const w = realPx(rx * Math.sqrt(1 - y * y / (ry * ry)));
+        if (w) fine(bx - w, realPx(sy + 15 + y - 0.25), w * 2, 0.5, c);
+      }
+    }
+    for (let i = 0; i < 9; i++) {
+      const len = 8 + (i % 3) * 6, y = foot - len - (t * (0.9 + (i % 4) * 0.25) + i * 41) % foot;
+      ctx.globalAlpha = 0.35 * grow;
+      fine(realPx(bx + Math.sin(i * 2.4) * half * 0.8), realPx(y), 0.5, len, '#fffce8');
+    }
+    for (let i = 0; i < 32; i++) {
+      const p = (t * (0.6 + (i % 5) * 0.15) + i * 23) % 90;
+      const x = realPx(bx + Math.sin(t / 15 + i * 1.7) * (6 + (i % 4) * 3));
+      const y = realPx(sy + 16 - rise * 0.5 - p);
+      ctx.globalAlpha = grow * (1 - p / 90);
+      if (i % 4 === 0) twinkle(x, y, realPx(1.5 + Math.abs(Math.sin(t / 9 + i)) * 2));
+      else if (i % 4 === 1) twinkle(x, y, 1);
+      else if (i % 4 === 2) fine(x, y, 1, 1, i % 3 ? '#f8e070' : '#ffffff');
+      else fine(x, y, 0.5, 0.5, '#fff8d0');
+    }
+  }
   // Linda mid-departure: the beam, the sparkles and her, drawn where she stands.
   function drawFreeing(sx, sy, img) {
     const t = freeing.t;
@@ -11825,19 +11913,22 @@
     const fadeOut = t < 200 ? 1 : Math.max(0, 1 - (t - 200) / (FREE_TICKS - 240));
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const bw = 4 + grow * 20 + Math.sin(t / 6) * 2;
-    ctx.globalAlpha = 0.35 * grow;
-    ctx.fillStyle = '#f8d870'; ctx.fillRect(sx + 8 - bw / 2, 0, bw, sy + 18);
-    ctx.globalAlpha = 0.5 * grow;
-    ctx.fillStyle = '#fff8d0'; ctx.fillRect(sx + 8 - bw / 4, 0, bw / 2, sy + 18);
-    // sparkles drifting up the beam
-    for (let i = 0; i < 20; i++) {
-      const p = (t * (0.6 + (i % 5) * 0.15) + i * 23) % 90;
-      const px = sx + 8 + Math.sin(t / 15 + i * 1.7) * (6 + (i % 4) * 3);
-      const py = sy + 16 - rise * 0.5 - p;
-      ctx.globalAlpha = grow * (1 - p / 90);
-      ctx.fillStyle = i % 3 ? '#f8e070' : '#ffffff';
-      ctx.fillRect(Math.round(px), Math.round(py), i % 4 ? 1 : 2, i % 4 ? 1 : 2);
+    if (HIRES) freeingLight(sx + 8, sy, rise, t, grow);
+    else {
+      const bw = 4 + grow * 20 + Math.sin(t / 6) * 2;
+      ctx.globalAlpha = 0.35 * grow;
+      ctx.fillStyle = '#f8d870'; ctx.fillRect(sx + 8 - bw / 2, 0, bw, sy + 18);
+      ctx.globalAlpha = 0.5 * grow;
+      ctx.fillStyle = '#fff8d0'; ctx.fillRect(sx + 8 - bw / 4, 0, bw / 2, sy + 18);
+      // sparkles drifting up the beam
+      for (let i = 0; i < 20; i++) {
+        const p = (t * (0.6 + (i % 5) * 0.15) + i * 23) % 90;
+        const px = sx + 8 + Math.sin(t / 15 + i * 1.7) * (6 + (i % 4) * 3);
+        const py = sy + 16 - rise * 0.5 - p;
+        ctx.globalAlpha = grow * (1 - p / 90);
+        ctx.fillStyle = i % 3 ? '#f8e070' : '#ffffff';
+        ctx.fillRect(Math.round(px), Math.round(py), i % 4 ? 1 : 2, i % 4 ? 1 : 2);
+      }
     }
     // a soft halo that follows her up
     const hy = sy + 8 - rise, glow = ctx.createRadialGradient(sx + 8, hy, 1, sx + 8, hy, 18);
@@ -11845,8 +11936,15 @@
     ctx.globalAlpha = grow * fadeOut; ctx.fillStyle = glow; ctx.fillRect(sx - 12, hy - 20, 40, 40);
     ctx.restore();
     // Linda herself, glowing and fading as she rises
+    const ly = (HIRES ? realPx : Math.round)(sy - 2 - rise + Math.sin(t / 8) * 2);
     ctx.globalAlpha = 0.75 * fadeOut;
-    ctx.drawImage(img, sx, Math.round(sy - 2 - rise + Math.sin(t / 8) * 2));
+    ctx.drawImage(img, sx, ly);
+    if (HIRES) { // (lit from inside as the beam opens)
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.35 * grow * fadeOut;
+      ctx.drawImage(img, sx, ly);
+      ctx.globalCompositeOperation = 'source-over';
+    }
     ctx.globalAlpha = 1;
   }
 

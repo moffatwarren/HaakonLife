@@ -1000,6 +1000,8 @@ desk, paper jam, laundry, forms, Nathan's trophies, wok, carrot, Wade's golf, da
 candy jar, poker, blackjack, slots, forklift, paint, the costume contest and the Halloween
 games (bob, mummy, carve, treat, ghosts), catch, Humbug Sweeper, the SDG app and desktop,
 the elevator, the winter games, the parking lot and hockey, and the menus and title screen.
+Linda's departure keeps its timing and places too, with its beam, streaks and twinkles
+redrawn (`freeingLight`).
 Add `&hires=0` to a `#play` link to see it all at 16 x 16 as it was, e.g.
 `index.html#play&hires=0`. A look code, as in `&look=m20000000`, is the body, then the
 skin 0 to 7, the hairstyle 0 to 8, the hair colour, the head thing, then the shirt and
