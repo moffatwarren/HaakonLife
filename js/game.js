@@ -480,6 +480,24 @@
     src.connect(f); f.connect(g); g.connect(sfxBus);
     src.start(t);
   }
+  // One note of an air horn. Where tone dies away, this swells up to pitch in a moment and
+  // holds, brassy, with a pair of reeds a shade apart so it beats.
+  function blast(freq, dur, vol) {
+    const t = actx.currentTime, end = t + dur;
+    const f = actx.createBiquadFilter(), g = actx.createGain();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(500, t); f.frequency.linearRampToValueAtTime(2200, t + 0.12);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.05);
+    g.gain.setValueAtTime(vol, end - 0.15); g.gain.exponentialRampToValueAtTime(0.0001, end);
+    f.connect(g); g.connect(sfxBus);
+    for (const cents of [-6, 6]) {
+      const o = actx.createOscillator();
+      o.type = 'sawtooth'; o.detune.value = cents;
+      o.frequency.setValueAtTime(freq * 0.93, t); o.frequency.exponentialRampToValueAtTime(freq, t + 0.12);
+      o.connect(f);
+      o.start(t); o.stop(end + 0.02);
+    }
+  }
   const SFX = {
     // liquid pouring into a cup: a rising "glug" that gets higher as it fills
     pour: (level) => {
@@ -529,7 +547,7 @@
     boards: () => { noise(0.12, 260, 0.12); tone(75, 0.12, 'sine', 0.1, -25); },
     post: () => { tone(1980, 0.5, 'triangle', 0.07); tone(2970, 0.3, 'sine', 0.035); },
     mesh: () => noise(0.18, 1300, 0.05),
-    horn: () => { for (const f of [233, 294, 349]) { tone(f, 0.9, 'sawtooth', 0.04); tone(f, 1.1, 'sawtooth', 0.04, 0, 0.95); } },
+    horn: () => { for (const f of [156, 196, 233]) blast(f, 2, 0.05); }, // (done before the screen fades for the faceoff)
     // out in the parking lot: packing snow, and a snowball landing on somebody
     crunch: () => noise(0.08, 650, 0.05),
     splat: () => { noise(0.14, 900, 0.1); tone(220, 0.1, 'sine', 0.06, -140); },
