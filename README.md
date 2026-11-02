@@ -370,14 +370,18 @@ which tile they're on (and has them walking from tile to tile).
   you, and you turn to face them).
   Pick **Small talk** (Hi!, Follow me!, Good game! and so on) or **Shop talk** (Check
   the CFM!, Coil's frozen!, Is that REV C? and so on), then a line, and it pops up over
-  your head for everyone near you. Or pick **Custom** and type your own, up to 32
+  your head for everyone near you. Or pick **Emoji talk**, then one from the rows of
+  emoji along the top of the screen, and that goes over your head instead (they're
+  `EMOJI` in `js/game.js`). Or pick **Custom** and type your own, up to 32
   characters (letters, numbers and `. , ! ? ' " - : / & ( ) +`): straight from a
   keyboard, or on a phone by picking characters with the D-pad and A, then START to say
   it. Nothing filters what people type, so it's down to everyone to keep it office-friendly.
   The ready-made lines are a list (`MP_SAY` in `js/game.js`) and are sent as their place
   in it, so add new ones only at the end of the last page (or as a new page), because
-  players on older versions would otherwise see the wrong line. A typed line goes in your
-  record as two 16-character pieces (`w0` and `w1`); older versions just don't show it.
+  players on older versions would otherwise see the wrong line. An emoji is sent the same
+  way, numbered from 1000 up, so add new ones only at the end of its list too. A typed line
+  goes in your record as two 16-character pieces (`w0` and `w1`). Older versions just don't
+  show an emoji or a typed line.
 - **Challenge**: walk up to another player, press A and pick a game:
   - **Air duel**: Richard's air handling duel, against each other. You each pick a
     move in secret and the round plays out once you've both picked.

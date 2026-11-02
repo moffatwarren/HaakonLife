@@ -12399,6 +12399,190 @@
     '+': ['A steel work table. Somebody\'s tape measure is holding down a drawing.'],
   };
 
+  // ---------- emoji: pictures to say instead of words ----------
+  // Each is painted once, 28 x 28 real pixels (14 x 14 in the view), with what's in here. It
+  // all has crisp edges: a pixel gets the colour if its middle is inside the shape.
+  const EMOJI_PX = 28, EMOJI_INK = '#3a2410', EMOJI_TEAR = '#58b8f0', EMOJI_TONGUE = '#e8606a';
+  const EMOJI_SKIN = ['#f8cc38', '#e8a428', '#fde98a'];
+  function emojiKit(c) {
+    const S = EMOJI_PX, inOval = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
+    const fill = (co, inside) => {
+      c.fillStyle = co;
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (inside(x + 0.5, y + 0.5)) c.fillRect(x, y, 1, 1);
+    };
+    const k = {
+      rect(x, y, w, h, co) { c.fillStyle = co; c.fillRect(x, y, w, h); },
+      oval(cx, cy, rx, ry, co) { fill(co, (x, y) => inOval(x, y, cx, cy, rx, ry)); },
+      // half an oval's rim, w thick (or solid, if that's past its middle): the bottom half,
+      // as in a smile, or with `up` the top half, as in a frown
+      bow(cx, cy, rx, ry, w, co, up) {
+        fill(co, (x, y) => (up ? y < cy : y >= cy) && inOval(x, y, cx, cy, rx, ry) && !(w < Math.min(rx, ry) && inOval(x, y, cx, cy, rx - w, ry - w)));
+      },
+      poly(co, ...p) {
+        fill(co, (x, y) => {
+          let inside = false;
+          for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) {
+            if ((p[i + 1] > y) !== (p[j + 1] > y) && x < p[i] + (y - p[i + 1]) * (p[j] - p[i]) / (p[j + 1] - p[i + 1])) inside = !inside;
+          }
+          return inside;
+        });
+      },
+      // a line r thick either side, with round ends
+      bar(x0, y0, x1, y1, r, co) {
+        const dx = x1 - x0, dy = y1 - y0, len = dx * dx + dy * dy || 1;
+        fill(co, (x, y) => {
+          const t = Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / len));
+          return Math.hypot(x - x0 - t * dx, y - y0 - t * dy) <= r;
+        });
+      },
+      // rows of '#' on a little grid, for what's too small to be a shape
+      dots(x, y, co, ...rows) { rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '#') k.rect(x + i, y + j, 1, 1, co); })); },
+      // the dark line round everything painted so far
+      line() {
+        const d = c.getImageData(0, 0, S, S).data, on = (x, y) => x >= 0 && y >= 0 && x < S && y < S && d[(y * S + x) * 4 + 3] > 0;
+        c.fillStyle = col.dark;
+        for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (!on(x, y) && (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1))) c.fillRect(x, y, 1, 1);
+      },
+      // turn it all upside down
+      flip() { c.save(); c.globalCompositeOperation = 'copy'; c.setTransform(1, 0, 0, -1, 0, S); c.drawImage(c.canvas, 0, 0); c.restore(); },
+      // a round head, lit from the top, in its colours (skin by default)
+      face(cols, cx = 14, cy = 14, r = 12.5) {
+        const [base, shade, light] = cols || EMOJI_SKIN;
+        k.oval(cx, cy, r, r, shade); k.oval(cx, cy - 1, r - 1, r - 1, base); k.line();
+        k.oval(cx - r * 0.35, cy - r * 0.6, r * 0.35, r * 0.2, light);
+      },
+      eyes(y = 11) { k.oval(9.5, y, 1.9, 2.9, EMOJI_INK); k.oval(18.5, y, 1.9, 2.9, EMOJI_INK); },
+      // an eye shut: smiling, or with `down` asleep
+      shut(x, y, down) { k.bow(x, y, 3.2, 3.2, 1.5, EMOJI_INK, !down); },
+      grin() { k.bow(14, 15.5, 8.5, 8.5, 99, EMOJI_INK); k.rect(7, 16, 14, 2, '#f8f8f8'); k.oval(14, 21.5, 4, 2, EMOJI_TONGUE); },
+      smile(y = 15, r = 7) { k.bow(14, y, r, r, 1.7, EMOJI_INK); },
+      frown(y = 24, r = 6) { k.bow(14, y, r, r - 1, 1.7, EMOJI_INK, true); },
+      drop(x, y, co) { k.poly(co, x, y - 3.5, x - 2.2, y + 0.5, x + 2.2, y + 0.5); k.oval(x, y + 0.5, 2.2, 2.2, co); },
+      heart(x, y) { k.dots(x, y, '#e83848', '.##.##.', '#######', '#######', '.#####.', '..###..', '...#...'); k.rect(x + 1, y + 1, 1, 1, '#f8a8b0'); },
+      // a fist with its thumb up
+      thumb() {
+        k.rect(2, 13, 6, 12, '#3878c8'); k.rect(3, 15, 1, 8, '#6890e0');
+        k.poly(EMOJI_SKIN[0], 8, 13, 12, 12, 13, 6, 14, 2, 17, 2, 18.5, 5, 17.5, 12, 23, 12, 25.5, 14, 25.5, 23, 23, 25, 8, 25);
+        k.line();
+        k.rect(15, 3, 1, 7, EMOJI_SKIN[2]);
+        for (const y of [15, 18, 21]) k.rect(15, y, 10, 1, EMOJI_SKIN[1]);
+      },
+    };
+    return k;
+  }
+  // EMOJI TALK on the say menu, in the order they're laid out there (see MpEmoji). One's sent
+  // as its place in this list (see MP_EMOJI_AT), so only ever add to the end. Each is named
+  // by the real emoji, so nothing anyone types can pass for one: mpClean lets none through.
+  const EMOJI = new Map([
+    ['😀', (k) => { k.face(); k.eyes(); k.grin(); }],
+    ['😂', (k) => { k.face(); k.shut(9.5, 12); k.shut(18.5, 12); k.grin(); k.drop(3.5, 15, EMOJI_TEAR); k.drop(24.5, 15, EMOJI_TEAR); }],
+    ['😍', (k) => { k.face(); k.heart(5.5, 8); k.heart(15.5, 8); k.bow(14, 17, 6, 5.5, 99, EMOJI_INK); k.rect(9, 17, 10, 1, '#f8f8f8'); }],
+    ['😎', (k) => {
+      k.face(); k.rect(3, 8, 22, 2, col.dark); k.oval(9, 11, 5, 4, col.dark); k.oval(19, 11, 5, 4, col.dark);
+      k.rect(6, 10, 3, 1, '#6890e0'); k.rect(16, 10, 3, 1, '#6890e0'); k.smile(14.5, 7);
+    }],
+    ['😉', (k) => { k.face(); k.oval(9.5, 11, 1.9, 2.9, EMOJI_INK); k.shut(18.5, 12); k.smile(); }],
+    ['😛', (k) => { k.face(); k.eyes(); k.rect(8, 17, 12, 2, EMOJI_INK); k.oval(15, 21, 3.5, 3.8, EMOJI_TONGUE); k.rect(15, 19, 1, 4, '#c04050'); }],
+    ['🥳', (k) => {
+      k.poly('#7b3fb8', 21.5, 0.5, 11, 6, 22, 11); k.poly('#f0b030', 18.5, 2.3, 16, 3.7, 17.5, 8, 21, 7);
+      k.face(null, 13, 16, 11); k.shut(8.5, 15); k.shut(17.5, 15); k.bow(13, 18, 5.5, 5.5, 99, EMOJI_INK); k.rect(10, 22, 6, 1, EMOJI_TONGUE);
+      k.rect(3, 3, 2, 2, '#e83848'); k.rect(8, 1, 2, 2, '#58b8f0'); k.rect(25, 13, 2, 2, '#58a848'); k.rect(25, 20, 2, 2, '#e83848');
+    }],
+    ['😮', (k) => { k.face(); k.bow(9.5, 7, 3, 2, 1, EMOJI_INK, true); k.bow(18.5, 7, 3, 2, 1, EMOJI_INK, true); k.eyes(); k.oval(14, 20, 3, 3.8, EMOJI_INK); }],
+    ['🤔', (k) => {
+      k.face(); k.bar(6.5, 7, 11, 5.5, 0.8, EMOJI_INK); k.bar(17, 7, 21, 7, 0.8, EMOJI_INK); k.eyes(11.5); k.bar(12, 19, 19, 17.5, 0.9, EMOJI_INK);
+      k.bar(5, 24, 11, 24, 3, col.dark); k.bar(11, 24, 13, 18, 2, col.dark); k.bar(5, 24, 11, 24, 2, EMOJI_SKIN[0]); k.bar(11, 24, 13, 18, 1, EMOJI_SKIN[0]);
+    }],
+    ['🙄', (k) => {
+      k.face();
+      for (const x of [9, 19]) { k.oval(x, 11, 4.2, 4.2, EMOJI_INK); k.oval(x, 11, 3.2, 3.2, '#f8f8f8'); k.oval(x, 9, 1.9, 1.9, EMOJI_INK); }
+      k.rect(10, 20, 8, 2, EMOJI_INK);
+    }],
+    ['😐', (k) => { k.face(); k.eyes(); k.rect(8, 19, 12, 2, EMOJI_INK); }],
+    ['😢', (k) => { k.face(); k.bar(6.5, 7.5, 10.5, 6, 0.7, EMOJI_INK); k.bar(21.5, 7.5, 17.5, 6, 0.7, EMOJI_INK); k.eyes(11.5); k.frown(); k.drop(22, 16.5, EMOJI_TEAR); }],
+    ['😡', (k) => {
+      k.face(['#e84830', '#b82818', '#f88868']); k.poly(EMOJI_INK, 4.5, 7, 13, 10, 13, 12.5, 4.5, 9.5); k.poly(EMOJI_INK, 23.5, 7, 15, 10, 15, 12.5, 23.5, 9.5);
+      k.oval(9.5, 13, 1.8, 2, EMOJI_INK); k.oval(18.5, 13, 1.8, 2, EMOJI_INK); k.frown();
+    }],
+    ['🤢', (k) => {
+      k.face(['#88c050', '#5f9a38', '#b8e080']); k.shut(9.5, 11, true); k.shut(18.5, 11, true);
+      k.dots(7, 18, '#2c4a20', '..##.....##..', '.####...####.', '##..##.##..##', '#....###....#');
+    }],
+    ['😴', (k) => {
+      k.face(null, 13, 15, 11); k.shut(8.5, 13, true); k.shut(17.5, 13, true); k.oval(13, 20.5, 2.5, 2, EMOJI_INK);
+      k.dots(20, 0, '#3878e0', '#######', '#######', '...###.', '..###..', '.###...', '#######', '#######');
+    }],
+    ['😱', (k) => {
+      k.face(); k.bow(14, 11, 11.5, 9, 99, '#7898e0', true); k.oval(8.5, 11, 3.5, 4, '#f8f8f8'); k.oval(19.5, 11, 3.5, 4, '#f8f8f8');
+      k.rect(8, 10, 2, 2, col.dark); k.rect(19, 10, 2, 2, col.dark); k.oval(14, 20.5, 3.8, 5, EMOJI_INK);
+    }],
+    ['💀', (k) => {
+      k.oval(14, 12, 11.5, 10.5, '#e8e8ee'); k.rect(8, 19, 12, 7, '#e8e8ee'); k.line();
+      k.oval(9, 12, 3.4, 3.8, col.dark); k.oval(19, 12, 3.4, 3.8, col.dark); k.poly(col.dark, 14, 15.5, 12, 19, 16, 19);
+      for (const x of [11, 14, 17]) k.rect(x, 22, 1, 4, '#8890a0');
+    }],
+    ['👻', (k) => {
+      k.oval(14, 12, 10.5, 10.5, '#f8f8f8'); k.rect(3.5, 12, 21, 12, '#f8f8f8');
+      for (const x of [7, 14, 21]) k.oval(x, 24, 3.5, 2.5, '#f8f8f8');
+      k.line(); k.oval(10, 11, 2, 3, col.dark); k.oval(18, 11, 2, 3, col.dark); k.oval(14, 18, 2.5, 3, col.dark);
+    }],
+    ['💩', (k) => {
+      const b = '#8a5428';
+      k.poly(b, 14.5, 1, 10, 8, 18, 8); k.oval(14, 9.5, 6.5, 3.5, b); k.oval(14, 15, 9.5, 4.5, b); k.oval(14, 21.5, 12.5, 5, b); k.line();
+      k.rect(10, 8, 4, 1, '#a8703c'); k.rect(7, 13, 5, 1, '#a8703c');
+      for (const x of [10, 18]) { k.oval(x, 15, 2.6, 3, '#f8f8f8'); k.rect(x, 15, 2, 2, col.dark); }
+      k.bow(14, 19.5, 5, 4, 99, col.dark); k.rect(10, 20, 8, 1, '#f8f8f8');
+    }],
+    ['🎃', (k) => {
+      k.rect(12, 1, 4, 6, '#3f8a4a'); k.oval(14, 16, 13, 11, '#c05810'); k.oval(14, 15.5, 11.5, 10, '#f08020'); k.line();
+      k.bow(14, 16, 6, 10, 1, '#c05810', true); k.bow(14, 16, 6, 10, 1, '#c05810');
+      k.poly('#5a2408', 9, 9, 6, 14, 12, 14); k.poly('#5a2408', 19, 9, 16, 14, 22, 14);
+      k.poly('#5a2408', 5, 17, 23, 17, 20, 23, 16, 21, 14, 23.5, 12, 21, 8, 23);
+    }],
+    ['👍', (k) => k.thumb()],
+    ['👎', (k) => { k.thumb(); k.flip(); }],
+    ['👋', (k) => {
+      for (const [x, y] of [[6.5, 9], [11, 5.5], [15.5, 5], [19.5, 8]]) k.bar(x - 1.5, 18, x, y, 1.8, EMOJI_SKIN[0]);
+      k.bar(5, 21, 2, 15, 1.8, EMOJI_SKIN[0]); k.oval(12, 20, 8, 6.5, EMOJI_SKIN[0]); k.line();
+      k.bow(12, 19, 5.5, 4.5, 1, EMOJI_SKIN[1]);
+      k.bar(23, 2, 26, 6, 0.7, EMOJI_TEAR); k.bar(23, 8, 24.5, 10, 0.7, EMOJI_TEAR);
+    }],
+    ['❤️', (k) => {
+      for (const x of [8.5, 19.5]) k.oval(x, 9.5, 7, 7, '#e83848');
+      k.poly('#e83848', 2, 12, 26, 12, 14, 26); k.line(); k.oval(8, 7, 2.6, 1.8, '#f8a8b0');
+    }],
+    ['⭐', (k) => {
+      const star = (r0, r1, co) => k.poly(co, ...Array.from({ length: 10 }, (_, i) => [14 + Math.cos(-Math.PI / 2 + i * Math.PI / 5) * (i % 2 ? r1 : r0), 15 + Math.sin(-Math.PI / 2 + i * Math.PI / 5) * (i % 2 ? r1 : r0)]).flat());
+      star(14, 6, '#f0b030'); k.line(); star(9, 4, '#f8e070');
+    }],
+    ['🔥', (k) => {
+      k.poly('#e8481c', 14, 1, 20, 8, 23, 6, 25, 15, 22, 23, 17, 26.5, 10, 26.5, 5, 22, 3, 15, 6, 8, 9, 11); k.line();
+      k.poly('#f8a020', 14, 9, 18, 15, 20, 20, 16, 26, 11, 26, 8, 21, 9, 15, 12, 16); k.oval(14, 21.5, 3, 4, '#f8e070');
+    }],
+    ['🎉', (k) => {
+      k.poly('#f0b030', 1.5, 26.5, 8, 10, 18, 20); k.line(); k.poly('#e03030', 4, 20, 6.5, 14, 13.5, 20.5, 8, 23); k.poly('#f8e070', 8, 10, 8, 12, 15, 18, 18, 20);
+      k.bar(13, 9, 16, 4, 1, '#3878e0'); k.bar(18, 13, 24, 11, 1, '#58a848');
+      k.rect(22, 3, 3, 3, '#e83848'); k.rect(11, 2, 2, 2, '#f0b030'); k.rect(24, 18, 2, 2, '#7b3fb8'); k.rect(18, 7, 2, 2, '#f08020');
+    }],
+    ['☕', (k) => {
+      k.bow(20, 17, 5, 5, 2, '#e03030'); k.bow(20, 17, 5, 5, 2, '#e03030', true);
+      k.rect(3, 11, 18, 13, '#e03030'); k.oval(12, 24, 9, 2.5, '#e03030'); k.oval(12, 11, 9, 3, '#e03030'); k.line();
+      k.oval(12, 11, 7.5, 2, '#4a2c10'); k.rect(5, 15, 2, 7, '#f06060');
+      for (const x of [8, 15]) { k.bar(x, 7, x + 1.5, 4.5, 0.8, '#a4acc4'); k.bar(x + 1.5, 4.5, x, 2, 0.8, '#a4acc4'); }
+    }],
+    ['🏆', (k) => {
+      for (const x of [6, 22]) { k.bow(x, 7, 4.5, 4.5, 1.8, '#c8962c'); k.bow(x, 7, 4.5, 4.5, 1.8, '#c8962c', true); }
+      k.poly('#f0c030', 6, 1.5, 22, 1.5, 21, 10, 17, 16, 11, 16, 7, 10); k.rect(12, 16, 4, 5, '#c8962c'); k.rect(8, 20, 12, 2, '#f0c030'); k.rect(6, 22, 16, 4.5, '#6a3c20'); k.line();
+      k.rect(9, 3, 2, 8, '#f8e890'); k.rect(19, 3, 1, 7, '#c8962c'); k.rect(11, 24, 6, 1, '#f0c030');
+    }],
+    ['🏒', (k) => {
+      k.bar(23, 2, 11, 21, 1.7, '#c88848'); k.bar(11, 21, 3, 23, 2.2, '#c88848'); k.oval(21, 23.5, 5, 2.8, '#30303c'); k.oval(21, 22.5, 5, 2.6, '#484858'); k.line();
+      k.bar(23, 2, 21, 5, 1.7, '#30303c'); k.bar(9, 21.5, 7.5, 22, 2.2, '#30303c'); k.rect(4, 21, 6, 1, '#e0b080');
+    }],
+  ]);
+  const MP_EMOJI = [...EMOJI.keys()];
+  const emojiPic = (name) => finePic('emoji' + name, EMOJI_PX, EMOJI_PX, (c) => EMOJI.get(name)(emojiKit(c)));
+
   // ---------- other players: everyone playing at once shares the office ----------
   // Each copy of the game keeps a small record of where its player is, and gets everyone
   // else's. Anything meant for one player (a challenge, a move in a match) is a message
@@ -12438,6 +12622,9 @@
       'Is that REV C?', 'Ship it today!', 'Run it through SDG.', 'Belt\'s slipping!', 'Mind the static!']],
   ];
   const MP_LINES = MP_SAY.flatMap(([, lines]) => lines);
+  // Or say an emoji (EMOJI TALK on that menu): they go the same way, numbered from here up.
+  const MP_EMOJI_AT = 1000;
+  const mpLine = (i) => (i >= MP_EMOJI_AT ? MP_EMOJI[i - MP_EMOJI_AT] : MP_LINES[i]);
   // Or type your own (CUSTOM on that menu): up to MP_TYPE_MAX of the characters the font
   // has. It goes in your record as w0 and w1, 16 characters each, since a record only
   // carries short strings.
@@ -12648,7 +12835,7 @@
         n: String(r.n || '?').slice(0, NAME_MAX), look, a: Art.lookCode(look), c: Art.COSTUMES[r.c] ? r.c : '', xs: Art.SWEATERS[r.xs] ? r.xs : '',
         f: MAPS.floors[r.f] ? r.f : 0, x: +r.x || 0, y: +r.y || 0, d: DIRS[r.d] ? r.d : 'down', b: !!r.b,
         do: typeof r.do === 'string' && Object.prototype.hasOwnProperty.call(MP_DOING, r.do) ? r.do : '', dn: Math.max(0, Math.min(9, Math.round(+r.dn) || 0)),
-        s: MP_LINES[r.s] ? r.s : -1, w: mpClean((typeof r.w0 === 'string' ? r.w0 : '') + (typeof r.w1 === 'string' ? r.w1 : '')),
+        s: mpLine(r.s) ? r.s : -1, w: mpClean((typeof r.w0 === 'string' ? r.w0 : '') + (typeof r.w1 === 'string' ? r.w1 : '')),
         sn: +r.sn || 0, v: +r.v || 0, t: +r.t || 0, tc: !!r.tc,
         fx: Number.isFinite(r.fx) ? r.fx : null, fy: Number.isFinite(r.fy) ? r.fy : null, fa: Number.isFinite(r.fa) ? r.fa : null,
         // their last snowball and snow angel out in the parking lot (see snowRecord)
@@ -12919,17 +13106,20 @@
 
   // Names over everyone's heads, and whatever they've just said in a bubble above that.
   function mpBubble(str, x, y) {
-    const w = str.length * 6 + 7;
+    // (an emoji's bubble is taller, going up from the same place)
+    const emoji = EMOJI.has(str), w = emoji ? 18 : str.length * 6 + 7, h = emoji ? 18 : 13;
     x = Math.max(1, Math.min(SW - w - 1, x - (w >> 1)));
-    ctx.fillStyle = col.dark; ctx.fillRect(x, y, w, 13);
-    ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 1, y + 1, w - 2, 11);
-    ctx.fillStyle = col.dark; ctx.fillRect(x + (w >> 1) - 1, y + 13, 3, 2);
-    text(str, x + 4, y + 3);
+    y -= h - 13;
+    ctx.fillStyle = col.dark; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+    ctx.fillStyle = col.dark; ctx.fillRect(x + (w >> 1) - 1, y + h, 3, 2);
+    if (emoji) ctx.drawImage(emojiPic(str), x + 2, y + 2);
+    else text(str, x + 4, y + 3);
   }
   // what someone has just said, or while they're in a game what they're playing (from a copy
   // that says), or "..." while they're in a menu
   function mpSaying(o, now) {
-    const said = o.s >= 0 ? MP_LINES[o.s] : o.w;
+    const said = o.s >= 0 ? mpLine(o.s) : o.w;
     if (o.said && o.sn !== o.sn0 && said && now - o.said < mpSayFor(said) * 1000 / 60) return said;
     if (!o.b) return null;
     const doing = MP_DOING[o.do];
@@ -12958,18 +13148,50 @@
   const mpSayFor = (str) => Math.max(180, str.length * 9);
   function mpSay(i, str) {
     mp.say = i; mp.sayText = i < 0 ? str : ''; mp.sayN++;
-    mp.bubble = { str: i < 0 ? str : MP_LINES[i], t: 0 };
+    mp.bubble = { str: i < 0 ? str : mpLine(i), t: 0 };
   }
   function mpSayMenu() {
-    ui.push(Choice(MP_SAY.map(([page]) => page).concat(['CUSTOM']), -1, 0, (p) => {
+    ui.push(Choice(MP_SAY.map(([page]) => page).concat(['EMOJI TALK', 'CUSTOM']), -1, 0, (p) => {
       if (p < 0) return;
-      if (p === MP_SAY.length) { ui.push(MpType()); return; }
+      if (p === MP_SAY.length) { ui.push(MpEmoji()); return; }
+      if (p === MP_SAY.length + 1) { ui.push(MpType()); return; }
       const first = MP_SAY.slice(0, p).reduce((n, [, lines]) => n + lines.length, 0);
       ui.push(Choice(MP_SAY[p][1], -1, 0, (i) => {
         if (i < 0) { mpSayMenu(); return; } // back to the pages
         mpSay(first + i);
       }));
     }));
+  }
+  // Picking an emoji, from rows of them along the top of the screen.
+  function MpEmoji() {
+    const COLS = 10, PITCH = 20, n = MP_EMOJI.length, rows = Math.ceil(n / COLS);
+    const w = COLS * PITCH + 16, h = rows * PITCH + 14, x0 = (SW - w) >> 1;
+    const rowLen = (r) => Math.min(COLS, n - r * COLS);
+    let cur = 0;
+    const self = {
+      overlay: true,
+      update() {
+        const r = Math.floor(cur / COLS), c = cur % COLS, len = rowLen(r);
+        if (pressed.has('left')) { cur = r * COLS + (c + len - 1) % len; sfx('select'); }
+        if (pressed.has('right')) { cur = r * COLS + (c + 1) % len; sfx('select'); }
+        for (const [d, by] of [['up', rows - 1], ['down', 1]]) {
+          if (!pressed.has(d)) continue;
+          const to = (r + by) % rows;
+          cur = to * COLS + Math.min(c, rowLen(to) - 1); sfx('select');
+        }
+        if (pressed.has('a')) { sfx('select'); remove(self); mpSay(MP_EMOJI_AT + cur); }
+        else if (pressed.has('b')) { remove(self); mpSayMenu(); } // back to the pages
+      },
+      draw() {
+        box(x0, 0, w, h);
+        MP_EMOJI.forEach((name, i) => {
+          const x = x0 + 8 + (i % COLS) * PITCH, y = 7 + Math.floor(i / COLS) * PITCH;
+          if (i === cur) pickRing(x, y, PITCH, PITCH);
+          ctx.drawImage(emojiPic(name), x + 3, y + 3);
+        });
+      },
+    };
+    return self;
   }
   // Typing your own line: straight from a keyboard, or picking characters with the arrows
   // (or D-pad) + A, like naming yourself. B rubs out a character, or backs out once it's
