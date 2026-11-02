@@ -207,8 +207,8 @@ shows every leaderboard at once. Left and right flip between its pages:
   (10 for 1st, down to 1 for 10th), and holding 1st at a game is a crown. Underneath
   you see your place, how many points it takes to pass the person above you, and how
   many crowns, top tens and games you have. Whoever is on top, the Office Champion,
-  wears the crown, and wherever they walk a short trail of twinkling gold glints is left
-  on the ground behind them, fading away in half a second (other players see it too).
+  wears a sparkling crown, and wherever they walk a short trail of twinkling gold stars is
+  left on the ground behind them, fading away in half a second (other players see it too).
 - **Latest scores**: the newest scores on any board, who set them and where they rank now.
 - **Quests**: everyone who has set Linda free and everyone who has been Employee of the
   Month, side by side, with how many times each name has done it (up and down scroll
@@ -1098,10 +1098,13 @@ Bella (Desirae), Birdie (Diane), Bandit (Jenn), Louie (Rob), Mocha (Sidney),
 Nala (Jhonna) and Frankie (Avery). Kim's cat Felix just sleeps in the middle of her office, and
 you can try to play catch with him too. Walk
 up to one and press A: it barks, and you can play catch. The dog runs out while
-the power meter swings; throw so the frisbee comes down near the dog, then steer
-it with the arrows and press A to jump. It goes on until the first frisbee the dog
+the power meter swings; throw so the frisbee comes down near where the dog is going.
+The dog doesn't stop for the throw: it keeps running the same way at the same speed,
+and turns back at the edge of the park. The arrows lean on it, to sprint or to skid
+round the other way, and A jumps, carrying it on at the speed it left the ground, with
+no steering in the air. It goes on until the first frisbee the dog
 misses, and every catch makes the next throw harder: more wind, a faster meter, a dog
-that's harder to read and tires as it goes, and a frisbee that's down sooner. Then you
+that's harder to read, faster and slower to turn, and a frisbee that's down sooner. Then you
 see the leaderboard of every dog's longest run. (Felix doesn't play: two throws, he
 sleeps through both, and that's the end of it.) Names, owners, breeds, colours, barks and running speed live in
 `DOGS` at the bottom of `js/people.js`.

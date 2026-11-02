@@ -3555,20 +3555,20 @@
     if (!hw.worn) sprites = mySprites();
   }
   // The champion's trail: wherever the Office Champion walks (you, or another player in the
-  // crown), a short path of gold glints is left on the ground behind them, twinkling as it
-  // fades in half a second. Places are in pixels, where people are drawn (x and y as their
-  // sprite's), with jx and jy scattering each glint a little either side of the path and s
-  // setting when it twinkles. drawWorld and drawYard draw it (drawGlowPix).
+  // crown), a short path of little gold stars is left on the ground behind them, twinkling
+  // and drifting up as they fade in half a second. Places are in pixels, where people are
+  // drawn (x and y as their sprite's), with jx and jy scattering each star a little either
+  // side of the path and s setting when it twinkles. drawWorld and drawYard draw it (drawGlowPix).
   const GLOW = { pts: [], me: {} }, GLOW_LIFE = 30;
-  const glint = (g) => ((tick + Math.floor(g.s * 24)) >> 2) % 5 === 0;
+  const glint = (g) => ((tick + Math.floor(g.s * 24)) >> 2) % 3 === 0;
   function glowTick() {
     const sc = hockey && hockey.scene(), out = (f) => f === YARD && sc;
-    // one glint every few pixels walked (a floor change or a jump starts again from there)
+    // one star every few pixels walked (a floor change or a jump starts again from there)
     const drop = (last, f, x, y) => {
       const d = last.f === f ? Math.hypot(x - last.x, y - last.y) : Infinity;
       if (!(d <= 48)) Object.assign(last, { f, x, y });
-      else if (d >= 3) {
-        GLOW.pts.push({ f, x, y, jx: (Math.random() - 0.5) * 6, jy: (Math.random() - 0.5) * 3, t: tick, s: Math.random() });
+      else if (d >= 7) {
+        GLOW.pts.push({ f, x, y, jx: (Math.random() - 0.5) * 10, jy: (Math.random() - 0.5) * 5, t: tick, s: Math.random() });
         Object.assign(last, { x, y });
       }
     };
@@ -3576,25 +3576,61 @@
     for (const o of mpHere()) if (o.look.hat === Art.CROWN && !out(o.f)) drop(o.glow || (o.glow = {}), o.f, o.px, o.py);
     while (GLOW.pts.length && tick - GLOW.pts[0].t >= GLOW_LIFE) GLOW.pts.shift();
   }
-  // a pixel of gold under each glint, a little yellow sparkle while it twinkles
-  const GLOW_COLS = ['#e09a10', '#f0b828', '#ffd850'];
+  // a four-point twinkle reaching r either side of the real pixel at (x, y), white at its heart
+  const twinkle = (x, y, r) => {
+    const h = realPx(r / 2);
+    fine(x - r, y, r * 2 + 0.5, 0.5, '#ffd850'); fine(x, y - r, 0.5, r * 2 + 0.5, '#ffd850');
+    fine(x - h, y, h * 2 + 0.5, 0.5, '#ffffff'); fine(x, y - h, 0.5, h * 2 + 0.5, '#ffffff');
+    if (r >= 2) fine(x - 0.5, y - 0.5, 1.5, 1.5, '#ffffff');
+  };
+  // the stars in real pixels, new to nearly gone, each with an amber edge round it to show on
+  // snow and a bright middle, and a twinkle over it now and then
+  const GLOW_STARS = [
+    ['....#....', '....#....', '...###...', '#########', '.#######.', '..#####..', '..#####..', '.##...##.', '.#.....#.'],
+    ['...#...', '...#...', '#######', '.#####.', '..###..', '.##.##.', '.#...#.'],
+    ['..#..', '.###.', '#####', '.###.', '.#.#.'],
+  ];
+  const GLOW_COLS = ['#f0a818', '#ffc830', '#ffe468'];
+  const starPic = (size, c) => {
+    const rows = GLOW_STARS[size], n = rows.length;
+    return finePic('star' + size + c, n + 2, n + 2, (g) => {
+      const lay = (dx, dy, co) => {
+        g.fillStyle = co;
+        rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch === '#') g.fillRect(x + 1 + dx, y + 1 + dy, 1, 1); }));
+      };
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) lay(dx, dy, '#a86808');
+      lay(0, 0, c);
+      g.fillStyle = '#fff8d8'; g.fillRect((n + 1) >> 1, (n + 1) >> 1, 1, 1);
+    });
+  };
   function drawGlowPix(cx, cy) {
     for (const g of GLOW.pts) {
       if (g.f !== P.floor) continue;
-      const k = (tick - g.t) / GLOW_LIFE, x = Math.round(g.x + 8 + g.jx - cx), y = Math.round(g.y + 10 + g.jy - cy);
-      if (x < -4 || x > SW + 4 || y < -4 || y > SH + 4) continue;
+      const k = (tick - g.t) / GLOW_LIFE, x = realPx(g.x + 8 + g.jx - cx), y = realPx(g.y + 10 + g.jy - cy - k * 4);
+      if (x < -8 || x > SW + 8 || y < -8 || y > SH + 8) continue;
       ctx.globalAlpha = 1 - k * k;
-      ctx.fillStyle = GLOW_COLS[Math.floor(g.s * 3 + (tick >> 3)) % 3];
-      const r = k < 0.6 ? 2 : 1;
-      ctx.fillRect(x, y, r, r);
-      if (glint(g)) {
-        const sy = y - Math.round(k * 3);
-        ctx.fillStyle = '#ffd040';
-        ctx.fillRect(x - 1, sy, 3, 1); ctx.fillRect(x, sy - 1, 1, 3);
-        ctx.fillStyle = '#ffffff'; ctx.fillRect(x, sy, 1, 1);
-      }
+      const pic = starPic(k < 0.4 ? 0 : k < 0.75 ? 1 : 2, GLOW_COLS[Math.floor(g.s * 3 + (tick >> 3)) % 3]);
+      ctx.drawImage(pic, x - (pic.width - 1) / 4, y - (pic.height - 1) / 4);
+      if (glint(g)) twinkle(x, y, 2.5);
     }
     ctx.globalAlpha = 1;
+  }
+  // The crown itself sparkles: a twinkle on each of its points and jewels in turn, so there's
+  // always one or two going, and a sliver of light running along the gold now and then. x and
+  // y are the top left of its wearer's picture, drawn over them (a costume hides the crown, so
+  // no sparkle in one).
+  const meCrowned = () => crowned && !hw.worn, mpCrowned = (o) => o.look.hat === Art.CROWN && !o.c;
+  const CROWN_GLINTS = [[4.5, 1], [8, 3.5], [11, 1], [5.5, 3.5], [8, 1], [10, 3.5]];
+  function crownSparkle(x, y) {
+    CROWN_GLINTS.forEach(([gx, gy], i) => {
+      const t = (tick + i * 9) % 54;
+      if (t < 14) twinkle(x + gx, y + gy, realPx(Math.sin(t / 14 * Math.PI) * (gy < 2 ? 3 : 2)));
+    });
+    const g = tick % 120;
+    if (g < 16) for (let j = 5; j <= 8; j++) {
+      const sx = g + 16 - j;
+      if (sx < 23) fine(x + sx / 2, y + j / 2, 1, 0.5, 'rgba(255, 255, 255, 0.8)');
+    }
   }
   function HallOfFame() {
     const name = playerName || store.get('name') || '', me = name ? boardKey(name) : null;
@@ -3901,20 +3937,20 @@
     // A cat doesn't play: it sleeps through two throws and that's the end of it. A dog
     // plays until the first frisbee it misses.
     const d = n.dog, THROWS = d.cat ? 2 : Infinity, GY = 196, TOP = 34, HAND = { x: 44, y: GY - 26 };
-    const RUN = 1.15 * d.speed, CHASE = 1.05 * d.speed;
+    const RUN = 1.15 * d.speed, FLAT_OUT = 1.3;
     let state = 'ready', t = 0, throwNo = 0, caught = 0, record = false, msg = '', missed = false;
     let p = 0, pdir = 1, wind = 0, disc = null, runMul = 1, meterMul = 1, hard = null;
     const HOME = d.cat ? 150 : 56;
-    const dog = { x: HOME, dir: 1, h: 0, vh: 0, moving: false };
+    const dog = { x: HOME, dir: 1, h: 0, vh: 0, vx: 0, moving: false };
     // Every catch makes a dog's next throw harder, by less each time but for as long as you
     // keep going (h starts at 0, is 0.9 by 20 catches, and never quite gets to 1.6): the wind
     // blows harder and pushes the frisbee all the way along, the meter swings faster, the dog
-    // runs faster and doubles back while you aim, tires when you steer it, and the frisbee
-    // flies flatter and quicker, so it's down before the dog can get far.
+    // runs faster and doubles back while you aim, takes longer to turn when you steer it, and
+    // the frisbee flies flatter and quicker, so it's down before the dog can get far.
     const toughness = () => {
-      if (d.cat) return { wind: 0.04 + throwNo * 0.014, meter: 0.012 + throwNo * 0.0018, turn: 0, sprint: 1, chase: 1, fling: 1, drift: 0, grav: 0.045, fall: 0.6 };
+      if (d.cat) return { wind: 0.04 + throwNo * 0.014, meter: 0.012 + throwNo * 0.0018, turn: 0, sprint: 1, grip: 0, fling: 1, drift: 0, grav: 0.045, fall: 0.6 };
       const h = 1.6 * (1 - Math.exp(-throwNo / 24));
-      return { wind: 0.08 + 0.32 * h, meter: 0.016 + 0.034 * h, turn: 0.02 * h, sprint: 1 + 0.9 * h, chase: 0.85 - 0.27 * h, fling: 1 + 0.7 * h, drift: 0.025, grav: 0.05 + 0.06 * h, fall: 0.75 + 0.95 * h };
+      return { wind: 0.08 + 0.32 * h, meter: 0.016 + 0.034 * h, turn: 0.02 * h, sprint: 1 + 0.45 * h, grip: 0.13 - 0.06 * h, fling: 1 + 0.7 * h, drift: 0.025, grav: 0.05 + 0.06 * h, fall: 0.75 + 0.95 * h };
     };
     // each throw gets its own wind, dog sprint speed and meter speed
     const newWind = () => {
@@ -3949,7 +3985,8 @@
           dog.moving = !d.cat;
           if (dog.moving) {
             if (Math.random() < hard.turn) dog.dir = -dog.dir;
-            dog.x += dog.dir * RUN * runMul * hard.sprint;
+            dog.vx = dog.dir * RUN * runMul * hard.sprint;
+            dog.x += dog.vx;
           }
           if (dog.x > SW - 44) dog.dir = -1;
           if (dog.x < 56) dog.dir = 1;
@@ -3963,14 +4000,25 @@
           return;
         }
         if (state === 'fly') {
-          // you steer the dog now
-          dog.moving = false;
-          const spd = (dog.h > 0 ? CHASE * 1.4 : CHASE) * hard.chase;
+          // The dog doesn't stop for the throw: it runs on the way it was going, and you steer it.
+          // An arrow leans on it, to sprint or to skid round the other way (quicker dogs turn
+          // quicker); off the arrows it settles back to its pace. A jump carries it on at the speed
+          // it left the ground, and there's no steering in the air.
           if (!d.cat) {
-            if (held.left) { dog.x -= spd; dog.dir = -1; dog.moving = true; }
-            if (held.right) { dog.x += spd; dog.dir = 1; dog.moving = true; }
-            dog.x = Math.max(8, Math.min(SW - 40, dog.x));
-            if (pressed.has('a') && dog.h === 0) { dog.vh = 3; dog.h = 0.01; sfx('jump'); }
+            if (dog.h === 0) {
+              const pace = RUN * runMul * hard.sprint, grip = hard.grip * d.speed * d.speed, lean = (held.right ? 1 : 0) - (held.left ? 1 : 0);
+              if (lean) dog.vx = Math.max(-pace * FLAT_OUT, Math.min(pace * FLAT_OUT, dog.vx + lean * grip));
+              else {
+                const way = dog.vx < 0 ? -1 : 1, speed = Math.abs(dog.vx);
+                dog.vx = way * (speed < pace ? Math.min(pace, speed + grip) : Math.max(pace, speed - grip / 2));
+              }
+              if (pressed.has('a')) { dog.vh = 3; dog.h = 0.01; sfx('jump'); }
+            }
+            // it turns back at the edge of the park, or as soon as it lands there
+            const x = dog.x + dog.vx;
+            dog.x = Math.max(8, Math.min(SW - 40, x));
+            if (dog.x !== x && dog.h === 0) dog.vx = -dog.vx;
+            if (dog.vx) dog.dir = dog.vx > 0 ? 1 : -1;
           }
           disc.vx += wind * hard.drift;
           disc.x += disc.vx; disc.vy = Math.min(disc.vy + hard.grav, hard.fall); disc.y += disc.vy;
@@ -3982,7 +4030,10 @@
           return;
         }
         if (state === 'result') {
-          dog.moving = false;
+          // it takes the dog a few strides to pull up (and it lands first if it was mid-leap)
+          if (dog.h === 0) dog.vx *= 0.95;
+          dog.moving = Math.abs(dog.vx) > 0.25;
+          if (dog.moving) dog.x = Math.max(8, Math.min(SW - 40, dog.x + dog.vx));
           if (t > 70) {
             if (++throwNo >= THROWS || (missed && !d.cat)) {
               state = 'done'; t = 0;
@@ -3991,7 +4042,7 @@
               sfx('ding');
               return;
             }
-            Object.assign(dog, { x: HOME, dir: 1, h: 0, vh: 0 });
+            Object.assign(dog, { x: HOME, dir: 1, h: 0, vh: 0, vx: 0 });
             disc = null; p = 0; pdir = 1; newWind(); state = 'aim'; t = 0;
           }
         }
@@ -4057,12 +4108,12 @@
           ctx.fillStyle = col.dark; ctx.fillRect(Math.round(B.x + 2 + p * (B.w - 6)), B.y - 3, 2, B.h + 6);
           if (HIRES) fine(Math.round(B.x + 2 + p * (B.w - 6)), B.y - 3, 0.5, B.h + 6, '#585868');
         }
-        if (state === 'ready') readyBox(t, 'Space: throw, then run + jump!');
+        if (state === 'ready') readyBox(t, 'Space: throw, then steer + jump!');
         else if (state === 'done') doneBox(d.cat ? [n.name + ' refuses to move.']
           : [n.name + ' caught ' + caught + ' in a row!', record ? 'A new record for ' + n.name + '!' : 'Best ' + (dogBest(n.name) || 0)], t);
         else {
           if (state === 'result') { box(50, 92, 220, 32); ctext(msg, 104); }
-          text(state === 'aim' ? 'Space: throw   Esc: give up' : d.cat ? 'Esc: give up' : 'Arrows: run   Space: jump', 12, SH - 14, 1, '#f8f8f8');
+          text(state === 'aim' ? 'Space: throw   Esc: give up' : d.cat ? 'Esc: give up' : 'Arrows: steer   Space: jump', 12, SH - 14, 1, '#f8f8f8');
         }
       },
     };
@@ -16130,6 +16181,7 @@
       }
     }
     ctx.drawImage(img, x, y);
+    if (it.crown) crownSparkle(x, y);
     if (it.throw && it.throw < RELEASE / THROW_T) {
       // the snowball in their hand, drawn back before it goes
       const k = it.throw / (RELEASE / THROW_T), [hx, hy] = { down: [14, 8], up: [14, 4], left: [1, 7], right: [15, 7] }[it.dir];
@@ -16205,6 +16257,7 @@
     if (behind) drawStick(s.stick, s.ang, fx, fy);
     const f = s.push ? [1, 0, 2, 0][(tick >> 4) & 3] : 0;
     ctx.drawImage(onSkates(sheet[dir][f]), realPx(fx - 8), realPx(fy - 15));
+    if (s.me ? meCrowned() : s.look && s.look.look.hat === Art.CROWN) crownSparkle(realPx(fx - 8), realPx(fy - 15));
     if (!behind) drawStick(s.stick, s.ang, fx, fy);
   }
   // who a skater is: you, a coworker, or another player
@@ -16234,7 +16287,7 @@
     const seen = (x, y) => x > cx - 32 && x < cx + SW + 16 && y > cy - 16 && y < cy + SH + 32;
     const person = (it) => { if (seen(it.x, it.y)) items.push(Object.assign(it, { z: it.y })); };
     // (in a hockey game, you and whoever you're playing are out on the ice instead)
-    if (!sc) person({ sheet: sprites, x: px, y: py, dir: P.dir, frame: P.glide ? 0 : frameIndex(), skate: iceAt(px, py),
+    if (!sc) person({ sheet: sprites, x: px, y: py, dir: P.dir, frame: P.glide ? 0 : frameIndex(), skate: iceAt(px, py), crown: meCrowned(),
       throw: P.throwing ? throwPose(P.throwing.t) : 0, angel: P.angel ? angelPose(P.angel.t) : null });
     const said = [];
     for (const n of npcs) {
@@ -16246,7 +16299,7 @@
     const others = mpHere().filter((o) => o.f === YARD && !(sc && hockey.ids && hockey.ids.includes(o.id)));
     for (const o of others) {
       // (their throw went out as they let go, so their arm is already partway through it)
-      person({ sheet: mpSprites(o), x: o.px, y: o.py, dir: o.angel ? 'down' : o.dir, frame: o.angel ? 0 : mpFrame(o), skate: iceAt(o.px, o.py),
+      person({ sheet: mpSprites(o), x: o.px, y: o.py, dir: o.angel ? 'down' : o.dir, frame: o.angel ? 0 : mpFrame(o), skate: iceAt(o.px, o.py), crown: mpCrowned(o),
         throw: o.throwT !== undefined ? throwPose(o.throwT - RELEASE) : 0, angel: o.angel ? angelPose(tick - o.angel.t) : null });
     }
     if (sc) {
@@ -16968,6 +17021,7 @@
     const look = edit.look, sp = lookSprites(wornLook(look));
     floorShadow(60, 130, 20, 4);
     ctx.drawImage(sp[['down', 'left', 'up', 'right'][(tick >> 6) & 3]][[1, 0, 2, 0][(tick >> 3) & 3]], 20, 52, 80, 80);
+    if (crowned) { ctx.save(); ctx.translate(20, 52); ctx.scale(5, 5); crownSparkle(0, 0); ctx.restore(); }
     const who = playerName || 'New Hire';
     text(who, 60 - who.length * 3, 142);
     if (crowned) text('Office Champion', 15, 154, 1, GOLD);
@@ -17180,7 +17234,8 @@
         img: n.sprites[n.dir][frame], ghost: n.ghost, freeing: freeing && freeing.npc === n,
         alpha: visit && visit.npc === n ? visit.a : 1 });
     }
-    for (const o of mpHere()) if (o.f === P.floor) actors.push({ x: o.px, y: o.py, img: mpSprites(o)[o.dir][mpFrame(o)] });
+    actors[0].crown = meCrowned();
+    for (const o of mpHere()) if (o.f === P.floor) actors.push({ x: o.px, y: o.py, img: mpSprites(o)[o.dir][mpFrame(o)], crown: mpCrowned(o) });
     // a Christmas tree sorts in by the row it stands on (z), not by its top
     if (CHRISTMAS) for (const tr of xmas.trees) if (P.floor === tr.floor)
       actors.push({ x: tr.x * 16, y: (tr.y + 1) * 16 - 48, z: tr.y * 16, img: tr.frames[(tick >> 5) % 3] });
@@ -17201,6 +17256,7 @@
         if (a.alpha < 1) ctx.globalAlpha = a.alpha;
         ctx.drawImage(a.img, sx, sy);
         ctx.globalAlpha = 1;
+        if (a.crown) crownSparkle(sx, sy);
       }
     }
     for (const n of dogs) if (n.dog.cat && n.floor === P.floor) drawZzz(n.x * 16 - cx + 10, n.y * 16 - cy - 2, 1);
