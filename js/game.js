@@ -721,7 +721,7 @@
     el.addEventListener('lostpointercapture', up);
   });
   // The direction control is a thumbstick for walking round and for the games that want one
-  // (hockey and the snowman: stick on their screens); menus and everything else are easier
+  // (hockey, the snowman and Damir's lights: stick on their screens); menus and everything else are easier
   // with a D-pad (setPadMode). The stick still holds one of the four directions down, for
   // whatever goes by those, and also says which way it's pushed and how far (stick).
   // It's the same element either way, so a thumb held down through the door carries on.
@@ -5593,7 +5593,7 @@
       return Math.abs(a) < CONE + 6 / Math.max(d, 1);
     }
     const self = {
-      music: 'dark', doing: 'dark',
+      music: 'dark', doing: 'dark', stick: true,
       update() {
         t++;
         if (state === 'intro') { if (t > 150) { state = 'ready'; t = 0; } return; }
@@ -5614,12 +5614,12 @@
         }
         if (pressed.has('b')) { remove(self); say('You fumble for the door and flee. Damir chuckles in the dark.'); return; }
         time++;
-        // walking: eight directions, the flashlight swings to face where you're going
-        let vx = (held.right ? 1 : 0) - (held.left ? 1 : 0), vy = (held.down ? 1 : 0) - (held.up ? 1 : 0);
-        me.moving = !!(vx || vy);
+        // walking: eight directions on the arrows, any way at all on a thumbstick (gentler pushed
+        // only part way); the flashlight swings to face where you're going
+        const s = steer(), len = Math.hypot(s.x, s.y);
+        me.moving = len > 0.05;
         if (me.moving) {
-          const len = Math.hypot(vx, vy);
-          vx = vx / len * SPEED; vy = vy / len * SPEED;
+          const vx = s.x / len * SPEED * Math.min(1, len), vy = s.y / len * SPEED * Math.min(1, len);
           if (!blocked(me.x + vx, me.y)) me.x += vx;
           if (!blocked(me.x, me.y + vy)) me.y += vy;
           me.target = Math.atan2(vy, vx);

@@ -588,7 +588,8 @@ Some coworkers have a game for you. Walk up to them and press A:
 
 - **Damir** (office 108, with the lights off): if you dare, he cuts the power,
   and you have to find three fuses with only a flashlight while shadows creep
-  closer whenever they're out of the beam.
+  closer whenever they're out of the beam. A thumbstick (on a phone's screen or a
+  controller) walks and aims any way you push it, as fast as you push it.
 - **Richard** (office 122): say yes to test your air handling knowledge in a
   turn-based duel where you and Richard each pick a move and the winner knocks
   1 off the other's 3 HP. Fan Gust beats Coil Freeze, Coil Freeze beats Damper
