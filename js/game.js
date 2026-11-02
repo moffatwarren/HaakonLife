@@ -1041,12 +1041,14 @@
 
   function Choice(options, x, y, cb, opts) {
     opts = opts || {};
-    let cur = opts.start || 0;
+    let cur = opts.start || 0, wait = opts.wait || 0;
     const w = Math.max(opts.minChars || 0, ...options.map((o) => o.length)) * 6 + 22, h = options.length * 16 + 8;
     if (x < 0) x = SW - w + x + 1;
     const self = {
       options, overlay: true,
       update() {
+        // (opts.wait: ticks before it listens, in case you're still tapping at something else)
+        if (wait > 0) { wait--; return; }
         if (pressed.has('up')) { cur = (cur + options.length - 1) % options.length; sfx('select'); }
         if (pressed.has('down')) { cur = (cur + 1) % options.length; sfx('select'); }
         if (pressed.has('a')) { sfx('select'); if (!opts.keepOpen) remove(self); cb(cur, self); }
@@ -12325,6 +12327,9 @@
   const MP_VER = window.GAME_VERSION ? +window.GAME_VERSION : 0;
   const MP_LIVE = 12000; // ms without word from a player before they count as gone
   const MP_ASK = 30000; // ms a challenge waits for an answer
+  // ms you then get to answer one that waited for you to come out of a menu (with MP_ASK,
+  // this has to stay under the game server's ASK_MS or a game it runs won't start)
+  const MP_ANSWER = 20000;
   // What you can say, a page of the menu each. A line is sent as its place in the whole
   // list, so only ever add lines to the end of the last page (or add a new page after it):
   // an older copy ignores a number it doesn't have, but moving a line would make older
@@ -12367,10 +12372,12 @@
   };
   // the game you've got open, for over your head (or null)
   const mpDoing = () => { for (let i = ui.length - 1; i >= 0; i--) if (ui[i].doing) return ui[i]; return null; };
+  // walking around with nothing open, so a challenge can come straight up
+  const mpFree = () => mode === 'play' && !fade && !ui.length && !questQueue.length && !pendingBoard;
   const mp = {
     id: Math.random().toString(36).slice(2, 12), on: false, heard: false, others: {}, mail: [],
     sending: false, sentKey: '', lastSend: 0, tickAt: Date.now(), say: -1, sayText: '', sayN: 0, bubble: null, newer: false, nudged: false,
-    pending: null, invite: null, match: null, table: null,
+    pending: null, invite: null, held: null, match: null, table: null,
   };
   // the head-to-head games: a challenge names one by key. These all run in each player's
   // own browser, passing moves back and forth. A game with `server: true` is run by the
@@ -12681,11 +12688,11 @@
   }
   // Waiting for the other player to answer your challenge.
   function MpWait(c) {
-    const until = Date.now() + MP_ASK;
+    c.until = Date.now() + MP_ASK;
     const self = {
       overlay: true,
       update() {
-        const timeUp = Date.now() > until;
+        const timeUp = Date.now() > c.until;
         if (!pressed.has('b') && !timeUp) return;
         mpSend(c.opp, { k: 'cancel', m: c.id });
         remove(self); mp.pending = null;
@@ -12700,29 +12707,40 @@
     };
     return self;
   }
-  // Somebody challenged you.
-  function mpInvite(msg) {
-    const inv = { msg, until: Date.now() + MP_ASK, els: [] };
+  // Somebody challenged you. `late`: it's been waiting for you to come out of a menu (see
+  // mp.held), so they get told it's up now, and you may still be tapping away at that menu.
+  function mpInvite(msg, late) {
+    const inv = { msg, until: Date.now() + (late ? MP_ANSWER : MP_ASK), els: [] };
     const answer = (k) => { inv.els.forEach(remove); mp.invite = null; mpSend(msg.from, { k, m: msg.m }); };
     const dlg = Dialog(msg.n + ' challenges you to ' + VERSUS[msg.g].title + '!', {
       then() {
         const ch = Choice(['ACCEPT', 'NO THANKS'], -1, SH - 48 - 40, (i) => {
           answer(i === 0 ? 'yes' : 'no');
           if (i === 0) mpStart(msg.m, msg.from, msg.n, msg.seed, msg.g, msg.soft);
-        });
+        }, { wait: late ? 30 : 0 });
         inv.els.push(ch); ui.push(ch);
       },
     });
     inv.els.push(dlg); ui.push(dlg);
     mp.invite = inv;
-    sfx('ding');
+    if (late) mpSend(msg.from, { k: 'seen', m: msg.m });
+    else sfx('ding');
+  }
+  // A challenge that was waiting for you is gone: you hear once you're out of your menu.
+  function mpMissed() {
+    questQueue.push('You missed ' + mp.held.msg.n + '\'s challenge.');
+    mp.held = null;
   }
   function mpMail(msg) {
-    const c = mp.pending, inv = mp.invite, m = mp.match;
+    const c = mp.pending, inv = mp.invite, held = mp.held, m = mp.match;
     if (msg.k === 'ask') {
-      // only if you're free: walking around, not mid-conversation or mid-game
-      if (!VERSUS[msg.g] || c || inv || m || mode !== 'play' || fade || ui.length || questQueue.length) mpSend(msg.from, { k: 'busy', m: msg.m });
-      else mpInvite(msg);
+      // no if you're in a game or another challenge; if you're only in a menu or a
+      // conversation it waits (mp.held) until you're out of it, with a notice over the top
+      if (!VERSUS[msg.g] || c || inv || held || m || mpDoing()) mpSend(msg.from, { k: 'busy', m: msg.m });
+      else if (mpFree()) mpInvite(msg);
+      else { mp.held = { msg, until: Date.now() + MP_ASK }; sfx('ding'); }
+    } else if (c && msg.m === c.id && msg.k === 'seen') {
+      c.until = Date.now() + MP_ANSWER; // they've come out of their menu and are looking at it
     } else if (c && msg.m === c.id) {
       remove(c.el); mp.pending = null;
       if (msg.k === 'yes') mpStart(c.id, c.opp, c.name, c.seed, c.game, c.soft);
@@ -12731,6 +12749,8 @@
     } else if (inv && msg.m === inv.msg.m && msg.k === 'cancel') {
       inv.els.forEach(remove); mp.invite = null;
       say(msg.n + ' called off the challenge.');
+    } else if (held && msg.m === held.msg.m && msg.k === 'cancel') {
+      mpMissed();
     } else if (m && msg.m === m.id) {
       if (msg.k === 'quit' || msg.k === 'cancel') m.gone = true;
       else if (msg.k === 'mv') m.moves.push(msg);
@@ -12747,6 +12767,14 @@
     if (!mp.on) mpConnect();
     mpPut();
     while (mp.mail.length) mpMail(mp.mail.shift());
+    // A challenge waiting for you: it comes up once you're out of your menu. If you've gone
+    // into a game instead, you're busy after all.
+    if (mp.held) {
+      const { msg, until } = mp.held;
+      if (mpDoing()) { mp.held = null; mpSend(msg.from, { k: 'busy', m: msg.m }); }
+      else if (Date.now() > until) mpMissed();
+      else if (mpFree()) { mp.held = null; mpInvite(msg, true); }
+    }
     if (mp.invite && Date.now() > mp.invite.until) {
       mp.invite.els.forEach(remove); mp.invite = null;
       say('The challenge ran out of time.');
@@ -12912,7 +12940,7 @@
     ui.push(Choice(keys.map((k) => VERSUS[k].label).concat(['CANCEL']), -1, Math.max(4, SH - 48 - (keys.length + 1) * 16 - 8), (i) => {
       if (i < 0 || i >= keys.length) return;
       if (!mpLive(o)) { say(o.n + ' has gone.'); return; }
-      if (o.b) { say(o.n + ' is busy right now. Try again in a moment.'); return; }
+      if (o.do) { say(o.n + ' is busy right now. Try again in a moment.'); return; }
       if (o.v !== MP_VER) {
         say(o.v > MP_VER ? o.n + ' has a newer version of the game. Reload the page to play them.'
           : o.n + ' has an older version of the game. They need to reload before you can play.');
@@ -12928,7 +12956,7 @@
   // Pressing A on another player.
   function mpTalk(o) {
     sfx('select');
-    ask(o.n + (o.b ? ' looks busy.' : ' is right here.'), ['SAY SOMETHING', 'CHALLENGE', 'CANCEL'], (i) => {
+    ask(o.n + (o.do ? ' looks busy.' : ' is right here.'), ['SAY SOMETHING', 'CHALLENGE', 'CANCEL'], (i) => {
       if (i === 0) mpSayMenu();
       else if (i === 1) mpChallenge(o);
     });
@@ -17320,6 +17348,19 @@
     text(banner.text, 8, y + 8);
   }
 
+  // A challenge waiting for you to come out of a menu, in the corner over whatever you're
+  // in (the Start menu is on the other side of the top of the screen).
+  function drawHeld() {
+    if (!mp.held) return;
+    const { msg, until } = mp.held;
+    const who = String(msg.n).slice(0, NAME_MAX) + ' challenges you to', what = VERSUS[msg.g].title + '!';
+    const hint = 'Finish up here to answer (' + Math.max(0, Math.ceil((until - Date.now()) / 1000)) + ')';
+    box(0, 0, Math.max(who.length, what.length, hint.length) * 6 + 16, 39);
+    text(who, 8, 7);
+    text(what, 8, 17);
+    text(hint, 8, 27, 1, '#686878');
+  }
+
   function drawTitle() {
     menuFrame();
     const t0 = (SH - 144) >> 1;
@@ -17369,6 +17410,7 @@
       drawCupFlag();
       ui.forEach((el) => el.draw());
     }
+    drawHeld();
     if (fade) {
       const lvl = fade.t < 16 ? fade.t / 16 : (32 - fade.t) / 16;
       ctx.globalAlpha = Math.min(1, Math.ceil(lvl * 4) / 4);

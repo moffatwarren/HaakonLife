@@ -197,6 +197,22 @@ test('a challenge for a game the server does not run is just passed along', asyn
   a.ws.close(); b.ws.close();
 });
 
+test('a challenge that waited for a menu to close says so, and its server game still starts', async () => {
+  const a = client(), b = client();
+  await a.open(); await b.open();
+  a.me(); b.me();
+  const m = 'm' + n;
+  a.send({ k: 'to', to: b.id, m: { k: 'ask', m, g: 'count', seed: 42, soft: 0 } });
+  await b.for((d) => d.k === 'm' && d.m.k === 'ask');
+  b.send({ k: 'to', to: a.id, m: { k: 'seen', m } });
+  await a.for((d) => d.k === 'm' && d.m.k === 'seen');
+  b.send({ k: 'to', to: a.id, m: { k: 'yes', m } });
+  await a.for((d) => d.k === 'st' && d.m === m);
+  a.send({ k: 'to', to: b.id, m: { k: 'quit', m } });
+  await b.for((d) => d.k === 'end');
+  a.ws.close(); b.ws.close();
+});
+
 test('giving up ends a server game for both', async () => {
   const { a, b, m } = await match('count');
   await a.for((d) => d.k === 'st');

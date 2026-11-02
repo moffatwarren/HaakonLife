@@ -446,8 +446,12 @@ which tile they're on (and has them walking from tile to tile).
 
   They get 30 seconds to accept. Someone who's in a game has what they're playing
   over their head ("Playing Paper Toss", "Playing live poker (3 players)", "Waiting for
-  hockey players" in the live hockey lobby), someone in a menu has "...", and neither
-  can be challenged until they're done. Walking away from a match
+  hockey players" in the live hockey lobby) and can't be challenged until they're done.
+  Someone in a menu or a conversation has "...", and a challenge to them waits: they hear
+  a ding and get a notice in the corner saying who's asking, and when they come out of it
+  the usual ACCEPT / NO THANKS comes up, with 20 seconds to answer. If they take more than
+  30 seconds to come out, they're told they missed it, and if they go into a game
+  instead, you're told they're busy. Walking away from a match
   (or closing the page) ends it for both of you, and so does putting your phone away
   or switching apps for more than about 12 seconds. Matches against players don't go
   on the leaderboards or count towards Linda's or Kiki's lists.
