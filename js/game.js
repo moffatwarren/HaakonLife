@@ -1143,9 +1143,39 @@
   const sdgIcon = new Image();
   sdgIcon.onload = () => { if (hw.worn) wearCostume(hw.costume); if (mode === 'costume') openCostumes(); }; // the SDG Sign costume wears the logo
   sdgIcon.src = 'assets/sdg.png';
+  // The logo on the desktop, at the screen's own resolution: traced from that image, on its
+  // 31 x 32 grid, the fan's housing a circle with its outlet at the top left.
+  const sdgPic = () => finePic('sdg', 124, 128, (c) => {
+    c.scale(4, 4);
+    c.fillStyle = '#040402'; c.fillRect(0, 0, 31, 32);
+    c.fillStyle = '#f9f161'; c.fillRect(1, 1, 29, 30);
+    // the lettering
+    c.lineWidth = 1.85; c.strokeStyle = c.fillStyle = '#040402';
+    c.beginPath(); // S
+    c.moveTo(8.4, 5.3); c.bezierCurveTo(8.2, 4.2, 7.2, 3.5, 6, 3.5); c.bezierCurveTo(4.7, 3.5, 3.9, 4.3, 3.9, 5.1); c.bezierCurveTo(3.9, 6.2, 5, 6.5, 6.1, 6.9);
+    c.bezierCurveTo(7.4, 7.3, 8.5, 7.7, 8.5, 8.8); c.bezierCurveTo(8.5, 9.8, 7.5, 10.4, 6.1, 10.4); c.bezierCurveTo(4.7, 10.4, 3.7, 9.7, 3.6, 8.3);
+    c.stroke();
+    c.beginPath(); // D
+    c.moveTo(11.9, 3.6); c.lineTo(13.9, 3.6); c.bezierCurveTo(15.9, 3.6, 17.1, 5, 17.1, 7); c.bezierCurveTo(17.1, 9, 15.9, 10.35, 13.9, 10.35); c.lineTo(11.9, 10.35); c.closePath();
+    c.stroke();
+    c.beginPath(); // G
+    c.moveTo(26.4, 5.4); c.bezierCurveTo(26, 4.2, 24.8, 3.5, 23.4, 3.5); c.bezierCurveTo(21.4, 3.5, 20.3, 5.1, 20.3, 7); c.bezierCurveTo(20.3, 8.9, 21.4, 10.4, 23.4, 10.4); c.bezierCurveTo(24.7, 10.4, 25.6, 10.1, 26.3, 9.4);
+    c.stroke();
+    c.fillRect(23.2, 6.7, 4, 1.6); c.fillRect(25.35, 6.7, 1.85, 3.4);
+    // the fan: its stand, its housing and the hub
+    c.lineWidth = 1; c.strokeStyle = '#585848';
+    c.beginPath(); c.moveTo(11.7, 27.3); c.lineTo(20.3, 27.3); c.lineTo(23.5, 30.5); c.lineTo(8.5, 30.5); c.closePath();
+    c.fillStyle = '#b4b4b8'; c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(6, 13.5); c.lineTo(16, 13.5); c.arc(16, 21, 7.5, -Math.PI / 2, Math.PI); c.lineTo(8.5, 18.5); c.lineTo(6, 18.5); c.closePath();
+    c.fillStyle = '#c0c0c4'; c.fill(); c.stroke();
+    c.beginPath(); c.arc(16, 21, 2.45, 0, Math.PI * 2); c.lineWidth = 1.1; c.strokeStyle = '#505450'; c.stroke();
+  });
   const PROGRAMS = {
     sdg: { label: 'SDG', App: () => SdgApp(),
-      icon(x, y) { if (sdgIcon.complete && sdgIcon.naturalWidth) ctx.drawImage(sdgIcon, x, y, 62, 64); } },
+      icon(x, y) {
+        if (HIRES) ctx.drawImage(sdgPic(), x, y);
+        else if (sdgIcon.complete && sdgIcon.naturalWidth) ctx.drawImage(sdgIcon, x, y, 62, 64);
+      } },
     poker: { label: 'Poker', App: (pc) => PokerApp(pc), icon: (x, y) => drawPokerIcon(x, y) },
     blackjack: { label: 'Blackjack', App: (pc) => BlackjackApp(pc), icon: (x, y) => drawBlackjackIcon(x, y) },
     humbug: { label: 'Humbugs', App: () => HumbugGame(), icon: (x, y) => drawHumbugIcon(x, y) },
@@ -14000,6 +14030,7 @@
   // they're standing. Places are in tiles (a tile's middle a whole number, like P.fx),
   // heights in metres; drawYard draws it all.
   const SNOW = { prints: [], angels: [], balls: [], puffs: [], ver: 0, steps: new Map(), hitMe: -999, fight: 1200, thrown: null, angel: null };
+  const ARM_REACH = 3.5, LEG_REACH = 3.5; // how long someone's arms and legs are, lying in a snow angel (2 and 3 standing)
   const BALL_V = 0.2, BALL_G = 0.0045, BALL_Z = 1.5; // tiles a tick across, metres a tick per tick down, metres up out of the hand
   const THROW_T = 24, RELEASE = 13, ANGEL_T = 200, PRINT_LIFE = 5400, ANGEL_LIFE = 21600; // all in ticks
   // how tall what stands on each kind of tile is: a snowball lower than that hits it
@@ -14052,7 +14083,7 @@
     sfx('crunch');
     SNOW.angel = { n: (SNOW.angel ? SNOW.angel.n : 0) + 1, x: P.fx, y: P.fy };
   }
-  function addAngel(x, y) { SNOW.angels.push({ x, y: y - 0.95, t: tick }); SNOW.ver++; }
+  function addAngel(x, y) { SNOW.angels.push({ x, y, t: tick }); SNOW.ver++; }
   // how far into lying down (lie) and sweeping (flap) someone t ticks into a snow angel is
   function angelPose(t) {
     if (t === null || t === undefined || t >= ANGEL_T) return null;
@@ -16067,7 +16098,8 @@
     ctx.fillStyle = c; ctx.fillRect(x, 7, 5, 5);
   }
   // While a game's on: { scene(), npc (the coworker you're playing), ids (the other
-  // players in it, live), npcs (coworkers the computer's playing, live) }. scene() is what drawYard draws: { skaters, puck, you } (see
+  // players in it, live), npcs (coworkers the computer's playing, live), low (live, how far up
+  // the screen its controls are showing, if they are) }. scene() is what drawYard draws: { skaters, puck, you } (see
   // HockeyGame's), with places in tiles from the map's corner.
   let hockey = null;
   function hockeyTalk(npc, says) {
@@ -16481,6 +16513,7 @@
         ais = now;
         if (left) left.t++;
         if (intro > 0) intro--;
+        live.low = intro > 0 ? 38 : 0;
         if (v.ph === 'over' && won === null && v.last && Array.isArray(v.last.sc)) {
           const my = v.me % 2;
           won = v.last.sc[my] > v.last.sc[1 - my];
@@ -16560,8 +16593,9 @@
       },
     };
 
-    // The lobby, laid out like the two teams' benches: yours on the left or the right, the
-    // front row (who take the faceoffs) at the bottom, and start underneath.
+    // The lobby, laid out like the two teams' benches: yours on the left or the right, numbered
+    // from the top down with players 1 and 2 (who take the faceoffs) at the top, and start
+    // underneath.
     function drawLobby(v) {
       box(0, 0, SW, SH);
       const title = 'LIVE HOCKEY: ' + size / 2 + ' ON ' + size / 2, dots = '.'.repeat(1 + ((tick >> 4) % 3));
@@ -16577,7 +16611,7 @@
         ctx.fillStyle = HOCKEY_RINGS[tm]; ctx.fillRect(x + 6, top - 14, 5, 5);
         text(HOCKEY_TEAMS[tm], x + 14, top - 14);
       });
-      v.slots.forEach((q, i) => slot(v, q, i, i % 2 ? 182 : 10, top + (rows - 1 - (i >> 1)) * (h + gap), w, h));
+      v.slots.forEach((q, i) => slot(v, q, i, i % 2 ? 182 : 10, top + (i >> 1) * (h + gap), w, h));
       text('VS', 148, top + ((rows * h + (rows - 1) * gap) >> 1) - 7, 2);
       // start, and what it's waiting for
       const mine = v.slots[v.me], by = rows > 1 ? 156 : 152, waiting = v.slots.filter((q) => !q).length;
@@ -16648,16 +16682,98 @@
     skatePics.set(img, cv);
     return cv;
   }
-  // the colour of someone's sleeves, from their picture (for their arms in a snow angel)
-  const sleevePics = new WeakMap();
-  function sleeveOf(img) {
-    if (sleevePics.has(img)) return sleevePics.get(img);
-    // (the first thing across that row, from the left, that isn't their outline)
-    const k = img.hi || 1, d = img.getContext('2d').getImageData(0, 11 * k, 8 * k, 1).data;
-    let c = '#c8ccd8';
-    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 128 && d[i] + d[i + 1] + d[i + 2] > 90) { c = 'rgb(' + d[i] + ', ' + d[i + 1] + ', ' + d[i + 2] + ')'; break; }
-    sleevePics.set(img, c);
-    return c;
+  // Someone's arms and legs, lifted off their picture for a snow angel: `body` is the picture
+  // without them, `arms` what hangs from each shoulder, its rows of colour shoulder to hand,
+  // read from under any long hair (sheet.bare), and `legs` where in the picture each leg is.
+  // Long hair over a shoulder stays on the body, and a costume with no arm down its side or no
+  // gap between its legs keeps them.
+  const limbCuts = new WeakMap();
+  function limbsOf(sheet) {
+    const img = sheet.down[0];
+    let cut = limbCuts.get(img);
+    if (cut) return cut;
+    const k = img.hi || 1, W = img.width, waist = 13 * k, body = document.createElement('canvas');
+    body.width = W; body.height = img.height; body.hi = img.hi;
+    const c = body.getContext('2d');
+    c.drawImage(img, 0, 0);
+    const reader = (pic) => {
+      const d = pic.getContext('2d').getImageData(0, 0, W, pic.height).data;
+      return (x, y) => { const i = (y * W + x) * 4; return { on: d[i + 3] > 128, line: d[i] + d[i + 1] + d[i + 2] < 90, css: 'rgb(' + d[i] + ', ' + d[i + 1] + ', ' + d[i + 2] + ')' }; };
+    };
+    // (how high an arm goes up that column from the waist, before it meets an outline)
+    const armTop = (at, x) => { let y = waist; while (y > 0 && at(x, y - 1).on && !at(x, y - 1).line) y--; return y; };
+    const at = reader(img), under = sheet.bare ? reader(sheet.bare) : at;
+    cut = { body, arms: [], legs: [] };
+    for (const s of [-1, 1]) {
+      const left = s < 0, side = (x) => (left ? x : W - 1 - x), rim = at(side(3 * k), waist - 1), top = armTop(at, side(4 * k));
+      if (top === waist || !rim.on || !rim.line) continue;
+      const from = Math.max(top, 11 * k), x0 = left ? 4 * k : W - 5 * k, y0 = Math.max(armTop(under, side(4 * k)), 11 * k), rows = [];
+      for (let y = y0; y < waist; y++) {
+        const row = [];
+        for (let i = 0; i < k; i++) row.push(under(x0 + i, y).css);
+        rows.push(row);
+      }
+      cut.arms.push({ s, hi: img.hi, k, out: rim.css, x: x0 / k + 0.5, y: y0 / k, rows, pics: {} });
+      // what's left of the body gets an outline where the arm was
+      c.clearRect(left ? 3 * k : W - 5 * k + 1, from, 2 * k - 1, waist - from);
+      c.clearRect(left ? 3 * k : W - 4 * k, top, k, from - top);
+      c.fillStyle = rim.css;
+      c.fillRect(left ? 5 * k - 1 : W - 5 * k, from, 1, waist - from);
+    }
+    // the legs come off where the outline between them starts, each taking that outline with it
+    // and a little of the hip above, which stays on the body in front of it to swing behind
+    const H = img.height, mid = W / 2, w = mid + 1 - 4 * k;
+    let split = waist;
+    while (split < H && !(at(mid - 1, split).on && at(mid - 1, split).line && at(mid, split).on && at(mid, split).line)) split++;
+    if (split < H) {
+      for (const s of [-1, 1]) {
+        const sx = s < 0 ? 4 * k : mid - 1;
+        cut.legs.push({ s, img, k, sx, sy: split - k, w, rows: H - split + k, x: (sx + w / 2) / k, y: split / k - 0.5, pics: {} });
+      }
+      c.clearRect(4 * k, split, W - 8 * k, H - split);
+    }
+    limbCuts.set(img, cut);
+    return cut;
+  }
+  // An arm out of limbsOf at len pixels long, hanging down and outlined, its top row carried on
+  // up behind the shoulder. The hand keeps its size, and so does a cuff above it, and the rest
+  // of the arm stretches. A clear pixel is left all round, since the edge of a picture comes
+  // out soft when it's turned.
+  function armPic(arm, len) {
+    if (arm.pics[len]) return arm.pics[len];
+    const { k, rows } = arm, n = rows.length, cv = document.createElement('canvas');
+    const keep = n - k > 1 && String(rows[n - k - 1]) !== String(rows[n - 1]) ? k + 1 : k, m = Math.max(1, n - keep);
+    cv.width = 3 * k + 2; cv.height = k + len + k + 1; cv.hi = arm.hi;
+    const c = cv.getContext('2d');
+    c.fillStyle = arm.out;
+    c.fillRect(1, 1, 3 * k, k - 1 + len);
+    for (let j = 0; j < k; j++) c.fillRect(2 + j, k + len + j, 3 * k - 2 - 2 * j, 1);
+    for (let i = 1 - k; i < len; i++) {
+      const y = Math.max(i, 0), row = y < len - keep ? rows[Math.floor(y * m / (len - keep))] : rows[Math.max(0, n - len + y)];
+      row.forEach((css, j) => { c.fillStyle = css; c.fillRect(1 + k + j, k + i, 1, 1); });
+    }
+    arm.pics[len] = cv;
+    return cv;
+  }
+  // A leg out of limbsOf, len pixels long and thin pixels narrower (left as wide as it is long,
+  // it would fan out like a skirt). The shoe keeps its length and the leg above it stretches,
+  // and the width comes out of the middle of the leg, next to the outline on its inside. (A
+  // clear pixel all round this too.)
+  function legPic(leg, len, thin) {
+    const key = len + ':' + thin;
+    if (leg.pics[key]) return leg.pics[key];
+    const { s, img, k, sx, sy, w, rows } = leg, cv = document.createElement('canvas');
+    cv.width = w - thin + 2; cv.height = len + 2; cv.hi = img.hi;
+    const c = cv.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    let dx = 1;
+    for (const [x, n] of s < 0 ? [[0, w - 2 - thin], [w - 2, 2]] : [[0, 2], [2 + thin, w - 2 - thin]]) {
+      c.drawImage(img, sx + x, sy, n, rows - k, dx, 1, n, len - k);
+      c.drawImage(img, sx + x, img.height - k, n, k, dx, 1 + len - k, n, k);
+      dx += n;
+    }
+    leg.pics[key] = cv;
+    return cv;
   }
   // a line at double resolution, a square w across at each real pixel along it
   function pixLine(x0, y0, x1, y1, w, c) {
@@ -16668,7 +16784,7 @@
 
   // Someone out in the lot: it.x, it.y is the top-left of their tile, as people go indoors.
   // it.throw: how far through throwing a snowball. it.angel: lying in the snow ({ lie, flap }, see
-  // angelPose): they go over backwards, sweeping their arms, and the angel shows in the snow.
+  // angelPose): they go over backwards, sweeping their arms and legs, and the angel shows in the snow.
   function drawOutside(it, cx, cy) {
     const x = realPx(it.x - cx), an = it.angel;
     const y = realPx(it.y - cy - 4 - (an ? an.lie * 11 : 0));
@@ -16676,13 +16792,25 @@
     if (it.skate) img = onSkates(img);
     if (an) {
       ctx.globalAlpha = 0.6 * an.lie;
-      ctx.drawImage(angelPic(), x - 4, y - 1, 24, 22);
+      drawAngelPrint(it.x, it.y, cx, cy);
       ctx.globalAlpha = 1;
-      const a = (0.25 + an.flap * 1.75) * an.lie, sl = sleeveOf(it.sheet.down[0]);
-      for (const s of [-1, 1]) {
-        const ax = x + 8 + s * 5.5, ay = y + 9.5, bx = ax + s * Math.sin(a) * 7, by = ay + Math.cos(a) * 7;
-        pixLine(ax, ay, bx, by, 2.5, col.dark); pixLine(ax, ay, bx, by, 1.5, sl);
+      // their own arms and legs, swung out behind the body from the shoulders and hips, and
+      // reaching a little further as they lie back
+      const cut = limbsOf(it.sheet), reach = (n, k, to) => Math.round(n + Math.max(0, to * k - n) * an.lie);
+      const swing = (pic, px, py, turn, ox, oy) => {
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(turn);
+        ctx.drawImage(pic, -ox, -oy);
+        ctx.restore();
+      };
+      const spread = (0.1 + an.flap * 0.5) * an.lie, a = (0.25 + an.flap * 1.75) * an.lie;
+      for (const leg of cut.legs) {
+        const thin = Math.round(leg.k * an.lie), pic = legPic(leg, reach(leg.rows, leg.k, LEG_REACH), thin);
+        swing(pic, x + leg.x - leg.s * thin / 2 / leg.k, y + leg.y, -leg.s * spread, pic.width / 2 / leg.k, 1 / leg.k + 0.5);
       }
+      for (const arm of cut.arms) { const pic = armPic(arm, reach(arm.rows.length, arm.k, ARM_REACH)); swing(pic, x + arm.x, y + arm.y, -arm.s * a, pic.width / 2 / arm.k, 1); }
+      img = cut.body;
     }
     ctx.drawImage(img, x, y);
     if (it.crown) crownSparkle(x, y);
@@ -16692,7 +16820,9 @@
       fineDisc(x + hx, y + hy - Math.sin(k * Math.PI) * 5, 2, col.dark); fineDisc(x + hx, y + hy - Math.sin(k * Math.PI) * 5, 1.5, '#f6f8fc');
     }
   }
-  const angelPic = () => finePic('angel', 24, 22, (c) => c.drawImage(LotArt.angel(), 0, 0));
+  // the angel someone standing at px, py lies down and makes, behind them and centred on them
+  const angelPic = () => finePic('angel', 20, 20, (c) => c.drawImage(LotArt.angel(), 0, 0));
+  const drawAngelPrint = (px, py, cx, cy) => ctx.drawImage(angelPic(), realPx(px - 2 - cx), realPx(py - 15 - cy), 20, 20);
 
   // A hockey stick (st: { k, a, p, hand }, see js/hockey.js): for each thing they do with it,
   // where the blade's heel and the top hand go, each [to their left, up, ahead] in metres, for
@@ -16829,10 +16959,36 @@
       const words = mpSaying(o, now);
       if (words) mpBubble(words, Math.round(sx), Math.round(sy) - 28);
     }
-    if (sc) for (const s of sc.skaters) if (s.tag) mpTag(s.tag, Math.round(s.x * 16 - cx), Math.round(s.y * 16 - cy - 15));
+    if (sc) {
+      for (const s of sc.skaters) if (s.tag) mpTag(s.tag, Math.round(s.x * 16 - cx), Math.round(s.y * 16 - cy - 15));
+      const you = sc.skaters.find((s) => s.me);
+      if (you) youArrow(you, cx, cy);
+    }
     if (mp.bubble) mpBubble(mp.bubble.str, Math.round(px - cx + 8), Math.round(py - cy - 22));
     for (const [str, x, y] of said) mpBubble(str, Math.round(x - cx + 8), Math.round(y - cy - 22));
     snowSplat();
+  }
+  // The view goes with the puck more than with you, so you can end up off the screen (or under
+  // the scoreboard). Then an arrow in the colour of your ring points at you from just inside the
+  // edge, on the straight line from the middle of the screen to you, with your name behind it.
+  function youArrow(s, cx, cy) {
+    const x = s.x * 16 - cx, y = s.y * 16 - cy - 5; // (the middle of them)
+    if (x > -6 && x < SW + 6 && y > 14 && y < SH + 6) return;
+    // (clear of the scoreboard, and of whatever's along the bottom: "Enter: menu", or hockey.low)
+    const dx = x - SW / 2, dy = y - SH / 2, bottom = SH - (hockey.low || 13);
+    const k = Math.min(dx ? ((dx > 0 ? SW - 6 : 6) - SW / 2) / dx : 9, dy ? ((dy > 0 ? bottom : 24) - SH / 2) / dy : 9);
+    const tx = SW / 2 + dx * k, ty = SH / 2 + dy * k, ux = dx / Math.hypot(dx, dy), uy = dy / Math.hypot(dx, dy);
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.rotate(Math.atan2(dy, dx));
+    ctx.beginPath();
+    for (const [ax, ay] of [[0, 0], [-8, -6], [-8, -2.5], [-15, -2.5], [-15, 2.5], [-8, 2.5], [-8, 6]]) ctx.lineTo(ax, ay);
+    ctx.closePath();
+    ctx.lineJoin = 'round'; ctx.lineWidth = 2; ctx.strokeStyle = col.dark; ctx.stroke();
+    ctx.fillStyle = s.ring; ctx.fill();
+    ctx.restore();
+    const who = playerName || 'You', w = who.length * 6 + 3, back = 18 + Math.abs(ux) * w / 2 + Math.abs(uy) * 5;
+    mpTag(who, Math.round(clamp(tx - ux * back, w / 2 + 2, SW - w / 2 - 2)), Math.round(clamp(ty - uy * back + 6, 33, bottom)));
   }
   const puckPic = () => finePic('puck', 12, 10, (c) => {
     const px = (x, y, w, h, co) => { c.fillStyle = co; c.fillRect(x, y, w, h); };
@@ -16866,7 +17022,7 @@
     for (const an of SNOW.angels) {
       if (!seen(an.x, an.y, 24)) continue;
       ctx.globalAlpha = 0.75 * fade(tick - an.t, ANGEL_LIFE);
-      ctx.drawImage(angelPic(), realPx(an.x * 16 + 8 - 12 - cx), realPx(an.y * 16 + 8 - 11 - cy), 24, 22);
+      drawAngelPrint(an.x * 16, an.y * 16, cx, cy);
     }
     for (const p of SNOW.prints) {
       if (!seen(p.x, p.y, 8)) continue;

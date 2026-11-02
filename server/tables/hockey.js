@@ -43,8 +43,8 @@ export function load() {
 
 // Spots in the lobby, which are also the players' places in the game: even ones are team 0
 // (on the left in the lobby, the yellow rings), odd ones team 1 (on the right, red). 0 and 1
-// are the front row (players 1 and 2, who take the faceoffs); 2 and 3 are behind them, and
-// 4 and 5 behind them.
+// are the top row (players 1 and 2, who take the faceoffs); 2 and 3 are under them, and 4 and
+// 5 under them.
 const teamOf = (i) => i % 2;
 
 function kind(size) {
@@ -147,8 +147,8 @@ export function input(s, id, d) {
 
 // Left and right go over to that team: into a free spot there (the same row if it can),
 // otherwise swapping with whoever's level with them. Up and down (with more than one row)
-// swap rows within their team, the front row being at the bottom. Anyone who's moved has to
-// press start again.
+// swap rows within their team, the first row being at the top. Anyone who's moved has to press
+// start again.
 function move(s, i, dir) {
   const team = teamOf(i), row = i >> 1, rows = s.size / 2;
   let j;
@@ -158,7 +158,7 @@ function move(s, i, dir) {
     j = row * 2 + to;
     for (let k = 0; k < rows && s.slots[j]; k++) if (!s.slots[k * 2 + to]) j = k * 2 + to;
   } else {
-    const r = row + (dir === 'up' ? 1 : -1);
+    const r = row + (dir === 'down' ? 1 : -1);
     if (r < 0 || r >= rows) return;
     j = r * 2 + team;
   }

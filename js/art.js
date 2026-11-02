@@ -3226,14 +3226,16 @@ window.Art = (function () {
   // the parts in `parts`, in the colours in `pal`
   function sheet32(parts, sweater, pal) {
     const out = {};
-    const make = (dir, step, flip) => {
+    const make = (dir, step, flip, body = parts) => {
       const cv = document.createElement('canvas');
       cv.width = cv.height = 32; cv.hi = 2;
       const ctx = cv.getContext('2d'), img = ctx.createImageData(32, 32);
-      blit(img, lookBuf32(parts, dir, step, false, sweater), 0, 0, pal, flip, 32);
+      blit(img, lookBuf32(body, dir, step, false, sweater), 0, 0, pal, flip, 32);
       ctx.putImageData(img, 0, 0);
       return cv;
     };
+    // (and with no hair, showing the whole of both sleeves: see armsOf in js/game.js)
+    out.bare = make('down', 0, false, Object.assign({}, parts, { hair: BALD }));
     out.down = [make('down', 0), make('down', 1), make('down', 2)];
     out.up = [make('up', 0), make('up', 1), make('up', 2)];
     out.left = [make('left', 0), make('left', 1), make('left', 1)];

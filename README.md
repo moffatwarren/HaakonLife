@@ -819,7 +819,8 @@ From November 27 to December 31 (by your device's date) the office does Christma
   and the angel stays behind you for a few minutes. Other players see your snowballs and
   snow angels and you see theirs (a snowball hits whoever it hits on each screen, so a near
   miss can look different to the person it missed). It's "out in the snow" in
-  `js/game.js`, drawn by `drawYard`, and the snow angel's shape is `ANGEL` in `js/lot.js`.
+  `js/game.js`, drawn by `drawYard`, the arms and legs you sweep are lifted off your own
+  picture (`limbsOf`), and the snow angel's shape is `ANGEL` in `js/lot.js`.
 - Eleven coworkers, picked at random each time the game loads, have gone out there and
   stand around the lot: one minding the gate in the rink's boards, at the fire pit, the
   hot chocolate stand, a car, the snowman and the big spruce, and two pacing along the
@@ -944,7 +945,8 @@ From November 27 to December 31 (by your device's date) the office does Christma
   and you can give up from there. Tied at the buzzer, it goes to overtime, next goal
   wins. You're the yellow ring, they're the red, and whoever has the puck has theirs
   filled in. The ice is 14 by 30 metres, and the view follows the play (mostly the
-  puck). The most goals you've
+  puck). If that leaves you off the screen, an arrow at the edge points to where you are,
+  with your name on it. The most goals you've
   scored in one game (played to the end, win or lose) go on the **HOCKEY GOALS**
   leaderboard, on the Christmas page of the Hall of Fame.
 - **Live hockey**: with a game server, go up to the sign-up booth just outside the rink's
@@ -954,7 +956,8 @@ From November 27 to December 31 (by your device's date) the office does Christma
   score and the time left, and **START A NEW GAME** underneath. There can be any number
   going at once, each with its own lobby and clock. The first one there waits in the lobby, which
   shows each team's spots (YELLOW on the left, RED on the right; in two on two and three on
-  three, the rest sit in rows behind players 1 and 2, who take the faceoffs) and START
+  three, the numbers go across and then down, with players 1 and 2, who take the faceoffs,
+  in the top row) and START
   underneath. Left and
   right move you to the other team, swapping places with whoever's level with you if
   it's full (up and down swap rows with your teammate). Once every spot is taken and

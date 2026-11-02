@@ -132,7 +132,7 @@ test('moving to the other team takes a free spot, or swaps with whoever\'s level
   assert.equal(s.slots[3].r, false, 'moving means pressing start again');
   two.input(s, 'a', { mv: 'right' });
   assert.deepEqual(ids(s), [null, 'b', 'c', 'a'], 'already on the right');
-  two.input(s, 'a', { mv: 'down' });
+  two.input(s, 'a', { mv: 'up' });
   assert.deepEqual(ids(s), [null, 'a', 'c', 'b'], 'swapped rows with b');
   two.sit(s, 'd', 'd');
   assert.deepEqual(ids(s), ['d', 'a', 'c', 'b']);
@@ -141,8 +141,8 @@ test('moving to the other team takes a free spot, or swaps with whoever\'s level
   assert.deepEqual(ids(s), ['d', 'a', 'b', 'c'], 'full, so c and b swap teams');
   assert.equal(s.slots[2].r, false, 'b was moved, so b presses start again too');
   assert.equal(s.slots[0].r, true, 'nobody else');
-  two.input(s, 'c', { mv: 'up' });
-  assert.deepEqual(ids(s), ['d', 'a', 'b', 'c'], 'already in the back row');
+  two.input(s, 'c', { mv: 'down' });
+  assert.deepEqual(ids(s), ['d', 'a', 'b', 'c'], 'already in the bottom row');
 });
 
 test('one on one has just the two spots to swap between', () => {
@@ -163,14 +163,14 @@ test('three on three: six spots, two teams, three rows to move between', () => {
   for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) assert.equal(three.sit(s, id, id), true);
   assert.deepEqual(ids(s), ['a', 'b', 'c', 'd', 'e', 'f']);
   assert.equal(three.sit(s, 'g', 'g'), 'full');
+  three.input(s, 'a', { mv: 'up' });
+  assert.deepEqual(ids(s), ['a', 'b', 'c', 'd', 'e', 'f'], 'already in the top row');
   three.input(s, 'a', { mv: 'down' });
-  assert.deepEqual(ids(s), ['a', 'b', 'c', 'd', 'e', 'f'], 'already in the front row');
-  three.input(s, 'a', { mv: 'up' });
-  assert.deepEqual(ids(s), ['c', 'b', 'a', 'd', 'e', 'f'], 'up a row');
-  three.input(s, 'a', { mv: 'up' });
-  assert.deepEqual(ids(s), ['c', 'b', 'e', 'd', 'a', 'f'], 'up to the back row');
-  three.input(s, 'a', { mv: 'up' });
-  assert.deepEqual(ids(s), ['c', 'b', 'e', 'd', 'a', 'f'], 'already in the back row');
+  assert.deepEqual(ids(s), ['c', 'b', 'a', 'd', 'e', 'f'], 'down a row');
+  three.input(s, 'a', { mv: 'down' });
+  assert.deepEqual(ids(s), ['c', 'b', 'e', 'd', 'a', 'f'], 'down to the bottom row');
+  three.input(s, 'a', { mv: 'down' });
+  assert.deepEqual(ids(s), ['c', 'b', 'e', 'd', 'a', 'f'], 'already in the bottom row');
   three.input(s, 'a', { mv: 'right' });
   assert.deepEqual(ids(s), ['c', 'b', 'e', 'd', 'f', 'a'], 'swapped with whoever\'s level');
   begin(three, s);
