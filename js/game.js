@@ -11396,6 +11396,7 @@
       .concat(kikiList ? [['KIKI\'S LIST', () => ui.push(KikiList())]] : [])
       .concat([
         ['EDIT CHARACTER', (self) => { remove(self); editAgain(); }],
+        [ZOOMS[zoomPick][0], (self) => { zoomPick = (zoomPick + 1) % ZOOMS.length; store.set('zoom', zoomPick); self.options = items().map((o) => o[0]); sfx('select'); }],
         [soundOn ? 'SOUND ON' : 'SOUND OFF', (self) => { soundOn = !soundOn; store.set('sound', soundOn ? 'on' : 'off'); self.options = items().map((o) => o[0]); sfx('select'); }],
         [musicOn ? 'MUSIC ON' : 'MUSIC OFF', (self) => { musicOn = !musicOn; store.set('music', musicOn ? 'on' : 'off'); self.options = items().map((o) => o[0]); sfx('select'); }],
         ['CLOSE', (self) => remove(self)],
@@ -12778,16 +12779,19 @@
     text(name, sx - (w >> 1) + 2, sy - 10, 1, '#f8f8f8');
   }
   function mpDrawTags(cx, cy, px, py) {
-    const now = Date.now();
+    const now = Date.now(), at = zoomOff();
     for (const o of mpHere()) {
       if (o.f !== P.floor) continue;
-      const sx = Math.round(o.px - cx + 8), sy = Math.round(o.py - cy - 4);
+      const [sx, sy] = at(Math.round(o.px - cx + 8), Math.round(o.py - cy - 4));
       if (sx < -40 || sx > SW + 40 || sy < -30 || sy > SH + 10) continue;
       mpTag(o.n, sx, sy);
       const said = mpSaying(o, now);
       if (said) mpBubble(said, sx, sy - 28);
     }
-    if (mp.bubble) mpBubble(mp.bubble.str, px - cx + 8, py - cy - 22);
+    if (mp.bubble) {
+      const [sx, sy] = at(px - cx + 8, py - cy - 4);
+      mpBubble(mp.bubble.str, sx, sy - 18);
+    }
   }
 
   // ticks a speech bubble stays up: 3 seconds, longer for a long one you typed
@@ -16202,6 +16206,8 @@
     // little toward the net you're shooting at), stopping at the edges of the lot
     const fx = sc ? (sc.puck.x * 0.65 + sc.you.x * 0.35) * 16 : px + 8, fy = sc ? (sc.puck.y * 0.65 + sc.you.y * 0.35 - 1) * 16 : py + 8;
     const cx = realPx(clamp(fx - SW / 2, 0, lot.w - SW)), cy = realPx(clamp(fy - SH / 2, 0, lot.h - SH));
+    // (not in a hockey game, even as it fades out, when it's no longer up in front of you)
+    if (!sc) zoomOn(px - cx + 8, py - cy + 4);
     ctx.drawImage(lot.ground, cx, cy, SW, SH, 0, 0, SW, SH);
     if (sc && lot.gate) ctx.drawImage(lot.gate.img, lot.gate.x - cx, lot.gate.y - cy);
     if (!sc) snowGround(cx, cy);
@@ -16247,9 +16253,9 @@
     lotLights(lot, cx, cy);
     snowfall(tick, sc ? 24 : 44, cx, cy);
     // names over other players' heads, and what anyone's saying
-    const now = Date.now();
+    const now = Date.now(), at = zoomOff();
     for (const o of others) {
-      const sx = o.px - cx + 8, sy = o.py - cy - 4;
+      const [sx, sy] = at(o.px - cx + 8, o.py - cy - 4);
       if (sx < -40 || sx > SW + 40 || sy < -30 || sy > SH + 10) continue;
       mpTag(o.n, Math.round(sx), Math.round(sy));
       const words = mpSaying(o, now);
@@ -16260,8 +16266,12 @@
       const you = sc.skaters.find((s) => s.me);
       if (you) youArrow(you, cx, cy);
     }
-    if (mp.bubble) mpBubble(mp.bubble.str, Math.round(px - cx + 8), Math.round(py - cy - 22));
-    for (const [str, x, y] of said) mpBubble(str, Math.round(x - cx + 8), Math.round(y - cy - 22));
+    const overHead = (str, x, y) => {
+      const [sx, sy] = at(x - cx + 8, y - cy - 4);
+      mpBubble(str, Math.round(sx), Math.round(sy) - 18);
+    };
+    if (mp.bubble) overHead(mp.bubble.str, px, py);
+    for (const [str, x, y] of said) overHead(str, x, y);
     snowSplat();
   }
   // The view goes with the puck more than with you, so you can end up off the screen (or under
@@ -17295,12 +17305,46 @@
     }
   }
 
+  // ---------- zoom ----------
+  // How close the view is on you while you're walking round (ZOOM in the Start menu), kept
+  // between visits. The world is drawn just as usual, laid out in the view's 320 x 240, through
+  // one more scale, so only the part of it round you shows. It's only for walking round the
+  // map: menus and dialogs go on top at their own size, and as soon as there's a game (or
+  // anything else) up, everything is drawn as it always is, whatever you've picked here.
+  // (&zoom=2 on a #play link starts you at CLOSE.)
+  const ZOOMS = [['ZOOM: FAR', 1], ['ZOOM: MID', 2], ['ZOOM: CLOSE', 3]];
+  const zoomFrom = (v) => clamp(Math.floor(+v) || 0, 0, ZOOMS.length - 1);
+  let zoomPick = zoomFrom(store.get('zoom'));
+  let zoomed = null; // while the world's being drawn zoomed in: { z, vx, vy }
+  // Zoom in on a spot on the view. The zoomed part stays within the view, so out in the lot
+  // it stops at the edges just as the view does.
+  function zoomOn(x, y) {
+    const z = ZOOMS[zoomPick][1];
+    if (z === 1 || !ui.every((el) => el.overlay)) return;
+    const snap = (v) => Math.round(v * z * RES) / (z * RES); // (to the nearest real pixel)
+    const vx = snap(clamp(x - SW / z / 2, 0, SW - SW / z)), vy = snap(clamp(y - SH / z / 2, 0, SH - SH / z));
+    ctx.save();
+    ctx.scale(z, z);
+    ctx.translate(-vx, -vy);
+    zoomed = { z, vx, vy };
+  }
+  // Back to the plain screen, for what stays its own size over the world (names, speech
+  // bubbles). Gives back a function for where a spot on the view has ended up on the screen.
+  function zoomOff() {
+    if (!zoomed) return (x, y) => [x, y];
+    const { z, vx, vy } = zoomed;
+    ctx.restore();
+    zoomed = null;
+    return (x, y) => [Math.round((x - vx) * z), Math.round((y - vy) * z)];
+  }
+
   function drawWorld() {
     // (to the nearest real pixel, as out in the lot, so nothing goes soft walking round)
     const snap = realPx;
     const [mx, my] = mePx(), px = snap(mx), py = snap(my);
     const ox = (SW - 16) >> 1, oy = (SH - 16) >> 1;
     const cx = px - ox, cy = py - oy;
+    zoomOn(px - cx + 8, py - cy + 4);
     const cv = floorCanvas[P.floor];
     let sx = cx, sy = cy, dx = 0, dy = 0, w = SW, h = SH;
     if (sx < 0) { dx = -sx; w += sx; sx = 0; }
@@ -17547,6 +17591,8 @@
     const q = new URLSearchParams(location.hash.slice(1));
     if (q.has('f')) P.floor = +q.get('f');
     if (q.has('x')) { P.x = +q.get('x'); P.y = +q.get('y'); }
+    // &zoom=2 starts you zoomed in (1 MID, 2 CLOSE; 0 FAR), as ZOOM in the Start menu does
+    if (q.has('zoom')) zoomPick = zoomFrom(q.get('zoom'));
     // &char=female:2 dresses you as one of the old characters, &look=f12345678 in a look
     // from the editor (its code, see js/art.js)
     if (q.has('char')) { const [g, i] = q.get('char').split(':'); myLook = oldPick(GENDERS.includes(g) ? g : 'male', i); }

@@ -24,7 +24,7 @@ upload again without a push.
 | Move | Arrows / WASD | Thumbstick (a D-pad in menus and most mini-games) | Left stick or D-pad |
 | A: interact, confirm | E / Space | A | A / ✕ |
 | B: back, cancel (out in the parking lot at Christmas, throw a snowball) | Esc / X / Shift | B | B or X / ○ or □ |
-| Start menu (map, edit your character, sound, music) | Enter (or Esc while walking) | START | Menu / Options |
+| Start menu (map, edit your character, zoom, sound, music) | Enter (or Esc while walking) | START | Menu / Options |
 | Map | M | (Start → Map) | Y or View / △ or Share (Create on a PS5) |
 
 - Controllers: pair an Xbox or PlayStation controller with your phone or computer over
@@ -56,6 +56,10 @@ upload again without a push.
   same screen (then the costume or ugly sweater picker in season), and you carry on from
   where you were standing. B backs out without changing anything, and other players see
   you as busy while you're in there.
+- **Zoom** in the Start menu brings the view in on your character while you walk round
+  the office, the plant and the parking lot: FAR is the usual view, MID twice as close and
+  CLOSE three times. Your pick is saved in this browser. It's only for walking round: names
+  and speech bubbles stay their usual size, and every game looks the same whatever it's set to.
 - The parts are in "your own character" in `js/art.js`: the colours, then the hair,
   head things, shirts, pants and extras, each drawn as rows of pixels, and flair. Only ever add to the end
   of a list, because a saved character is a list of places in them. Coworkers' colours
@@ -1189,6 +1193,9 @@ first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gi
 the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
 `&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
 `&crown=1` makes you the Office Champion, in the crown and the star trail.
+
+`&zoom=2` starts you zoomed in on your character (1 MID, 2 CLOSE, 0 FAR), as **Zoom** in the
+Start menu does, for this visit only.
 Away from haakonlife.com, `game=board&key=snake&score=40` opens that board as if you'd just scored 40, sending nothing.
 `&halloween=1` turns Halloween on outside October (`&halloween=0` turns it off),
 `&costume=witch` (or `clown`, `vampire`, `skeleton`, `pumpkin`, `mummy`, `fan`, `sdg`)
