@@ -14146,7 +14146,7 @@
   // splinters and doesn't count. Off the crack, it only opens the crack a little; a knot
   // bounces it straight off. 60 seconds.
   function ChopGame() {
-    const TIME = 60 * 60, CX = 160, BLOCK = 176, LOG_H = 44, BAND = 0.11;
+    const TIME = 60 * 60, CX = 160, BLOCK = 176, LOG_H = 44, BAND = 0.07;
     const SIZES = [{ w: 32, sweet: 0.3 }, { w: 46, sweet: 0.52 }, { w: 60, sweet: 0.74 }];
     // calm: how long since A was last down, once the axe has been worked free. It won't heft
     // again until you've stopped mashing for a moment, so the mashing can't start a swing.
