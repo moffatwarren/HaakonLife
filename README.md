@@ -76,6 +76,7 @@ Walk up to these and press A:
 - **Coffee machine** (lunch room): catch the coffee in your cup. It pours 150 drops, and the nozzle gets quicker and twitchier as it goes; you're scored on how many you catch
 - **Recycling bin** (lunch room): toss crumpled paper into the bin; watch the wind
 - **Chess** (the lunch room table with the board on it): a whole game against whichever coworker happens to be looking for one. Pick white or black first. Each coworker always plays the same way, from Beginner to Shark, as it says under their name. The arrows move the cursor, A picks a piece up and puts it down, and B lets go of it, or with nothing in your hand opens the menu (keep playing or leave). A pawn reaching the far end asks what it should become. Stalemate, not enough pieces left, the same position three times and fifty moves with no capture or pawn move are all draws. Every piece is the shape you'd expect, so you can always tell which is which, with some air handling on top: a pawn's head is a little fan, a rook's walls are damper blades, the queen's collar is a copper coil and the king has the supply fan in his crown. Can also be played against another player (see **Playing together**)
+- **Checkers** (the lunch room table under the chess one): a whole game against whichever coworker happens to be looking for one, played just like chess. Pick black or red first (black goes first). You have to jump if you can, and the pieces that must are lit up orange; a double jump goes one jump at a time, with the piece staying in your hand until it's done. A man reaching the far side is crowned, and his turn stops there. You win by taking everything or leaving them no move; the same position three times, or forty moves each with no jump and no man moved, is a draw. Each checker is a fan wheel in its round housing, seen from above, and a king has a gold crown on top. Can also be played against another player (see **Playing together**)
 - **Fridge**: keep your eye on your lunch while the containers shuffle
 - **Candy table**: hold A to reach for candy, and freeze when your coworker turns around
 - **Photocopier**: drop each copy onto the pile; anything hanging over gets cut off
@@ -198,8 +199,9 @@ picked out (and added underneath if you didn't make the top ten). Each name has 
 row per game, holding its best score, so the same name on a phone and a computer is
 one person. Richard's duel, Wade's match and Kiki's jar are win-or-lose, so
 they have no board. Pong's board counts how many times each name has beaten the TV:
-each win adds one and shows the board, and a loss leaves it alone. Chess's board (on the
-Hall of Fame's Coworkers page) counts the same way: each checkmate you give, against a coworker
+each win adds one and shows the board, and a loss leaves it alone. Chess's and checkers'
+boards (on the Hall of Fame's Board Games page) count the same way: each checkmate you give, or
+each game of checkers you win by taking everything or leaving them no move, against a coworker
 or another player, adds one. Winning because someone resigned, left or ran out of time doesn't.
 
 The live poker table's board (**Live Hold'em**) is a running tally rather than a best
@@ -608,6 +610,12 @@ which tile they're on (and has them walking from tile to tile).
     piece, when it's a draw). B opens the menu, which is where you resign. If they
     leave, or drop out for too long, the game's yours. The game server runs this one
     (`server/games/chess.js`), so it's only in the list when there is one.
+  - **Checkers**: the lunch room's checkers, against each other, and the same in every way as
+    chess above: you each pick a side (black or red), with a coin if you pick the same one, ten
+    minutes each, and B opens the menu. The game server runs this one too
+    (`server/games/checkers.js`). If the server doesn't start either game within 10 seconds of
+    being accepted (it deploys separately from the site, so it can be a few minutes behind just
+    after an update), you're both told so and go back to the office, rather than waiting on each other.
 
   The treadmill, Snake, the control panel and mini golf carry on until you're both done.
 
@@ -716,17 +724,20 @@ what the player does with `m.input(...)`, and finishes when `m.result` is set (o
 `m.gone`, if the other player left). Challenging somebody works just like the other
 head-to-head games, and these games only show up in the list when there's a game server.
 
-Chess (`server/games/chess.js`, drawn by `ChessGame`) is one of these, with its rules in
-`js/chess.js`: the same file the browser uses to play a coworker, with no drawing or keys in
-it. `server/test/chess.test.js` plays it with no browser, and counts every legal move from six
-well-known positions against the numbers every chess program has to get. The server reads
-`js/chess.js` when the first game starts, so like live hockey it needs the whole repository
-there. If it can't read it, the game stops as soon as it starts and nobody wins. Your own move
-shows the moment you make it and is sent to the server, which checks it: if it ever disagrees,
-the board goes back to what the server says. On Render a change to just `js/chess.js` doesn't
-redeploy the server, so deploy it by hand then (or change something in `server/` too). To try
-it, open `tools/test.html#play&server=ws://localhost:8080` in two windows, walk up to each
-other and pick CHESS from CHALLENGE.
+Chess and checkers (`server/games/chess.js` and `server/games/checkers.js`) are two of these. They're
+played the same way, so they share nearly everything: `tableGame` in `server/games/table.js` runs
+them on the server, and `tableGame` in `js/game.js` is the screen for both, which `ChessGame` and
+`CheckersGame` each call with what's particular to their game. Their rules are in `js/chess.js` and
+`js/checkers.js`: the same files the browser uses to play a coworker, with no drawing or keys in
+them, and used in the same way. `server/test/chess.test.js` and `server/test/checkers.test.js` play
+them with no browser, and count every legal move from well-known positions against the numbers every
+program has to get. The server reads those files when the first game starts, so like live hockey it
+needs the whole repository there. If it can't read them, the game stops as soon as it starts and
+nobody wins. Your own move shows the moment you make it and is sent to the server, which checks it:
+if it ever disagrees, the board goes back to what the server says. On Render a change to just
+`js/chess.js` or `js/checkers.js` doesn't redeploy the server, so deploy it by hand then (or change
+something in `server/` too). To try one, open `tools/test.html#play&server=ws://localhost:8080` in two
+windows, walk up to each other and pick CHESS or CHECKERS from CHALLENGE.
 Give the entry `christmas: true` as well (as the snowball fight has) and it's only in the
 list from the day Christmas first starts (`SEASON_FROM`), then for good.
 
@@ -1317,7 +1328,7 @@ pants and their colours.
 
 | | |
 | --- | --- |
-| Office and lunch room | `coffee`, `toss`, `lunch`, `candy`, `chess` (against a coworker; add `&fen=` and a position in the usual chess notation to start from there), `stack`, `jam`, `desk`, `filter`, `simon` |
+| Office and lunch room | `coffee`, `toss`, `lunch`, `candy`, `chess` and `checkers` (against a coworker; add `&fen=` and a position to start from there), `stack`, `jam`, `desk`, `filter`, `simon` |
 | Fitness room | `punch`, `squat`, `run`, `pulldown`, `ball`, `laundry` |
 | TVs and computers | `pong`, `snake`, `poker`, `blackjack` |
 | Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf`, `build` (Joe's Lego shelf) |
@@ -1352,7 +1363,7 @@ Best scores are saved in the browser, and sent to the online leaderboards when
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
 `forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `pokerlive`, `hockey1`, `hockey2` and `hockey3` (live hockey, with `&yard=1` to be out at the rink), `signhockey` and `signpoker` (the sign-up sheets; all of these from `pokerlive` on need `&server=`), `blackjack`, `build`, `forklift`, `paint`,
-`chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `hockey`, `chess`) opens a game straight away. With `chess`, `&fen=` and a position in the usual chess notation starts from there, which is the quick way to try a checkmate or a promotion.
+`chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `hockey`, `chess`, `checkers`) opens a game straight away. With `chess`, `&fen=` and a position in the usual chess notation starts from there, which is the quick way to try a checkmate or a promotion. It works with `checkers` too, for trying a double jump or a crowning: the ranks from 8 down to 1 written the same way (`M` a black man, `K` a black king, the same in lower case for red), whose turn (`b` or `r`), a `-` and a count of moves since a jump or a man moved, like `7k/8/5m2/8/3m4/2M5/8/6M1 b - 0`.
 `&dog=Bella` puts that dog right in front of you; `game=catch` plays catch with it
 and `game=dogs` shows the frisbee leaderboard.
 For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,
@@ -1390,7 +1401,7 @@ with `&name=Sam` among them on some boards).
 
 To try a head-to-head game on your own, add `&vs=1` with `game=duel`, `jar`, `lego`,
 `dance`, `coffee`, `run`, `snake`, `simon` or `golf`. It plays against "Echo", a stand-in who
-sends back everything you send a second later (not Pong, chess or the snowball fight, which need the game server). That's for seeing the screens, not
+sends back everything you send a second later (not Pong, chess, checkers or the snowball fight, which need the game server). That's for seeing the screens, not
 for a fair game: the score races always end in a dead heat (`&seed=5` deals a
 different game).
 

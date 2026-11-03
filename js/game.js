@@ -4,7 +4,7 @@
   // only whatever uses that script would break, much later on. Stop here instead: with no
   // window.GAME, index.html reloads the page, and a reload always asks for the newest index.html.
   // (tools/check_games.mjs makes sure every script has a name in this list.)
-  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'CHESS'].some((name) => !window[name])) return;
+  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'CHESS', 'CHECKERS'].some((name) => !window[name])) return;
 
   // View: 20 x 15 tiles of 16px.
   const SW = 320, SH = 240;
@@ -1073,7 +1073,10 @@
     let cur = opts.start || 0, wait = opts.wait || 0;
     // (opts.icon(i, x, y): draws a 12 x 12 picture between the pointer and option i's name)
     const nameX = opts.icon ? 31 : 16;
-    const w = Math.max(opts.minChars || 0, ...options.map((o) => o.length)) * 6 + 6 + nameX, h = options.length * 16 + 8;
+    // (opts.rows: how many fit, if it might not all fit on the screen: the list scrolls past that)
+    const rows = Math.min(options.length, opts.rows || options.length), scrolls = rows < options.length;
+    let first = 0;
+    const w = Math.max(opts.minChars || 0, ...options.map((o) => o.length)) * 6 + 6 + nameX + (scrolls ? 8 : 0), h = rows * 16 + 8;
     if (x < 0) x = SW - w + x + 1;
     const self = {
       options, overlay: true,
@@ -1082,17 +1085,21 @@
         if (wait > 0) { wait--; return; }
         if (pressed.has('up')) { cur = (cur + options.length - 1) % options.length; sfx('select'); }
         if (pressed.has('down')) { cur = (cur + 1) % options.length; sfx('select'); }
+        first = Math.max(cur - rows + 1, Math.min(first, cur));
         if (pressed.has('a')) { sfx('select'); if (!opts.keepOpen) remove(self); cb(cur, self); }
         else if (pressed.has('b') || (opts.startCloses && pressed.has('start'))) { remove(self); cb(-1, self); }
       },
       draw() {
         box(x, y, w, h);
-        roundBox(x + 6, y + 5 + cur * 16, w - 12, 13, 2.5, 'rgba(120, 110, 90, 0.16)');
+        roundBox(x + 6, y + 5 + (cur - first) * 16, w - 12, 13, 2.5, 'rgba(120, 110, 90, 0.16)');
         self.options.forEach((o, i) => {
-          if (opts.icon) opts.icon(i, x + 15, y + 5.5 + i * 16);
-          text(o, x + nameX, y + 8 + i * 16);
-          if (i === cur) text('>', x + 8, y + 8 + i * 16);
+          if (i < first || i >= first + rows) return;
+          if (opts.icon) opts.icon(i, x + 15, y + 5.5 + (i - first) * 16);
+          text(o, x + nameX, y + 8 + (i - first) * 16);
+          if (i === cur) text('>', x + 8, y + 8 + (i - first) * 16);
         });
+        if (first) text('^', x + w - 11, y + 8, 1, '#686878');
+        if (first + rows < options.length) text('v', x + w - 11, y + 8 + (rows - 1) * 16, 1, '#686878');
       },
     };
     return self;
@@ -3345,7 +3352,7 @@
     stack: { title: 'PHOTOCOPIER' }, simon: { title: 'CONTROL PANEL' }, lunch: { title: 'FIND MY LUNCH' },
     candy: { title: 'CANDY TABLE' }, squat: { title: 'SQUAT RACK', unit: ' lb' }, fan: { title: 'FAN BALANCING' },
     coil: { title: 'COOLING COIL', unit: 's' }, damper: { title: 'DAMPERS' }, filter: { title: 'FILTER CHANGE' },
-    snake: { title: 'SNAKE' }, pong: { title: 'BEAT THE TV AT PONG', unit: times, count: true }, chess: { title: 'CHESS CHECKMATES', unit: times, count: true }, parts: { title: 'PARTS SORTING' }, cable: { title: 'CABLE TIDY' }, cpr: { title: 'CPR' },
+    snake: { title: 'SNAKE' }, pong: { title: 'BEAT THE TV AT PONG', unit: times, count: true }, chess: { title: 'CHESS CHECKMATES', unit: times, count: true }, checkers: { title: 'CHECKERS WINS', unit: times, count: true }, parts: { title: 'PARTS SORTING' }, cable: { title: 'CABLE TIDY' }, cpr: { title: 'CPR' },
     engrave: { title: 'ENGRAVER', unit: '%' }, pulldown: { title: 'LAT PULLDOWN' }, ball: { title: 'EXERCISE BALL', unit: 's' },
     desk: { title: 'FRONT DESK' }, jam: { title: 'PAPER JAM' }, laundry: { title: 'LAUNDRY' },
     forms: { title: 'JHONNA\'S FORMS' }, trophy: { title: 'NATHAN\'S TROPHIES' }, legolines: { title: 'JOE\'S BRICK BATTLE' },
@@ -3515,7 +3522,8 @@
     ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pulldown', 'ball', 'laundry']],
     ['TVS AND CODY\'S CASINO', ['pong', 'snake', 'poker', 'pokerlive', 'blackjack', 'slots']],
     ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cpr', 'engrave', 'golf', 'legosolo']],
-    ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'chess', 'catchrun']],
+    ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catchrun']],
+    ['BOARD GAMES', ['chess', 'checkers']],
     ['KINGSTON PLANT', ['forklift', 'paint']],
     ['HALLOWEEN', ['bob', 'mummy', 'carve', 'treat', 'ghosts', 'costume']],
     ['CHRISTMAS', ['chop', 'mallow', 'spruce', 'snowman', 'cocoa', 'snowball', 'hockey', 'humbug']],
@@ -4888,15 +4896,28 @@
     return self;
   }
 
-  // ---------- Chess on the lunch room table ----------
-  // Against a coworker, or another player (VERSUS.chess). The rules, and how a coworker plays,
-  // are js/chess.js. Against a coworker they run here. Against a player the game server runs
-  // them (server/games/chess.js) and sends a view of the game five times a second (see view()
-  // there): your own moves show the moment you make them, and the server has the last word.
+  // ---------- Chess and checkers on the lunch room tables ----------
+  // Against a coworker, or another player (VERSUS.chess and VERSUS.checkers). The rules, and how a
+  // coworker plays, are js/chess.js and js/checkers.js. Against a coworker they run here. Against a
+  // player the game server runs them (server/games/table.js) and sends a view of the game five times
+  // a second (see view() there): your own moves show the moment you make them, and the server has the
+  // last word. Both games use one screen, tableGame, and differ only in what they hand it.
   //
-  // A piece is drawn by chessPic from the shape everybody knows, so you can always tell which is
-  // which, with some air handling on top: a pawn's head is a little fan, a rook's walls are damper
-  // blades, the queen's collar is a copper coil and the king carries the supply fan in his crown.
+  // A chess piece is drawn by chessPic from the shape everybody knows, so you can always tell which
+  // is which, with some air handling on top: a pawn's head is a little fan, a rook's walls are damper
+  // blades, the queen's collar is a copper coil and the king carries the supply fan in his crown. A
+  // checker (checkerPic) is a fan wheel in its round housing, seen from above, and a king has a gold crown.
+  //
+  // a fan from the front, painted with r(x, y, w, h, colour): its ring, blades swept round a little
+  // and the hub
+  function fanWheel(r, ink, cx, cy, rad) {
+    for (let y = -rad; y <= rad; y++) for (let x = -rad; x <= rad; x++) {
+      const d = Math.hypot(x, y);
+      if (d > rad) continue;
+      const turn = ((Math.atan2(y, x) + d * 0.2 + Math.PI * 4) % (Math.PI / 2)) < Math.PI / 4;
+      r(cx + x, cy + y, 1, 1, d > rad - 1.5 ? ink.line : d < 2 ? ink.line : turn ? ink.hi : ink.mark);
+    }
+  }
   const CHESS_INK = [
     { body: '#f4f6f8', shade: '#b6c0cc', hi: '#ffffff', line: '#20242c', mark: '#7c8a9c' }, // white: bright sheet metal
     { body: '#414857', shade: '#2b303c', hi: '#6e788c', line: '#0c0e14', mark: '#a8b4c4' }, // black: painted steel
@@ -4930,15 +4951,7 @@
         }
       };
       const r = (x, y, w, h, co) => { c.fillStyle = co; c.fillRect(x, y, w, h); };
-      // a fan: its ring, blades swept round a little and the hub
-      const fan = (cx, cy, rad) => {
-        for (let y = -rad; y <= rad; y++) for (let x = -rad; x <= rad; x++) {
-          const d = Math.hypot(x, y);
-          if (d > rad) continue;
-          const turn = ((Math.atan2(y, x) + d * 0.2 + Math.PI * 4) % (Math.PI / 2)) < Math.PI / 4;
-          r(cx + x, cy + y, 1, 1, d > rad - 1.5 ? ink.line : d < 2 ? ink.line : turn ? ink.hi : ink.mark);
-        }
-      };
+      const fan = (cx, cy, rad) => fanWheel(r, ink, cx, cy, rad);
       const SHAPES = {
         P() { ball(26, 15, 11); turned([[25, 7], [28, 8], [28, 5], [33, 6], [39, 11]]); },
         R() {
@@ -5002,79 +5015,137 @@
       })[kind]();
     });
   }
+  // A checker, on a picture of 52 x 52 real pixels: uppercase black, lowercase red, K a king.
+  const CHECKER_INK = [
+    { body: '#3e4454', shade: '#23272f', hi: '#8a96aa', line: '#0c0e14', mark: '#5c6478' }, // black
+    { body: '#c83830', shade: '#8a1e18', hi: '#ffc0b0', line: '#2c0a08', mark: '#e87060' }, // red
+  ];
+  function checkerPic(letter) {
+    return finePic('checker' + letter, 52, 52, (c) => {
+      const ink = CHECKER_INK[letter === letter.toLowerCase() ? 1 : 0], king = letter.toUpperCase() === 'K';
+      const r = (x, y, w, h, co) => { c.fillStyle = co; c.fillRect(x, y, w, h); };
+      const CX = 26, CY = 24, RAD = 20, THICK = 4; // the middle of its face, how big it is and how thick
+      const face = (x, y) => Math.hypot(x + 0.5 - CX, y + 0.5 - CY) <= RAD;
+      const solid = (x, y) => face(x, y) || Math.hypot(x + 0.5 - CX, y + 0.5 - (CY + THICK)) <= RAD;
+      // the outline, round everything solid...
+      for (let y = 0; y < 52; y++) for (let x = 0; x < 52; x++) {
+        if (!solid(x, y)) continue;
+        for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (Math.abs(i) + Math.abs(j) <= 3) r(x + i, y + j, 1, 1, ink.line);
+      }
+      // ...then its edge and its face, with the light from the top left...
+      for (let y = 0; y < 52; y++) for (let x = 0; x < 52; x++) {
+        if (!solid(x, y)) continue;
+        r(x, y, 1, 1, !face(x, y) ? ink.shade : !face(x - 2, y - 2) ? ink.hi : !face(x + 2, y + 2) ? ink.shade : ink.body);
+      }
+      // ...the screws holding its housing together, and the fan
+      for (const [a, b] of [[-12, -12], [11, -12], [-12, 11], [11, 11]]) { r(CX + a, CY + b, 2, 2, ink.line); r(CX + a, CY + b, 1, 1, ink.hi); }
+      fanWheel(r, ink, CX, CY, 14);
+      if (!king) return;
+      // a king's crown, with its own outline so it stands out from the fan
+      const GOLD = '#f0c040', GOLD_HI = '#fff0a0', GOLD_LO = '#b08018';
+      const inCrown = (x, y) => {
+        if (y >= 26 && y < 33) return x >= 14 && x < 38;
+        if (y < 15 || y >= 26) return false;
+        const k = (y - 15) / 11 * 5.5 + 0.5;
+        return [15, 26, 37].some((m) => Math.abs(x + 0.5 - m) <= k);
+      };
+      for (let y = 10; y < 38; y++) for (let x = 8; x < 44; x++) {
+        if (!inCrown(x, y)) continue;
+        for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (Math.abs(i) + Math.abs(j) <= 3) r(x + i, y + j, 1, 1, '#2c1c04');
+      }
+      for (let y = 10; y < 38; y++) for (let x = 8; x < 44; x++) {
+        if (!inCrown(x, y)) continue;
+        r(x, y, 1, 1, !inCrown(x - 1, y) || !inCrown(x, y - 1) ? GOLD_HI : !inCrown(x + 2, y) || !inCrown(x, y + 2) ? GOLD_LO : GOLD);
+      }
+      r(24, 28, 4, 3, ink.body); r(24, 28, 2, 1, ink.hi); // and a stone in it, in the checker's colour
+    });
+  }
   // how good each coworker is: always the same for the same person, and more of them are
   // middling than sharks
-  const CHESS_SKILL = ['', 'Beginner', 'Casual', 'Club player', 'Shark'];
-  const chessLevel = (name) => {
+  const TABLE_SKILL = ['', 'Beginner', 'Casual', 'Club player', 'Shark'];
+  const tableLevel = (name) => {
     let h = 7;
     for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     return [1, 1, 2, 2, 2, 3, 3, 4][h % 8];
   };
   // whoever's sitting at the board today
-  let chessPal = null;
-  const chessFoe = () => {
+  let tablePal = null;
+  const tableFoe = () => {
     const pool = npcs.filter((n) => !n.ghost && !n.extra && !n.guest && !(visit && n === visit.npc));
     return pool[Math.floor(Math.random() * pool.length)] || null;
   };
-  const chessClock = (ticks) => {
+  const tableClock = (ticks) => {
     const secs = Math.ceil(Math.max(0, ticks) / 60);
     return Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
   };
+  const NO_WORD = 600; // ticks to wait for the first word from the game server before giving up
 
-  // npc: the coworker you're playing (or anyone, if nobody's given). fen: a position to start
-  // from, for testing (&fen=).
-  function ChessGame(vs, npc, fen) {
+  // The screen for a game on one of the lunch tables: the board, the cursor, picking a side, the
+  // clocks, against a coworker or a player. npc: the coworker you're playing (or anyone, if nobody's
+  // given). fen: a position to start from, for testing (&fen=). spec is what's particular to the game:
+  //   doing, music, what (its name in a sentence), board (its leaderboard)
+  //   rules         js/chess.js or js/checkers.js, which work the same way
+  //   pic(pc)       a picture of a piece, by the letter g.at() gives it
+  //   sides         the two sides' names, side 0 first, and sidePics, a piece to stand for each
+  //   home(me)      where the cursor starts, [x, y]
+  //   describe(pc)  a piece's name, to go beside the board
+  //   taken(g, side)  what that side has lost, as letters for pic()
+  //   stuck(g, pc)  what to say if you pick up a piece with nowhere to go
+  //   after(g, me, flash)  a word about the position, after any move
+  //   endings(won, foe, drew)  what to say about how it ended, by the result's why
+  //   counts(why)   whether winning that way goes on the leaderboard
+  // and if it has them: danger(g), a square to light up red, or -1; must(g), the squares of the
+  // pieces you have to move; holding(g), the square of a piece that has to carry on moving, or -1;
+  // promote(pc side), what a pawn at the far end can become: { names, letters, pics }.
+  function tableGame(vs, npc, fen, spec) {
     const SQ = 26, BX = 14, BY = 12, MID = BX + SQ * 4; // the board's squares, and where it is
-    const pal = vs ? null : npc || chessFoe();
+    const pal = vs ? null : npc || tableFoe();
     const foe = vs ? vs.name : pal ? pal.name : 'A coworker', foeLook = vs ? vs.sprites : pal ? pal.sprites : charSprites.male[0];
-    const level = vs ? 0 : chessLevel(foe);
+    const level = vs ? 0 : tableLevel(foe), RULES = spec.rules;
     // pick (which side?), wait (you've said: they haven't), play, or done
     let state = 'pick', t = 0, doneT = 0;
-    let me = 0, g = CHESS.create({ fen: fen || undefined, seed: Math.floor(Math.random() * 2 ** 31) });
+    let me = 0, g = RULES.create({ fen: fen || undefined, seed: Math.floor(Math.random() * 2 ** 31) });
     let cx = 4, cy = 6, rep = 0; // the cursor, in squares from the top left as you see the board
     let sel = -1, options = []; // the piece you've picked up, and where it can go
     let menu = null, anim = null, note = '', noteT = 0;
     let view = null, sentT = -999, pickLeft = 0; // against a player
-    let lines = null, parting = '', mated = false; // how it ended
+    let lines = null, parting = '', counted = false; // how it ended
     const mine = (pc) => !!pc && (pc === pc.toLowerCase() ? 1 : 0) === me;
     const sqAt = (x, y) => (me ? y * 8 + 7 - x : (7 - y) * 8 + x);
     const posOf = (sq) => (me ? { x: 7 - (sq & 7), y: sq >> 3 } : { x: sq & 7, y: 7 - (sq >> 3) });
     const flash = (str) => { note = str; noteT = 150; };
+    const locked = () => (spec.holding ? spec.holding(g) : -1);
     // how many pieces are on the board, to tell if a move took one
     const onBoard = () => { let n = 0; for (let sq = 0; sq < 64; sq++) if (g.at(sq)) n++; return n; };
-    // what's gone from a side's pieces: for the little rows beside the board
-    function taken(side) {
-      const have = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
-      for (let sq = 0; sq < 64; sq++) {
-        const pc = g.at(sq);
-        if (pc && (pc === pc.toLowerCase() ? 1 : 0) === side && pc.toUpperCase() !== 'K') have[pc.toUpperCase()]++;
-      }
-      const out = [];
-      for (const [k, n] of [['Q', 1], ['R', 2], ['B', 2], ['N', 2], ['P', 8]]) for (let i = have[k]; i < n; i++) out.push(side ? k.toLowerCase() : k);
-      return out;
-    }
     function moved(from, to, took) {
       anim = { from, to, t: 0 };
       sel = -1; options = [];
       sfx(took ? 'bump' : 'blip', true);
-      if (g.check() && !g.result) { sfx('ding'); flash(g.turn === me ? 'You\'re in check!' : 'Check!'); }
+      if (!g.result) spec.after(g, me, flash);
+      // partway through a double jump, that piece is still in your hand
+      const held = locked();
+      if (held >= 0 && g.turn === me) {
+        sel = held; options = g.moves(held);
+        const p = posOf(held);
+        cx = p.x; cy = p.y;
+      }
     }
     function begin(side) {
       me = side;
-      cx = 4 - me; cy = 6;
+      [cx, cy] = spec.home(me);
       state = 'play';
       menu = null;
     }
     function pickMenu() {
-      menu = Choice(['WHITE', 'BLACK'], MID - 33, BY + SQ * 4 - 8, (i) => {
+      menu = Choice(spec.sides, MID - 33, BY + SQ * 4 - 8, (i) => {
         menu = null;
         if (i < 0) { leave(); return; }
         if (vs) { state = 'wait'; vs.input({ pick: i }); return; }
         const you = { name: playerName || 'You' }, them = { name: foe, ai: level };
         const was = g.fen();
-        g = CHESS.create({ fen: was, seed: Math.floor(Math.random() * 2 ** 31), players: i ? [them, you] : [you, them] });
+        g = RULES.create({ fen: was, seed: Math.floor(Math.random() * 2 ** 31), players: i ? [them, you] : [you, them] });
         begin(i);
-      }, { icon: (i, x, y) => ctx.drawImage(chessPic(i ? 'k' : 'K'), x, y, 12, 12) });
+      }, { icon: (i, x, y) => ctx.drawImage(spec.pic(spec.sidePics[i]), x, y, 12, 12) });
     }
     function leave() {
       remove(self);
@@ -5101,20 +5172,20 @@
         const here = options.filter((m) => m.to === sq);
         if (here.length > 1) { // a pawn reaching the far end
           sfx('select');
-          const LIST = ['Q', 'R', 'B', 'N'].map((k) => (me ? k.toLowerCase() : k));
-          menu = Choice(['QUEEN', 'ROOK', 'BISHOP', 'KNIGHT'], MID - 42, BY + SQ * 4 - 40, (i) => {
+          const { names, letters, pics } = spec.promote(me);
+          menu = Choice(names, MID - 42, BY + SQ * 4 - 40, (i) => {
             menu = null;
-            if (i >= 0) play(here.find((m) => m.promo === 'qrbn'[i]));
-          }, { icon: (i, x, y) => ctx.drawImage(chessPic(LIST[i]), x, y, 12, 12) });
+            if (i >= 0) play(here.find((m) => m.promo === letters[i]));
+          }, { icon: (i, x, y) => ctx.drawImage(spec.pic(pics[i]), x, y, 12, 12) });
           return;
         }
         if (here.length) { play(here[0]); return; }
-        if (sq === sel) { sel = -1; options = []; sfx('select'); return; }
+        if (sq === sel && locked() < 0) { sel = -1; options = []; sfx('select'); return; }
       }
       if (mine(pc)) {
         const moves = g.moves(sq);
         if (moves.length) { sel = sq; options = moves; sfx('select'); return; }
-        flash('That ' + CHESS_NAMES[pc.toUpperCase()] + ' can\'t move.');
+        flash(spec.stuck(g, pc));
       }
       sfx('bump');
     }
@@ -5133,21 +5204,19 @@
     function over(outcome, why) {
       state = 'done'; doneT = t; menu = null; sel = -1; options = [];
       const won = outcome === 'win', drew = outcome === 'draw';
-      mated = won && why === 'mate';
+      counted = won && spec.counts(why);
       sfx(won ? 'cup' : drew ? 'ding' : 'bump');
-      const end = {
-        mate: won ? ['Checkmate!', 'You beat ' + foe + '!'] : ['Checkmate.', foe + ' wins.'],
+      const end = Object.assign({
         resign: won ? [foe + ' resigned.', 'You win!'] : ['You resigned.', foe + ' wins.'],
-        time: won ? [foe + ' ran out of time.', 'You win!'] : drew ? ['Time ran out, but nobody', 'can checkmate now. A draw.'] : ['You ran out of time.', foe + ' wins.'],
-        stalemate: ['Stalemate!', 'No moves left: a draw.'],
+        time: won ? [foe + ' ran out of time.', 'You win!'] : ['You ran out of time.', foe + ' wins.'],
         repetition: ['The same position, three', 'times over: a draw.'],
-        fifty: ['Fifty moves with no capture', 'or pawn move: a draw.'],
-        material: ['Not enough left to', 'checkmate: a draw.'],
         gone: [foe + ' left the game.', 'It\'s yours!'],
         stopped: ['Someone knocked the board.', 'Nobody wins this one.'],
-      };
+        noserver: ['The game server can\'t start', 'this one. Try again soon.'],
+      }, spec.endings(won, foe, drew));
       lines = (end[why] || end.stopped).concat(['']);
-      if (vs) parting = won ? 'You beat ' + foe + ' at chess!' : drew ? 'You and ' + foe + ' call it a draw.' : outcome === 'lose' ? foe + ' beat you at chess.' : '';
+      if (why === 'noserver') parting = '';
+      else if (vs) parting = won ? 'You beat ' + foe + ' at ' + spec.what + '!' : drew ? 'You and ' + foe + ' call it a draw.' : outcome === 'lose' ? foe + ' beat you at ' + spec.what + '.' : '';
       else parting = foe + (won ? ': "Good game! Best of three?"' : drew ? ': "A draw. Fair enough."' : ': "Good game. Mind the static!"');
     }
     function versusOver() {
@@ -5168,7 +5237,8 @@
         begin(v.me === 1 ? 1 : 0);
         g.load(v.v);
         sfx('menu');
-        flash(v.coin ? 'Same pick! A coin says ' + (me ? 'black.' : 'white.') : 'You\'re playing ' + (me ? 'black.' : 'white.'));
+        const side = spec.sides[me].toLowerCase();
+        flash(v.coin ? 'Same pick! A coin says ' + side + '.' : 'You\'re playing ' + side + '.');
         return;
       }
       const s = v.v, fresh = s.n > g.ply;
@@ -5177,12 +5247,12 @@
       if (fresh || (t - sentT > 120 && (s.n !== g.ply || s.f !== g.fen()))) {
         const was = onBoard();
         if (!g.load(s)) return;
+        sel = -1; options = [];
         if (Array.isArray(s.l)) moved(s.l[0], s.l[1], onBoard() !== was);
-        if (!fresh) { sel = -1; options = []; }
       } else if (Array.isArray(s.c)) g.clock = s.c;
     }
     const self = {
-      music: 'chess', doing: 'chess',
+      music: spec.music, doing: spec.doing,
       update() {
         t++;
         if (anim && ++anim.t >= 9) anim = null;
@@ -5191,7 +5261,7 @@
           if (t - doneT > 75 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
             if (vs) vs.end();
-            if (mated) questBoard('chess');
+            if (counted) questBoard(spec.board);
             if (parting) say(parting);
           }
           return;
@@ -5199,6 +5269,10 @@
         if (vs) {
           if (vs.view !== view) hear(vs.view);
           if (vs.result !== undefined || vs.gone) { versusOver(); return; }
+          // Nothing from the server at all: it isn't running this game (the site and the
+          // server update separately, so it can be a few minutes behind). Better to say so
+          // than to leave you both waiting for each other.
+          if (!view && t > NO_WORD) { over('none', 'noserver'); return; }
         }
         if (state === 'pick' && !menu) pickMenu();
         if (menu) { menu.update(); return; }
@@ -5210,7 +5284,7 @@
         steer();
         if (pressed.has('a')) pressA();
         else if (pressed.has('b')) {
-          if (sel >= 0) { sel = -1; options = []; sfx('select'); }
+          if (sel >= 0 && locked() < 0) { sel = -1; options = []; sfx('select'); }
           else { sfx('select'); backMenu(); }
         }
         if (vs) return;
@@ -5228,13 +5302,15 @@
         fine(BX - 3, BY - 3, SQ * 8 + 6, 1, '#8a6c50');
         ctx.fillStyle = '#20242c'; ctx.fillRect(BX - 0.5, BY - 0.5, SQ * 8 + 1, SQ * 8 + 1);
         // the squares, and what's lit up on them
-        const kingAt = g.check() && !g.result ? g.king(g.turn) : -1, last = g.last || [];
+        const danger = spec.danger ? spec.danger(g) : -1, last = g.last || [];
+        const must = spec.must && state === 'play' && g.turn === me && sel < 0 ? spec.must(g) : [];
         for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
           const sq = sqAt(x, y), px = BX + x * SQ, py = BY + y * SQ;
           ctx.fillStyle = (x + y) & 1 ? '#8ca0b4' : '#f0e4c8'; ctx.fillRect(px, py, SQ, SQ);
           if (sq === last[0] || sq === last[1]) fine(px, py, SQ, SQ, 'rgba(248, 216, 72, 0.42)');
           if (sq === sel) fine(px, py, SQ, SQ, 'rgba(96, 208, 96, 0.6)');
-          if (sq === kingAt) fine(px, py, SQ, SQ, 'rgba(232, 56, 48, 0.62)');
+          if (sq === danger) fine(px, py, SQ, SQ, 'rgba(232, 56, 48, 0.62)');
+          if (must.includes(sq)) fine(px, py, SQ, SQ, 'rgba(255, 160, 32, 0.62)');
         }
         // the file letters and rank numbers
         for (let i = 0; i < 8; i++) {
@@ -5244,23 +5320,27 @@
         // the pieces
         for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
           const sq = sqAt(x, y), pc = g.at(sq);
-          if (pc && !(anim && sq === anim.to)) ctx.drawImage(chessPic(pc), BX + x * SQ, BY + y * SQ);
+          if (pc && !(anim && sq === anim.to)) ctx.drawImage(spec.pic(pc), BX + x * SQ, BY + y * SQ);
         }
-        // where the piece you've picked up can go
+        // where the piece you've picked up can go, and what it would take
         for (const m of options) {
-          const { x, y } = posOf(m.to), px = BX + x * SQ, py = BY + y * SQ;
-          if (g.at(m.to)) {
-            const co = 'rgba(216, 40, 40, 0.85)', k = 6;
+          const hit = m.over === undefined ? (g.at(m.to) ? m.to : -1) : m.over;
+          if (hit >= 0) {
+            const { x, y } = posOf(hit), px = BX + x * SQ, py = BY + y * SQ, co = 'rgba(216, 40, 40, 0.85)', k = 6;
             for (const [a, b] of [[0, 0], [SQ - k, 0], [0, SQ - k], [SQ - k, SQ - k]]) {
               fine(px + a, py + (b ? SQ - 2 : 0), k, 2, co);
               fine(px + (a ? SQ - 2 : 0), py + b, 2, k, co);
             }
-          } else { fineDisc(px + SQ / 2, py + SQ / 2, 4.5, 'rgba(16, 80, 32, 0.45)'); fineDisc(px + SQ / 2, py + SQ / 2, 3, 'rgba(48, 168, 72, 0.9)'); }
+          }
+          if (hit !== m.to) {
+            const { x, y } = posOf(m.to), px = BX + x * SQ, py = BY + y * SQ;
+            fineDisc(px + SQ / 2, py + SQ / 2, 4.5, 'rgba(16, 80, 32, 0.45)'); fineDisc(px + SQ / 2, py + SQ / 2, 3, 'rgba(48, 168, 72, 0.9)');
+          }
         }
         // a piece on its way
         if (anim) {
           const a = posOf(anim.from), b = posOf(anim.to), k = anim.t / 9, pc = g.at(anim.to);
-          if (pc) ctx.drawImage(chessPic(pc), BX + (a.x + (b.x - a.x) * k) * SQ, BY + (a.y + (b.y - a.y) * k) * SQ);
+          if (pc) ctx.drawImage(spec.pic(pc), BX + (a.x + (b.x - a.x) * k) * SQ, BY + (a.y + (b.y - a.y) * k) * SQ);
         }
         // the cursor
         if (state === 'play' && !menu) {
@@ -5286,15 +5366,15 @@
       box(X, 4, W, SH - 8);
       const person = (img, side, name, y, under) => {
         ctx.drawImage(img, TX, y, 32, 32);
-        ctx.drawImage(chessPic(side ? 'k' : 'K'), TX + 36, y + 6, 26, 26);
+        ctx.drawImage(spec.pic(spec.sidePics[side]), TX + 36, y + 6, 26, 26);
         text(name.slice(0, 13), TX, y + 33);
         if (under) text(under, TX, y + 43, 1, '#686878');
       };
       const others = 1 - me;
-      const clock = (side) => (g.clock ? chessClock(g.clock[side]) : '');
-      person(foeLook.down[0], others, foe, 10, vs ? clock(others) : CHESS_SKILL[level]);
-      const row = (list, y) => list.forEach((pc, i) => ctx.drawImage(chessPic(pc), TX + (i % 8) * 10, y + (i >> 3) * 11, 10, 10));
-      row(taken(me), 64);
+      const clock = (side) => (g.clock ? tableClock(g.clock[side]) : '');
+      person(foeLook.down[0], others, foe, 10, vs ? clock(others) : TABLE_SKILL[level]);
+      const row = (list, y) => list.forEach((pc, i) => ctx.drawImage(spec.pic(pc), TX + (i % 8) * 10, y + (i >> 3) * 11, 10, 10));
+      row(spec.taken(g, me), 64);
       // what's going on
       let str = '', co = col.dark;
       if (state === 'play') {
@@ -5305,14 +5385,74 @@
       wrap(str, 13).slice(0, 3).forEach((l, i) => text(l, TX, 91 + i * 10, 1, co));
       if (state === 'play') {
         const pc = g.at(sqAt(cx, cy));
-        if (pc) text((pc === pc.toLowerCase() ? 'Black ' : 'White ') + CHESS_NAMES[pc.toUpperCase()], TX, 123, 1, '#686878');
+        if (pc) text(spec.describe(pc), TX, 123, 1, '#686878');
       }
-      row(taken(others), 133);
+      row(spec.taken(g, others), 133);
       person(sprites.down[0], me, playerName || 'You', 156, vs ? clock(me) : '');
       text('A: pick/move', TX, SH - 29, 1, '#686878');
       text('B: back/menu', TX, SH - 19, 1, '#686878');
     }
     return self;
+  }
+
+  function ChessGame(vs, npc, fen) {
+    return tableGame(vs, npc, fen, {
+      doing: 'chess', music: 'chess', what: 'chess', board: 'chess', rules: CHESS, pic: chessPic,
+      sides: ['WHITE', 'BLACK'], sidePics: ['K', 'k'],
+      home: (me) => [4 - me, 6],
+      describe: (pc) => (pc === pc.toLowerCase() ? 'Black ' : 'White ') + CHESS_NAMES[pc.toUpperCase()],
+      taken(g, side) {
+        const have = { P: 0, N: 0, B: 0, R: 0, Q: 0 };
+        for (let sq = 0; sq < 64; sq++) {
+          const pc = g.at(sq);
+          if (pc && (pc === pc.toLowerCase() ? 1 : 0) === side && pc.toUpperCase() !== 'K') have[pc.toUpperCase()]++;
+        }
+        const out = [];
+        for (const [k, n] of [['Q', 1], ['R', 2], ['B', 2], ['N', 2], ['P', 8]]) for (let i = have[k]; i < n; i++) out.push(side ? k.toLowerCase() : k);
+        return out;
+      },
+      stuck: (g, pc) => 'That ' + CHESS_NAMES[pc.toUpperCase()] + ' can\'t move.',
+      after(g, me, flash) {
+        if (g.check()) { sfx('ding'); flash(g.turn === me ? 'You\'re in check!' : 'Check!'); }
+      },
+      danger: (g) => (g.check() && !g.result ? g.king(g.turn) : -1),
+      promote: (me) => ({ names: ['QUEEN', 'ROOK', 'BISHOP', 'KNIGHT'], letters: 'qrbn', pics: ['Q', 'R', 'B', 'N'].map((k) => (me ? k.toLowerCase() : k)) }),
+      endings: (won, foe, drew) => Object.assign({
+        mate: won ? ['Checkmate!', 'You beat ' + foe + '!'] : ['Checkmate.', foe + ' wins.'],
+        stalemate: ['Stalemate!', 'No moves left: a draw.'],
+        fifty: ['Fifty moves with no capture', 'or pawn move: a draw.'],
+        material: ['Not enough left to', 'checkmate: a draw.'],
+      }, drew ? { time: ['Time ran out, but nobody', 'can checkmate now. A draw.'] } : {}),
+      counts: (why) => why === 'mate',
+    });
+  }
+
+  function CheckersGame(vs, npc, fen) {
+    return tableGame(vs, npc, fen, {
+      doing: 'checkers', music: 'chess', what: 'checkers', board: 'checkers', rules: CHECKERS, pic: checkerPic,
+      sides: ['BLACK', 'RED'], sidePics: ['M', 'm'],
+      home: () => [4, 5],
+      describe: (pc) => (pc === pc.toLowerCase() ? 'Red ' : 'Black ') + (pc.toUpperCase() === 'K' ? 'king' : 'checker'),
+      taken(g, side) {
+        let left = 0;
+        for (let sq = 0; sq < 64; sq++) { const pc = g.at(sq); if (pc && (pc === pc.toLowerCase() ? 1 : 0) === side) left++; }
+        return new Array(Math.max(0, 12 - left)).fill(side ? 'm' : 'M');
+      },
+      stuck: (g, pc) => (g.holding() >= 0 ? 'Keep jumping!' : g.mustJump().length ? 'You have to jump!' : 'That ' + (pc.toUpperCase() === 'K' ? 'king' : 'checker') + ' can\'t move.'),
+      after(g, me, flash) {
+        if (g.turn !== me) return;
+        if (g.holding() >= 0) flash('Keep jumping!');
+        else if (g.mustJump().length) flash('You have to jump!');
+      },
+      must: (g) => g.mustJump(),
+      holding: (g) => g.holding(),
+      endings: (won, foe) => ({
+        captured: won ? ['You took every piece!', 'You beat ' + foe + '!'] : [foe + ' took all your pieces.', foe + ' wins.'],
+        blocked: won ? [foe + ' has no moves left.', 'You beat ' + foe + '!'] : ['You have no moves left.', foe + ' wins.'],
+        forty: ['Forty moves with no jump', 'or man moved: a draw.'],
+      }),
+      counts: (why) => why === 'captured' || why === 'blocked',
+    });
   }
 
   // ---------- Pong on the big TV ----------
@@ -13392,7 +13532,7 @@
     carve: 'Playing Pumpkin Carving', treat: 'Playing Trick-or-Treat', ghosts: 'Playing Ghost in the Cupboard',
     costume: 'Playing Costume Contest', forklift: 'Playing Forklift Rush', paint: 'Playing Even Coat',
     chop: 'Chopping wood', mallow: 'Roasting marshmallows', spruce: 'Decorating the spruce', snowman: 'Building a snowman',
-    cocoa: 'Pouring hot chocolate', snowball: 'In a snowball fight', humbug: 'Humbug', sdg: 'SDG', chess: 'Playing chess',
+    cocoa: 'Pouring hot chocolate', snowball: 'In a snowball fight', humbug: 'Humbug', sdg: 'SDG', chess: 'Playing chess', checkers: 'Playing checkers',
   };
   // the game you've got open, for over your head (or null)
   const mpDoing = () => { for (let i = ui.length - 1; i >= 0; i--) if (ui[i].doing) return ui[i]; return null; };
@@ -13425,6 +13565,7 @@
     golf: { label: 'MINI GOLF', title: 'a round of mini golf', Game: (m) => GolfGame(m) },
     snowball: { label: 'SNOWBALL FIGHT', title: 'a snowball fight', server: true, christmas: true, Game: (m) => SnowballGame(m) },
     chess: { label: 'CHESS', title: 'a game of chess', server: true, Game: (m) => ChessGame(m) },
+    checkers: { label: 'CHECKERS', title: 'a game of checkers', server: true, Game: (m) => CheckersGame(m) },
   };
   // The little picture beside each game in the challenge list, with the same keys as VERSUS
   // (see listIcon).
@@ -13504,6 +13645,10 @@
       r(4, 7, 16, 3, '#f4f6f8'); r(7, 10, 10, 8, '#f4f6f8'); r(4, 18, 16, 4, '#f4f6f8');
       r(15, 10, 2, 8, '#b6c0cc'); r(18, 7, 2, 3, '#b6c0cc'); r(18, 18, 2, 4, '#b6c0cc'); r(4, 20, 16, 2, '#b6c0cc');
       r(7, 12, 8, 1, '#7c8a9c'); r(7, 15, 8, 1, '#7c8a9c');
+    },
+    checkers: (r, o) => { // a checker: a fan wheel in its round housing
+      o(12, 13, 9, '#8a1e18'); o(12, 11, 9, '#c83830'); o(11, 10, 7, '#e87060'); o(12, 11, 6, '#c83830');
+      r(8, 10, 8, 2, '#ffc0b0'); r(11, 7, 2, 8, '#ffc0b0'); o(12, 11, 2, '#2c0a08');
     },
   };
   // A small seeded random number generator (mulberry32), so both players in a match get
@@ -14085,8 +14230,10 @@
   function mpChallenge(o) {
     const keys = Object.keys(VERSUS).filter((k) => (MP_WS || !VERSUS[k].server)
       && (!VERSUS[k].christmas || CHRISTMAS || Date.now() >= SEASON_FROM.CHRISTMAS));
-    // (a long list comes down over where the dialog was, rather than off the top)
-    ui.push(Choice(keys.map((k) => VERSUS[k].label).concat(['CANCEL']), -1, Math.max(4, SH - 48 - (keys.length + 1) * 16 - 8), (i) => {
+    // (a long list comes down over where the dialog was, rather than off the top, and past what
+    // fits on the screen it scrolls)
+    const ROWS = 14;
+    ui.push(Choice(keys.map((k) => VERSUS[k].label).concat(['CANCEL']), -1, Math.max(4, SH - 48 - Math.min(ROWS, keys.length + 1) * 16 - 8), (i) => {
       if (i < 0 || i >= keys.length) return;
       if (!mpLive(o)) { say(o.n + ' has gone.'); return; }
       if (o.do) { say(o.n + ' is busy right now. Try again in a moment.'); return; }
@@ -14100,7 +14247,7 @@
       mp.pending = c;
       mpSend(o.id, { k: 'ask', m: c.id, g: c.game, seed: c.seed, soft: c.soft });
       ui.push(c.el);
-    }, { icon: (i, x, y) => listIcon(VS_ICONS[keys[i]], x, y) }));
+    }, { rows: ROWS, icon: (i, x, y) => listIcon(VS_ICONS[keys[i]], x, y) }));
   }
   // Pressing A on another player.
   function mpTalk(o) {
@@ -17830,7 +17977,8 @@
       K: ['An electrical control panel full of blinking lights.', 'PRESS BUTTONS', SimonGame],
       f: ['A fridge. One lunch is labelled DO NOT EAT.', 'FIND MY LUNCH', LunchGame],
       Z: ['A table full of candy! Nobody is watching...', 'SNEAK ONE', CandyGame],
-      8: [() => { chessPal = chessFoe(); return 'A chessboard is set up on this table, and ' + (chessPal ? chessPal.name : 'someone') + ' is looking for a game.'; }, 'PLAY CHESS', () => ChessGame(null, chessPal)],
+      8: [() => { tablePal = tableFoe(); return 'A chessboard is set up on this table, and ' + (tablePal ? tablePal.name : 'someone') + ' is looking for a game.'; }, 'PLAY CHESS', () => ChessGame(null, tablePal)],
+      9: [() => { tablePal = tableFoe(); return 'A checkerboard is set up on this table, and ' + (tablePal ? tablePal.name : 'someone') + ' is looking for a game.'; }, 'PLAY CHECKERS', () => CheckersGame(null, tablePal)],
       F: ['A big air handling fan. It hums loudly.', 'BALANCE IT', FanGame],
       L: ['A cooling coil. Cold air is blowing off it.', 'WATCH THE COIL', CoilGame],
       a: ['A bank of dampers feeding three rooms.', 'SET THE BLADES', DamperGame],
@@ -18868,7 +19016,7 @@
       dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp, slots: SlotsGame,
       pokertable: () => PokerApp(null, true), pokerlive: LivePoker, bjtable: () => BlackjackApp(null, true),
       hockey: () => HockeyGame(gateKeeper || npcs.find((n) => !n.ghost && !n.extra)), hockey1: () => LiveHockey(2), hockey2: () => LiveHockey(4), hockey3: () => LiveHockey(6), signhockey: () => SignUp('hockey'), signpoker: () => SignUp('poker'),
-      chess: () => ChessGame(null, null, q.get('fen')),
+      chess: () => ChessGame(null, null, q.get('fen')), checkers: () => CheckersGame(null, null, q.get('fen')),
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       chop: ChopGame, mallow: MallowGame, spruce: SpruceGame, snowman: SnowmanGame, cocoa: CocoaGame, snowball: SnowballGame, humbug: HumbugGame,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
