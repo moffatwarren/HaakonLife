@@ -1567,6 +1567,7 @@
       sel = n; sfx('select');
     }
     const self = {
+      doing: 'sdg',
       update() {
         if (mode === 'add' || mode === 'insert') {
           if (pressed.has('up')) { addSel = (addSel + COMP_TYPES.length - 1) % COMP_TYPES.length; sfx('select'); }
@@ -3430,7 +3431,7 @@
       if (b.quest && rows.length && name && name !== 'New Hire') setQuestTop(p.key, rows[0].id === id);
       // (and if a game's has just gone up with you in its top ten, it might have made you number 1)
       const improved = b.net || (p.score > 0 && !!mine && mine.score === (b.low ? -p.score : p.score));
-      if (!b.quest && improved && rows.some((r) => r.id === id)) champWatch(name);
+      if (improved && rows.some((r) => r.id === id)) champWatch(name);
     }, () => { failed = true; });
     const right = (str, x, y, c) => text(str, x - str.length * 6, y, 1, c);
     const row = (rank, who, r, y, me) => {
@@ -3469,7 +3470,8 @@
   // Each board's top ten earn points towards Office Champion (10 for 1st down to 1 for
   // 10th), and holding 1st is a crown. The games are grouped by where you find them;
   // a board left out of FAME_GROUPS still turns up, under OTHER. The quests (Linda and
-  // Employee of the Month) earn no points: they get a QUESTS page listing everyone who has done them.
+  // Employee of the Month) earn points and crowns the same way, on a QUESTS page of their own
+  // listing everyone who has done them.
   const FAME_GROUPS = [
     ['OFFICE', ['coffee', 'toss', 'lunch', 'candy', 'stack', 'simon', 'desk', 'jam', 'filter']],
     ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pulldown', 'ball', 'laundry']],
@@ -3534,34 +3536,34 @@
     }).then(boardRows);
   }
   // The boards in the Hall of Fame, leaving out any holiday that hasn't come round yet (see
-  // SEASON_FROM): `keys` is all of them, `games` the ones that earn points and `groups` its pages.
+  // SEASON_FROM): `keys` is all of them, each earning points, and `groups` the games' pages.
   function fameBoards() {
     const SEASON = { HALLOWEEN, CHRISTMAS }, early = (g) => g in SEASON_FROM && !SEASON[g] && Date.now() < SEASON_FROM[g];
     const shown = FAME_GROUPS.filter(([g]) => !early(g)), hidden = new Set(FAME_GROUPS.filter(([g]) => early(g)).flatMap(([, k]) => k));
     const keys = Object.keys(BOARDS).filter((k) => !hidden.has(k) && !BOARDS[k].unlisted), games = keys.filter((k) => !BOARDS[k].quest), grouped = new Set(FAME_GROUPS.flatMap(([, k]) => k));
-    return { keys, games, groups: shown.concat([['OTHER', games.filter((k) => !grouped.has(k))]]) };
+    return { keys, groups: shown.concat([['OTHER', games.filter((k) => !grouped.has(k))]]) };
   }
-  // Everyone in the running for Office Champion, best first, from every game's board
+  // Everyone in the running for Office Champion, best first, from every board in keys
   // (boards[key], best first): points for each top ten, then crowns to break a tie.
-  function fameStandings(boards, games) {
+  function fameStandings(boards, keys) {
     const pts = {};
-    for (const k of games) boards[k].slice(0, 10).forEach((r, i) => {
+    for (const k of keys) boards[k].slice(0, 10).forEach((r, i) => {
       const s = pts[r.id] || (pts[r.id] = { id: r.id, name: r.name, points: 0, crowns: 0 });
       s.points += 10 - i;
       if (!i) s.crowns++;
     });
     return Object.values(pts).sort((a, b) => b.points - a.points || b.crowns - a.crowns || a.name.localeCompare(b.name));
   }
-  // Whether a name is the Office Champion right now, from every game's board as the Hall of
+  // Whether a name is the Office Champion right now, from every board as the Hall of
   // Fame has them: null if none of the boards can be had. A New Hire never is.
   function crownCheck(name) {
     if (!name || name === 'New Hire' || !(BOARD_URL || boardDemo)) return Promise.resolve(false);
-    const { games } = fameBoards();
-    return Promise.all(games.map((k) => boardAll(k, name).catch(() => null))).then((all) => {
+    const { keys } = fameBoards();
+    return Promise.all(keys.map((k) => boardAll(k, name).catch(() => null))).then((all) => {
       if (all.every((r) => r === null)) return null;
       const boards = {};
-      games.forEach((k, i) => { boards[k] = all[i] || []; });
-      const top = fameStandings(boards, games)[0];
+      keys.forEach((k, i) => { boards[k] = all[i] || []; });
+      const top = fameStandings(boards, keys)[0];
       return !!top && top.id === boardKey(name);
     }, () => null);
   }
@@ -3758,7 +3760,7 @@
   }
   function HallOfFame() {
     const name = playerName || store.get('name') || '', me = name ? boardKey(name) : null;
-    const { keys, games, groups } = fameBoards();
+    const { keys, groups } = fameBoards();
     let boards = null, failed = !(BOARD_URL || boardDemo), standings = [], latest = [], tab = 0, sel = 0, scroll = 0, t = 0;
     const LIVE = BOARDS.pokerlive.title;
     const pages = () => ['CHAMPIONS', 'LATEST SCORES', 'QUESTS', LIVE].concat(groups.filter(([, k]) => k.length));
@@ -3768,7 +3770,7 @@
         if (all.every((r) => r === null)) { failed = true; return; }
         boards = {};
         keys.forEach((k, i) => { boards[k] = all[i] || []; });
-        standings = fameStandings(boards, games);
+        standings = fameStandings(boards, keys);
         // (and it might have changed who's on top since you came in)
         if (me && name !== 'New Hire') {
           champHeard(name, !!standings.length && standings[0].id === me, false);
@@ -3806,12 +3808,12 @@
       if (mine >= 8) row(mine, 170);
       ctx.fillStyle = col.mid; ctx.fillRect(14, 184, SW - 28, 1);
       if (!me) return;
-      const played = games.filter((k) => rankOf(k) >= 0), tens = played.filter((k) => rankOf(k) < 10);
+      const played = keys.filter((k) => rankOf(k) >= 0), tens = played.filter((k) => rankOf(k) < 10);
       const s = standings[mine];
       ctext(mine < 0 ? 'Make any top ten to start scoring.'
         : mine === 0 ? (standings[1] ? 'Office Champion! ' + standings[1].name + ' is ' + pts(s.points - standings[1].points) + ' behind.' : 'You are the Office Champion!')
           : 'You\'re ' + nth(mine + 1) + '. ' + pts(standings[mine - 1].points - s.points + 1) + ' more to pass ' + standings[mine - 1].name + '.', 190);
-      ctext('Crowns ' + (s ? s.crowns : 0) + '   Top tens ' + tens.length + '   Played ' + played.length + ' of ' + games.length, 204, '#686878');
+      ctext('Crowns ' + (s ? s.crowns : 0) + '   Top tens ' + tens.length + '   Played ' + played.length + ' of ' + keys.length, 204, '#686878');
     }
     // Everyone who has freed Linda or been Employee of the Month, most times first, side by side.
     const QUESTS = [['linda', 20], ['eotm', 166]], QROWS = 9;
@@ -12301,7 +12303,7 @@
     carve: 'Playing Pumpkin Carving', treat: 'Playing Trick-or-Treat', ghosts: 'Playing Ghost in the Cupboard',
     costume: 'Playing Costume Contest', forklift: 'Playing Forklift Rush', paint: 'Playing Even Coat',
     chop: 'Chopping wood', mallow: 'Roasting marshmallows', spruce: 'Decorating the spruce', snowman: 'Building a snowman',
-    cocoa: 'Pouring hot chocolate', snowball: 'In a snowball fight', humbug: 'Playing Humbug Sweeper',
+    cocoa: 'Pouring hot chocolate', snowball: 'In a snowball fight', humbug: 'Humbug', sdg: 'SDG',
   };
   // the game you've got open, for over your head (or null)
   const mpDoing = () => { for (let i = ui.length - 1; i >= 0; i--) if (ui[i].doing) return ui[i]; return null; };

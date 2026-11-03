@@ -19,9 +19,7 @@ const NO_BOARD = { // saveBest keys that don't go on a leaderboard
   wade: 'win or lose, so no board (see Leaderboards in the README)',
   'dogrun.': 'each dog has its own best; boardNote puts them all on catchrun',
 };
-const NOT_DOING = { // games that don't say what you're doing (see MP_DOING)
-  SdgApp: 'a program for laying out a unit, not a game: dots over your head will do, and a challenge can wait until you exit',
-};
+const NOT_DOING = {}; // games that don't say what you're doing (see MP_DOING)
 const NO_SHORTCUT = {}; // games that can't be opened with &game=
 const NOT_STARTED = {}; // games nothing starts yet
 

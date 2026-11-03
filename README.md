@@ -214,7 +214,7 @@ The tall gold-framed board on the left wall of **Reception** (opposite the candy
 shows every leaderboard at once. Left and right flip between its pages:
 
 - **Champions**: the race for Office Champion. Every board's top ten earn points
-  (10 for 1st, down to 1 for 10th), and holding 1st at a game is a crown. Underneath
+  (10 for 1st, down to 1 for 10th), and holding 1st on a board is a crown. Underneath
   you see your place, how many points it takes to pass the person above you, and how
   many crowns, top tens and games you have. Whoever is on top, the Office Champion,
   gets a sparkling crown and a star trail: wherever they walk, a short trail of twinkling
@@ -229,8 +229,9 @@ shows every leaderboard at once. Left and right flip between its pages:
 - **Quests**: everyone who has set Linda free and everyone who has been Employee of the
   Month, side by side, with how many times each name has done it (up and down scroll
   when the lists get long). If you're first at one, your row has a crown. Each time you finish one, that quest's leaderboard comes up
-  once you're back walking around, with your count one higher. The quests don't earn
-  Office Champion points, but they do earn something to wear: see **Linda's list** and
+  once you're back walking around, with your count one higher. Each quest's board earns
+  Office Champion points and a crown like any game's (so doing one can make you Office
+  Champion), and they earn something to wear as well: see **Linda's list** and
   **Employee of the Month**.
 - **Live Hold'em**: the live poker table's top ten, with each name's spring rolls won,
   spring rolls lost and the difference, in order of the difference. Underneath you see
