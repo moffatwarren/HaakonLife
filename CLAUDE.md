@@ -47,6 +47,10 @@ in a browser (see "Testing in a browser").
 
 - **Saved data:** a saved character is a list of places in the lists in `js/art.js`, so only ever add
   to the end of those lists. Never reorder or remove.
+- **Unlockable items:** anything wearable that isn't for everyone gets `item: 'name'` in `js/art.js`,
+  which gives it a number in the database (see "Special items" in the README). Where it's earned, call
+  `itemEarned`, then `itemOffer` if that says to. Never decide to tell somebody by looking at their
+  number: a 1 might have been added by hand, and they still get the message when they earn it.
 - **Wire format:** if what players send each other changes, bump `MP_PROTO` in `js/game.js`.
 - **Untrusted input:** other players' messages, saves and addresses can be tampered with. Look names
   up with `inTable`, not a bare `table[name]`, and in server games check what comes from a browser.

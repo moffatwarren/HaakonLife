@@ -43,11 +43,12 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
 - After the title screen, type your name (the game remembers it), then make your
   character: gender, skin, hair and its colour, something on your head (a cap, a toque,
   a hard hat, a cowboy hat, headphones, glasses, shades or a bow, a Santa hat once
-  your name has opened its present on Christmas Day, humbug antlers if your name won
+  your name has come in over Christmas, humbug antlers if your name won
   the Christmas Cup: see **Christmas**, and a ghost mask once your name has set Linda
   free: see **Linda's list**), a shirt and pants, each in a colour, any extras worn
   over your clothes (a ribbon once your name has been Employee of the Month: see
-  **Employee of the Month**), and flair (the Office Champion's star trail: see **The Hall of
+  **Employee of the Month**, and a giant candy cane once your name has opened its present on
+  Christmas Day: see **Christmas**), and flair (the Office Champion's star trail: see **The Hall of
   Fame**, and the Sweeper if your name won the Christmas Cup). Up and down pick a part, left and right (or A) change it,
   RANDOM picks for you and DONE (or START) heads into the office. Your character is
   saved with your name (see **Saved characters** below), so typing the same name on
@@ -432,13 +433,13 @@ items/live/warren/santa: 1
 items/live/warren/antlers: 0
 ```
 
-`santa` is the Santa hat, `antlers` the humbug antlers, `sweeper` the Sweeper, `crown` the crown,
+`santa` is the Santa hat, `candycane` the candy cane, `antlers` the humbug antlers, `sweeper` the Sweeper, `crown` the crown,
 `startrail` the star trail, `ghostmask` the ghost mask and `ribbon` the ribbon. 1 means it's theirs, so it's one of their choices in the character editor. 0 means it
-isn't, and the game won't offer it to them, even from the present, the cup or a quest. No number
+isn't, and the game won't offer it to them, even at Christmas, from the present, the cup or a quest. No number
 means they've never been given it.
 
-In the game the Santa hat only comes from opening the present on Christmas Day, the antlers and
-the Sweeper from winning the Christmas Cup, and the mask and the ribbon from the quests (see
+In the game the Santa hat comes from coming in over Christmas, the candy cane from opening the
+present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, and the mask and the ribbon from the quests (see
 **Linda's list** and **Employee of the Month**), which add a 1 where there's no number. The game
 never sets a number for the crown or the star trail: the Office Champion wears them with no
 number, for as long as they're on top, so a number is only for giving them to somebody for good.
@@ -454,15 +455,49 @@ The rules let the game add a 1 where there's no number and nothing else, so only
 can change one that's there. Like the scores, a determined person could still add a 1 to a
 name that has no number.
 
-To add one, draw it at 32 x 32 (in `HAT32`, `SHIRT32`, `PANTS32` or `EXTRA32` in `js/art.js`) and add it
-to the end of `HATS`, `SHIRTS`, `PANTS` or `EXTRAS` under the same `hd` name, with `item: 'itsname'` (the
-name its number goes by, up to 16 characters). That keeps it out of the character editor until
-a name's number for it is 1, and the rules already cover it, so they don't need changing. To
-have it earned in the game as well, call `itemGive(name, 'itsname')` where that happens.
+Having an item and being told you've earned it are two separate things, so giving somebody
+something by hand never costs them the message. Each name also has a mark for each item it's been
+told about, next to its numbers, which the game adds as the message comes up:
+
+```
+items/live/warren/santa: 1
+items/live/warren/santaTold: 1
+```
+
+So if you put a 1 on the Data tab for somebody, it's theirs straight away, and when they earn it
+in the game (by coming in over Christmas, opening the present, winning the cup or finishing the
+quest) they still get the message and the offer to wear it, once, on whichever device they're on.
+The game never decides to tell somebody by looking at their number. You can leave the marks alone.
+The crown and the star trail work the same way from the other side: being told you're the Office
+Champion doesn't go by your number either, and you're told again each time you get back to the top.
+
+To add one:
+
+1. **Mark it.** Draw it at 32 x 32 (in `HAT32`, `SHIRT32`, `PANTS32` or `EXTRA32` in `js/art.js`) and add it
+   to the end of `HATS`, `SHIRTS`, `PANTS` or `EXTRAS` under the same `hd` name, with `item: 'itsname'` (the
+   name its number goes by, up to 12 characters, which leaves room for `Told` on the end of its mark).
+   Anything that isn't for everyone has to have this. It's what gives it a number on the Data tab, so
+   it can be given and taken away, and it keeps it out of the character editor until a name's number
+   for it is 1. The rules already cover it, so they don't need changing.
+2. **Earn it and tell them.** Where it's earned in the game, call `itemEarned(name, 'itsname')`. That gives it
+   to them unless a 0 says it's been taken away, and returns whether they still need telling. If it
+   does, call `itemOffer(['itsname'], what to tell them, what to say as they put it on)`. That shows them a
+   picture of themselves wearing it above the message (`itemPanel`) and asks if they want it on now.
+   Don't check `items.itsname` to decide whether to tell them: a 1 might have been added by hand.
+
+The only things worn that have no number are the haunted mask and the gold ribbon, because they're the
+ghost mask and the ribbon looking grander on whoever is top of that quest's board (see `questLook`).
+
+An extra starts at row 20 of the picture, the chest. To draw one that goes higher, like something you
+hold, add `from: 9` (the row to start at) next to its `down` and `left`, as the candy cane does, and `up` if
+it shows from behind. Extras go over everything, hair and all, so keep them clear of the face, and keep the
+whole thing inside the tile, outline included. Skates are painted on the bottom two rows of a person's
+picture, leaving anything dark alone, so end it there in its outline.
 
 Flair isn't drawn in a character's picture, so to add some, put it at the end of `FLAIRS` in
 `js/art.js` (with `item: 'itsname'` if it's earned like the rest) and draw it in `js/game.js` for
-anybody whose `look.flair` is that place in the list, as `glowTick` does for the star trail. Other
+anybody whose `look.flair` is that place in the list, as `glowTick` does for the star trail. Add it to
+`showOff` too, so it's there in the character editor and in the picture when you're given it. Other
 players get it with your look, so there's nothing else to send.
 
 #### Head things bigger than a tile
@@ -983,20 +1018,26 @@ From November 27 to December 31 (by your device's date) the office does Christma
   Other players see it, and the game remembers it. About half your coworkers come in
   wearing one too (a random half each time the game loads, separate from who wears one
   out in the parking lot).
-- **Christmas Day**: from December 25, the present under reception's tree that rattles has a
-  tag with your name on it. Press A on the tree to open it: it's a **Santa hat**, and it asks
-  whether you want to put it on now. From then on the Santa hat is one of your head things
-  in the character editor, for good (not just at Christmas). It belongs to your name, not
-  the browser: opening the present sets your `santa` number in the database to 1 (see
-  "Special items"), so typing the same name on another phone or computer brings it with you.
+- **The Santa hat**: the first time your name comes in over Christmas, you're given a **Santa
+  hat**. It's marked as new in the character editor, and as you walk in a message from everyone at
+  Haakon shows you wearing it and asks whether you want to put it on now. From then on it's one of
+  your head things in the character editor, for good (not just at Christmas). It belongs to your
+  name, not the browser: being given it sets your `santa` number in the database to 1 (see
+  "Special items"), so typing the same name on another phone or computer brings it with you, and
+  you're only told once. A name whose number is 0 isn't given one.
   It's alive when you walk: the tail streams out behind you, or swings from side to side if
   you're going up or down the screen, and swings back and settles when you stop. The pom-pom
   and the gold bell on the end of it hop with each step, the bell glints and jingles every other
   stride and when you turn, and little snowflakes shake off it and drift down behind you. Other
   players see all of that, but only you hear your own bell. It's `santaStep` and `santaTail`. In a
   mini-game, which only draws your 32 x 32 picture, it's a still hat with the bell on it.
-  Before the 25th the presents just say not to open them. It's "Christmas Day" in
-  `js/game.js`.
+- **Christmas Day**: from December 25, the present under reception's tree that rattles has a
+  tag with your name on it. Press A on the tree to open it: it's a **candy cane** the size of a
+  walking stick, and it asks whether you want to take it now. From then on it's one of your extras in
+  the character editor, for good, held in one hand and in your picture, so it comes with you into
+  mini-games too. Having been given one by hand doesn't open your present for you: it's still there
+  until you do. Before the 25th the presents just say not to open them, and after the 31st the tree
+  is gone, so this is the one Christmas item you can miss. It's `openPresent` in `js/game.js`.
 - The music changes too: indoors the office tune gives way to Deck the Halls, outside
   it's Jingle Bells, and out on the ice a slow skating waltz.
 - The fitness room's side doors (on its left wall) open onto the **parking lot**, a map
@@ -1261,8 +1302,12 @@ nothing gets saved for real, and you're in the `test` world, away from live play
   `&name=Ada` to be Ada, and you're told you've won and offered the humbug antlers and the
   Sweeper, for this visit only; any other name sees the banner instead).
 - Add `&xmasday=1` to make it Christmas Day (the present under the tree can be opened), and
-  `&santahat=1` to have the Santa hat for this visit, as if your name had opened it. Add
-  `&look=m100a00000000` to be wearing it, and walk around to see the tail swing.
+  `&santahat=1` to have the Santa hat for this visit. Add `&look=m100a00000000` to be wearing it,
+  and walk around to see the tail swing. A `#play` address skips the name screen, so it's never
+  given the hat by itself: to see that for real, use `#christmas=1` and come in through the title.
+- Add `&unlock=santa` (or `candycane`, `ghostmask`, `ribbon`, `cup`, `champion`, or several with commas) to a
+  `#play` link to bring up the message you get when that becomes yours, with the picture of you in it.
+  Add `&have=candycane&look=m20000000300` to be holding the candy cane.
 - Add `&sweater=moose` (or `gingerbread`, `reindeer`, `snowflake`, `tree`, `candycane`,
   `santa`, `snowman`, `hvac`, `none`) to a `#play` link to pick your ugly sweater, and
   `&sweaters` to open the sweater picker. In October add `&halloween=0` too, or you're in

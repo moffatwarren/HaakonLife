@@ -1053,6 +1053,7 @@
         }
       },
       draw() {
+        if (opts.above) opts.above(); // (a picture to go with it: see itemPanel)
         box(0, SH - 48, SW, 48);
         let left = Math.floor(shown);
         pages[page].forEach((l, i) => {
@@ -1106,6 +1107,7 @@
   }
   function ask(str, options, cb, opts) {
     ui.push(Dialog(str, {
+      above: opts && opts.above,
       then(dlg) {
         ui.push(Choice(options, -1, SH - 48 - options.length * 16 - 8, (i) => { dlg.close(); cb(i); }, opts));
       },
@@ -3633,7 +3635,7 @@
   }
   function champSay() {
     sfx('cup');
-    say('You\'re number 1! You\'ve taken the top spot in the Hall of Fame, and that makes you the Office Champion. The crown and the star trail are yours for as long as you stay on top. If you don\'t want to wear them, change them under Edit character in the Start menu.');
+    ui.push(Dialog('You\'re number 1! You\'ve taken the top spot in the Hall of Fame, and that makes you the Office Champion. The crown and the star trail are yours for as long as you stay on top. If you don\'t want to wear them, change them under Edit character in the Start menu.', { above: itemPanel(['crown', 'startrail']) }));
   }
   // A score of yours has just gone up: has that done it?
   let champWatching = false;
@@ -3869,7 +3871,7 @@
     if (!m.walking) { fine(X + 2, Y + 6.5, 6, 1, '#181820'); fine(X + 2.5, Y + 7, 5, 0.5, '#3c7a28'); } // (its folded arms)
     if (m.walking && dir !== 'up') broom();
   }
-  // The Santa hat, from the present under the tree on Christmas Day. Its tail is drawn on its own,
+  // The Santa hat, given to you the first time you come in over Christmas. Its tail is drawn on its own,
   // behind the wearer, so it comes out from under the fold of the hat in their picture (see `loose`
   // on it in js/art.js: a mini-game just has the whole picture). It streams out behind them as they
   // walk, swings from side to side with their stride when they're going up or down the screen,
@@ -14403,23 +14405,21 @@
   // the champion's prizes: they're in the character editor now, so put them on?
   function cupPrize(str) {
     cupAward(playerName);
-    ask(str + ' The antlers are with your head things in the character editor now, and the humbug is under FLAIR, for good. Wear them now?', ['WEAR THEM', 'NOT NOW'], (j) => {
-      if (j !== 0) { say('You leave them by the cup in reception for now. They\'re in the character editor whenever you want them.'); return; }
-      sfx('menu');
-      for (const item of CUP_PRIZES) if (items[item] === 1) wearNow(ITEMS[item].part, ITEMS[item].i);
-      say('You put on the humbug antlers, and the humbugs hanging off them glare at you. One more picks up a broom with a sigh. Champion!');
-    });
+    itemOffer(CUP_PRIZES, str + ' The antlers are with your head things in the character editor now, and the humbug is under FLAIR, for good.',
+      'You put on the humbug antlers, and the humbugs hanging off them glare at you. One more picks up a broom with a sigh. Champion!',
+      'You leave them by the cup in reception for now. They\'re in the character editor whenever you want them.');
   }
   // Once it's over, the first time you're walking around: the champion is told they've won
-  // and offered the prizes (once for each name), and everyone else gets a banner across the
-  // top saying who won (once in each browser). (Called every tick: it's only true once.)
+  // and offered the prizes (once for each name, whether or not the numbers for them were already
+  // there: see "special items"), and everyone else gets a banner across the top saying who won
+  // (once in each browser). (Called every tick: it's only true once.)
   let cupNewsDone = false, cupFlag = null;
   function cupNews() {
     if (cupNewsDone || !cup || !cupOver() || !cupLeader || !playerName || itemsAsk) return false;
     cupNewsDone = true;
-    const told = 'cup.told.' + CUP + '.' + boardKey(playerName), seen = 'cup.seen.' + CUP;
-    if (cupMine(playerName) && CUP_PRIZES.some((item) => items[item] !== 0) && !store.get(told)) {
-      store.set(told, '1'); store.set(seen, '1');
+    const seen = 'cup.seen.' + CUP;
+    if (cupMine(playerName) && CUP_PRIZES.some((item) => items[item] !== 0 && !itemsTold[item])) {
+      store.set(seen, '1');
       sfx('cup');
       cupPrize('Merry Christmas and a happy New Year! You won the Christmas Cup: nobody cleared Humbug Sweeper faster than your '
         + boardFmt(CUP, cupLeader.score) + '. Your name is engraved on the cup in reception, and it came with a pair of humbug antlers and a humbug to sweep up after you.');
@@ -14541,13 +14541,28 @@
     say(tree.say);
   }
 
-  // ---------- Christmas Day: the present with your name on it ----------
+  // ---------- the Santa hat, and the present with your name on it ----------
+  // The first time your name comes in over Christmas you're given a Santa hat: from then on it's
+  // one of your head things in the character editor (for good, not just at Christmas), and
+  // you can put it on there and then. Coming in is how you earn it (itemEarned: see "special items").
+  // It only happens as you come in through the name screen, not on a #play test address, or the
+  // message would get in the way of everything tested over Christmas: &unlock=santa shows it, and
+  // &santahat=1 gives any name its hat for this visit.
+  function santaAward(name) {
+    if (CHRISTMAS && itemEarned(name, 'santa')) questEarned.push({ what: 'Santa hat (HEAD)', told: santaTell });
+  }
+  function santaTell() {
+    sfx('ding');
+    itemOffer(['santa'], 'Merry Christmas from everyone at Haakon! This Santa hat, with a little bell on the end, is yours to keep. It\'s with your head things in the character editor.',
+      'You pull the Santa hat on. The bell jingles as you go, and a little snow shakes off. Ho ho ho!',
+      'You tuck it under your arm. It\'s in the character editor whenever you want it.');
+  }
   // From December 25 the rattling present under reception's tree has a tag with your name on
-  // it. Inside is a Santa hat: from then on it's one of your head things in the character
-  // editor (for good, not just at Christmas), and you can put it on there and then. Opening
-  // it is what sets your name's santa to 1 (see "special items"). &xmasday=1 (or =0) makes it
-  // the 25th (or not) for testing, and &santahat=1 gives any name its hat for this visit, as
-  // if it had opened the present.
+  // it, and inside is a candy cane the size of a walking stick: from then on it's one of your extras
+  // in the character editor (for good, not just at Christmas). Opening it is how you earn it, so a
+  // name that's already been given it by hand still has a present to open (see "special items"). It's
+  // only there until December 31, so it's the one Christmas item you can miss.
+  // &xmasday=1 (or =0) makes it the 25th (or not) for testing.
   const XMAS_DAY = (function () {
     const m = /[#&]xmasday=(\d)/.exec(location.hash);
     if (m) return m[1] !== '0';
@@ -14556,23 +14571,23 @@
   })();
   function openPresent() {
     const name = playerName || 'New Hire';
-    if (items.santa === 1) {
-      say(wornLook(myLook).hat === Art.SANTA ? 'The presents are all open. Yours was the one that rattled: the Santa hat you\'re wearing. The bell on the end still jingles.'
-        : 'The presents are all open. Yours was the one that rattled: a Santa hat. It\'s with your other head things in the character editor.');
+    if (items.candycane === 0) { say('The presents are all open. There\'s nothing left under the tree with your name on it.'); return; }
+    if (itemsTold.candycane) {
+      say(wornLook(myLook).extra === Art.CANDY_CANE ? 'The presents are all open. Yours was the one that rattled: the candy cane in your hand. It\'s a little shorter than it was.'
+        : 'The presents are all open. Yours was the one that rattled: a candy cane the size of a walking stick. It\'s under EXTRAS in the character editor.');
       return;
     }
-    if (items.santa === 0) { say('The presents are all open. There\'s nothing left under the tree with your name on it.'); return; }
     ask('Merry Christmas! The present that rattles has a tag on it: "To ' + name + ', from everyone at Haakon. DO NOT OPEN UNTIL THE 25TH." It\'s the 25th.', ['OPEN IT', 'NOT YET'], (i) => {
       if (i !== 0) { say('You put it back under the tree. It rattles.'); return; }
-      sfx('ding');
-      itemGive(name, 'santa');
-      ask('A Santa hat, with a little bell on the end! It\'s yours to keep: it\'s one of your head things in the character editor now. Wear it now?', ['WEAR IT', 'NOT NOW'], (j) => {
-        if (j !== 0) { say('You tuck it under your arm. It\'s in the character editor whenever you want it.'); return; }
-        sfx('menu');
-        wearNow('hat', Art.SANTA);
-        say('You pull the Santa hat on. The bell jingles as you go, and a little snow shakes off it. Ho ho ho!');
-      });
+      itemEarned(name, 'candycane');
+      presentTell();
     });
+  }
+  function presentTell() {
+    sfx('ding');
+    itemOffer(['candycane'], 'That\'s what was rattling: a candy cane the size of a walking stick! You could lean on it, or finish it by New Year\'s. It\'s under EXTRAS in the character editor now.',
+      'You take the candy cane in one hand. It makes a fine walking stick, and a better snack.',
+      'You lean it against the tree for now. It\'s in the character editor whenever you want it.');
   }
 
   // The fitness room's side doors and the parking lot's doors are the same two doors:
@@ -18231,22 +18246,35 @@
   // js/art.js) belong to a name, not a browser. Each has a number of its own in the database,
   // at items/<world>/<name>/<item> (the world and the name as for looks, above): 1 means it's
   // theirs, 0 means it isn't, and no number means it's never been given to them. The Santa
-  // hat only comes from opening the present (openPresent), the antlers and the Sweeper from
-  // winning the Christmas Cup (cupAward), and the ghost mask and ribbon from the quests (questAward
-  // and questPrize), and those only ever add a 1 where there's no number. The crown and the star
+  // hat comes from coming in over Christmas (santaAward), the candy cane from opening the present
+  // (openPresent), the antlers and the Sweeper from winning the Christmas Cup (cupAward), and the
+  // ghost mask and ribbon from the quests (questAward and questPrize), and those only ever add a 1
+  // where there's no number. The crown and the star
   // trail never come from the game this way: the champion wears them without a number (see
   // CHAMP), so a number is only for giving them to somebody for good. Change
   // them on the Data tab to give one to somebody or take it away: what the database says
   // goes, so a 0 is never turned back into a 1, and anything you're wearing comes off as you
   // come in if its number isn't 1 (see editStart). This browser keeps a copy for when the
   // database can't be reached. They're asked for once, as you come in, so a change reaches
-  // somebody the next time they do. To add one, mark it in js/art.js (the database's rules
-  // already cover it), and call itemGive wherever it's earned.
-  const ITEMS = Art.LOOK_ITEMS;
+  // somebody the next time they do.
+  //
+  // Having an item and being told you've earned it are two separate things. A number of 1 might
+  // have been put there by hand, and somebody given something that way still gets the message when
+  // they earn it for themselves. So each name also has a mark for each item it's been told about,
+  // next to the numbers, at items/<world>/<name>/<item>Told (the same rules cover those, so one can
+  // only be added, and a name stays at 12 characters or fewer). itemOffer sets it, and it's kept in
+  // this browser too, so you're told once for each name, on whichever device, however it got there.
+  //
+  // To add one, mark it in js/art.js with `item`. Anything that isn't for everyone has to be: that's
+  // what gives it its number. Where it's earned, call itemEarned, then itemOffer if that says to tell
+  // them. Never decide to tell somebody by looking at their number. See "To add one" in the README.
+  const ITEMS = Art.LOOK_ITEMS, TOLD = 'Told';
   const ITEM_URL = LOOK_URL.replace('/looks/', '/items/');
   let items = {}; // your name's numbers, like { santa: 1, antlers: 0 } (no entry: no number)
+  let itemsTold = {}; // the items your name has had its message about, like { santa: true }
   let itemsAsk = null, itemsHeard = false; // still waiting for the database; whether it answered
-  const itemKey = (name, item) => 'item.' + item + '.' + boardKey(name || 'New Hire');
+  // (what a test address remembers stays apart from what the real game does, or it'd be sent as real)
+  const itemKey = (name, item) => 'item.' + (BOARD_POSTS ? '' : 'test.') + item + '.' + boardKey(name || 'New Hire');
   const itemAt = (part, i) => Object.keys(ITEMS).find((item) => ITEMS[item].part === part && ITEMS[item].i === i);
   function itemFetch(name, path, opts) {
     if (!lookName(name) || boardDemo) return Promise.reject();
@@ -18255,11 +18283,16 @@
   }
   // Start on what this browser remembers for a name, then ask the database (and who won the
   // Christmas Cup, for the champion's antlers). A 1 here with no number there is a save that
-  // didn't get through, so it's sent again.
-  function itemsCheck(name) {
+  // didn't get through, so it's sent again. comingIn: through the name screen, so it can count as
+  // your first time here this Christmas (see santaAward).
+  function itemsCheck(name, comingIn) {
     const ask = itemsAsk = {};
-    items = {}; itemsHeard = false;
-    for (const item in ITEMS) { const v = store.get(itemKey(name, item)); if (v) items[item] = +v; }
+    items = {}; itemsTold = {}; itemsHeard = false;
+    for (const item in ITEMS) {
+      const v = store.get(itemKey(name, item));
+      if (v) items[item] = +v;
+      if (store.get(itemKey(name, item + TOLD))) itemsTold[item] = true;
+    }
     const row = itemFetch(name, '').then((r) => (r.ok ? r.json() : Promise.reject())).then((all) => ({ all: all || {} }), () => null);
     questEarned = [];
     for (const key in questTop) setQuestTop(key, false);
@@ -18273,10 +18306,13 @@
           if (v !== undefined) { items[item] = +v === 1 ? 1 : 0; store.set(itemKey(name, item), String(items[item])); }
           else if (items[item] === 1) itemFetch(name, '/' + item, { method: 'PUT', body: '1' }).catch(() => {});
           else if (items[item] === 0) { delete items[item]; store.set(itemKey(name, item), ''); }
+          if (heard.all[item + TOLD] !== undefined) { itemsTold[item] = true; store.set(itemKey(name, item + TOLD), '1'); }
+          else if (itemsTold[item]) itemFetch(name, '/' + item + TOLD, { method: 'PUT', body: '1' }).catch(() => {});
         }
       }
       if (/[#&]santahat=1/.test(location.hash)) items.santa = 1;
       cupAward(name);
+      if (comingIn) santaAward(name);
       questAward(name, quests);
       // (&have=ghostmask,ribbon: as if these were yours, for testing)
       for (const item of (/[#&]have=([a-z,]+)/.exec(location.hash) || ['', ''])[1].split(',')) if (inTable(ITEMS, item)) items[item] = 1;
@@ -18300,6 +18336,68 @@
     store.set(itemKey(name, item), '1');
     itemFetch(name, '/' + item, { method: 'PUT', body: '1' }).catch(() => {});
   }
+  // You've just done whatever earns an item. It's yours now, unless a 0 says it's been taken away, and
+  // a number that's already there is left as it is. Says whether you still need telling: you do if you
+  // never have been, even if your number was already 1 because somebody gave it to you by hand.
+  function itemEarned(name, item) {
+    if (items[item] === 0) return false;
+    if (items[item] === undefined) itemGive(name, item);
+    return !itemsTold[item];
+  }
+  // (&unlock= and &champion= are only pretending, so they don't count as having told you)
+  const itemToldTest = /[#&](unlock|champion)=/.test(location.hash);
+  function itemToldMark(item) {
+    if (itemsTold[item]) return;
+    itemsTold[item] = true;
+    if (itemToldTest) return;
+    const name = playerName || 'New Hire';
+    store.set(itemKey(name, item + TOLD), '1');
+    itemFetch(name, '/' + item + TOLD, { method: 'PUT', body: '1' }).catch(() => {});
+  }
+  const itemName = (item) => {
+    const { part, i } = ITEMS[item];
+    return { hat: LK.hats, shirt: LK.shirts, pants: LK.pants, extra: LK.extras, flair: LK.flairs }[part][i].name;
+  };
+  // The picture above a message about something that's just become yours (Dialog's above, or
+  // ask's): you with it on, as you'd really look in it, walking on the spot and turning round
+  // from the front, so you can see what it is before you say whether you want it on.
+  function itemPanel(list) {
+    const look = Object.assign({}, myLook);
+    for (const item of list) {
+      const { part, i } = ITEMS[item];
+      look[part] = i;
+      if (crowned && part in CHAMP) look.champOff |= CHAMP_BIT[part]; // (or the crown would cover it)
+    }
+    const worn = wornLook(look), sheet = lookSprites(worn, mySweater()), from = tick;
+    const title = list.map(itemName).join(' + '), w = Math.max(120, title.length * 6 + 16), h = 136, x = (SW - w) >> 1, y = 16;
+    return () => {
+      box(x, y, w, h);
+      ctext('NEW!', y + 9, GOLD);
+      ctext(title, y + 21);
+      showOff(worn, sheet, ['down', 'left', 'up', 'right'][((tick - from) >> 6) & 3], SW >> 1, y + h - 20);
+      [[-46, 44], [45, 58], [-40, 84], [48, 100]].forEach(([dx, dy], i) => {
+        const t = (tick + i * 29) % 116;
+        if (t < 14) twinkle(realPx((SW >> 1) + dx), realPx(y + dy), realPx(Math.sin(t / 14 * Math.PI) * 3));
+      });
+    };
+  }
+  // Tell somebody something's theirs now, with the picture, and offer to put it on there and then.
+  // list: the items (any taken away are left out). str: what's happened and where to find it.
+  // on: what's said as they put it on. later: what's said if they don't.
+  function itemOffer(list, str, on, later = 'It\'s in the character editor whenever you want it.') {
+    const mine = list.filter((item) => items[item] !== 0);
+    if (!mine.length) return;
+    mine.forEach(itemToldMark);
+    const above = itemPanel(mine), worn = wornLook(myLook), more = mine.length > 1;
+    // (you might have put it on in the character editor already, on your way in)
+    if (!hw.worn && mine.every((item) => worn[ITEMS[item].part] === ITEMS[item].i)) { ui.push(Dialog(str, { above })); return; }
+    ask(str + (more ? ' Wear them now?' : ' Wear it now?'), [more ? 'WEAR THEM' : 'WEAR IT', 'NOT NOW'], (j) => {
+      if (j !== 0) { say(later); return; }
+      sfx('menu');
+      for (const item of mine) wearNow(ITEMS[item].part, ITEMS[item].i);
+      say(hw.worn ? (more ? 'You put them on under your costume. They\'ll show when you take that off.' : 'You put it on under your costume. It\'ll show when you take that off.') : on);
+    }, { above });
+  }
   // a look with any special item that isn't yours swapped for the first in its list (going by
   // the database, or if it didn't answer, only by a 0 this browser remembers, so nobody loses
   // theirs to a bad connection)
@@ -18315,13 +18413,13 @@
   // Month the ribbon (one of your extras, worn over your clothes). They're special items like
   // any other, and the quests' boards are the record of who's done what, so anybody with a row
   // on one gets its item as they come in: that's how the people who did it before these existed
-  // got theirs, and a 0 on the Data tab still keeps it away. Whoever is 1st on the board (most
+  // got theirs (and anybody given one by hand gets its message), and a 0 on the Data tab still keeps it away. Whoever is 1st on the board (most
   // times, the first to get there breaking a tie) wears theirs haunted or in gold (see wornLook,
   // and wornBehind and wornOver for what that looks like), checked as they come in and whenever
   // they look at that board.
   const QUEST_PRIZES = [
-    ['linda', 'ghostmask', 'Ghost mask (HEAD)', 'For setting Linda free, the ghost mask is yours to keep! It\'s with your head things, under Edit character in the Start menu.'],
-    ['eotm', 'ribbon', 'Ribbon (EXTRAS)', 'For being Employee of the Month, the ribbon is yours to keep! It\'s under EXTRAS, in Edit character in the Start menu.'],
+    ['linda', 'ghostmask', 'Ghost mask (HEAD)', 'For setting Linda free, the ghost mask is yours to keep! It\'s with your head things, under Edit character in the Start menu.', 'You put the ghost mask on. Boo!'],
+    ['eotm', 'ribbon', 'Ribbon (EXTRAS)', 'For being Employee of the Month, the ribbon is yours to keep! It\'s under EXTRAS, in Edit character in the Start menu.', 'You pin the ribbon on. You feel very employed.'],
   ];
   // what's just been found on the boards, to tell you about: in the editor, then as you walk
   // in (and the same for having got to number 1: see champHeard)
@@ -18333,12 +18431,18 @@
     if (!name || name === 'New Hire' || !(BOARD_URL || boardDemo)) return Promise.resolve([]);
     return Promise.all(QUEST_PRIZES.map(([key]) => boardAll(key, name).catch(() => null)));
   }
+  // telling you about a quest's prize that's been found on its board
+  const questTold = (item) => () => {
+    const [, , , told, on] = QUEST_PRIZES.find((p) => p[1] === item);
+    sfx('ding');
+    itemOffer([item], told, on);
+  };
   function questAward(name, boards) {
     const id = boardKey(name);
-    QUEST_PRIZES.forEach(([key, item, what, told], i) => {
+    QUEST_PRIZES.forEach(([key, item, what], i) => {
       const rows = boards[i];
       if (!rows) return;
-      if (items[item] === undefined && rows.some((r) => r.id === id)) { itemGive(name, item); questEarned.push({ what, told }); }
+      if (rows.some((r) => r.id === id) && itemEarned(name, item)) questEarned.push({ what, told: questTold(item) });
       setQuestTop(key, !!rows[0] && rows[0].id === id);
     });
     if (mode === 'play') questTell(); // (the answer's come after you've already walked in)
@@ -18352,18 +18456,12 @@
     for (const e of questEarned) questQueue.push(e.told);
     questEarned = [];
   }
-  // You've just done a quest: its prize, the first time (and never if it's been taken away).
+  // You've just done a quest: its prize and its message, the first time (and never if it's been taken away).
   // intro is how it turns up and where says where to find it later.
   function questPrize(item, intro, where, on) {
-    if (items[item] !== undefined) return;
-    itemGive(playerName || 'New Hire', item);
+    if (!itemEarned(playerName || 'New Hire', item)) return;
     sfx('ding');
-    ask(intro + ' ' + where + ' Wear it now?', ['WEAR IT', 'NOT NOW'], (j) => {
-      if (j !== 0) { say('It\'s in the character editor whenever you want it.'); return; }
-      sfx('menu');
-      wearNow(ITEMS[item].part, ITEMS[item].i);
-      say(hw.worn ? 'You put it on under your costume. It\'ll show when you take that off.' : on);
-    });
+    itemOffer([item], intro + ' ' + where, on);
   }
 
   // ---------- the character editor ----------
@@ -18411,7 +18509,7 @@
       if (look) edit.look = look;
     });
     const crown = crownCheck(name).then((on) => { if (playerName === name) champHeard(name, on, true); return on; });
-    const owned = itemsCheck(name);
+    const owned = itemsCheck(name, true);
     Promise.all([saved, owned]).then(() => { if (edit.ask === ask) itemsOff(edit.look); });
     Promise.all([saved, crown, owned]).then(([, on]) => {
       if (edit.ask !== ask) return;
@@ -18495,24 +18593,30 @@
     if (r && r.key === 'flair' && worn.flair === Art.SWEEPER) return 'A beaten humbug sweeps up after you!';
     if (r && r.key === 'hat' && worn.hat === Art.SANTA) return 'It jingles and shakes off snow as you walk!';
     if (r && r.key === 'hat' && worn.hat === Art.HAUNTED_MASK) return 'You\'ve set Linda free the most: it\'s haunted!';
+    if (r && r.key === 'extra' && worn.extra === Art.CANDY_CANE) return 'It makes a fine walking stick, and a better snack!';
     if (r && r.key === 'extra' && worn.extra === Art.GOLD_RIBBON) return 'Most times Employee of the Month: it\'s gold!';
     return 'Arrows: choose   Space: change   Enter: done';
+  }
+  // Somebody big, walking on the spot with their feet at (x, y), in everything that goes with what
+  // they've got on: the character editor, and the picture with a new item (itemPanel). sheet is
+  // their sprites, and they're smaller in a big head thing, so it fits under the title.
+  function showOff(worn, sheet, dir, x, y) {
+    const k = bigHat(worn) ? 3 : 5, S = 16 * k, bx = x - S / 2, by = y + 2 - S;
+    const big = (paint) => { ctx.save(); ctx.translate(bx, by); ctx.scale(k, k); paint(); ctx.restore(); };
+    floorShadow(x, y, 4 * k, 4);
+    if (worn.flair === Art.STAR_TRAIL) trailPreview(x, y);
+    if (worn.flair === Art.SWEEPER) { ctx.save(); ctx.translate(x + 16, y - 30); ctx.scale(2, 2); drawSweeper({ walking: false }, 0, 0); ctx.restore(); }
+    big(() => wornBehind(worn, 0, 0, dir, null, 8.5));
+    ctx.drawImage(freed(sheet[dir][[1, 0, 2, 0][(tick >> 3) & 3]], worn), bx, by, S, S);
+    big(() => wornOver(worn, 0, 0, dir, null, 8.5));
   }
   function drawEdit() {
     menuFrame();
     const title = 'Make your character';
     text(title, (SW - title.length * 12) >> 1, 14, 2);
     // you, walking on the spot and turning round now and then
-    const look = edit.look, worn = questLook(look), sp = lookSprites(worn), dir = ['down', 'left', 'up', 'right'][(tick >> 6) & 3];
-    // (smaller in a big head thing, so it fits under the title)
-    const k = bigHat(worn) ? 3 : 5, S = 16 * k, bx = 60 - S / 2, by = 132 - S;
-    const big = (paint) => { ctx.save(); ctx.translate(bx, by); ctx.scale(k, k); paint(); ctx.restore(); };
-    floorShadow(60, 130, 4 * k, 4);
-    if (worn.flair === Art.STAR_TRAIL) trailPreview(60, 130);
-    if (worn.flair === Art.SWEEPER) { ctx.save(); ctx.translate(76, 100); ctx.scale(2, 2); drawSweeper({ walking: false }, 0, 0); ctx.restore(); }
-    big(() => wornBehind(worn, 0, 0, dir, null, 8.5));
-    ctx.drawImage(freed(sp[dir][[1, 0, 2, 0][(tick >> 3) & 3]], worn), bx, by, S, S);
-    big(() => wornOver(worn, 0, 0, dir, null, 8.5));
+    const look = edit.look, worn = questLook(look);
+    showOff(worn, lookSprites(worn), ['down', 'left', 'up', 'right'][(tick >> 6) & 3], 60, 130);
     const who = playerName || 'New Hire';
     text(who, 60 - who.length * 3, 142);
     if (crowned) text('Office Champion', 15, 154, 1, GOLD);
@@ -18979,6 +19083,10 @@
     if (q.has('call') && phone) answerPhone();
     // &name=Sam sets your name; &quest=1 hands you Linda's list, &quest=done finishes it
     if (q.has('name')) playerName = q.get('name');
+    // &unlock=santa,candycane,ghostmask,ribbon,cup,champion brings up the message you get when each of those
+    // becomes yours, for this visit only
+    const unlocks = { santa: santaTell, candycane: presentTell, ghostmask: questTold('ghostmask'), ribbon: questTold('ribbon'), cup: () => cupPrize('You won the Christmas Cup!'), champion: champSay };
+    for (const key of (q.get('unlock') || '').split(',')) if (inTable(unlocks, key)) questQueue.push(unlocks[key]);
     if (q.has('quest')) {
       startQuest();
       if (q.get('quest') === 'done') { quest.tasks.forEach((x) => { x.done = true; }); quest.complete = true; }

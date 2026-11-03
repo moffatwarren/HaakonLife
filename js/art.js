@@ -97,7 +97,7 @@ window.Art = (function () {
     // for the Office Champion while they're on top (see champLook in js/game.js), and for good for
     // a name whose number for it is 1
     { name: 'Crown', hd: 'crown', item: 'crown' },
-    // only for a name that's opened its present under the tree on Christmas Day (see js/game.js).
+    // given to a name the first time it comes in over Christmas (see santaAward in js/game.js).
     // Its tail and bell swing as you walk, drawn there (santaTail) from `loose` in HAT32.
     { name: 'Santa hat', hd: 'santa', item: 'santa' },
     // only for the Christmas Cup's champion, the fastest at Humbug Sweeper over Christmas 2026
@@ -136,8 +136,10 @@ window.Art = (function () {
     // the same ribbon in gold on whoever has been it the most, sparkling. Like the crown it's
     // never picked or saved: it's only ever worn, in place of the Ribbon.
     { name: 'Gold ribbon', hd: 'goldribbon' },
+    // only for a name that's opened its present under the tree on Christmas Day (see openPresent in js/game.js)
+    { name: 'Candy cane', hd: 'candycane', item: 'candycane' },
   ];
-  const RIBBON = EXTRAS.findIndex((e) => e.hd === 'ribbon'), GOLD_RIBBON = EXTRAS.findIndex((e) => e.hd === 'goldribbon');
+  const RIBBON = EXTRAS.findIndex((e) => e.hd === 'ribbon'), GOLD_RIBBON = EXTRAS.findIndex((e) => e.hd === 'goldribbon'), CANDY_CANE = EXTRAS.findIndex((e) => e.hd === 'candycane');
   // Flair: not something you wear, so it isn't in your picture at all, but something that
   // goes with you, drawn by js/game.js. `item` works here too, for one that's earned.
   const FLAIRS = [
@@ -212,12 +214,13 @@ window.Art = (function () {
   }
 
   // the extra colours a 32 x 32 picture uses, from a look's colours (h, s, w, K)
-  const extras32 = (c) => ({ H: darker(c.h, 0.35), v: darker(c.w, 0.25), S: darker(c.s, 0.2), f: blend(c.s, '#e04848', 0.4), j: blend(c.h, '#ffffff', 0.3), O: '#f8e070', Y: '#a87018', L: darker(c.K, 0.3), b: '#383040', I: '#fcfcff', J: '#2f62d8', z: '#1c3a94' });
+  const extras32 = (c) => ({ H: darker(c.h, 0.35), v: darker(c.w, 0.25), S: darker(c.s, 0.2), f: blend(c.s, '#e04848', 0.4), j: blend(c.h, '#ffffff', 0.3), O: '#f8e070', Y: '#a87018', L: darker(c.K, 0.3), b: '#383040', I: '#fcfcff', J: '#2f62d8', z: '#1c3a94', X: '#8a1c20' });
   function lookPalette(look, over) {
     const c = lookColours(look);
     // (and for 32 x 32: S, skin in shadow, f, the cheeks, j, a shine on the hair, and O and
     // Y, light and dark gold, for the crown and the humbug antlers, L, the pants in shadow,
-    // b, shoes, I, a pure white for the ghost mask, and J and z, the ribbon's blue and its shadow)
+    // b, shoes, I, a pure white for the ghost mask, J and z, the ribbon's blue and its shadow, and
+    // X, the candy cane's red in shadow)
     return palette(Object.assign({ H: darker(c.h, 0.35), v: darker(c.w, 0.25) }, extras32(c), c, over));
   }
   // ---------- 32 x 32 characters ----------
@@ -2383,8 +2386,10 @@ window.Art = (function () {
       ],
     },
   };
-  // The extras, by their hd name: rows 32 wide from row 20 of the picture, the chest, looking
-  // down and left (there's nothing to see of them from behind).
+  // The extras, by their hd name: rows 32 wide, looking down and left, and up if there's anything
+  // to see of them from behind (right is left, flipped). They start at row 20 of the picture, the
+  // chest, unless `from` says which row, for something that goes higher, like something you hold.
+  // They're laid over everything, hair and all, so keep them clear of the face.
   const EXTRA32 = {
     // a blue rosette with two tails, pinned over the heart
     ribbon: {
@@ -2407,6 +2412,85 @@ window.Art = (function () {
         '..........kJzk',
         '..........kJzk',
         '..........kkkk',
+      ],
+    },
+    // a candy cane the size of a walking stick, held in one hand: the other hand from behind
+    candycane: {
+      from: 9,
+      down: [
+        '.........................kkkk',
+        '........................kkkkkk',
+        '.......................kkkIrkkk',
+        '......................kkkIrrIkkk',
+        '......................kkIXkkIXkk',
+        '......................kkrXkkrXkk',
+        '......................kkrGkkrGkk',
+        '......................kkIGkkkkkk',
+        '......................kkIXkkkkk',
+        '......................kkrXkk',
+        '......................kkrGkk',
+        '......................kkIGkk',
+        '......................kkIXkk',
+        '......................kkrXkk',
+        '......................kkrGkk',
+        '......................kkIGkk',
+        '......................kkIXkk',
+        '......................kkrXkk',
+        '......................kkrGkk',
+        '......................kkIGkk',
+        '......................kkIXkk',
+        '......................kkkkkk',
+        '.......................kkkk',
+      ],
+      up: [
+        '...kkkk',
+        '..kkkkkk',
+        '.kkkrIkkk',
+        'kkkrIIrkkk',
+        'kkrGkkrGkk',
+        'kkIGkkIGkk',
+        'kkIXkkIXkk',
+        'kkkkkkrXkk',
+        '.kkkkkrGkk',
+        '....kkIGkk',
+        '....kkIXkk',
+        '....kkrXkk',
+        '....kkrGkk',
+        '....kkIGkk',
+        '....kkIXkk',
+        '....kkrXkk',
+        '....kkrGkk',
+        '....kkIGkk',
+        '....kkIXkk',
+        '....kkrXkk',
+        '....kkrGkk',
+        '....kkkkkk',
+        '.....kkkk',
+      ],
+      left: [
+        '',
+        '',
+        '',
+        '...kkkk',
+        '..kkkkkk',
+        '.kkkrrkkk',
+        'kkkrrIIkkk',
+        'kkrXkkrXkk',
+        'kkrGkkrGkk',
+        'kkIGkkIGkk',
+        'kkkkkkIXkk',
+        '.kkkkkrXkk',
+        '....kkrGkk',
+        '....kkIGkk',
+        '....kkIXkk',
+        '....kkrXkk',
+        '....kkrGkk',
+        '....kkIGkk',
+        '....kkIXkk',
+        '....kkrXkk',
+        '....kkrGkk',
+        '....kkkkkk',
+        '.....kkkk',
       ],
     },
   };
@@ -2453,7 +2537,7 @@ window.Art = (function () {
     }
     // (and over everything, hair and all, whatever's worn on top of the clothes: not under a costume)
     const extra = EXTRAS[look.extra];
-    if (!noHat && extra && extra.hi) lay32(b, extra.hi[dir], 20);
+    if (!noHat && extra && extra.hi) lay32(b, extra.hi[dir], extra.hi.from || 20);
     return b;
   }
   // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look, marked hi: 2 so
@@ -5813,7 +5897,7 @@ window.Art = (function () {
   return {
     LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS, extras: EXTRAS, flairs: FLAIRS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, STAR_TRAIL, SWEEPER, BIG_COLS, BAUBLE32, SANTA_END32, SWEEPER32, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, CANDY_CANE, STAR_TRAIL, SWEEPER, BIG_COLS, BAUBLE32, SANTA_END32, SWEEPER32, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
     SWEATERS,
   };
 })();
