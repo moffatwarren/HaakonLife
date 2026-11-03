@@ -1,0 +1,32 @@
+# Every night, copy the leaderboards, saved characters and special items out of the database
+# (tools/backup_boards.mjs) and keep the file for 90 days, on the run's page in the Actions tab.
+# It only reads what the game can read, so it needs no secrets. If it can't get everything it
+# fails, and GitHub emails you. See "Backups" in the README.
+name: Back up game data
+
+on:
+  schedule:
+    - cron: '23 9 * * *' # 09:23 UTC, the small hours in Vancouver
+  workflow_dispatch: # a "Run workflow" button on the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: node tools/backup_boards.mjs backup
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: haakonlife-data-${{ github.run_number }}
+          path: backup/
+          retention-days: 90
+          if-no-files-found: error
