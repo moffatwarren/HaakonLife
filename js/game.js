@@ -1090,12 +1090,33 @@
     };
     return self;
   }
-  function ask(str, options, cb) {
+  function ask(str, options, cb, opts) {
     ui.push(Dialog(str, {
       then(dlg) {
-        ui.push(Choice(options, -1, SH - 48 - options.length * 16 - 8, (i) => { dlg.close(); cb(i); }));
+        ui.push(Choice(options, -1, SH - 48 - options.length * 16 - 8, (i) => { dlg.close(); cb(i); }, opts));
       },
     }));
+  }
+  // A little picture to go beside a game's name in a list (VS_ICONS, PARTY_ICONS, handed to Choice
+  // as its opts.icon). paint is called once, to paint in real pixels on a 24 x 24 picture (12 x 12
+  // on the screen) with r(x, y, w, h, colour) and o(centre x, centre y, radius, colour). Keep
+  // within 2 to 21 each way with the light from the top left: the 2-pixel outline goes on here,
+  // round anything solid, so something see-through, like the coffee's steam, doesn't get one.
+  function listIcon(paint, x, y) {
+    if (!paint) return;
+    ctx.drawImage(finePic(paint, 24, 24, (c) => {
+      const r = (rx, ry, w, h, co) => { c.fillStyle = co; c.fillRect(rx, ry, w, h); };
+      paint(r, (cx, cy, rad, co) => {
+        for (let j = -rad; j < rad; j++) { const w = Math.round(Math.sqrt(rad * rad - (j + 0.5) * (j + 0.5))); r(cx - w, cy + j, w * 2, 1, co); }
+      });
+      // (goes in behind what's there; the corners come out rounded, as outlined32 does in art.js)
+      const d = c.getImageData(0, 0, 24, 24).data;
+      c.globalCompositeOperation = 'destination-over';
+      for (let py = 0; py < 24; py++) for (let px = 0; px < 24; px++) {
+        if (d[(py * 24 + px) * 4 + 3] !== 255) continue;
+        for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (Math.abs(i) + Math.abs(j) <= 3) r(px + i, py + j, 1, 1, col.dark);
+      }
+    }), x, y);
   }
 
   function MapView() {
@@ -9776,11 +9797,51 @@
     return HALLOWEEN ? null : at;
   })();
   const DESK_GAMES = [['bob', BobGame], ['mummy', MummyGame], ['carve', CarveGame], ['treat', TreatGame], ['ghosts', GhostGame], ['costume', () => CostumeContest(true)]];
+  // The little picture beside each of those in the list (see listIcon).
+  const PARTY_ICONS = {
+    bob: (r, o) => { // an apple bobbing in the tub
+      r(12, 2, 2, 4, '#6a4020'); r(14, 2, 4, 2, '#58a848'); r(14, 2, 4, 1, '#88d060');
+      o(12, 11, 7, '#b81c20'); o(11, 10, 6, '#e03030'); r(8, 7, 2, 2, '#f8a090');
+      r(2, 13, 20, 5, '#3878c8'); r(2, 13, 20, 1, '#88b8f0');
+      r(2, 17, 20, 5, '#a87840'); r(2, 17, 20, 1, '#d0a060'); r(2, 20, 20, 2, '#845c28');
+    },
+    mummy: (r) => { // a head all wrapped up, with its eyes looking out
+      r(5, 2, 14, 20, '#e8e0c8'); r(4, 3, 16, 18, '#e8e0c8'); r(18, 3, 2, 18, '#c8c0a0');
+      r(5, 2, 13, 1, '#f8f4e4'); r(4, 5, 11, 1, '#a89c78'); r(10, 7, 10, 1, '#a89c78');
+      r(4, 9, 16, 5, '#282028'); r(6, 10, 4, 3, '#f8f8f8'); r(14, 10, 4, 3, '#f8f8f8'); r(8, 11, 2, 2, '#181820'); r(16, 11, 2, 2, '#181820');
+      r(4, 15, 12, 1, '#a89c78'); r(9, 17, 11, 1, '#a89c78'); r(4, 19, 10, 1, '#a89c78');
+    },
+    carve: (r, o) => { // a jack-o'-lantern, lit
+      r(11, 2, 3, 6, '#2c6a34'); r(11, 2, 1, 6, '#58a848');
+      o(8, 14, 6, '#c05810'); o(16, 14, 6, '#c05810'); o(12, 14, 7, '#c05810');
+      o(8, 13, 5, '#f08020'); o(15, 13, 5, '#f08020'); o(11, 14, 6, '#f08020');
+      r(8, 10, 1, 1, '#f8e040'); r(7, 11, 3, 2, '#f8e040'); r(15, 10, 1, 1, '#f8e040'); r(14, 11, 3, 2, '#f8e040');
+      r(7, 16, 10, 2, '#f8e040'); r(9, 16, 2, 1, '#f08020'); r(13, 17, 2, 1, '#f08020');
+    },
+    treat: (r, o) => { // a sweet, in a wrapper twisted at each end
+      r(2, 7, 3, 10, '#f8b060'); r(5, 9, 2, 6, '#f08020'); r(19, 7, 3, 10, '#c05810'); r(17, 9, 2, 6, '#f08020');
+      o(12, 12, 7, '#54288c'); o(11, 11, 6, '#7b3fb8'); r(8, 8, 3, 2, '#c8a0f0');
+    },
+    ghosts: (r, o) => { // a ghost in the cupboard
+      r(2, 2, 20, 20, '#a87840'); r(2, 2, 20, 2, '#d0a060'); r(2, 2, 2, 20, '#d0a060'); r(4, 20, 18, 2, '#845c28'); r(20, 4, 2, 18, '#845c28');
+      r(5, 5, 14, 15, '#080810');
+      o(12, 11, 5, '#f4f8fc'); r(7, 11, 10, 7, '#f4f8fc'); r(7, 18, 2, 1, '#f4f8fc'); r(11, 18, 2, 1, '#f4f8fc'); r(15, 18, 2, 1, '#f4f8fc');
+      r(9, 10, 2, 3, '#181820'); r(13, 10, 2, 3, '#181820');
+    },
+    costume: (r) => { // a witch's hat
+      for (let y = 3; y < 17; y++) {
+        const half = Math.ceil((y - 2) / 2);
+        r(12 - half, y, half * 2, 1, '#7b3fb8'); r(12 - half, y, 1, 1, '#a878e0'); r(12 + half - 2, y, 2, 1, '#54288c');
+      }
+      r(5, 13, 14, 3, '#f08020'); r(10, 13, 4, 3, '#f0b030'); r(11, 14, 2, 1, '#7b3fb8');
+      r(3, 17, 18, 4, '#7b3fb8'); r(2, 18, 20, 2, '#7b3fb8'); r(3, 17, 18, 1, '#a878e0'); r(3, 20, 18, 1, '#54288c');
+    },
+  };
   function deskPumpkinTalk() {
     sfx('select');
     ask('A jack-o\'-lantern left over from the Halloween party. Which party game?', DESK_GAMES.map(([k]) => BOARDS[k].title).concat(['NOT NOW']), (i) => {
       if (i >= 0 && i < DESK_GAMES.length) { sfx('menu'); ui.push(DESK_GAMES[i][1]()); }
-    });
+    }, { icon: (i, x, y) => { if (i < DESK_GAMES.length) listIcon(PARTY_ICONS[DESK_GAMES[i][0]], x, y); } });
   }
 
   // Bobbing for apples: slide along the tub and dunk when an apple is under you.
@@ -12917,11 +12978,8 @@
     golf: { label: 'MINI GOLF', title: 'a round of mini golf', Game: (m) => GolfGame(m) },
     snowball: { label: 'SNOWBALL FIGHT', title: 'a snowball fight', server: true, christmas: true, Game: (m) => SnowballGame(m) },
   };
-  // The little picture beside each game in the challenge list, with the same keys as VERSUS.
-  // Each is painted once in real pixels, 24 x 24 (so 12 x 12 on the screen), with
-  // r(x, y, w, h, colour) and o(centre x, centre y, radius, colour). Keep within 2 to 21 each way
-  // with the light from the top left: vsIcon adds the 2-pixel outline round anything solid, so
-  // something see-through, like the coffee's steam, doesn't get one.
+  // The little picture beside each game in the challenge list, with the same keys as VERSUS
+  // (see listIcon).
   const VS_ICONS = {
     duel: (r, o) => { // an air handler's fan
       r(2, 2, 20, 20, '#9098a8'); r(2, 2, 20, 2, '#c8ccd8'); r(2, 2, 2, 20, '#c8ccd8'); r(4, 20, 18, 2, '#5c6474'); r(20, 4, 2, 18, '#5c6474');
@@ -12994,23 +13052,6 @@
       r(15, 14, 2, 1, '#b4c2d8'); r(11, 17, 2, 1, '#b4c2d8');
     },
   };
-  function vsIcon(key, x, y) {
-    const paint = VS_ICONS[key];
-    if (!paint) return;
-    ctx.drawImage(finePic('vsIcon.' + key, 24, 24, (c) => {
-      const r = (rx, ry, w, h, co) => { c.fillStyle = co; c.fillRect(rx, ry, w, h); };
-      paint(r, (cx, cy, rad, co) => {
-        for (let j = -rad; j < rad; j++) { const w = Math.round(Math.sqrt(rad * rad - (j + 0.5) * (j + 0.5))); r(cx - w, cy + j, w * 2, 1, co); }
-      });
-      // (goes in behind what's there; the corners come out rounded, as outlined32 does in art.js)
-      const d = c.getImageData(0, 0, 24, 24).data;
-      c.globalCompositeOperation = 'destination-over';
-      for (let py = 0; py < 24; py++) for (let px = 0; px < 24; px++) {
-        if (d[(py * 24 + px) * 4 + 3] !== 255) continue;
-        for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (Math.abs(i) + Math.abs(j) <= 3) r(px + i, py + j, 1, 1, col.dark);
-      }
-    }), x, y);
-  }
   // A small seeded random number generator (mulberry32), so both players in a match get
   // the same jars.
   function seeded(seed) {
@@ -13605,7 +13646,7 @@
       mp.pending = c;
       mpSend(o.id, { k: 'ask', m: c.id, g: c.game, seed: c.seed, soft: c.soft });
       ui.push(c.el);
-    }, { icon: (i, x, y) => vsIcon(keys[i], x, y) }));
+    }, { icon: (i, x, y) => listIcon(VS_ICONS[keys[i]], x, y) }));
   }
   // Pressing A on another player.
   function mpTalk(o) {

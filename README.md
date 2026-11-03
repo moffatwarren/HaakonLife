@@ -917,7 +917,7 @@ All through October (by your device's date) the office does Halloween:
 
 The rest of the year a **jack-o'-lantern** sits on the left end of the reception desk.
 Press A on it to pick any of the five party games or the costume contest, without the
-party. For the contest you change into the costume you last picked (the Clown if you
+party (each has a little picture beside its name, from `PARTY_ICONS`). For the contest you change into the costume you last picked (the Clown if you
 never picked one), and back again afterwards. The scores go on the same leaderboards.
 
 The costumes are drawn in `COSTUME32` in `js/art.js`. What people say about their
