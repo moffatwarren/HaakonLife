@@ -4,7 +4,7 @@
   // only whatever uses that script would break, much later on. Stop here instead: with no
   // window.GAME, index.html reloads the page, and a reload always asks for the newest index.html.
   // (tools/check_games.mjs makes sure every script has a name in this list.)
-  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'CHESS', 'CHECKERS'].some((name) => !window[name])) return;
+  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'CHESS', 'CHECKERS', 'SWEEPER'].some((name) => !window[name])) return;
 
   // View: 20 x 15 tiles of 16px.
   const SW = 320, SH = 240;
@@ -1291,16 +1291,29 @@
   }
 
   // ---------- Humbug Sweeper: the office computers' Christmas game ----------
-  // 99 humbugs (grumpy little green gremlins out to spoil Christmas) are hiding under a
-  // 30 by 16 field of snow. Open a square and it shows how many humbugs are in the eight
-  // round it (none, and those all open too, and so on out); plant a candy cane where you
-  // know one is. Open a number with that many canes round it and the rest round it open.
-  // The first square you open never has a humbug in it or next to it, so it always opens
-  // up a patch. Open every square without a humbug as fast as you can: your quickest time
-  // goes on the HUMBUG SWEEPER leaderboard. It's timed by the clock on the wall, from the
-  // first square you open to the last, and the menu doesn't stop it.
-  const HB_COLS = 30, HB_ROWS = 16, HB_MINES = 99, HB_CELL = 10;
-  const HB_X = (SW - HB_COLS * HB_CELL) >> 1, HB_Y = 40;
+  // Humbugs (grumpy little green gremlins out to spoil Christmas) are hiding under a field of
+  // snow. Open a square and it shows how many humbugs are in the eight round it (none, and those
+  // all open too, and so on out); plant a candy cane where you know one is. Open a number with
+  // that many canes round it and the rest round it open. The first square you open never has a
+  // humbug in it or next to it, so it always opens up a patch, and js/sweeper.js makes sure you
+  // never have to guess from there, on any size. Open every square without a humbug as fast as
+  // you can. It's timed by the clock on the wall, from the first square you open to the last, and
+  // the menu doesn't stop it.
+  //
+  // Only the full field (counts) goes on the HUMBUG SWEEPER leaderboard and the Christmas Cup, so
+  // that the times there stand up against each other. The small and medium fields are practice,
+  // and your best on those stays in this browser. A cell is how big a square is on the screen.
+  const HB_FIELDS = {
+    small: { ...SWEEPER.FIELDS.small, name: 'Small', best: 'best.humbugSmall', cell: 16 },
+    medium: { ...SWEEPER.FIELDS.medium, name: 'Medium', best: 'best.humbugMedium', cell: 10 },
+    full: { ...SWEEPER.FIELDS.full, name: 'Full', best: 'best.humbug', cell: 10, counts: true },
+  };
+  const HB_ORDER = ['small', 'medium', 'full'];
+  // where things go in a square, for each size of square
+  const HB_TILE = {
+    10: { num: 1, nx: 2, ny: 1, bug: 1, bx: 1, by: 1, cane: 1, cx: 1, cy: 0 },
+    16: { num: 2, nx: 3, ny: 0, bug: 1.75, bx: 1, by: 1, cane: 1.5, cx: 2, cy: 0 },
+  };
   // the numbers' colours, 1 to 8, the ones they've always been
   const HB_INK = [null, '#1838c8', '#18802c', '#c82020', '#102078', '#801818', '#108080', '#181820', '#686878'];
   // The humbug, the candy cane, and the snowman on the button for a new board (smiling, in
@@ -1354,36 +1367,51 @@
   function drawHumbugIcon(x, y) {
     ctx.drawImage(humbugPic(5), x + 8, y + 4); ctx.drawImage(canePic(3), x + 37, y + 34);
   }
+  // A little picture of a field for the size picker: every field is drawn the same size to a square.
+  const hbMiniPic = (key) => {
+    const f = HB_FIELDS[key];
+    return finePic('hbMini' + key, f.cols * 4, f.rows * 4, (g) => {
+      for (let y = 0; y < f.rows; y++) for (let x = 0; x < f.cols; x++) {
+        g.fillStyle = (x * 7 + y * 13) % 11 === 0 ? '#58a838' : (x + y) % 2 ? '#eef3fa' : '#d4deea';
+        g.fillRect(x * 4, y * 4, 4, 4);
+      }
+    });
+  };
   function HumbugGame() {
-    const N = HB_COLS * HB_ROWS, SAFE = N - HB_MINES;
-    const best = () => +store.get('best.humbug') || 0; // quickest, in tenths of a second
+    // Which field: it asks each time you come in, starting on the one you last played (the small
+    // one, your first time). &field= on a test address goes straight into that one.
+    const lastField = store.get('humbug.field'), asked = (/[#&]field=(small|medium|full)/.exec(location.hash) || [])[1];
+    let pick = HB_ORDER.indexOf(inTable(HB_FIELDS, lastField) ? lastField : 'small');
+    let field, N, SAFE, CELL, X, Y, TILE, around;
+    const best = () => +store.get(field.best) || 0; // quickest, in tenths of a second
     // per square: a humbug in it, how many round it, opened, a cane on it
-    let mine, near, open, caned, left, state, started, time, boom, record, t = 0;
-    let cx = HB_COLS >> 1, cy = HB_ROWS >> 1, rep = 0, moved = 0, quickest = 0;
+    let mine, near, open, caned, left, state = 'pick', started, time, boom, record, t = 0;
+    let cx = 0, cy = 0, rep = 0, moved = 0, quickest = 0;
     function fresh() {
       mine = new Uint8Array(N); near = new Uint8Array(N); open = new Uint8Array(N); caned = new Uint8Array(N);
       left = SAFE; state = 'new'; started = 0; time = 0; boom = -1; record = false;
     }
-    fresh();
+    function play(key) {
+      field = HB_FIELDS[key];
+      N = field.cols * field.rows; SAFE = N - field.mines;
+      CELL = field.cell; TILE = HB_TILE[CELL];
+      // (the middle of the 160-pixel-high space a field has: the full one fills it)
+      X = (SW - field.cols * CELL) >> 1; Y = 40 + ((160 - field.rows * CELL) >> 1);
+      around = SWEEPER.roundOf(field);
+      cx = field.cols >> 1; cy = field.rows >> 1;
+      store.set('humbug.field', key);
+      fresh();
+    }
+    if (asked) play(asked);
     // the squares round square i (up to eight)
     function round(i, f) {
-      const x = i % HB_COLS, y = (i / HB_COLS) | 0;
-      for (let ay = Math.max(0, y - 1); ay <= Math.min(HB_ROWS - 1, y + 1); ay++)
-        for (let ax = Math.max(0, x - 1); ax <= Math.min(HB_COLS - 1, x + 1); ax++)
-          if (ax !== x || ay !== y) f(ay * HB_COLS + ax);
+      for (const j of around[i]) f(j);
     }
-    // the humbugs go in once you've opened your first square, anywhere but there and round it
+    // the humbugs go in once you've opened your first square, anywhere but there and round it, and
+    // in a way that means you can work out the whole field from there (see js/sweeper.js)
     function lay(first) {
-      const keep = new Set([first]);
-      round(first, (j) => keep.add(j));
-      const free = [];
-      for (let i = 0; i < N; i++) if (!keep.has(i)) free.push(i);
-      for (let k = 0; k < HB_MINES; k++) {
-        const j = k + Math.floor(Math.random() * (free.length - k));
-        [free[k], free[j]] = [free[j], free[k]];
-        mine[free[k]] = 1;
-      }
-      for (let i = 0; i < N; i++) if (mine[i]) round(i, (j) => near[j]++);
+      const b = SWEEPER.board(field, first, Math.floor(Math.random() * 4294967296));
+      mine = b.mine; near = b.near;
     }
     const clock = () => Math.max(1, Math.round((performance.now() - started) / 100));
     // open square i, and if there's nothing round it, everything round that, and so on
@@ -1412,12 +1440,14 @@
       if (left) { sfx('crunch'); return; }
       state = 'won'; time = clock(); t = 0;
       for (let k = 0; k < N; k++) if (mine[k]) caned[k] = 1;
-      if (!best() || time < best()) { store.set('best.humbug', time); record = true; }
-      // the quickest of this sitting goes on the leaderboard, which comes up when you leave:
-      // over Christmas 2026, the Christmas Cup's (and every time goes on the all-year one too)
-      quickest = quickest ? Math.min(quickest, time) : time;
-      if (cupSeason()) { boardSend('humbug', playerName || store.get('name') || '', time); boardNote(CUP, quickest); }
-      else boardNote('humbug', quickest);
+      if (!best() || time < best()) { store.set(field.best, time); record = true; }
+      // On the full field, the quickest of this sitting goes on the leaderboard, which comes up when
+      // you leave: over Christmas 2026, the Christmas Cup's (and every time goes on the all-year one too)
+      if (field.counts) {
+        quickest = quickest ? Math.min(quickest, time) : time;
+        if (cupSeason()) { boardSend('humbug', playerName || store.get('name') || '', time); boardNote(CUP, quickest); }
+        else boardNote('humbug', quickest);
+      }
       sfx('cup');
     }
     function cane(i) {
@@ -1431,8 +1461,8 @@
       const d = heldDir();
       if (!d) return;
       if (rep === 0 || (rep >= 12 && rep % 3 === 0)) {
-        cx = Math.max(0, Math.min(HB_COLS - 1, cx + DIRS[d][0]));
-        cy = Math.max(0, Math.min(HB_ROWS - 1, cy + DIRS[d][1]));
+        cx = Math.max(0, Math.min(field.cols - 1, cx + DIRS[d][0]));
+        cy = Math.max(0, Math.min(field.rows - 1, cy + DIRS[d][1]));
         moved = tick;
       }
       rep++;
@@ -1445,10 +1475,47 @@
     }
     // the snowman's button (only for show: NEW BOARD is on the menu)
     const BTN = { x: 146, y: 17, w: 28, h: 18 };
+    function titleBar(title) {
+      ctx.fillStyle = WIN; ctx.fillRect(0, 0, SW, SH);
+      ctx.fillStyle = '#2c6a34'; ctx.fillRect(0, 0, SW, 14);
+      fine(0, 0, SW, 0.5, '#70b878'); fine(0, 0.5, SW, 0.5, '#3c8044'); fine(0, 13.5, SW, 0.5, '#143c1c'); ctx.drawImage(humbugPic(1), 4, 3);
+      text(title, 16, 3, 1, '#f8f8f8');
+    }
+    // the size picker: the three fields, each with its picture, where its time goes and your best
+    function drawPicker() {
+      titleBar('Humbug Sweeper');
+      ctext('How big a field?', 20, INK);
+      HB_ORDER.forEach((key, k) => {
+        const f = HB_FIELDS[key], y = 32 + k * 50, on = k === pick;
+        ctx.fillStyle = on ? '#f8f0d8' : '#d8dce6'; ctx.fillRect(16, y, 288, 46);
+        ctx.fillStyle = INK; ring(16, y, 288, 46);
+        if (on) { ctx.fillStyle = '#f0b030'; ring(17, y + 1, 286, 44); ring(18, y + 2, 284, 42); }
+        const w = f.cols * 2, h = f.rows * 2, px = 24 + ((62 - w) >> 1), py = y + ((46 - h) >> 1);
+        ctx.fillStyle = INK; ctx.fillRect(px - 1, py - 1, w + 2, h + 2);
+        ctx.drawImage(hbMiniPic(key), px, py);
+        text(f.name, 94, y + 6, 2, INK);
+        text(f.cols + ' x ' + f.rows + ', ' + f.mines + ' humbugs', 94, y + 29, 1, INK);
+        const where = f.counts ? (cupSeason() ? 'Christmas Cup' : 'Leaderboard') : 'Practice';
+        text(where, 298 - where.length * 6, y + 9, 1, f.counts ? '#2c6a34' : '#505868');
+        const b = +store.get(f.best) || 0;
+        if (b) { const s = 'Best ' + tenths(b); text(s, 298 - s.length * 6, y + 29, 1, INK); }
+      });
+      ctext('No guessing: you can always work out a safe square.', 186, INK);
+      ctext(cupSeason() ? 'Only the full field counts for the Christmas Cup.' : 'Only the full field goes on the leaderboard.', 198, INK);
+      ctext('Arrows: pick   Space: start   X: leave', 216);
+    }
     const self = {
-      music: 'jingle', doing: 'humbug', escStart: true, // Esc brings up the menu (B plants a cane)
+      music: 'jingle', doing: 'humbug',
+      get escStart() { return state !== 'pick'; }, // Esc brings up the menu (B plants a cane), and leaves the size picker
       update() {
         t++;
+        if (state === 'pick') {
+          const by = pressed.has('up') || pressed.has('left') ? -1 : pressed.has('down') || pressed.has('right') ? 1 : 0;
+          if (by) { pick = (pick + by + HB_ORDER.length) % HB_ORDER.length; sfx('select'); }
+          if (pressed.has('b')) { sfx('select'); remove(self); }
+          else if (pressed.has('a') || pressed.has('start')) { sfx('menu'); play(HB_ORDER[pick]); }
+          return;
+        }
         if (state === 'won' || state === 'lost') {
           if (t < 30) return;
           if (pressed.has('a')) { sfx('menu'); fresh(); }
@@ -1457,26 +1524,26 @@
         }
         if (pressed.has('start')) {
           sfx('menu');
-          ui.push(Choice(['KEEP GOING', 'NEW BOARD', 'LEAVE'], -1, 24, (i) => {
-            if (i === 1) fresh(); else if (i === 2) remove(self);
+          ui.push(Choice(['KEEP GOING', 'NEW BOARD', 'CHANGE SIZE', 'LEAVE'], -1, 24, (i) => {
+            if (i === 1) fresh();
+            else if (i === 2) { pick = HB_ORDER.findIndex((key) => HB_FIELDS[key] === field); state = 'pick'; }
+            else if (i === 3) remove(self);
           }, { startCloses: true }));
           return;
         }
         steer();
-        if (pressed.has('a')) poke(cy * HB_COLS + cx);
-        if (pressed.has('b')) cane(cy * HB_COLS + cx);
+        if (pressed.has('a')) poke(cy * field.cols + cx);
+        if (pressed.has('b')) cane(cy * field.cols + cx);
       },
       draw() {
+        if (state === 'pick') { drawPicker(); return; }
         const over = state === 'won' || state === 'lost';
-        ctx.fillStyle = WIN; ctx.fillRect(0, 0, SW, SH);
-        ctx.fillStyle = '#2c6a34'; ctx.fillRect(0, 0, SW, 14);
-        fine(0, 0, SW, 0.5, '#70b878'); fine(0, 0.5, SW, 0.5, '#3c8044'); fine(0, 13.5, SW, 0.5, '#143c1c'); ctx.drawImage(humbugPic(1), 4, 3);
-        text('Humbug Sweeper', 16, 3, 1, '#f8f8f8');
+        titleBar(field.counts ? 'Humbug Sweeper' : 'Humbug Sweeper: ' + field.name);
         if (best()) { const b = 'Best ' + tenths(best()); text(b, SW - 6 - b.length * 6, 3, 1, '#f8f8f8'); }
         // the canes you've still to plant, the snowman and the clock
         let canes = 0;
         for (let i = 0; i < N; i++) canes += caned[i];
-        led(12, HB_MINES - canes);
+        led(12, field.mines - canes);
         led(SW - 52, state === 'play' ? Math.floor((performance.now() - started) / 1000) : Math.floor(time / 10));
         ctx.fillStyle = INK; ctx.fillRect(BTN.x, BTN.y, BTN.w, BTN.h);
         ctx.fillStyle = '#f8f8f8'; ctx.fillRect(BTN.x + 1, BTN.y + 1, BTN.w - 2, BTN.h - 2);
@@ -1484,47 +1551,48 @@
         ctx.fillStyle = WIN; ctx.fillRect(BTN.x + 2, BTN.y + 2, BTN.w - 4, BTN.h - 4);
         ctx.drawImage(snowPic(state), 154, 20);
         // the field: snow on everything you haven't opened
-        ctx.fillStyle = INK; ctx.fillRect(HB_X - 2, HB_Y - 2, HB_COLS * HB_CELL + 4, HB_ROWS * HB_CELL + 4);
-        // (at double resolution each kind of square is a picture: there are 480 of them)
-        const dug = (key, base, edge, lip) => finePic(key, 20, 20, (g) => {
-          g.fillStyle = base; g.fillRect(0, 0, 20, 20);
-          g.fillStyle = lip; g.fillRect(0, 0, 20, 1); g.fillRect(0, 0, 1, 20);
-          g.fillStyle = edge; g.fillRect(19, 0, 1, 20); g.fillRect(0, 19, 20, 1);
+        ctx.fillStyle = INK; ctx.fillRect(X - 2, Y - 2, field.cols * CELL + 4, field.rows * CELL + 4);
+        // (at double resolution each kind of square is a picture: there can be 480 of them)
+        const P = CELL * 2, k = P / 20, kp = (n) => Math.round(n * k);
+        const dug = (key, base, edge, lip) => finePic(key + P, P, P, (g) => {
+          g.fillStyle = base; g.fillRect(0, 0, P, P);
+          g.fillStyle = lip; g.fillRect(0, 0, P, 1); g.fillRect(0, 0, 1, P);
+          g.fillStyle = edge; g.fillRect(P - 1, 0, 1, P); g.fillRect(0, P - 1, P, 1);
         });
-        const snowTile = () => finePic('hbSnow', 20, 20, (g) => {
+        const snowTile = () => finePic('hbSnow' + P, P, P, (g) => {
           const f = (x, y, w, h, co) => { g.fillStyle = co; g.fillRect(x, y, w, h); };
-          f(0, 0, 20, 20, '#9aaac0'); f(0, 0, 19, 19, '#ffffff'); f(1, 1, 18, 18, '#c4d0e0'); f(1, 1, 17, 17, '#eef3fa'); f(2, 2, 16, 16, '#e4ecf6');
-          f(5, 12, 10, 2, '#d8e2ee'); f(3, 14, 15, 4, '#d8e2ee');
-          f(0, 19, 1, 1, '#c4d0e0'); f(19, 0, 1, 1, '#c4d0e0');
+          f(0, 0, P, P, '#9aaac0'); f(0, 0, P - 1, P - 1, '#ffffff'); f(1, 1, P - 2, P - 2, '#c4d0e0'); f(1, 1, P - 3, P - 3, '#eef3fa'); f(2, 2, P - 4, P - 4, '#e4ecf6');
+          f(kp(5), kp(12), kp(10), kp(2), '#d8e2ee'); f(kp(3), kp(14), kp(15), kp(4), '#d8e2ee');
+          f(0, P - 1, 1, 1, '#c4d0e0'); f(P - 1, 0, 1, 1, '#c4d0e0');
         });
-        for (let r = 0; r < HB_ROWS; r++) for (let c = 0; c < HB_COLS; c++) {
-          const i = r * HB_COLS + c, x = HB_X + c * HB_CELL, y = HB_Y + r * HB_CELL;
+        for (let r = 0; r < field.rows; r++) for (let c = 0; c < field.cols; c++) {
+          const i = r * field.cols + c, x = X + c * CELL, y = Y + r * CELL;
           if (open[i] || (state === 'lost' && mine[i] && !caned[i])) {
             ctx.drawImage(i === boom ? dug('hbBoom', '#e03030', '#a82020', '#a82020') : dug('hbOpen', '#bcc8d6', '#98a4b4', '#a8b4c4'), x, y);
-            if (mine[i]) ctx.drawImage(humbugPic(1), x + 1, y + 1);
-            else if (near[i]) text(String(near[i]), x + 2, y + 1, 1, HB_INK[near[i]]);
+            if (mine[i]) ctx.drawImage(humbugPic(TILE.bug), x + TILE.bx, y + TILE.by);
+            else if (near[i]) text(String(near[i]), x + TILE.nx, y + TILE.ny, TILE.num, HB_INK[near[i]]);
             continue;
           }
           ctx.drawImage(snowTile(), x, y);
           if (!caned[i]) continue;
-          ctx.drawImage(canePic(1), x + 1, y);
+          ctx.drawImage(canePic(TILE.cane), x + TILE.cx, y + TILE.cy);
           // a cane where there wasn't a humbug after all
           if (state === 'lost' && !mine[i]) {
             ctx.fillStyle = INK;
-            ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + 9, y + 9); ctx.moveTo(x + 9, y + 1); ctx.lineTo(x + 1, y + 9); ctx.stroke();
+            ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + CELL - 1, y + CELL - 1); ctx.moveTo(x + CELL - 1, y + 1); ctx.lineTo(x + 1, y + CELL - 1); ctx.stroke();
           }
         }
         // the cursor's border blinks, and shows straight away whenever it moves
         if (!over && !(((tick - moved) >> 4) & 1)) {
-          const x = HB_X + cx * HB_CELL, y = HB_Y + cy * HB_CELL;
-          ctx.fillStyle = INK; ring(x - 1, y - 1, HB_CELL + 2, HB_CELL + 2);
-          ctx.fillStyle = '#f0b030'; ring(x, y, HB_CELL, HB_CELL);
-          fine(x, y, HB_CELL, 0.5, '#f8e8b0'); fine(x, y, 0.5, HB_CELL, '#f8e8b0'); fine(x + 0.5, y + HB_CELL - 0.5, HB_CELL - 0.5, 0.5, '#b87818'); fine(x + HB_CELL - 0.5, y + 0.5, 0.5, HB_CELL - 1, '#b87818');
+          const x = X + cx * CELL, y = Y + cy * CELL;
+          ctx.fillStyle = INK; ring(x - 1, y - 1, CELL + 2, CELL + 2);
+          ctx.fillStyle = '#f0b030'; ring(x, y, CELL, CELL);
+          fine(x, y, CELL, 0.5, '#f8e8b0'); fine(x, y, 0.5, CELL, '#f8e8b0'); fine(x + 0.5, y + CELL - 0.5, CELL - 0.5, 0.5, '#b87818'); fine(x + CELL - 0.5, y + 0.5, 0.5, CELL - 1, '#b87818');
         }
-        const lines = state === 'won' ? ['Christmas is saved! ' + tenths(time), record ? 'A new record!' : 'Best ' + tenths(best()), 'Space: new board   X: leave']
+        const lines = state === 'won' ? ['Christmas is saved! ' + tenths(time), (record ? 'A new record!' : 'Best ' + tenths(best())) + (field.counts ? '' : ' (practice)'), 'Space: new board   X: leave']
           : state === 'lost' ? ['Bah, humbug! There was one under there.', Math.floor(100 * (SAFE - left) / SAFE) + '% cleared in ' + tenths(time), 'Space: new board   X: leave']
             : ['Arrows: move  Space: open  X: cane  Enter: menu',
-              'Hold a direction to keep going',
+              field.counts ? 'Hold a direction to keep going' : 'Practice field: your time stays off the leaderboard',
               'Press Space on a number to open round its canes'];
         lines.forEach((l, k) => ctext(l, 205 + k * 11, over && !k ? (state === 'won' ? '#2c6a34' : '#c82020') : undefined));
       },
@@ -14384,11 +14452,11 @@
     const who = cupLeader && cupLeader.name + ' with ' + boardFmt(CUP, cupLeader.score);
     const board = (label) => [[label, 'OK'], (i) => { if (i === 0) { sfx('menu'); ui.push(Leaderboard({ key: CUP, score: 0 })); } }];
     if (!cupOver()) {
-      ask('The Christmas Cup: gold, with candy canes for handles. The plaque says "HUMBUG SWEEPER CHAMPION, CHRISTMAS 2026", and under that it\'s blank: whoever is fastest on New Year\'s Day gets their name engraved. '
-        + (who ? 'Leading right now: ' + who + '.' : 'Nobody has cleared a board yet.'), ...board('SEE THE STANDINGS'));
+      ask('The Christmas Cup: gold, with candy canes for handles. The plaque says "HUMBUG SWEEPER CHAMPION, CHRISTMAS 2026", and under that it\'s blank: whoever is fastest on the full field on New Year\'s Day gets their name engraved. '
+        + (who ? 'Leading right now: ' + who + '.' : 'Nobody has cleared a full field yet.'), ...board('SEE THE STANDINGS'));
       return;
     }
-    if (!cupLeader) { say('The Christmas Cup. The plaque for Christmas 2026 is blank: nobody cleared a Humbug Sweeper board all Christmas.'); return; }
+    if (!cupLeader) { say('The Christmas Cup. The plaque for Christmas 2026 is blank: nobody cleared a full Humbug Sweeper field all Christmas.'); return; }
     const plaque = 'The Christmas Cup. Engraved on the plaque: "HUMBUG SWEEPER CHAMPION, CHRISTMAS 2026: ' + cupLeader.name.toUpperCase() + ', ' + boardFmt(CUP, cupLeader.score) + '".';
     if (!cupMine(playerName) || CUP_PRIZES.every((item) => items[item] === 0)) { ask(plaque, ...board('SEE THE FINAL BOARD')); return; }
     const worn = wornLook(myLook);

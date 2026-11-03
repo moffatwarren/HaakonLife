@@ -104,7 +104,7 @@ Walk up to these and press A:
 - **Joe's Lego shelf** (2nd floor, office 146): the same falling bricks as Joe's brick battle, but on your own. Rows of grey bricks push up from the bottom, slowly at first and then faster and faster, so see how many lines you can clear before they reach the top
 - **Elevator**: every ride, a coworker gets in and makes conversation
 - **Hockey** (the parking lot's rink, at Christmas): one on one against a coworker, or live against other players; see Christmas below
-- **Humbug Sweeper** (any office computer, from Christmas 2026 on): clear a big field of snow without digging up a humbug, against the clock; see Christmas below
+- **Humbug Sweeper** (any office computer, from Christmas 2026 on): clear a field of snow, in one of three sizes, without digging up a humbug, against the clock, and never having to guess; see Christmas below
 - **Winter games** (around the parking lot, at Christmas): chopping wood, toasting marshmallows, decorating the big spruce, building a snowman, working the hot chocolate stand and a snowball fight; see Christmas below
 - **Forklift** (Kingston plant, in the warehouse): Forklift Rush. The truck at the dock
   calls for one kind of pallet at a time (fan, coil, damper or motor); drive the forks
@@ -1144,8 +1144,11 @@ From November 27 to December 31 (by your device's date) the office does Christma
 - **Humbug Sweeper**: from the day Christmas first starts (`SEASON_FROM`, November 27 2026)
   every office computer has a second icon on its desktop, **Humbugs**, and it stays there
   for good, all year round, after the holidays are over.
-  99 humbugs (grumpy little green gremlins out to spoil Christmas) are hiding under a 30
-  by 16 field of snow. Open a square and it shows how many humbugs are in the eight round
+  Humbugs (grumpy little green gremlins out to spoil Christmas) are hiding under a field of
+  snow. Each time you come in you pick how big: **Small** (9 by 9 with 10 humbugs, on bigger
+  squares), **Medium** (16 by 16 with 40) or **Full** (30 by 16 with 99). It starts on the
+  one you last played, or on Small your first time, and CHANGE SIZE on the Enter / START menu
+  brings the choice back up. Open a square and it shows how many humbugs are in the eight round
   it; if there are none, those all open too, and so on out. Plant a **candy cane** on a
   square you know has a humbug under it (the counter on the left is how many canes you've
   still to plant). Open a number that already has that many canes round it and the rest
@@ -1156,13 +1159,23 @@ From November 27 to December 31 (by your device's date) the office does Christma
   blinking border (hold one and it keeps going), A opens and B plants or picks up a cane.
   Pick NEW BOARD from the Enter / START menu for a fresh field. The clock runs
   from the first square you open to the last, by the real clock, and doesn't stop for the
-  menu. Your quickest time, to the tenth of a second, goes on the **HUMBUG SWEEPER**
-  leaderboard on the Christmas page of the Hall of Fame (lowest wins); it comes up once you
-  leave the game, with the quickest board you cleared while you were in it. Every board is
-  the same size with the same 99 humbugs, so the times stand up against each other all
-  season. It's `HumbugGame` in `js/game.js`, with the desktop in `ComputerScreen`.
+  menu. Only **Full** counts: your quickest time there, to the tenth of a second, goes on the
+  **HUMBUG SWEEPER** leaderboard on the Christmas page of the Hall of Fame (lowest wins); it
+  comes up once you leave the game, with the quickest board you cleared while you were in it.
+  Every full field is the same size with the same 99 humbugs, so the times stand up against
+  each other all season. Small and Medium are practice: your best on each shows in the game, in
+  this browser, and goes nowhere else, on no leaderboard and not on the Christmas Cup.
+  **You never have to guess, on any size.** Wherever you open first, you can always work out a
+  safe square from what's showing. `SWEEPER.board` in `js/sweeper.js` lays the humbugs at random
+  when you open your first square, plays the field the way a person would without looking under
+  the snow, and throws it away and lays another if it ever gets stuck, before the clock starts.
+  It only uses what a good player looks for: one number at a time, two numbers side by side
+  (the 1-1 and 1-2 at the edge of a patch), and the counter. About 1 in 10 random full fields pass,
+  which takes a few thousandths of a second. `server/test/sweeper.test.js` checks fields with a
+  separate, more thorough solver that tries every way the humbugs could be hiding.
+  It's `HumbugGame` in `js/game.js`, with the desktop in `ComputerScreen`.
 - **The Christmas Cup**: Humbug Sweeper's Christmas champion. From November 27 to
-  December 31 2026 (by your device's date), every board you clear goes on a second
+  December 31 2026 (by your device's date), every full field you clear goes on a second
   leaderboard as well, **CHRISTMAS CUP 2026** (`scores/humbug26`), and that's the one that
   comes up after you play; after New Year's Eve nothing more is sent to it, so it's frozen.
   The cup itself (gold, with candy canes for handles, on a wooden plinth) stands in
@@ -1382,7 +1395,7 @@ pants and their colours.
 | Kingston plant | `forklift`, `paint` (Even Coat) |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`), `fame` (the Hall of Fame) |
 | Halloween | `contest`, `bob`, `mummy`, `carve`, `treat`, `ghosts`, `hsplash` (the closing screen) |
-| Christmas | `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `humbug` (Humbug Sweeper), `hockey` (against whoever's minding the gate; add `&yard` to see the rink) |
+| Christmas | `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `humbug` (Humbug Sweeper: it asks what size, or add `&field=small`, `medium` or `full` to go straight in), `hockey` (against whoever's minding the gate; add `&yard` to see the rink) |
 
 Plain `index.html#play` skips the title screen and drops you at the entrance.
 
