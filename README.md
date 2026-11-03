@@ -113,10 +113,11 @@ Walk up to these and press A:
   turns while it's moving. Bringing the wrong pallet costs 3 seconds, and running into
   Steve on the crosswalk costs 5
 - **Grey unit in the paint booth** (Kingston plant, in the corner of sub-assembly): Even Coat.
-  Hold A to spray the job's colour and steer the gun with the arrows. One pass leaves a
-  stripe; passes that overlap by about half leave an even coat. Stay in one spot and the
-  paint runs. Nobody masked the portholes, latches or nameplate, so let go of the trigger
-  over them. Dust drifts down from the booth fans: catch it with the spray before it
+  Hold A to spray the job's colour and steer the gun with the arrows; a thumbstick (on a
+  phone's screen or a controller) aims it any way you push it, as fast as you push it, so
+  a slow pass goes on thicker. One pass leaves a stripe; passes that overlap by about half
+  leave an even coat. Stay in one spot and the paint runs. Nobody masked the portholes,
+  latches or nameplate, so let go of the trigger over them. Dust drifts down from the booth fans: catch it with the spray before it
   lands. 45 seconds and one can of paint; press Enter (START) to call QC over early. QC
   starts from the coverage (out of 100) and takes off 3 for each run (30 at most), 4 for
   each part with paint on it and 2 for each bit of dust (10 at most), and shows you the

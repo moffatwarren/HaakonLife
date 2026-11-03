@@ -764,7 +764,7 @@
     el.addEventListener('lostpointercapture', up);
   });
   // The direction control is a thumbstick for walking round and for the games that want one
-  // (hockey, the snowman and Damir's lights: stick on their screens); menus and everything else are easier
+  // (hockey, the snowman, Damir's lights and Even Coat: stick on their screens); menus and everything else are easier
   // with a D-pad (setPadMode). The stick still holds one of the four directions down, for
   // whatever goes by those, and also says which way it's pushed and how far (stick).
   // It's the same element either way, so a thumb held down through the door carries on.
@@ -11321,7 +11321,7 @@
       sfx('ding');
     }
     const self = {
-      music: 'plant', doing: 'paint',
+      music: 'plant', doing: 'paint', stick: true,
       update() {
         t++;
         if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; } return; }
@@ -11338,10 +11338,10 @@
         }
         if (pressed.has('b')) { remove(self); say('You put the spray gun down. The unit stays grey.'); return; }
         if (pressed.has('start')) { finish('You call QC over.'); return; }
-        const dx = (held.right ? 1 : 0) - (held.left ? 1 : 0), dy = (held.down ? 1 : 0) - (held.up ? 1 : 0);
-        const v = dx && dy ? SPEED * 0.7071 : SPEED;
-        gx = Math.max(X0 - 18, Math.min(X0 + FW + 18, gx + dx * v));
-        gy = Math.max(Y0 - 14, Math.min(Y0 + FH + 14, gy + dy * v));
+        // eight directions on the arrows, any way at all on a thumbstick (gentler pushed only part way)
+        const s = steer(), len = Math.hypot(s.x, s.y), v = len > 0.05 ? SPEED * Math.min(1, len) / len : 0;
+        gx = Math.max(X0 - 18, Math.min(X0 + FW + 18, gx + s.x * v));
+        gy = Math.max(Y0 - 14, Math.min(Y0 + FH + 14, gy + s.y * v));
         spraying = held.a && can > 0;
         if (spraying) {
           can--;
