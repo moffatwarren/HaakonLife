@@ -1,4 +1,11 @@
 (function () {
+  // A browser can keep using a saved index.html for a while after an update, and that's what lists
+  // the scripts to load (FILES). So this file can turn up without a new script it needs, and
+  // only whatever uses that script would break, much later on. Stop here instead: with no
+  // window.GAME, index.html reloads the page, and a reload always asks for the newest index.html.
+  // (tools/check_games.mjs makes sure every script has a name in this list.)
+  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'CHESS'].some((name) => !window[name])) return;
+
   // View: 20 x 15 tiles of 16px.
   const SW = 320, SH = 240;
   const MAPS = window.OFFICE_MAPS;

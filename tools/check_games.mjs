@@ -305,6 +305,18 @@ if (loaded.join() !== testPage.join()) say(`index.html loads ${loaded.join(', ')
 for (const f of readdirSync(join(ROOT, 'js'))) {
   if (f.endsWith('.js') && !loaded.includes(f.slice(0, -3))) say(`js/${f} isn't in FILES in index.html, so it never loads.`);
 }
+// The list at the very top of js/game.js, of what it can't start without (it says why). A name
+// missing from it brings back the crash it's there to stop, and a name in it that no script sets
+// means the game never starts for anyone, so both stop the deploy.
+const needs = new Set((/\[([^\]]*)\]\.some\(\(name\) => !window\[name\]\)/.exec(SRC) || ['', ''])[1].split(',').map((n) => n.trim().replace(/'/g, '')).filter(Boolean));
+if (!needs.size) throw new Error('can\'t read the list of scripts at the top of js/game.js');
+const scriptNames = new Set();
+for (const f of loaded.filter((x) => x !== 'game')) {
+  const names = [...read('js/' + f + '.js').matchAll(/\bwindow\.(\w+)\s*=(?!=)/g)].map((m) => m[1]);
+  names.forEach((n) => scriptNames.add(n));
+  if (!names.some((n) => needs.has(n))) say(`js/${f}.js has nothing in the list at the very top of js/game.js: add ${names[0] || 'the window.NAME it sets'} there, or anyone with a saved index.html crashes when something uses it.`);
+}
+for (const n of needs) if (!scriptNames.has(n)) say(`The list at the very top of js/game.js has ${n}, but no script sets window.${n}, so the game would never start for anyone.`);
 
 // ---------- and the verdict ----------
 const unique = [...new Set(problems)];

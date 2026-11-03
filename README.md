@@ -798,6 +798,9 @@ A bug in a game ends that game, not the whole thing:
 - **While the game is starting**: the page tries again by itself, three times, 5 seconds apart,
   then asks. That covers somebody loading it partway through a deploy, when the files go up
   one at a time and they can get old ones mixed with new ones.
+  It also covers a browser still using a saved `index.html` after an update, which can leave
+  a new script off its list (`FILES`) while the rest of the game is new: `js/game.js` checks for
+  everything it needs before it does anything else, and a reload gets the newest `index.html`.
 - **On the game server**: something broken or too big coming down a connection drops that one
   connection, and a bug while handling someone's message goes in the log. Everybody else
   carries on. (Bugs in a game the server runs end that game: see `crash` in `server/rooms.js`

@@ -102,7 +102,8 @@ keep their own copy of the rules, which has to be kept in step by hand. Don't co
   sounds, players marked `ai` for the computer to play, and `VERSION` so a browser can tell whether
   the server has the same rules.
 - **The browser:** `WidgetGame` in `js/game.js` reads keys, calls `step` and draws. Add the file to
-  `FILES` in `index.html` and to `tools/test.html`, in the same order.
+  `FILES` in `index.html` and to `tools/test.html`, in the same order, and its `window.WIDGET` to the
+  list at the very top of `js/game.js` (a browser can have a saved `index.html` without the new file).
 - **The server:** a module in `server/tables/` (anyone can join) or `server/games/` (a two-player
   challenge), listed in that folder's `index.js`. It loads the rules with `vm`, as `load()` does in
   `server/tables/hockey.js`, and decides what really happens.
@@ -139,5 +140,8 @@ keep their own copy of the rules, which has to be kept in step by hand. Don't co
 - **Crash tests:** `node:test` swallows uncaught errors from a server started inside the test, so a
   crash test passes on broken code. Run the server in a child process (`server/test/robust.test.js`),
   and check a new crash test fails on the old code.
+- **Fresh profiles:** a new browser profile has nothing saved, so testing in one never shows a bug that
+  needs a saved copy of a file. `index.html` has no cache headers on the hosting, and the scripts are
+  always rechecked, so an old `index.html` can run with new scripts for a while after an update.
 - **Shell:** Claude Code's shell here is zsh, so `for g in $LIST` doesn't split: use `bash -c`. Never
   `pkill -f` a pattern that also appears in your own command, or it kills your own shell.
