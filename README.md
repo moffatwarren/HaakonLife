@@ -75,6 +75,7 @@ Walk up to these and press A:
 - **Cody's casino** (cubicle 142): see below
 - **Coffee machine** (lunch room): catch the coffee in your cup. It pours 150 drops, and the nozzle gets quicker and twitchier as it goes; you're scored on how many you catch
 - **Recycling bin** (lunch room): toss crumpled paper into the bin; watch the wind
+- **Chess** (the lunch room table with the board on it): a whole game against whichever coworker happens to be looking for one. Pick white or black first. Each coworker always plays the same way, from Beginner to Shark, as it says under their name. The arrows move the cursor, A picks a piece up and puts it down, and B lets go of it, or with nothing in your hand opens the menu (keep playing or leave). A pawn reaching the far end asks what it should become. Stalemate, not enough pieces left, the same position three times and fifty moves with no capture or pawn move are all draws. Every piece is the shape you'd expect, so you can always tell which is which, with some air handling on top: a pawn's head is a little fan, a rook's walls are damper blades, the queen's collar is a copper coil and the king has the supply fan in his crown. Can also be played against another player (see **Playing together**)
 - **Fridge**: keep your eye on your lunch while the containers shuffle
 - **Candy table**: hold A to reach for candy, and freeze when your coworker turns around
 - **Photocopier**: drop each copy onto the pile; anything hanging over gets cut off
@@ -197,7 +198,9 @@ picked out (and added underneath if you didn't make the top ten). Each name has 
 row per game, holding its best score, so the same name on a phone and a computer is
 one person. Richard's duel, Wade's match and Kiki's jar are win-or-lose, so
 they have no board. Pong's board counts how many times each name has beaten the TV:
-each win adds one and shows the board, and a loss leaves it alone.
+each win adds one and shows the board, and a loss leaves it alone. Chess's board (on the
+Hall of Fame's Coworkers page) counts the same way: each checkmate you give, against a coworker
+or another player, adds one. Winning because someone resigned, left or ran out of time doesn't.
 
 The live poker table's board (**Live Hold'em**) is a running tally rather than a best
 score. Every hand you're dealt into counts: if you end it with more spring rolls than you
@@ -215,7 +218,9 @@ The tall gold-framed board on the left wall of **Reception** (opposite the candy
 shows every leaderboard at once. Left and right flip between its pages:
 
 - **Champions**: the race for Office Champion. Every board's top ten earn points
-  (10 for 1st, down to 1 for 10th), and holding 1st on a board is a crown. Underneath
+  (10 for 1st, down to 1 for 10th), and holding 1st on a board is a crown. It shows 8 names
+  at a time: up and down scroll through the rest, and your own row stays in view just below
+  the list if it's scrolled out of sight. Underneath
   you see your place, how many points it takes to pass the person above you, and how
   many crowns, top tens and games you have. Whoever is on top, the Office Champion,
   gets a sparkling crown and a star trail: wherever they walk, a short trail of twinkling
@@ -595,6 +600,14 @@ which tile they're on (and has them walking from tile to tile).
     challenging needs it). The game
     server runs this one (`server/games/snowball.js`), so it's only in the list when
     there is one.
+  - **Chess**: the lunch room's chess, against each other. Before it starts you each pick a
+    side. If you pick different ones you get them, and if you pick the same one a coin
+    decides; whoever hasn't picked after 20 seconds gets whatever's left. You each have ten
+    minutes for the whole game, so someone who wanders off can't hold you up: their clock
+    runs out and you win (unless all you have left is your king, or a king and one small
+    piece, when it's a draw). B opens the menu, which is where you resign. If they
+    leave, or drop out for too long, the game's yours. The game server runs this one
+    (`server/games/chess.js`), so it's only in the list when there is one.
 
   The treadmill, Snake, the control panel and mini golf carry on until you're both done.
 
@@ -702,6 +715,18 @@ player gets sent. Then add an entry with the same key and `server: true` to `VER
 what the player does with `m.input(...)`, and finishes when `m.result` is set (or
 `m.gone`, if the other player left). Challenging somebody works just like the other
 head-to-head games, and these games only show up in the list when there's a game server.
+
+Chess (`server/games/chess.js`, drawn by `ChessGame`) is one of these, with its rules in
+`js/chess.js`: the same file the browser uses to play a coworker, with no drawing or keys in
+it. `server/test/chess.test.js` plays it with no browser, and counts every legal move from six
+well-known positions against the numbers every chess program has to get. The server reads
+`js/chess.js` when the first game starts, so like live hockey it needs the whole repository
+there. If it can't read it, the game stops as soon as it starts and nobody wins. Your own move
+shows the moment you make it and is sent to the server, which checks it: if it ever disagrees,
+the board goes back to what the server says. On Render a change to just `js/chess.js` doesn't
+redeploy the server, so deploy it by hand then (or change something in `server/` too). To try
+it, open `tools/test.html#play&server=ws://localhost:8080` in two windows, walk up to each
+other and pick CHESS from CHALLENGE.
 Give the entry `christmas: true` as well (as the snowball fight has) and it's only in the
 list from the day Christmas first starts (`SEASON_FROM`), then for good.
 
@@ -1289,7 +1314,7 @@ pants and their colours.
 
 | | |
 | --- | --- |
-| Office and lunch room | `coffee`, `toss`, `lunch`, `candy`, `stack`, `jam`, `desk`, `filter`, `simon` |
+| Office and lunch room | `coffee`, `toss`, `lunch`, `candy`, `chess` (against a coworker; add `&fen=` and a position in the usual chess notation to start from there), `stack`, `jam`, `desk`, `filter`, `simon` |
 | Fitness room | `punch`, `squat`, `run`, `pulldown`, `ball`, `laundry` |
 | TVs and computers | `pong`, `snake`, `poker`, `blackjack` |
 | Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf`, `build` (Joe's Lego shelf) |
@@ -1324,7 +1349,7 @@ Best scores are saved in the browser, and sent to the online leaderboards when
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
 `forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `pokerlive`, `hockey1`, `hockey2` and `hockey3` (live hockey, with `&yard=1` to be out at the rink), `signhockey` and `signpoker` (the sign-up sheets; all of these from `pokerlive` on need `&server=`), `blackjack`, `build`, `forklift`, `paint`,
-`chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `hockey`) opens a game straight away.
+`chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `hockey`, `chess`) opens a game straight away. With `chess`, `&fen=` and a position in the usual chess notation starts from there, which is the quick way to try a checkmate or a promotion.
 `&dog=Bella` puts that dog right in front of you; `game=catch` plays catch with it
 and `game=dogs` shows the frisbee leaderboard.
 For Linda's list, `&quest=1` hands you the list (`&quest=4` with 3 tasks done,
@@ -1362,7 +1387,7 @@ with `&name=Sam` among them on some boards).
 
 To try a head-to-head game on your own, add `&vs=1` with `game=duel`, `jar`, `lego`,
 `dance`, `coffee`, `run`, `snake`, `simon` or `golf`. It plays against "Echo", a stand-in who
-sends back everything you send a second later (not Pong or the snowball fight, which need the game server). That's for seeing the screens, not
+sends back everything you send a second later (not Pong, chess or the snowball fight, which need the game server). That's for seeing the screens, not
 for a fair game: the score races always end in a dead heat (`&seed=5` deals a
 different game).
 

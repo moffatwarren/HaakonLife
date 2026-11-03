@@ -4349,6 +4349,21 @@ window.Art = (function () {
   PAINT32['~'] = PAINT32.C; // (open curtains: the same painter, which looks at t)
   PAINT32.Q = PAINT32.V; // (as with the TVs)
   // the plant's finished units (SHIP_UNITS' layouts, drawn with the 32 x 32 parts) and the casino's tables
+  // the lunch room's chessboard (the map's '8'): laid out on a table, ready for a game
+  PAINT32['8'] = (b, get, x, y) => paintWhole32(b, get, x, y, '8', (W, H, s, r, S, R) => {
+    const SIZE = 5, X = 12, Y = 7, N = SIZE * 8;
+    R(X - 2, Y - 2, N + 4, N + 4, 'k');
+    R(X - 1, Y - 1, N + 2, N + 2, 'D');
+    for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) {
+      const px = X + i * SIZE, py = Y + j * SIZE;
+      R(px, py, SIZE, SIZE, (i + j) & 1 ? 'p' : 'c');
+      if (j > 1 && j < 6) continue;
+      // the back row stands a little taller. Black's are solid with a glint, white's have a white middle
+      const tall = j === 0 || j === 7, top = py + (tall ? 0 : 1), h = tall ? 4 : 3;
+      R(px + 1, top, 3, h, 'k');
+      if (j > 5) R(px + 2, top + 1, 1, h - 1, 'w'); else S(px + 2, top, 'g');
+    }
+  });
   for (const t of '012345') PAINT32[t] = (b, get, x, y) => paintWhole32(b, get, x, y, t, (W, H, s, r, S, R) => SHIP_UNITS[t](W, H, s, r, ahu32(S, R)));
   for (const t of '[]') PAINT32[t] = (b, get, x, y) => paintWhole32(b, get, x, y, t, (W, H, s, r, S, R) => CASINO_TABLES32[t](W * 2, H * 2, S, R));
 
@@ -4502,7 +4517,7 @@ window.Art = (function () {
   // what each kind of desk or counter is made of: [the tiles it joins up with, top, front, highlight]
   const BLOCKS32 = {
     d: ['dm%!', 'N', 'n', 'y'], m: ['dm%!', 'N', 'n', 'y'], '%': ['dm%!', 'N', 'n', 'y'], '!': ['dm%!', 'N', 'n', 'y'],
-    T: ['T', 'y', 'N', 'w'], k: ['kMnP', 'W', 'g', 'w'], M: ['kMnP', 'W', 'g', 'w'], P: ['kMnP', 'W', 'g', 'w'],
+    T: ['T', 'y', 'N', 'w'], 8: ['8', 'y', 'N', 'w'], k: ['kMnP', 'W', 'g', 'w'], M: ['kMnP', 'W', 'g', 'w'], P: ['kMnP', 'W', 'g', 'w'],
     r: ['rR', 'y', 'u', 'w'], R: ['rR', 'y', 'u', 'w'], Z: ['Z', 'y', 'N', 'w'], e: ['e', 'g', 'K', 'G'],
     '+': ['+', 'W', 'u', 'w'], // (the plant's steel work tables)
   };

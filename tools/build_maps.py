@@ -16,7 +16,7 @@ Map glyphs
              U supply cupboard  Y printer
              V TV on a right-hand wall  Q TV on a left-hand wall
              F fan unit  L cooling coil  a damper  K electrical control panel
-             R reception desk with PC  Z table with candy
+             R reception desk with PC  Z table with candy  8 table with a chessboard
              * the Hall of Fame board in reception (every game's leaderboard)
              W washer  O dryer  A squat rack  G punching bag  N locker
              $ Employee of the Month easel (plain floor until Linda's list is done)
@@ -279,6 +279,7 @@ for ty in (4, 8):
         f1.fill(tx, ty, tx + 1, ty + 1, 'T')
         for cy in (ty, ty + 1):
             f1.put(tx - 1, cy, 'c'); f1.put(tx + 2, cy, 'c')
+f1.fill(91, 4, 92, 5, '8')  # the first table has a chessboard on it (mini-game)
 f1.fill(106, 6, 106, 9, 'V')  # TV on the right wall
 f1.put(106, 4, 'p'); f1.put(89, 4, 'p')
 f1.exit((86, 3), (87, 3))

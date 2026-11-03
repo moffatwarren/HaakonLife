@@ -397,6 +397,18 @@ window.MUSIC = {
     ],
   },
   // hockey on the rink: a rink organ, a tune and its harmony in thirds over a bouncing bass
+  // something quiet to think to
+  chess: {
+    bpm: 84,
+    voices: [
+      { type: 'square', vol: 0.02, notes:
+        'A4 - C5 - E5 - D5 C5 | B4 - - - G4 - B4 - | C5 - E5 - A5 - G5 E5 | F5 - - - E5 - . . |' +
+        'D5 - F5 - A5 - G5 F5 | E5 - - - C5 - E5 - | D5 - B4 - G4 - B4 D5 | C5 - B4 - A4 - . . |' },
+      { type: 'triangle', vol: 0.07, notes:
+        'A2 . E3 . A2 . E3 . | G2 . D3 . G2 . D3 . | A2 . E3 . C3 . G3 . | F2 . C3 . C3 . G2 . |' +
+        'D3 . A3 . F2 . C3 . | C3 . G3 . A2 . E3 . | G2 . D3 . G2 . B2 . | E2 . E3 . A2 . . . |' },
+    ],
+  },
   hockey: {
     bpm: 152,
     voices: [

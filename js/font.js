@@ -82,6 +82,7 @@ window.FONT = (function () {
     '<': '00010 00100 01000 10000 01000 00100 00010',
     '>': '01000 01100 01110 01111 01110 01100 01000', // menu cursor
     '~': '00000 00000 11111 01110 00100 00000 00000', // "more text" arrow
+    '^': '00000 00000 00100 01010 10001 10001 10001', // "more above" arrow: v the other way up
   };
   const glyphs = {};
   for (const ch in G) glyphs[ch] = G[ch].split(' ');
