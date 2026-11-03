@@ -531,7 +531,8 @@ which tile they're on (and has them walking from tile to tile).
   the closest one that's free, as a damper goes by 🪟. A typed line
   goes in your record as two 16-character pieces (`w0` and `w1`). Older versions just don't
   show an emoji or a typed line.
-- **Challenge**: walk up to another player, press A and pick a game:
+- **Challenge**: walk up to another player, press A and pick a game (each has a little
+  picture beside its name, from `VS_ICONS`):
   - **Air duel**: Richard's air handling duel, against each other. You each pick a
     move in secret and the round plays out once you've both picked.
   - **Candy jar**: Kiki's guess-the-sweets, against each other, with the same jars

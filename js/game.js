@@ -1064,7 +1064,9 @@
   function Choice(options, x, y, cb, opts) {
     opts = opts || {};
     let cur = opts.start || 0, wait = opts.wait || 0;
-    const w = Math.max(opts.minChars || 0, ...options.map((o) => o.length)) * 6 + 22, h = options.length * 16 + 8;
+    // (opts.icon(i, x, y): draws a 12 x 12 picture between the pointer and option i's name)
+    const nameX = opts.icon ? 31 : 16;
+    const w = Math.max(opts.minChars || 0, ...options.map((o) => o.length)) * 6 + 6 + nameX, h = options.length * 16 + 8;
     if (x < 0) x = SW - w + x + 1;
     const self = {
       options, overlay: true,
@@ -1080,7 +1082,8 @@
         box(x, y, w, h);
         roundBox(x + 6, y + 5 + cur * 16, w - 12, 13, 2.5, 'rgba(120, 110, 90, 0.16)');
         self.options.forEach((o, i) => {
-          text(o, x + 16, y + 8 + i * 16);
+          if (opts.icon) opts.icon(i, x + 15, y + 5.5 + i * 16);
+          text(o, x + nameX, y + 8 + i * 16);
           if (i === cur) text('>', x + 8, y + 8 + i * 16);
         });
       },
@@ -12914,6 +12917,100 @@
     golf: { label: 'MINI GOLF', title: 'a round of mini golf', Game: (m) => GolfGame(m) },
     snowball: { label: 'SNOWBALL FIGHT', title: 'a snowball fight', server: true, christmas: true, Game: (m) => SnowballGame(m) },
   };
+  // The little picture beside each game in the challenge list, with the same keys as VERSUS.
+  // Each is painted once in real pixels, 24 x 24 (so 12 x 12 on the screen), with
+  // r(x, y, w, h, colour) and o(centre x, centre y, radius, colour). Keep within 2 to 21 each way
+  // with the light from the top left: vsIcon adds the 2-pixel outline round anything solid, so
+  // something see-through, like the coffee's steam, doesn't get one.
+  const VS_ICONS = {
+    duel: (r, o) => { // an air handler's fan
+      r(2, 2, 20, 20, '#9098a8'); r(2, 2, 20, 2, '#c8ccd8'); r(2, 2, 2, 20, '#c8ccd8'); r(4, 20, 18, 2, '#5c6474'); r(20, 4, 2, 18, '#5c6474');
+      o(12, 12, 8, '#283040');
+      o(9, 9, 3, '#d8f0fc'); o(15, 9, 3, '#a8d0ec'); o(9, 15, 3, '#a8d0ec'); o(15, 15, 3, '#78a8d0');
+      o(12, 12, 2, '#283040'); o(12, 12, 1, '#f8f8f8');
+    },
+    jar: (r, o) => { // a jar of sweets
+      r(5, 7, 14, 15, '#eef4ff'); r(4, 8, 16, 13, '#eef4ff'); r(18, 8, 2, 13, '#cfdcf0');
+      o(8, 18, 2, '#f85848'); o(13, 19, 2, '#78e060'); o(17, 17, 2, '#68a0f8'); o(10, 14, 2, '#f8d848'); o(15, 13, 2, '#d870d0'); o(7, 11, 2, '#f0b030');
+      r(6, 2, 12, 5, '#c8ccd8'); r(6, 2, 12, 1, '#f0f2f8'); r(6, 6, 12, 1, '#9098a8');
+    },
+    lego: (r) => { // a brick
+      r(4, 4, 6, 4, '#f06050'); r(8, 4, 2, 4, '#d83030'); r(14, 4, 6, 4, '#f06050'); r(18, 4, 2, 4, '#d83030');
+      r(2, 8, 20, 13, '#d83030'); r(2, 8, 20, 2, '#f06050'); r(2, 8, 2, 13, '#f06050'); r(4, 19, 18, 2, '#a01c20'); r(20, 10, 2, 11, '#a01c20');
+    },
+    dance: (r) => { // a disco ball
+      r(10, 2, 4, 3, '#9098a8');
+      for (let y = 4; y < 22; y++) for (let x = 3; x < 21; x++) {
+        if (Math.hypot(x - 11.5, y - 12.5) > 9) continue;
+        const tile = (Math.floor(x / 3) + Math.floor(y / 3)) & 1, lit = x + y < 22;
+        r(x, y, 1, 1, tile ? (lit ? '#ffffff' : '#a8b8e0') : (lit ? '#c0ccf0' : '#6878b8'));
+      }
+      r(12, 9, 3, 3, '#ff2a6d'); r(6, 15, 3, 3, '#05d9e8'); r(15, 15, 3, 3, '#f9f871');
+    },
+    forklift: (r, o) => { // a forklift
+      r(5, 6, 9, 6, '#bfe4f4'); r(4, 4, 11, 2, '#585868'); r(4, 4, 2, 8, '#585868'); r(13, 4, 2, 8, '#585868');
+      r(3, 11, 13, 7, '#f0b030'); r(3, 11, 13, 2, '#f8d868'); r(3, 16, 13, 2, '#c08018');
+      r(16, 2, 3, 17, '#585868'); r(16, 2, 1, 17, '#8890a0'); r(19, 17, 3, 2, '#c8ccd8');
+      o(7, 19, 3, '#282830'); o(7, 19, 1, '#c8ccd8'); o(14, 19, 3, '#282830'); o(14, 19, 1, '#c8ccd8');
+    },
+    coffee: (r) => { // a hot mug
+      const steam = 'rgba(120, 130, 150, 0.8)';
+      r(7, 2, 2, 2, steam); r(6, 4, 2, 2, steam); r(7, 6, 2, 1, steam); r(12, 2, 2, 2, steam); r(11, 4, 2, 2, steam); r(12, 6, 2, 1, steam);
+      r(4, 9, 13, 13, '#f8f8f8'); r(14, 9, 3, 13, '#c8ccd8'); r(4, 20, 13, 2, '#c8ccd8');
+      r(4, 9, 13, 3, '#6a3c1c'); r(4, 9, 8, 1, '#9a6434');
+      r(17, 12, 5, 2, '#e8e8f0'); r(20, 12, 2, 7, '#c8ccd8'); r(17, 17, 5, 2, '#c8ccd8');
+    },
+    run: (r) => { // a treadmill
+      r(16, 7, 3, 11, '#8890a0'); r(16, 7, 1, 11, '#c8ccd8');
+      r(13, 2, 9, 5, '#3a3a48'); r(14, 3, 7, 3, '#78e060');
+      r(7, 10, 9, 2, '#c8ccd8');
+      r(2, 17, 20, 5, '#383848'); r(2, 17, 20, 1, '#686878');
+      for (let x = 3; x < 20; x += 5) r(x, 19, 3, 1, '#a4acc4');
+    },
+    snake: (r) => { // a snake, coiled
+      const bar = (x, y, w, h) => { r(x, y, w, h, '#58a848'); r(x, y, w, 1, '#78c868'); r(x, y + h - 1, w, 1, '#387828'); };
+      bar(4, 10, 16, 4); bar(4, 16, 16, 4); bar(16, 11, 4, 8); bar(4, 4, 4, 9); bar(4, 4, 14, 4);
+      r(3, 18, 1, 1, '#58a848');
+      r(13, 4, 7, 4, '#a8e070'); r(13, 4, 7, 1, '#d0f8a0'); r(16, 5, 2, 2, '#0d2818');
+    },
+    pong: (r) => { // two bats and a ball on a screen
+      r(2, 3, 20, 18, '#686878'); r(3, 4, 18, 16, '#101018');
+      r(5, 6, 2, 7, '#f8f8f8'); r(17, 11, 2, 7, '#f8f8f8'); r(12, 8, 2, 2, '#f8f8f8');
+    },
+    simon: (r, o) => { // the panel's four lights, where they are in the game
+      r(2, 2, 20, 20, '#585868'); r(2, 2, 20, 2, '#8890a0'); r(2, 2, 2, 20, '#8890a0'); r(4, 20, 18, 2, '#383848'); r(20, 4, 2, 18, '#383848');
+      const lamp = (x, y, c) => { o(x, y, 3, '#282830'); o(x, y, 2, c); r(x - 1, y - 1, 1, 1, '#ffffff'); };
+      lamp(12, 7, '#f85848'); lamp(17, 12, '#78e060'); lamp(12, 17, '#68a0f8'); lamp(7, 12, '#f8d848');
+    },
+    golf: (r, o) => { // a flag on the green, and the ball
+      r(3, 17, 18, 5, '#58a848'); r(2, 18, 20, 4, '#58a848'); r(3, 17, 18, 1, '#88d060'); r(2, 20, 20, 2, '#387828');
+      r(13, 18, 4, 1, '#181820');
+      r(14, 3, 2, 15, '#f8f8f8'); r(15, 3, 1, 15, '#c8ccd8');
+      r(10, 3, 4, 8, '#e03030'); r(7, 4, 3, 6, '#e03030'); r(4, 6, 3, 2, '#e03030'); r(7, 4, 7, 1, '#f86050'); r(10, 3, 4, 1, '#f86050'); r(7, 9, 7, 1, '#a01c20'); r(10, 10, 4, 1, '#a01c20');
+      o(7, 17, 2, '#f8f8f8');
+    },
+    snowball: (r, o) => { // a snowball
+      o(12, 12, 9, '#b4c2d8'); o(11, 11, 8, '#f4f8fc'); o(9, 9, 3, '#ffffff');
+      r(15, 14, 2, 1, '#b4c2d8'); r(11, 17, 2, 1, '#b4c2d8');
+    },
+  };
+  function vsIcon(key, x, y) {
+    const paint = VS_ICONS[key];
+    if (!paint) return;
+    ctx.drawImage(finePic('vsIcon.' + key, 24, 24, (c) => {
+      const r = (rx, ry, w, h, co) => { c.fillStyle = co; c.fillRect(rx, ry, w, h); };
+      paint(r, (cx, cy, rad, co) => {
+        for (let j = -rad; j < rad; j++) { const w = Math.round(Math.sqrt(rad * rad - (j + 0.5) * (j + 0.5))); r(cx - w, cy + j, w * 2, 1, co); }
+      });
+      // (goes in behind what's there; the corners come out rounded, as outlined32 does in art.js)
+      const d = c.getImageData(0, 0, 24, 24).data;
+      c.globalCompositeOperation = 'destination-over';
+      for (let py = 0; py < 24; py++) for (let px = 0; px < 24; px++) {
+        if (d[(py * 24 + px) * 4 + 3] !== 255) continue;
+        for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (Math.abs(i) + Math.abs(j) <= 3) r(px + i, py + j, 1, 1, col.dark);
+      }
+    }), x, y);
+  }
   // A small seeded random number generator (mulberry32), so both players in a match get
   // the same jars.
   function seeded(seed) {
@@ -13508,7 +13605,7 @@
       mp.pending = c;
       mpSend(o.id, { k: 'ask', m: c.id, g: c.game, seed: c.seed, soft: c.soft });
       ui.push(c.el);
-    }));
+    }, { icon: (i, x, y) => vsIcon(keys[i], x, y) }));
   }
   // Pressing A on another player.
   function mpTalk(o) {

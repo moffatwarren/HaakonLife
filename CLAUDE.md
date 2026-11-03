@@ -84,8 +84,8 @@ with the reason.
    `OFFERS` (in `talkTo`), or a program in `PROGRAMS`. A new tile also goes on the map in
    `tools/build_maps.py`: run that, then `check_maps.py`.
 5. **The shortcut:** add it to `const GAME` near the end of `js/game.js`, for `#play&game=widget`.
-6. **Head-to-head, if it is:** an entry in `VERSUS`. With `server: true`, the same key in
-   `server/games/index.js`.
+6. **Head-to-head, if it is:** an entry in `VERSUS` and a little picture in `VS_ICONS`. With
+   `server: true`, the same key in `server/games/index.js`.
 7. **The manual:** the "Mini-games" list in the README and the `&game=` names under "Testing".
 
 ## Games that might go multiplayer

@@ -282,6 +282,8 @@ for (const [list, opening, where, want] of TILE_LISTS) {
 const serverIndex = readFileSync(join(ROOT, 'server/games/index.js'), 'utf8');
 const serverGames = new Set((/export default \{([^}]*)\}/.exec(serverIndex) || ['', ''])[1].split(',').map((s) => s.trim()).filter(Boolean));
 if (!serverGames.size) throw new Error('can\'t read the games in server/games/index.js');
+const vsIcons = new Set(entries(block('const VS_ICONS = {')).map((e) => e.key));
+for (const v of versus) if (!vsIcons.has(v.key)) say(`VERSUS ${v.key} needs a little picture in VS_ICONS, for the challenge list.`);
 for (const v of versus) {
   const code = CODE.slice(v.a, v.b), m = /\bGame:\s*\(\s*(\w+)\s*\)\s*=>\s*([A-Z]\w*)\(([^)]*)\)/.exec(code);
   if (!m) { say(`VERSUS ${v.key} needs Game: (m) => SomeGame(m).`); continue; }
