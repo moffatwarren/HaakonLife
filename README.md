@@ -227,7 +227,7 @@ shows every leaderboard at once. Left and right flip between its pages:
 - **Latest scores**: the newest scores on any board, who set them and where they rank now.
 - **Quests**: everyone who has set Linda free and everyone who has been Employee of the
   Month, side by side, with how many times each name has done it (up and down scroll
-  when the lists get long). Each time you finish one, that quest's leaderboard comes up
+  when the lists get long). If you're first at one, your row has a crown. Each time you finish one, that quest's leaderboard comes up
   once you're back walking around, with your count one higher. The quests don't earn
   Office Champion points, but they do earn something to wear: see **Linda's list** and
   **Employee of the Month**.
@@ -254,7 +254,10 @@ Only the name and the score are sent. If the leaderboard can't be reached the ga
 says so and carries on, and best scores are still kept in the browser as before.
 
 Scores are only sent from the hosted copy (haakonlife.com). Opening `index.html` straight from the folder still shows the boards, but your score isn't
-added, so testing locally never posts anything.
+added, so testing locally never posts anything. The same goes for an address on haakonlife.com
+with anything after a `#` (all the testing shortcuts: see **Shortcuts**): it acts like a copy
+on your own computer, so it posts no scores, saves no characters or items for real, and is in
+the `test` world, where you won't see anybody on the live site.
 
 The scores live in a free Firebase Realtime Database. To set one up:
 
@@ -366,6 +369,29 @@ So is Live Hold'em: its totals won and lost are two boards of their own,
 `scores/pokerlivewon` and `scores/pokerlivelost`, each holding a name's total as the score
 (so both only go up), and the game works out the difference. To reset someone's tally,
 delete their row from both.
+
+### Backups
+
+Nothing else keeps a copy of the database, so every night a GitHub Action
+(`.github/workflows/backup-data.yml`) copies it into a file, using `tools/backup_boards.mjs`.
+To get one, open that night's run under **Back up game data** on the Actions tab; the file is
+at the bottom of the page, and each one is kept for 90 days. **Run workflow** there makes one
+now, and `node tools/backup_boards.mjs` makes one in `backup/` on your own computer. If a run
+can't read everything it fails rather than saving part of it, and GitHub emails you.
+
+It has every board's scores, and the saved character and special items of every name on a
+board. The database's rules don't let anybody list all the names, so somebody with a saved
+character who has never posted a score isn't in it. It's nothing the game doesn't already show
+or fetch, but the repository is public, so any GitHub user can download these files.
+
+To put something back, go to the Data tab in the Firebase console and pick the place to restore
+(`scores`, or one board inside it). Then use the three dots, **Import JSON**, and a file holding
+just that part of the backup. **That replaces everything under that place**, so pick the smallest
+one that covers what was lost. Never import at the top of the database: that would wipe the
+`mp` part and whatever else is up there.
+
+GitHub turns nightly runs off after 60 days with no pushes to the repository (it emails you
+first), so if the game goes quiet for a while, turn it back on from the Actions tab.
 
 ### Saved characters
 
@@ -579,7 +605,8 @@ npm test           # checks it works
 
 Then open `tools/test.html#play&server=ws://localhost:8080` in two tabs (served by any
 local web server, or straight from the folder) and you'll see each other.
-`http://localhost:8080` in a browser says how many people are on.
+`http://localhost:8080` in a browser says how many people are on, and how many problems
+browsers have reported since it started (see **When something goes wrong**).
 
 Step by step, with two terminals:
 
@@ -676,6 +703,41 @@ getting all 30 views a second. Each player is sent 20 KB a second in one on one,
 two and 40 in three on three, so an hour of a full game is about 0.14, 0.41 and 0.85 GB out.
 Render's Starter plan has half of a slower core, so it probably wouldn't manage all 40 (this
 hasn't been measured there), but that would take 240 people at once.
+
+## When something goes wrong
+
+A bug in a game ends that game, not the whole thing:
+
+- **In a mini-game or a menu**: it closes, you're back where you were, and it says "Sorry,
+  something went wrong there." If it was a game against another player they're told you left,
+  and at a live table you get up from it.
+- **Anywhere else** (the office itself, say): a one-off carries on. If it happens 20 times in
+  30 seconds the game stops and the page offers a reload.
+- **While the game is starting**: the page tries again by itself, three times, 5 seconds apart,
+  then asks. That covers somebody loading it partway through a deploy, when the files go up
+  one at a time and they can get old ones mixed with new ones.
+- **On the game server**: something broken or too big coming down a connection drops that one
+  connection, and a bug while handling someone's message goes in the log. Everybody else
+  carries on. (Bugs in a game the server runs end that game: see `crash` in `server/rooms.js`
+  and `server/tables.js`.)
+
+**Finding out about it.** Browsers send word to the game server (`reportProblem` in `index.html`,
+`server/problems.js`). Each one is a line in the server's logs on Render, so search them for
+`browser problem`:
+
+```
+browser problem {"m":"the error","at":"play / laundry / floor 0 / touch","v":1793668083000,"ua":"Mozilla/5.0 (iPhone...","s":"where in the code"}
+```
+
+`at` is what they were doing, then which floor and whether they were on a touch screen; `ua` is
+their browser and device; `v` is which version of the game they had, in milliseconds since
+1970, the same date as "Updated ..." on the title screen; and `s` lists the code they were in, with line
+numbers. It doesn't say who it was. A browser sends each different error once, and at most five
+a page load, and the server logs at most 60 a minute. For a quick look, open
+https://play.haakonlife.com: `problems:3` on the end of the line is how many have come in
+since the server last restarted. Only the hosted copy with nothing after a `#` in the address
+reports anything, so your own testing doesn't show up. Errors go to the browser's console
+either way.
 
 ## Coworker games
 
@@ -1066,7 +1128,10 @@ the same x and y.
 
 ## Shortcuts
 
-Add these to the end of the address (after `index.html`) and press Enter.
+Add these to the end of the address (after `index.html`) and press Enter. They work on
+haakonlife.com too, but anything after a `#` makes it act like a copy on your own computer:
+nothing gets saved for real, and you're in the `test` world, away from live players (see
+**Leaderboards**).
 
 **Halloween outside October**
 

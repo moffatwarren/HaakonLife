@@ -98,6 +98,13 @@
     box-shadow: 0 3px 0 #15151c; touch-action: none;
   }
   #meta button.down { background: var(--btn-down); transform: translateY(2px); box-shadow: none; }
+
+  /* something went wrong and the game can't carry on (see showProblem) */
+  #problem {
+    display: none; position: fixed; inset: 0; z-index: 10; padding: 24px;
+    place-items: center; text-align: center; background: var(--bg); color: #c8c8d8; font-size: 18px; line-height: 1.5;
+  }
+  #problem.on { display: grid; }
 </style>
 </head>
 <body>
@@ -121,7 +128,48 @@
     <b>Esc</b> back, cancel &nbsp;·&nbsp; <b>X / Shift</b> B &nbsp;·&nbsp; <b>Enter</b> Start menu &nbsp;·&nbsp; <b>M</b> Map
   </div>
 </div>
+<div id="problem" role="alert"></div>
 <script>
+// When something goes wrong in the game, word goes to the game server (server/problems.js),
+// so it reaches somebody: what broke, where in the code, what you were doing and which
+// version you have. Only from the hosted copy with no testing shortcuts in the address (as
+// for scores: see BOARD_POSTS in js/game.js), at most five a page load and each one once.
+(function () {
+  var PROBLEM_URL = 'https://play.haakonlife.com/problem';
+  var hosted = /(^|\.)haakonlife\.com$/.test(location.hostname) && !location.hash;
+  var sent = {}, count = 0;
+  window.reportProblem = function (err) {
+    var m = String((err && err.message) || err || 'unknown').slice(0, 300);
+    if (!hosted || sent[m] || count >= 5) return;
+    sent[m] = true; count++;
+    var at = 'starting up';
+    try { if (window.problemWhere) at = window.problemWhere(); } catch (e) { /* it'll do without */ }
+    var body = JSON.stringify({ m: m, s: String((err && err.stack) || '').slice(0, 1500), at: at, v: window.GAME_VERSION ? +window.GAME_VERSION : 0 });
+    try {
+      if (navigator.sendBeacon) navigator.sendBeacon(PROBLEM_URL, body);
+      else if (window.fetch) fetch(PROBLEM_URL, { method: 'POST', mode: 'no-cors', keepalive: true, body: body }).catch(function () {});
+    } catch (e) { /* nothing more to do */ }
+  };
+  addEventListener('error', function (e) {
+    // (a browser extension's script, or somebody else's with nothing to go on: not the game)
+    if ((!e.error && /^Script error/.test(e.message)) || /-extension:/.test(e.filename || '')) return;
+    window.reportProblem(e.error || e.message);
+  });
+  addEventListener('unhandledrejection', function (e) { window.reportProblem(e.reason); });
+
+  // Put a message over the page, in place of the game. reload: tapping or pressing a key
+  // reloads the page.
+  window.showProblem = function (str, reload) {
+    var el = document.getElementById('problem');
+    el.textContent = str;
+    el.className = 'on';
+    if (!reload) return;
+    var again = function (e) { if (!e.repeat) location.reload(); }; // (not a key that was already held down)
+    el.addEventListener('pointerup', again);
+    addEventListener('keydown', again);
+  };
+})();
+
 // Load the game's scripts, always asking the server whether there's a newer copy, so a
 // phone picks up an update as soon as it's published instead of reusing a cached one
 // (otherwise a browser may keep using a saved copy for a while). Unchanged files come back as a
@@ -129,11 +177,25 @@
 // goes wrong, the scripts load the ordinary way.
 (function () {
   var FILES = ['font', 'art', 'lot', 'maps', 'people', 'music', 'hockey', 'game'];
+  var RETRIES = 3, RETRY_MS = 5000;
+  // Has the game started? js/game.js says so last thing, as window.GAME. If not (a file that
+  // wouldn't load, or one caught halfway through being uploaded, or old files mixed with new
+  // ones during a deploy), wait a moment and try again, a few times, before asking.
+  function started() {
+    var tries = -1; // (-1: this browser can't keep count, so it can't safely try by itself)
+    if (window.GAME) { try { sessionStorage.removeItem('bootTries'); } catch (e) { /* no matter */ } return; }
+    try { tries = +sessionStorage.getItem('bootTries') || 0; sessionStorage.setItem('bootTries', tries + 1); } catch (e) { /* see above */ }
+    if (tries >= 0 && tries < RETRIES) {
+      window.showProblem('Haakon Life didn\'t load. Trying again...');
+      setTimeout(function () { location.reload(); }, RETRY_MS);
+    } else window.showProblem('Haakon Life couldn\'t load. Tap or press a key to try again.', true);
+  }
   function plain(i) {
-    if (i >= FILES.length) return;
+    if (i >= FILES.length) { started(); return; }
     var s = document.createElement('script');
     s.src = 'js/' + FILES[i] + '.js';
     s.onload = function () { plain(i + 1); };
+    s.onerror = function () { window.reportProblem('js/' + FILES[i] + '.js would not load'); started(); };
     document.body.appendChild(s);
   }
   if (location.protocol === 'file:' || !window.fetch) { plain(0); return; }
@@ -152,6 +214,7 @@
       s.textContent = x.code + '\n//# sourceURL=js/' + x.f + '.js';
       document.body.appendChild(s);
     });
+    started();
   }).catch(function () { plain(0); });
 })();
 </script>

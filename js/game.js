@@ -45,8 +45,11 @@
   const BOARD_URL = 'https://haakonlife-d4ef2-default-rtdb.firebaseio.com';
   // Scores are only sent from the hosted copy (haakonlife.com), so
   // playing a local copy (opening index.html straight from the folder) can't post test
-  // scores. Locally the boards still load; your score just isn't added.
-  const BOARD_POSTS = /(^|\.)haakonlife\.com$/.test(location.hostname);
+  // scores. Locally the boards still load; your score just isn't added. The testing
+  // shortcuts (anything after a # in the address, see the README) work on the hosted copy
+  // too, so an address with one counts as a local copy, in every way: nothing it does gets
+  // saved for real, and it's in the test world with no live players (see MP_WORLD).
+  const BOARD_POSTS = /(^|\.)haakonlife\.com$/.test(location.hostname) && !location.hash;
 
   // ---------- art ----------
   const GENDERS = ['male', 'female'];
@@ -3824,6 +3827,8 @@
           const y = 76 + i * 11, hi = r.id === me, c = hi ? col.light : col.dark, n = 'x' + r.score;
           if (hi) pickBar(x - 3, y - 2, 140, 11, col.dark);
           text(r.name, x, y, 1, c);
+          // (you're first at this one: the crown, as on the games' pages)
+          if (hi && !(i + scroll)) drawCrown(x + 6 + r.name.length * 6, y + 1);
           text(n, x + 134 - n.length * 6, y, 1, c);
         });
       });
@@ -16841,7 +16846,7 @@
     } else if (mode === 'sweater') {
       updateSweater();
     } else if (ui.length) {
-      top().update();
+      layerUpdate(top());
     } else if (questQueue.length) {
       const next = questQueue.shift();
       if (typeof next === 'function') next(); else say(next);
@@ -17554,7 +17559,7 @@
       ctx.restore();
       drawBanner();
       drawCupFlag();
-      ui.forEach((el) => el.draw());
+      ui.forEach(layerDraw);
     }
     drawHeld();
     if (fade) {
@@ -17695,6 +17700,70 @@
   // pasting a shortcut into a tab that already has the game open works.
   addEventListener('hashchange', () => location.reload());
 
+  // ---------- when something breaks ----------
+  // A bug in a game ends that game, not the whole thing (the game server does the same with
+  // its games: see server/rooms.js). Whatever's on the ui stack is run through layerUpdate and
+  // layerDraw, so if it throws it's closed and you're back where you were. Anything else that
+  // throws (the office itself, say) is caught in frame below: a one-off carries on, and if it
+  // keeps happening the page says so and offers a reload (showProblem, in index.html). Either
+  // way word goes to the game server (reportProblem, also in index.html).
+  const BROKE_MAX = 20, BROKE_WITHIN = 30000, SORRY_EVERY = 600;
+  let brokeTimes = [], sorryAt = -SORRY_EVERY;
+  // what you were up to, for the report
+  window.problemWhere = () => {
+    const g = mpDoing();
+    return [mode, g ? g.doing : 'nothing', 'floor ' + P.floor, isTouch ? 'touch' : 'keys'].join(' / ');
+  };
+  // Wipe whatever was left half-done on the screen (a clip, a shift, a see-through colour),
+  // and any press that hasn't been dealt with, since it might be what set this off.
+  function afterBreak(e) {
+    console.error(e);
+    if (window.reportProblem) window.reportProblem(e);
+    canvas.width = SW * RES;
+    ctx.scale(RES, RES);
+    ctx.imageSmoothingEnabled = false;
+    pressed.clear();
+  }
+  // (not while you're in a screen that doesn't show dialogs, and not over and over)
+  function sorry() {
+    if (mode !== 'play' || tick - sorryAt < SORRY_EVERY) return;
+    sorryAt = tick;
+    say('Sorry, something went wrong there.');
+  }
+  function layerBroke(el, e) {
+    afterBreak(e);
+    // it goes, along with whatever's on top of it and anything that was only waiting on it
+    // (the dialog under a menu)
+    const i = ui.indexOf(el);
+    if (i >= 0) {
+      ui.splice(i);
+      while (ui.length && top().overlay) ui.pop();
+    }
+    // what a game would have seen to on its way out, if that was the last one running
+    // (the music and what other players see you doing go by what's on the stack already)
+    if (!ui.some((x) => x.doing)) {
+      if (mp.match) mp.match.end();
+      if (mp.table) { wsSend({ k: 'stand', t: mp.table.t }); mp.table = null; }
+      hockey = null;
+    }
+    sorry();
+  }
+  function layerUpdate(el) { try { el.update(); } catch (e) { layerBroke(el, e); } }
+  function layerDraw(el) { try { el.draw(); } catch (e) { layerBroke(el, e); } }
+  // Something outside the stack threw. Returns whether to carry on.
+  function frameBroke(e) {
+    afterBreak(e);
+    const now = Date.now();
+    brokeTimes = brokeTimes.filter((t) => now - t < BROKE_WITHIN);
+    brokeTimes.push(now);
+    if (brokeTimes.length >= BROKE_MAX) {
+      if (window.showProblem) window.showProblem('Something went wrong. Tap or press a key to reload.', true);
+      return false;
+    }
+    sorry();
+    return true;
+  }
+
   // ---------- main loop ----------
   layout();
   if (location.hash.startsWith('#play')) {
@@ -17716,9 +17785,14 @@
   function frame(now) {
     acc += Math.min(100, now - last);
     last = now;
-    while (acc >= STEP) { if (!frozen) update(); acc -= STEP; }
-    drawAlpha = acc / STEP;
-    draw();
+    try {
+      while (acc >= STEP) { if (!frozen) update(); acc -= STEP; }
+      drawAlpha = acc / STEP;
+      draw();
+    } catch (e) {
+      acc = 0; // (or everything would run double time to catch up, afterwards)
+      if (!frameBroke(e)) return;
+    }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
