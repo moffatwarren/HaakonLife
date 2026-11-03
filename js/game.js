@@ -73,7 +73,9 @@
   // and back again. Neither is ever saved in its part of the look: what they picked last stays
   // saved there, for when they aren't wearing it or lose the title, and the look's champOff
   // remembers which they've chosen not to wear (CHAMP_BIT). It goes back to 0 when they lose
-  // the title, so each time they get there they start out in both.
+  // the title, so each time they get there they start out in both. They're also special items
+  // (see "special items"): a name whose number for one is 1 can wear it whether it's the
+  // champion or not, saved in their look like any other, and keeps it when the title moves on.
   const CHAMP = { hat: Art.CROWN, flair: Art.STAR_TRAIL }, CHAMP_BIT = { hat: 1, flair: 2 };
   let crowned = false; // the title
   const champLook = (look) => {
@@ -3745,12 +3747,146 @@
     }
     ctx.globalAlpha = 1;
   }
+  // A picture from rows of letters (flip: looking the other way), for the things below.
+  const rowsPic = (key, rows, cols, flip) => {
+    const w = Math.max(...rows.map((r) => r.length));
+    return finePic(key + (flip ? '>' : ''), w, rows.length, (g) => rows.forEach((r, y) => [...r].forEach((ch, x) => {
+      if (cols[ch]) { g.fillStyle = cols[ch]; g.fillRect(flip ? w - 1 - x : x, y, 1, 1); }
+    })));
+  };
+  const faced = (dir) => (inTable(DIRS, dir) ? dir : 'down'); // (another player could send anything)
+  // The golden antlers, the Christmas Cup's prize: too grand for a 32 x 32 picture, so the rack
+  // is a picture of its own, drawn behind its wearer so their head covers the bases, and it's the
+  // one thing people wear that goes well outside their tile. (The head thing in their picture is
+  // only the bottom of the rack, which is all there is of it in a mini-game.) A gold star floats
+  // between the tips, bobbing, with its rays flashing in turn and sparks falling off it, and it
+  // lags behind them as they walk (lag: see followTick).
+  const RACK_COLS = { k: '#181820', O: '#f8e070', o: '#f0b030', Y: '#a87018', n: '#9a6434', d: '#7a4e10', I: '#fffbe8' };
+  const STAR_RAYS = [[[1, 0], [-1, 0], [0, 1], [0, -1]], [[0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]]];
+  const haloPic = () => finePic('starHalo', 25, 25, (g) => {
+    for (let j = 0; j < 25; j++) for (let i = 0; i < 25; i++) {
+      const d = Math.hypot(i - 12, j - 12);
+      if (d <= 12) { g.fillStyle = d <= 8 ? 'rgba(110, 80, 20, 0.3)' : 'rgba(80, 56, 14, 0.2)'; g.fillRect(i, j, 1, 1); }
+    }
+  });
+  function goldenAntlers(x, y, way, lag) {
+    const dir = faced(way), side = dir === 'left' || dir === 'right', rows = Art.RACK32[side ? 'left' : dir];
+    const left = dir === 'right' ? 32 - Art.RACK32.x - rows[0].length : Art.RACK32.x;
+    ctx.drawImage(rowsPic('rack' + (side ? 'left' : dir), rows, RACK_COLS, dir === 'right'), x + left / 2, y + Art.RACK32.y / 2);
+    // (the star, in real pixels from here on, round the one at its heart)
+    const rx = Math.round(x * 2 + (dir === 'left' ? 17 : dir === 'right' ? 14 : 15.5) + (lag ? lag.lx || 0 : 0));
+    const ry = Math.round(y * 2 - 10 + Math.sin(tick / 34) * 1.6 + (lag ? lag.ly || 0 : 0));
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(haloPic(), (rx - 12) / 2, (ry - 12) / 2);
+    ctx.globalCompositeOperation = 'source-over';
+    const flash = (tick >> 4) & 1;
+    for (const [vx, vy] of STAR_RAYS[flash ? 0 : 1]) for (let d = 8; d <= (flash ? 12 : 11); d++) fine(Math.round(rx + vx * d) / 2, Math.round(ry + vy * d) / 2, 0.5, 0.5, d < 10 ? '#fff6c0' : '#ffd850');
+    ctx.drawImage(rowsPic('northStar', Art.NORTH_STAR32, RACK_COLS), (rx - 7) / 2, (ry - 7) / 2);
+    for (let i = 0; i < 2; i++) {
+      const k = ((tick + i * 48) % 96) / 96;
+      ctx.globalAlpha = 1 - k;
+      fine(Math.round(rx + (i ? 6 : -6) * (0.4 + k)) / 2, Math.round(ry + 6 + k * 13) / 2, 0.5, 0.5, '#fff6c0');
+    }
+    ctx.globalAlpha = 1;
+  }
+  // The Sweeper, the rest of the Christmas Cup's prize: one of the humbugs you beat, trudging along
+  // your path behind you with a broom, kicking up dust. When you stop it folds its arms and huffs,
+  // with the broom leaning next to it. It only ever goes where you've been, so it can't end up in a
+  // wall, and it isn't there until you've walked far enough to have it behind you. followTick
+  // says where it is (at, walking), and it's drawn among the people, so nearer ones overlap it.
+  const SWEEPER_COLS = { L: '#88d060', G: '#58a838', D: '#3c7a28', Y: '#f8e048', k: '#181820', F: '#285c20' };
+  const SWEEPER_GAP = 15; // (how far behind you it walks)
+  const sweeperPic = (dir, frame) => rowsPic('sweeper' + (dir === 'right' ? 'left' : dir) + frame, Art.SWEEPER32[dir === 'right' ? 'left' : dir][frame], SWEEPER_COLS, dir === 'right');
+  // where its broom is, from the middle of its feet (fx, fy): the handle's top and the head
+  function broomAt(dir, fx, fy, sway) {
+    if (dir === 'left') return { hx: fx - 3.5, hy: fy - 4.5, x: fx - 7.5 - sway * 1.5, y: fy - 1 + Math.abs(sway) / 2 };
+    if (dir === 'right') return { hx: fx + 3.5, hy: fy - 4.5, x: fx + 7.5 + sway * 1.5, y: fy - 1 + Math.abs(sway) / 2 };
+    if (dir === 'up') return { hx: fx, hy: fy - 7, x: fx + sway * 3.5, y: fy - 11 };
+    return { hx: fx + 2, hy: fy - 4, x: fx + sway * 4, y: fy + 2 };
+  }
+  // m: { at: { x, y, dir }, walking }. x and y: the top left of its tile, on the screen, as for a person.
+  function drawSweeper(m, x, y) {
+    const dir = m.walking ? faced(m.at.dir) : 'down', pic = sweeperPic(dir, m.walking ? ((tick >> 3) & 1 ? 1 : 2) : 0);
+    const X = realPx(x + 8 - pic.width / 4), Y = realPx(y + 16 - pic.height / 4);
+    const broom = () => {
+      const b = broomAt(dir, x + 8, y + 16, Math.sin(tick * 0.26)), bx = realPx(b.x), by = realPx(b.y);
+      pixLine(b.hx, b.hy, bx, by, 1.5, '#181820'); pixLine(b.hx, b.hy, bx, by, 0.5, '#c89058');
+      fine(bx - 2.5, by - 1, 5.5, 3, '#181820'); fine(bx - 2, by - 0.5, 4.5, 2, '#e8c050'); fine(bx - 2, by - 0.5, 4.5, 0.5, '#c83030');
+      fine(bx - 1, by + 0.5, 0.5, 1, '#a88030'); fine(bx + 1, by + 0.5, 0.5, 1, '#a88030');
+    };
+    if (m.walking && dir === 'up') broom();
+    if (!m.walking) { // (leaning on nothing, next to it)
+      fine(X + 9.5, Y - 0.5, 1.5, 9.5, '#181820'); fine(X + 10, Y, 0.5, 8.5, '#c89058');
+      fine(X + 8, Y + 7.5, 4.5, 3, '#181820'); fine(X + 8.5, Y + 8, 3.5, 2, '#e8c050'); fine(X + 8.5, Y + 8, 3.5, 0.5, '#c83030');
+    }
+    ctx.drawImage(pic, X, Y);
+    if (!m.walking) { fine(X + 2, Y + 6.5, 6, 1, '#181820'); fine(X + 2.5, Y + 7, 5, 0.5, '#3c7a28'); } // (its folded arms)
+    if (m.walking && dir !== 'up') broom();
+  }
+  // What goes with somebody needs to know how they've been moving, so each person has a memory of
+  // it: WALKS.me for you and o.walks for another player, worked out from where they're drawn, so
+  // nothing more goes over the network. lx, ly: how far their star lags behind them, in real pixels.
+  // trail: where they've been lately, newest last, for the Sweeper to follow (at, walking; no at
+  // if it's not with them).
+  const WALKS = { me: {} }, SWEEP_DUST = [];
+  function followOne(m, antlers, sweeper, f, x, y, way) {
+    const away = m.x === undefined || m.f !== f || Math.hypot(x - m.x, y - m.y) > 24; // (a floor change or a jump)
+    const vx = away ? 0 : x - m.x, vy = away ? 0 : y - m.y;
+    m.x = x; m.y = y; m.f = f;
+    if (antlers) {
+      const tx = -Math.sign(vx) * 4, ty = -Math.sign(vy) * 3;
+      m.lvx = ((m.lvx || 0) + (tx - (m.lx || 0)) * 0.03) * 0.9; m.lx = (m.lx || 0) + m.lvx;
+      m.lvy = ((m.lvy || 0) + (ty - (m.ly || 0)) * 0.03) * 0.9; m.ly = (m.ly || 0) + m.lvy;
+    }
+    if (!sweeper) { m.trail = null; m.at = null; return; }
+    if (away || !m.trail) { m.trail = [{ x, y, dir: way }]; m.still = 0; m.at = null; m.walking = false; return; }
+    const last = m.trail[m.trail.length - 1];
+    if (Math.hypot(x - last.x, y - last.y) >= 0.5) { m.trail.push({ x, y, dir: way }); m.still = 0; } else m.still++;
+    // back along the trail to SWEEPER_GAP behind them, forgetting anything further back than that
+    let left = SWEEPER_GAP, at = null;
+    for (let i = m.trail.length - 1; i > 0; i--) {
+      const p = m.trail[i], q = m.trail[i - 1], d = Math.hypot(p.x - q.x, p.y - q.y);
+      if (left <= d) {
+        at = { x: p.x + (q.x - p.x) * left / d, y: p.y + (q.y - p.y) * left / d, dir: p.dir };
+        m.trail.splice(0, i - 1);
+        break;
+      }
+      left -= d;
+    }
+    m.at = at; m.walking = m.still < 6;
+    if (!at) return;
+    if (m.walking && tick % 12 === 0) {
+      const b = broomAt(faced(at.dir), at.x + 8, at.y + 16, Math.sin(tick * 0.26));
+      for (let i = 0; i < 2; i++) SWEEP_DUST.push({ f, x: b.x + (Math.random() - 0.5) * 3, y: b.y + 1, vx: (Math.random() - 0.5) * 0.25, vy: -0.08 - Math.random() * 0.1, t: tick, life: 24, s: 1, c: f === YARD ? '#ffffff' : '#d8ccb4' });
+    } else if (!m.walking && tick % 80 === 0) SWEEP_DUST.push({ f, x: at.x + 4, y: at.y + 9, vx: 0.14, vy: -0.14, t: tick, life: 34, s: 1.5, c: '#f8f8f8' }); // (a huff)
+  }
+  function followTick() {
+    const sc = hockey && hockey.scene(), out = (f) => f === YARD && sc;
+    const worn = wornLook(myLook), [mx, my] = mePx();
+    followOne(WALKS.me, !hw.worn && worn.hat === Art.ANTLERS, worn.flair === Art.SWEEPER && !out(P.floor), P.floor, mx, my, P.dir);
+    for (const o of mpHere()) followOne(o.walks || (o.walks = {}), !o.c && o.look.hat === Art.ANTLERS, o.look.flair === Art.SWEEPER && !out(o.f), o.f, o.px, o.py, o.dir);
+    while (SWEEP_DUST.length && (tick - SWEEP_DUST[0].t >= SWEEP_DUST[0].life || SWEEP_DUST.length > 200)) SWEEP_DUST.shift();
+  }
+  // every Sweeper with somebody on this floor
+  const sweepersOn = (f) => [WALKS.me].concat(mpHere().map((o) => o.walks)).filter((m) => m && m.at && m.f === f);
+  function drawSweepDust(cx, cy) {
+    for (const d of SWEEP_DUST) {
+      if (d.f !== P.floor) continue;
+      const t = tick - d.t;
+      ctx.globalAlpha = Math.max(0, 1 - t / d.life);
+      fine(realPx(d.x + d.vx * t - cx), realPx(d.y + d.vy * t - cy - 4), d.s, d.s, d.c);
+    }
+    ctx.globalAlpha = 1;
+  }
   // What's animated about what somebody has on, drawn behind and then over their picture (x
-  // and y its top left; dir the way they're facing; rx as for hauntGhosts). A costume hides
-  // all of it. meWorn and mpWorn are what you and another player have on, or null in a costume.
+  // and y its top left; dir the way they're facing; lag from followTick, if they've got one;
+  // rx as for hauntGhosts). A costume hides all of it. meWorn and mpWorn are what you and
+  // another player have on, or null in a costume.
   const meWorn = () => (hw.worn ? null : wornLook(myLook)), mpWorn = (o) => (o.c ? null : o.look);
-  function wornBehind(worn, x, y, rx = 10.5) {
-    if (worn && worn.hat === Art.HAUNTED_MASK) hauntGhosts(x, y, false, rx);
+  function wornBehind(worn, x, y, dir, lag, rx = 10.5) {
+    if (!worn) return;
+    if (worn.hat === Art.HAUNTED_MASK) hauntGhosts(x, y, false, rx);
+    if (worn.hat === Art.ANTLERS) goldenAntlers(x, y, dir, lag);
   }
   function wornOver(worn, x, y, dir, rx = 10.5) {
     if (!worn) return;
@@ -12785,18 +12921,20 @@
     ctx.globalAlpha = 0.7; ctx.fillStyle = col.dark; ctx.fillRect(sx - (w >> 1), sy - 11, w, 10); ctx.globalAlpha = 1;
     text(name, sx - (w >> 1) + 2, sy - 10, 1, '#f8f8f8');
   }
+  // (how far up a name or a speech bubble goes, to clear somebody's golden antlers)
+  const tagLift = (worn) => (worn && worn.hat === Art.ANTLERS ? 12 : 0);
   function mpDrawTags(cx, cy, px, py) {
     const now = Date.now(), at = zoomOff();
     for (const o of mpHere()) {
       if (o.f !== P.floor) continue;
-      const [sx, sy] = at(Math.round(o.px - cx + 8), Math.round(o.py - cy - 4));
+      const [sx, sy] = at(Math.round(o.px - cx + 8), Math.round(o.py - cy - 4 - tagLift(mpWorn(o))));
       if (sx < -40 || sx > SW + 40 || sy < -30 || sy > SH + 10) continue;
       mpTag(o.n, sx, sy);
       const said = mpSaying(o, now);
       if (said) mpBubble(said, sx, sy - 28);
     }
     if (mp.bubble) {
-      const [sx, sy] = at(px - cx + 8, py - cy - 4);
+      const [sx, sy] = at(px - cx + 8, py - cy - 4 - tagLift(meWorn()));
       mpBubble(mp.bubble.str, sx, sy - 18);
     }
   }
@@ -13023,11 +13161,12 @@
   // Christmas champion, for good. The cup stands on a plinth in reception under the Hall of
   // Fame from the 27th on (or with &christmas=1), and press A on it: until the New Year it
   // says who's leading, then it has the champion engraved on it. The champion's prize is
-  // a pair of golden antlers, one of their head things in the character editor from then on, on
-  // any phone or computer with the same name (see "special items": winning is what sets their
-  // antlers to 1). &champion=Ada makes Christmas over with Ada the champion, for testing,
-  // with the antlers only for this visit.
-  const CUP = 'humbug26', CUP_END = new Date(2027, 0, 1);
+  // a pair of golden antlers (one of their head things in the character editor from then on) and
+  // the Sweeper (under FLAIR), on any phone or computer with the same name (see "special items":
+  // winning is what sets their numbers for them to 1, and it's only ever their own name's
+  // numbers, so anyone else having them already makes no difference). &champion=Ada makes
+  // Christmas over with Ada the champion, for testing, with them only for this visit.
+  const CUP = 'humbug26', CUP_END = new Date(2027, 0, 1), CUP_PRIZES = ['antlers', 'sweeper'];
   const cupTest = (/[#&]champion=([^&]+)/.exec(location.hash) || [])[1];
   const cupSeason = () => !cupTest && Date.now() >= SEASON_FROM.CHRISTMAS && Date.now() < CUP_END; // (scores go on it)
   const cupOver = () => !!cupTest || Date.now() >= CUP_END;
@@ -13068,39 +13207,41 @@
     }
     if (!cupLeader) { say('The Christmas Cup. The plaque for Christmas 2026 is blank: nobody cleared a Humbug Sweeper board all Christmas.'); return; }
     const plaque = 'The Christmas Cup. Engraved on the plaque: "HUMBUG SWEEPER CHAMPION, CHRISTMAS 2026: ' + cupLeader.name.toUpperCase() + ', ' + boardFmt(CUP, cupLeader.score) + '".';
-    if (!cupMine(playerName) || items.antlers === 0) { ask(plaque, ...board('SEE THE FINAL BOARD')); return; }
-    if (wornLook(myLook).hat === Art.ANTLERS) { say(plaque + ' That\'s you! The golden antlers that came with it are on your head.'); return; }
-    cupPrize(plaque + ' That\'s you! A pair of golden antlers hangs off one handle, with your name on the tag.');
+    if (!cupMine(playerName) || CUP_PRIZES.every((item) => items[item] === 0)) { ask(plaque, ...board('SEE THE FINAL BOARD')); return; }
+    const worn = wornLook(myLook);
+    if (CUP_PRIZES.every((item) => items[item] === 0 || worn[ITEMS[item].part] === ITEMS[item].i)) { say(plaque + ' That\'s you! What came with it is already with you.'); return; }
+    cupPrize(plaque + ' That\'s you! A pair of golden antlers hangs off one handle, with your name on the tag, and a humbug with a broom is sulking by the plinth.');
   }
-  // Winning sets the champion's antlers to 1, unless the database already has a number for
-  // them (a 0 means they've been taken away, so they stay away).
+  // Winning sets the champion's numbers for the prizes to 1, unless the database already has a
+  // number for one (a 1 means they have it already, and a 0 that it's been taken away, so it
+  // stays away).
   function cupAward(name) {
-    if (!cupMine(name) || items.antlers !== undefined) return;
-    if (cupTest) items.antlers = 1; else itemGive(name, 'antlers');
+    if (!cupMine(name)) return;
+    for (const item of CUP_PRIZES) if (items[item] === undefined) { if (cupTest) items[item] = 1; else itemGive(name, item); }
   }
-  // the champion's golden antlers: they're one of your head things now, so put them on?
+  // the champion's prizes: they're in the character editor now, so put them on?
   function cupPrize(str) {
     cupAward(playerName);
-    ask(str + ' They\'re one of your head things in the character editor now, for good. Wear them now?', ['WEAR THEM', 'NOT NOW'], (j) => {
-      if (j !== 0) { say('You leave them on the cup in reception for now. They\'re in the character editor whenever you want them.'); return; }
+    ask(str + ' The antlers are with your head things in the character editor now, and the humbug is under FLAIR, for good. Wear them now?', ['WEAR THEM', 'NOT NOW'], (j) => {
+      if (j !== 0) { say('You leave them by the cup in reception for now. They\'re in the character editor whenever you want them.'); return; }
       sfx('menu');
-      wearNow('hat', Art.ANTLERS);
-      say('You put on the golden antlers. The bells jingle every time you turn your head. Champion!');
+      for (const item of CUP_PRIZES) if (items[item] === 1) wearNow(ITEMS[item].part, ITEMS[item].i);
+      say('You put on the golden antlers, and a gold star settles between the tips. The humbug picks up its broom with a sigh. Champion!');
     });
   }
   // Once it's over, the first time you're walking around: the champion is told they've won
-  // and offered the antlers (once for each name), and everyone else gets a banner across the
+  // and offered the prizes (once for each name), and everyone else gets a banner across the
   // top saying who won (once in each browser). (Called every tick: it's only true once.)
   let cupNewsDone = false, cupFlag = null;
   function cupNews() {
     if (cupNewsDone || !cup || !cupOver() || !cupLeader || !playerName || itemsAsk) return false;
     cupNewsDone = true;
     const told = 'cup.told.' + CUP + '.' + boardKey(playerName), seen = 'cup.seen.' + CUP;
-    if (cupMine(playerName) && items.antlers !== 0 && !store.get(told)) {
+    if (cupMine(playerName) && CUP_PRIZES.some((item) => items[item] !== 0) && !store.get(told)) {
       store.set(told, '1'); store.set(seen, '1');
       sfx('cup');
       cupPrize('Merry Christmas and a happy New Year! You won the Christmas Cup: nobody cleared Humbug Sweeper faster than your '
-        + boardFmt(CUP, cupLeader.score) + '. Your name is engraved on the cup in reception, and it came with a pair of golden antlers.');
+        + boardFmt(CUP, cupLeader.score) + '. Your name is engraved on the cup in reception, and it came with a pair of golden antlers and a humbug to sweep up after you.');
       return true;
     }
     if (!store.get(seen)) { store.set(seen, '1'); cupFlag = { t: 0 }; }
@@ -16116,7 +16257,7 @@
       for (const arm of cut.arms) { const pic = armPic(arm, reach(arm.rows.length, arm.k, ARM_REACH)); swing(pic, x + arm.x, y + arm.y, -arm.s * a, pic.width / 2 / arm.k, 1); }
       img = cut.body;
     }
-    wornBehind(it.worn, x, y);
+    wornBehind(it.worn, x, y, it.dir, it.lag);
     ctx.drawImage(img, x, y);
     wornOver(it.worn, x, y, it.dir);
     if (it.throw && it.throw < RELEASE / THROW_T) {
@@ -16196,7 +16337,7 @@
     if (behind) drawStick(s.stick, s.ang, fx, fy);
     const f = s.push ? [1, 0, 2, 0][(tick >> 4) & 3] : 0;
     const worn = s.me ? meWorn() : s.look ? s.look.look : null; // (a hockey player's costume stays in the locker room)
-    wornBehind(worn, realPx(fx - 8), realPx(fy - 15));
+    wornBehind(worn, realPx(fx - 8), realPx(fy - 15), dir);
     ctx.drawImage(onSkates(sheet[dir][f]), realPx(fx - 8), realPx(fy - 15));
     wornOver(worn, realPx(fx - 8), realPx(fy - 15), dir);
     if (!behind) drawStick(s.stick, s.ang, fx, fy);
@@ -16230,7 +16371,7 @@
     const seen = (x, y) => x > cx - 32 && x < cx + SW + 16 && y > cy - 16 && y < cy + SH + 32;
     const person = (it) => { if (seen(it.x, it.y)) items.push(Object.assign(it, { z: it.y })); };
     // (in a hockey game, you and whoever you're playing are out on the ice instead)
-    if (!sc) person({ sheet: sprites, x: px, y: py, dir: P.dir, frame: P.glide ? 0 : frameIndex(), skate: iceAt(px, py), worn: meWorn(),
+    if (!sc) person({ sheet: sprites, x: px, y: py, dir: P.dir, frame: P.glide ? 0 : frameIndex(), skate: iceAt(px, py), worn: meWorn(), lag: WALKS.me,
       throw: P.throwing ? throwPose(P.throwing.t) : 0, angel: P.angel ? angelPose(P.angel.t) : null });
     const said = [];
     for (const n of npcs) {
@@ -16242,34 +16383,37 @@
     const others = mpHere().filter((o) => o.f === YARD && !(sc && hockey.ids && hockey.ids.includes(o.id)));
     for (const o of others) {
       // (their throw went out as they let go, so their arm is already partway through it)
-      person({ sheet: mpSprites(o), x: o.px, y: o.py, dir: o.angel ? 'down' : o.dir, frame: o.angel ? 0 : mpFrame(o), skate: iceAt(o.px, o.py), worn: mpWorn(o),
+      person({ sheet: mpSprites(o), x: o.px, y: o.py, dir: o.angel ? 'down' : o.dir, frame: o.angel ? 0 : mpFrame(o), skate: iceAt(o.px, o.py), worn: mpWorn(o), lag: o.walks,
         throw: o.throwT !== undefined ? throwPose(o.throwT - RELEASE) : 0, angel: o.angel ? angelPose(tick - o.angel.t) : null });
     }
+    for (const m of sweepersOn(YARD)) if (seen(m.at.x, m.at.y)) items.push({ z: m.at.y, sweeper: m });
     if (sc) {
       for (const s of sc.skaters) items.push({ z: s.y * 16 - 12, skater: s });
       items.push({ z: sc.puck.y * 16 - 12, puck: true });
     }
     items.sort((a, b) => a.z - b.z);
     for (const it of items) {
-      if (it.skater) drawSkater(it.skater, cx, cy);
+      if (it.sweeper) drawSweeper(it.sweeper, realPx(it.sweeper.at.x - cx), realPx(it.sweeper.at.y - cy - 4));
+      else if (it.skater) drawSkater(it.skater, cx, cy);
       else if (it.puck) ctx.drawImage(puckPic(), realPx(sc.puck.x * 16 - cx - 3), realPx(sc.puck.y * 16 - cy - 2.5));
       else if (it.sheet) drawOutside(it, cx, cy);
       else ctx.drawImage(it.img || it.frames[Math.floor(tick / it.every) % it.frames.length], it.x - cx, it.y - cy);
     }
+    drawSweepDust(cx, cy);
     if (!sc) snowAir(cx, cy);
     lotLights(lot, cx, cy);
     snowfall(tick, sc ? 24 : 44, cx, cy);
     // names over other players' heads, and what anyone's saying
     const now = Date.now(), at = zoomOff();
     for (const o of others) {
-      const [sx, sy] = at(o.px - cx + 8, o.py - cy - 4);
+      const [sx, sy] = at(o.px - cx + 8, o.py - cy - 4 - tagLift(mpWorn(o)));
       if (sx < -40 || sx > SW + 40 || sy < -30 || sy > SH + 10) continue;
       mpTag(o.n, Math.round(sx), Math.round(sy));
       const words = mpSaying(o, now);
       if (words) mpBubble(words, Math.round(sx), Math.round(sy) - 28);
     }
     if (sc) {
-      for (const s of sc.skaters) if (s.tag) mpTag(s.tag, Math.round(s.x * 16 - cx), Math.round(s.y * 16 - cy - 15));
+      for (const s of sc.skaters) if (s.tag) mpTag(s.tag, Math.round(s.x * 16 - cx), Math.round(s.y * 16 - cy - 15 - tagLift(s.me ? meWorn() : s.look && s.look.look)));
       const you = sc.skaters.find((s) => s.me);
       if (you) youArrow(you, cx, cy);
     }
@@ -16277,7 +16421,7 @@
       const [sx, sy] = at(x - cx + 8, y - cy - 4);
       mpBubble(str, Math.round(sx), Math.round(sy) - 18);
     };
-    if (mp.bubble) overHead(mp.bubble.str, px, py);
+    if (mp.bubble) overHead(mp.bubble.str, px, py - tagLift(meWorn()));
     for (const [str, x, y] of said) overHead(str, x, y);
     snowSplat();
   }
@@ -16862,6 +17006,7 @@
     if (mode === 'play' && !fade) ringPhone();
     mpUpdate();
     glowTick();
+    followTick();
     // a finished game's leaderboard goes up as soon as the game has closed, ahead of its parting line
     // (a quest's board waits until you're back walking around)
     if (pendingBoard && !ui.includes(pendingBoard.owner) && !(pendingBoard.quiet && (ui.length || questQueue.length || mode !== 'play'))) {
@@ -16903,9 +17048,11 @@
   // js/art.js) belong to a name, not a browser. Each has a number of its own in the database,
   // at items/<world>/<name>/<item> (the world and the name as for looks, above): 1 means it's
   // theirs, 0 means it isn't, and no number means it's never been given to them. The Santa
-  // hat only comes from opening the present (openPresent), the antlers from winning the
-  // Christmas Cup (cupAward), and the ghost mask and ribbon from the quests (questAward and
-  // questPrize), and those only ever add a 1 where there's no number. Change
+  // hat only comes from opening the present (openPresent), the antlers and the Sweeper from
+  // winning the Christmas Cup (cupAward), and the ghost mask and ribbon from the quests (questAward
+  // and questPrize), and those only ever add a 1 where there's no number. The crown and the star
+  // trail never come from the game this way: the champion wears them without a number (see
+  // CHAMP), so a number is only for giving them to somebody for good. Change
   // them on the Data tab to give one to somebody or take it away: what the database says
   // goes, so a 0 is never turned back into a 1, and anything you're wearing comes off as you
   // come in if its number isn't 1 (see editStart). This browser keeps a copy for when the
@@ -17107,13 +17254,13 @@
     mode = 'play';
     questTell(); // (in case you got to number 1 while you were in there)
   }
-  // the choices a row has, in order: the crown and the star trail are only for the champion,
-  // the mask and ribbon are one choice each whoever you are (the top of a quest's board just
+  // the choices a row has, in order: the crown and the star trail are for the champion (and
+  // anyone whose number for them is 1, like any special item), the mask and ribbon are one choice each whoever you are (the top of a quest's board just
   // looks grander in them: see questLook), and any row leaves out the special items, unless they're yours (or
   // you're already wearing them)
   function editChoices(r) {
     return [...Array(r.n || LOOK_COUNT[r.key]).keys()].filter((i) => {
-      if (i === CHAMP[r.key]) return crowned;
+      if (i === CHAMP[r.key] && crowned) return true;
       if ((r.key === 'hat' && i === Art.HAUNTED_MASK) || (r.key === 'extra' && i === Art.GOLD_RIBBON)) return false;
       const item = itemAt(r.key, i);
       return !item || items[item] === 1 || edit.look[r.key] === i;
@@ -17127,7 +17274,9 @@
     if (fade) return;
     myLook = Object.assign(Art.lookFix(edit.look), { champOff: edit.under.champOff });
     for (const part in CHAMP) {
-      if (myLook[part] === CHAMP[part]) { myLook[part] = edit.under[part]; myLook.champOff &= ~CHAMP_BIT[part]; } // (they're never saved: see CHAMP)
+      // (a champion's are never saved, and nor is one somebody's lost: see CHAMP. It's only saved
+      // for someone who isn't the champion and has it for good.)
+      if (myLook[part] === CHAMP[part] && (edit.champ || items[itemAt(part, CHAMP[part])] !== 1)) { myLook[part] = edit.under[part]; myLook.champOff &= ~CHAMP_BIT[part]; }
       else if (edit.champ) myLook.champOff |= CHAMP_BIT[part];
     }
     sprites = mySprites();
@@ -17156,10 +17305,11 @@
   // the line at the bottom, for the row you're on
   function editHint(worn) {
     const r = EDIT_ROWS[edit.row];
-    if (r && r.key === 'hat' && worn.hat === Art.CROWN) return 'Office Champion: it\'s yours while you stay on top!';
+    if (r && r.key === 'hat' && worn.hat === Art.CROWN) return crowned ? 'Office Champion: it\'s yours while you stay on top!' : 'The crown is yours to keep!';
     if (r && r.key === 'extra' && editChoices(r).length < 2) return 'Be Employee of the Month to earn a ribbon here!';
     if (r && r.key === 'flair' && editChoices(r).length < 2) return 'Be the Office Champion to earn a star trail here!';
-    if (r && r.key === 'flair' && worn.flair === Art.STAR_TRAIL) return 'Stars follow you while you stay on top!';
+    if (r && r.key === 'flair' && worn.flair === Art.STAR_TRAIL) return crowned ? 'Stars follow you while you stay on top!' : 'Stars follow you wherever you go!';
+    if (r && r.key === 'flair' && worn.flair === Art.SWEEPER) return 'A beaten humbug sweeps up after you!';
     if (r && r.key === 'hat' && worn.hat === Art.HAUNTED_MASK) return 'You\'ve set Linda free the most: it\'s haunted!';
     if (r && r.key === 'extra' && worn.extra === Art.GOLD_RIBBON) return 'Most times Employee of the Month: it\'s gold!';
     return 'Arrows: choose   Space: change   Enter: done';
@@ -17170,11 +17320,14 @@
     text(title, (SW - title.length * 12) >> 1, 14, 2);
     // you, walking on the spot and turning round now and then
     const look = edit.look, worn = questLook(look), sp = lookSprites(worn), dir = ['down', 'left', 'up', 'right'][(tick >> 6) & 3];
-    const big = (paint) => { ctx.save(); ctx.translate(20, 52); ctx.scale(5, 5); paint(); ctx.restore(); };
-    floorShadow(60, 130, 20, 4);
+    // (smaller in the antlers, so they fit under the title)
+    const k = worn.hat === Art.ANTLERS ? 3 : 5, S = 16 * k, bx = 60 - S / 2, by = 132 - S;
+    const big = (paint) => { ctx.save(); ctx.translate(bx, by); ctx.scale(k, k); paint(); ctx.restore(); };
+    floorShadow(60, 130, 4 * k, 4);
     if (worn.flair === Art.STAR_TRAIL) trailPreview(60, 130);
-    big(() => wornBehind(worn, 0, 0, 8.5));
-    ctx.drawImage(sp[dir][[1, 0, 2, 0][(tick >> 3) & 3]], 20, 52, 80, 80);
+    if (worn.flair === Art.SWEEPER) { ctx.save(); ctx.translate(76, 100); ctx.scale(2, 2); drawSweeper({ walking: false }, 0, 0); ctx.restore(); }
+    big(() => wornBehind(worn, 0, 0, dir, null, 8.5));
+    ctx.drawImage(sp[dir][[1, 0, 2, 0][(tick >> 3) & 3]], bx, by, S, S);
     big(() => wornOver(worn, 0, 0, dir, 8.5));
     const who = playerName || 'New Hire';
     text(who, 60 - who.length * 3, 142);
@@ -17416,8 +17569,9 @@
         img: n.sprites[n.dir][frame], ghost: n.ghost, freeing: freeing && freeing.npc === n,
         alpha: visit && visit.npc === n ? visit.a : 1 });
     }
-    actors[0].worn = meWorn();
-    for (const o of mpHere()) if (o.f === P.floor) actors.push({ x: o.px, y: o.py, img: mpSprites(o)[o.dir][mpFrame(o)], dir: o.dir, worn: mpWorn(o) });
+    actors[0].worn = meWorn(); actors[0].lag = WALKS.me;
+    for (const o of mpHere()) if (o.f === P.floor) actors.push({ x: o.px, y: o.py, img: mpSprites(o)[o.dir][mpFrame(o)], dir: o.dir, worn: mpWorn(o), lag: o.walks });
+    for (const m of sweepersOn(P.floor)) actors.push({ x: m.at.x, y: m.at.y, img: sweeperPic('down', 0), sweeper: m });
     // a Christmas tree sorts in by the row it stands on (z), not by its top
     if (CHRISTMAS) for (const tr of xmas.trees) if (P.floor === tr.floor)
       actors.push({ x: tr.x * 16, y: (tr.y + 1) * 16 - 48, z: tr.y * 16, img: tr.frames[(tick >> 5) % 3] });
@@ -17427,7 +17581,8 @@
     for (const a of actors) {
       const sx = snap(a.x - cx), sy = snap(a.y - cy - 4);
       if (!(sx > -a.img.width && sx < SW && sy > -a.img.height - 4 && sy < SH)) continue;
-      if (a.freeing) drawFreeing(sx, sy, a.img);
+      if (a.sweeper) drawSweeper(a.sweeper, sx, sy);
+      else if (a.freeing) drawFreeing(sx, sy, a.img);
       else if (a.ghost) {
         // ghosts are see-through and bob up and down
         ctx.globalAlpha = 0.75;
@@ -17435,13 +17590,14 @@
         ctx.globalAlpha = 1;
       } else {
         // a visitor fades in and out as they go through the portal
-        wornBehind(a.worn, sx, sy);
+        wornBehind(a.worn, sx, sy, a.dir, a.lag);
         if (a.alpha < 1) ctx.globalAlpha = a.alpha;
         ctx.drawImage(a.img, sx, sy);
         ctx.globalAlpha = 1;
         wornOver(a.worn, sx, sy, a.dir);
       }
     }
+    drawSweepDust(cx, cy);
     for (const n of dogs) if (n.dog.cat && n.floor === P.floor) drawZzz(n.x * 16 - cx + 10, n.y * 16 - cy - 2, 1);
     // rooms with the lights off (drawn over the player too)
     ctx.fillStyle = 'rgba(8, 8, 28, 0.78)';

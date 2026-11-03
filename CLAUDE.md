@@ -59,7 +59,8 @@ in a browser (see "Testing in a browser").
   click-to-move, camera rotation and mouse or tap controls in games.
 - **Art:** everything is drawn at 32 x 32 on a 640 x 480 screen, laid out in a 320 x 240 view. Use a
   2-pixel outer outline with the light from the top left, and flat colours with a shade and a
-  highlight. People keep short legs and fit within one tile. Finer detail in mini-games goes through
+  highlight. People keep short legs and fit within one tile (the Christmas Cup's golden antlers are the one
+  agreed exception, drawn in `wornBehind`). Finer detail in mini-games goes through
   `fine()`, `fineDisc()` and `roundBox()`. Outdoors the look is a rough, very Canadian cartoon:
   flannel, beards, toques, trapper hats.
 - **Holidays:** gate with `CHRISTMAS` and `HALLOWEEN`, and `SEASON_FROM` for what stays afterwards.

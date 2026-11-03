@@ -48,7 +48,7 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
   free: see **Linda's list**), a shirt and pants, each in a colour, any extras worn
   over your clothes (a ribbon once your name has been Employee of the Month: see
   **Employee of the Month**), and flair (the Office Champion's star trail: see **The Hall of
-  Fame**). Up and down pick a part, left and right (or A) change it,
+  Fame**, and the Sweeper if your name won the Christmas Cup). Up and down pick a part, left and right (or A) change it,
   RANDOM picks for you and DONE (or START) heads into the office. Your character is
   saved with your name (see **Saved characters** below), so typing the same name on
   a phone and a computer gets you the same one. Don't try calling yourself Bob,
@@ -224,7 +224,9 @@ shows every leaderboard at once. Left and right flip between its pages:
   is under FLAIR, so they can change either for anything else and back again, and the game
   remembers what they chose, on any device, for as long as they stay on top. What they picked
   last stays saved underneath. Losing the title takes both away, out of the editor too, and
-  the next time they get there they start in both again.
+  the next time they get there they start in both again. They're also special items (see
+  "Special items"), so a name whose number for one is 1 can pick it in the editor at any
+  time, champion or not, and keeps it for good.
 - **Latest scores**: the newest scores on any board, who set them and where they rank now.
 - **Quests**: everyone who has set Linda free and everyone who has been Employee of the
   Month, side by side, with how many times each name has done it (up and down scroll
@@ -422,14 +424,18 @@ items/live/warren/santa: 1
 items/live/warren/antlers: 0
 ```
 
-`santa` is the Santa hat, `antlers` the golden antlers, `ghostmask` the ghost mask and `ribbon`
-the ribbon. 1 means it's theirs, so it's one of their choices in the character editor. 0 means it
+`santa` is the Santa hat, `antlers` the golden antlers, `sweeper` the Sweeper, `crown` the crown,
+`startrail` the star trail, `ghostmask` the ghost mask and `ribbon` the ribbon. 1 means it's theirs, so it's one of their choices in the character editor. 0 means it
 isn't, and the game won't offer it to them, even from the present, the cup or a quest. No number
 means they've never been given it.
 
-In the game the Santa hat only comes from opening the present on Christmas Day, the antlers
-from winning the Christmas Cup, and the mask and the ribbon from the quests (see **Linda's list**
-and **Employee of the Month**), which add a 1 where there's no number. To give an item to
+In the game the Santa hat only comes from opening the present on Christmas Day, the antlers and
+the Sweeper from winning the Christmas Cup, and the mask and the ribbon from the quests (see
+**Linda's list** and **Employee of the Month**), which add a 1 where there's no number. The game
+never sets a number for the crown or the star trail: the Office Champion wears them with no
+number, for as long as they're on top, so a number is only for giving them to somebody for good.
+Numbers belong to one name, so giving something to one person never changes what anybody else
+gets. If you give yourself the antlers and somebody else wins the cup, they still get theirs. To give an item to
 somebody or take it away, change the number on the Data tab (adding the name and the number if
 they aren't there yet). It reaches them the next time they come in, and if they're wearing
 something whose number isn't 1, it comes off (a head thing or an extra goes back to nothing, and a
@@ -1035,15 +1041,21 @@ From November 27 to December 31 (by your device's date) the office does Christma
   reception, under the Hall of Fame board, from the 27th on and for good. Press A on it:
   over Christmas it says who's leading and offers the standings, and from New Year's Day
   it has the champion's name and time engraved on its plaque, with the final board. The
-  champion (1st on the cup's board; on a tie, whoever got there first) wins **golden
-  antlers**: chunky cartoon antlers in polished gold that catches the light, with a
-  jingle bell at the foot of each. From New
-  Year's Day they're one of the champion's head things in the character editor, for good,
-  on any phone or computer with the same name: winning sets their `antlers` number in the
-  database to 1 (see "Special items"), and nobody else can pick them. They go on over the
-  hair like the bow does.
+  champion (1st on the cup's board; on a tie, whoever got there first) wins two things.
+  **Golden antlers**: a great gold rack whose tips curve in round a floating gold star, which
+  bobs, flashes its rays and lags behind you as you walk. It's a picture of its own, drawn behind
+  your head (`goldenAntlers`), and the one thing people wear that goes well outside their
+  tile, so names and speech bubbles sit higher over it. In a mini-game, which only draws your
+  32 x 32 picture, you just have the bottom of the rack. **The Sweeper**: one of the humbugs you
+  beat follows your path with a broom, kicking up dust, and when you stop it folds its arms and
+  huffs (`followTick`, `drawSweeper`). It only ever goes where you've been, so it turns up once
+  you've walked far enough to have it behind you. From New Year's Day they're with the champion's
+  head things and under FLAIR in the character editor, for good, on any phone or computer with the
+  same name: winning sets their `antlers` and `sweeper` numbers in the database to 1 (see "Special
+  items"), and nobody else can pick them unless they're given a number by hand. Other players see
+  both.
   The first time the champion is walking around after New Year's, a message tells them
-  they've won and offers to put the antlers on (once for each name); pressing A on the cup
+  they've won and offers to put them on (once for each name); pressing A on the cup
   offers them too, until they're wearing them. Everyone else, the first time they're
   walking around after New Year's, gets a banner across the top of the screen for eight
   seconds: CHRISTMAS CUP CHAMPION, with the champion's name and time (once in each
@@ -1159,8 +1171,8 @@ nothing gets saved for real, and you're in the `test` world, away from live play
 - `index.html#play&christmas=1&yard=1`: start outside the parking lot's doors.
 - `#christmas=0` switches it off during the holidays.
 - Add `&champion=Ada` to make the Christmas Cup's season over with Ada as its champion (add
-  `&name=Ada` to be Ada, and you're told you've won and offered the golden antlers, for this
-  visit only; any other name sees the banner instead).
+  `&name=Ada` to be Ada, and you're told you've won and offered the golden antlers and the
+  Sweeper, for this visit only; any other name sees the banner instead).
 - Add `&xmasday=1` to make it Christmas Day (the present under the tree can be opened), and
   `&santahat=1` to have the Santa hat for this visit, as if your name had opened it.
 - Add `&sweater=moose` (or `gingerbread`, `reindeer`, `snowflake`, `tree`, `candycane`,
@@ -1276,6 +1288,9 @@ first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gi
 the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
 `&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
 `&crown=1` makes you the Office Champion, in the crown and the star trail.
+`&have=antlers,sweeper&look=m100b0000020` wears the golden antlers and the Sweeper (walk a little for
+the humbug to turn up), and `&have=crown,startrail&look=m10090000010` wears the crown and the star trail
+without being the champion. Add `&zoom=2` for a closer look, which is handy for screenshots.
 
 `&zoom=2` starts you zoomed in on your character (1 MID, 2 CLOSE, 0 FAR), as **Zoom** in the
 Start menu does, for this visit only.
