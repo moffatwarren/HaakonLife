@@ -56,7 +56,8 @@ export class Table {
   }
 
   sit(pid, name) {
-    const got = this.game.sit(this.state, pid, name);
+    let got;
+    try { got = this.game.sit(this.state, pid, name); } catch (e) { this.crash(e); return 'error'; }
     if (got !== true) return got || false;
     this.sent.delete(pid);
     this.show(pid);

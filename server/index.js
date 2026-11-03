@@ -2,7 +2,8 @@
 //   wss://<host>/?w=<live or test>&id=<its player id>&key=<its secret>&b=1
 // and from then on it's JSON messages both ways (see world.js). &b=1 says it takes
 // everyone's moves bundled up (copies from before that leave it off). A plain web request
-// gets "ok" and how many people are on, for the host's health check.
+// gets "ok" and how many people are on, for the host's health check, and how many problems
+// browsers have reported (see problems.js, for a POST to /problem).
 //
 // Settings, from the environment:
 //   PORT     where to listen (default 8080)
@@ -15,16 +16,27 @@ import { WebSocketServer } from 'ws';
 import { World, BUNDLE_MS } from './world.js';
 import defaultGames from './games/index.js';
 import defaultTables from './tables/index.js';
+import { problemDesk } from './problems.js';
+
+// A bug in handling one player's message shouldn't stop the game for everybody else.
+function safely(what, id, fn) {
+  try { return fn(); } catch (e) { console.error(what, id, 'failed:', e); return undefined; }
+}
 
 export function start({ port = 8080, origins = [], games = defaultGames, tables = defaultTables } = {}) {
   const worlds = { live: new World('live', games, Date.now, tables), test: new World('test', games, Date.now, tables) };
+  const problems = problemDesk(origins);
   const server = http.createServer((req, res) => {
+    if (req.method === 'POST' && req.url === '/problem') { problems.take(req, res); return; }
     res.writeHead(200, { 'content-type': 'text/plain' });
-    res.end('ok ' + Object.entries(worlds).map(([n, w]) => n + ':' + w.online()).join(' ') + '\n');
+    res.end('ok ' + Object.entries(worlds).map(([n, w]) => n + ':' + w.online()).join(' ') + ' problems:' + problems.count + '\n');
   });
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
 
   server.on('upgrade', (req, socket, head) => {
+    // (a connection that breaks before it's a WebSocket: with nobody listening for that
+    // error, it would stop the whole server)
+    socket.on('error', () => {});
     const q = new URL(req.url, 'http://localhost').searchParams;
     const world = Object.hasOwn(worlds, q.get('w')) ? worlds[q.get('w')] : null;
     const id = q.get('id') || '', key = q.get('key') || '';
@@ -34,15 +46,21 @@ export function start({ port = 8080, origins = [], games = defaultGames, tables 
       return;
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
-      if (!world.join(id, key, ws, q.get('b') === '1')) { ws.close(4001, 'taken'); return; }
+      // Something broken or too big (over maxPayload) coming down a connection closes that
+      // connection, and is reported here. With nobody listening for it, it would stop the
+      // whole server, and everybody on it with their live games.
+      ws.on('error', (e) => console.error('connection', id, 'dropped:', e.message));
+      ws.on('close', () => safely('leaving', id, () => world.leave(ws)));
+      const joined = safely('joining', id, () => world.join(id, key, ws, q.get('b') === '1'));
+      if (joined === undefined) { ws.close(1011, 'error'); return; }
+      if (!joined) { ws.close(4001, 'taken'); return; }
       ws.alive = true;
       ws.on('pong', () => { ws.alive = true; });
       ws.on('message', (buf) => {
         let d;
         try { d = JSON.parse(buf); } catch { return; }
-        world.hear(ws, d);
+        safely('message from', id, () => world.hear(ws, d));
       });
-      ws.on('close', () => world.leave(ws));
     });
   });
 
