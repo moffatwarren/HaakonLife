@@ -457,6 +457,36 @@ Flair isn't drawn in a character's picture, so to add some, put it at the end of
 anybody whose `look.flair` is that place in the list, as `glowTick` does for the star trail. Other
 players get it with your look, so there's nothing else to send.
 
+#### Head things bigger than a tile
+
+A person's picture is one 32 x 32 tile with only 2 rows above the head, so anything bigger, like
+the golden antlers, is drawn as a picture of its own, behind them. To add one:
+
+1. **Draw it** in `BIG32` in `js/art.js`, under a new `hd` name, as rows of colour letters at any
+   size. `x` and `y` say where its top left goes, in pixels from the top left of the wearer's picture,
+   so a negative `y` is above the tile. It needs `down` (the front) and `left` (side on: `right` is that
+   flipped), and `up` only if the back looks different. Use a 2-pixel outline with the light from the
+   top left, and only the colours in `BIG_COLS`, which don't change with the wearer's look.
+2. **List it** at the end of `HATS` with the same `hd` name, and `item: 'itsname'` if it's earned.
+   Don't add it to `HAT32`: the part inside the tile is cut out of your rows for you.
+
+That's all it needs. `wornBehind` draws it, so their head and hair cover the bottom of it and
+it never clashes with a hairstyle. Other players see it with their look, names and speech bubbles
+move up to clear it (`tagLift`), and the character editor draws you smaller in it so it fits
+under the title (`drawEdit`). A costume hides it. A mini-game only draws the 32 x 32 picture, so
+all it shows there is the part inside the tile.
+
+If it moves, draw that in `wornBehind` or `wornOver` (behind or in front of the wearer) under a
+check for that hat, as `humbugBaubles` does. If it needs to know how somebody's been moving, that's
+what `followOne` is for: it keeps a little memory for each person, worked out from where they're
+drawn, so nothing extra goes over the network.
+
+Try it with `&have=itsname&look=...` (see "Testing") in the office, in the lot with `&yard=1`, in
+hockey and in the character editor, facing all four ways and in a few hairstyles, and with a
+second player to check their name clears it. The golden antlers reach about half a tile above the
+picture and are a little under two tiles wide with their baubles. Much bigger than that and it
+starts to cover whoever is standing nearby.
+
 If the database's rules were set up before special items, add the `items` part above and
 press Publish again. Until then the game can't find or save them there, and just remembers
 them in the browser.
@@ -1042,11 +1072,11 @@ From November 27 to December 31 (by your device's date) the office does Christma
   over Christmas it says who's leading and offers the standings, and from New Year's Day
   it has the champion's name and time engraved on its plaque, with the final board. The
   champion (1st on the cup's board; on a tie, whoever got there first) wins two things.
-  **Golden antlers**: a great gold rack whose tips curve in round a floating gold star, which
-  bobs, flashes its rays and lags behind you as you walk. It's a picture of its own, drawn behind
-  your head (`goldenAntlers`), and the one thing people wear that goes well outside their
-  tile, so names and speech bubbles sit higher over it. In a mini-game, which only draws your
-  32 x 32 picture, you just have the bottom of the rack. **The Sweeper**: one of the humbugs you
+  **Golden antlers**: a great gold rack hung with three of the humbugs you beat, as baubles. They
+  swing as you walk and when you turn, glare and blink, and the top one mutters BAH! now and then
+  (`humbugBaubles`). The rack goes well outside your tile (see "Head things bigger than a tile"),
+  so names and speech bubbles sit higher over it, and in a mini-game, which only draws your
+  32 x 32 picture, you just have the bottom of it. **The Sweeper**: one of the humbugs you
   beat follows your path with a broom, kicking up dust, and when you stop it folds its arms and
   huffs (`followTick`, `drawSweeper`). It only ever goes where you've been, so it turns up once
   you've walked far enough to have it behind you. From New Year's Day they're with the champion's

@@ -100,9 +100,8 @@ window.Art = (function () {
     // only for a name that's opened its present under the tree on Christmas Day (see js/game.js)
     { name: 'Santa hat', hd: 'santa', item: 'santa' },
     // only for the Christmas Cup's champion, the fastest at Humbug Sweeper over Christmas 2026
-    // (see js/game.js): gold antlers with a star between the tips. They go behind the head, and
-    // only the bottom of them is in the picture: js/game.js draws the rest, from RACK32.
-    { name: 'Golden antlers', hd: 'antlers', item: 'antlers', behind: true },
+    // (see js/game.js): gold antlers hung with humbug baubles, too big for the picture (see BIG32)
+    { name: 'Golden antlers', hd: 'antlers', item: 'antlers' },
     // only for a name that's set Linda free (see "the quests' wearables" in js/game.js)
     { name: 'Ghost mask', hd: 'ghostmask', item: 'ghostmask' },
     // the same mask on whoever has set her free the most, with ghosts going round it. Like the
@@ -1250,45 +1249,6 @@ window.Art = (function () {
         '.........................kkkkk',
       ],
     },
-    // (the part of RACK32 that's inside the picture, so it lines up with the rest)
-    antlers: {
-      down: [
-        'kooooooOkkk..........kkkOoooooYk',
-        'kkoYYoooOkkk........kkkOoooYYYkk',
-        'kkkkkooooOkkk......kkkOoooYkkkkk',
-        '.kkkkkOooYkkkk....kkkkOooYkkkkk',
-        '....kkooooOOkk....kkOOoooYkk',
-        '....kkkooooYkk....kkOoooYkkk',
-        '.....kkkoooYkk....kkOooYkkk',
-        '......kkkoYYkk....kkoYYkkk',
-        '.......kkkkkkk....kkkkkkk',
-        '........kkkkk......kkkkk',
-      ],
-      up: [
-        'kooooooOkkk..........kkkOoooooYk',
-        'kkoYYoooOkkk........kkkOoooYYYkk',
-        'kkkkkooooOkkk......kkkOoooYkkkkk',
-        '.kkkkkOooYkkkk....kkkkOooYkkkkk',
-        '....kkooooOOkk....kkOOoooYkk',
-        '....kkkooooYkk....kkOoooYkkk',
-        '.....kkkoooYkk....kkOooYkkk',
-        '......kkkoYYkk....kkoYYkkk',
-        '.......kkkkkkk....kkkkkkk',
-        '........kkkkk......kkkkk',
-      ],
-      left: [
-        '.kkYYYYYYokk.........kkOoooooYkk',
-        '.kkkYnnYYnkkk.......kkkOooYYYkkk',
-        '..kkkkkoYYokkk.....kkkOooYkkkkk',
-        '...kkkkYYYYokkk...kkkOoooYkkkk',
-        '.....kkkYYYYokk...kkOoooYkkk',
-        '......kkkoYYnkk...kkOooYkkk',
-        '.......kkYYYnkk...kkOooYkk',
-        '.......kkkYnnkk...kkoYYkkk',
-        '........kkkkkkk...kkkkkkk',
-        '.........kkkkk.....kkkkk',
-      ],
-    },
     // Linda's face, more or less: white, with big hollow eyes and an "ooo", and a strap round the back
     ghostmask: {
       down: [
@@ -1351,98 +1311,123 @@ window.Art = (function () {
       ],
     },
   };
-  for (const h of HATS) h.hi = HAT32[h.hd];
-  // The golden antlers in full, which won't fit in a picture: rows laid with their top left at
-  // (x, y) from the top left of their wearer's picture, seen from the front and back (down) and
-  // side on (left, with the far one a shade darker). See "the golden antlers" in js/game.js.
-  const RACK32 = {
-    x: -5, y: -21,
-    down: [
-      '.....kkkk........................kkkk.....',
-      '....kkkkkk......................kkkkkk....',
-      '....kkOOkk...kkkk........kkkk...kkOOkk....',
-      '....kkOYkk.kkkkkkk......kkkkkkk.kkOYkk....',
-      '....kkOYkkkkkkOOkk......kkOOkkkkkkOYkk....',
-      '....kkOoOkkkOOoYkk......kkooOOkkkOoYkk....',
-      '.kkkkkooYkkOooYkkk......kkkoooOkkOoYkkkkk.',
-      'kkkkkkkooOOoYYkkk........kkkoYoOOoYkkkkkkk',
-      'kkOOkkkkOooYkkkk..........kkkkOooYkkkkOOkk',
-      'kkOYkkkkOooYkkk............kkkoooYkkkkOYkk',
-      'kkOYkkkkOoYkkk..............kkkOoYkkkkOYkk',
-      'kkooOkkkOoYkk................kkooYkkkOoYkk',
-      'kkkOoOkOoYkkk................kkkOoOkOoYkkk',
-      '.kkoooOooYkk..................kkOooOooYkk.',
-      '.kkkoYoooYkk..................kkOoooYYkkk.',
-      '.kkkkkoooYkk..................kkOooYkkkkk.',
-      '.kkOOkkOoYkkk................kkkOoYkkOOkk.',
-      '.kkOYkkOooOkk................kkOooYkkOYkk.',
-      '.kkooOkoooYkk................kkOooYkOoYkk.',
-      '.kkkooOkOoYkkk..............kkkOoYkOoYkkk.',
-      '..kkkooOoooOkkk............kkkOoooOoYkkk..',
-      '...kkkooooooOkkk..........kkkOoooooYkkk...',
-      '....kkkoYYoooOkkk........kkkOoooYYYkkk....',
-      '.....kkkkkooooOkkk......kkkOoooYkkkkk.....',
-      '......kkkkkOooYkkkk....kkkkOooYkkkkk......',
-      '.........kkooooOOkk....kkOOoooYkk.........',
-      '.........kkkooooYkk....kkOoooYkkk.........',
-      '..........kkkoooYkk....kkOooYkkk..........',
-      '...........kkkoYYkk....kkoYYkkk...........',
-      '............kkkkkkk....kkkkkkk............',
-      '.............kkkkk......kkkkk.............',
+  // Head things too big for a 32 x 32 picture, by their hd name: each is a picture of its own,
+  // drawn behind its wearer (wornBehind in js/game.js), so their head and hair cover the bottom of
+  // it. x and y are where its top left goes, in pixels from the top left of their picture, so a
+  // negative y is above the tile. There's a down and a left (right is left flipped), and an up only
+  // if the back looks different. Only use the colours in BIG_COLS, which leaves out h, s, w, u and K
+  // because those go by the wearer's look. How to add one: "Head things bigger than a tile" in the README.
+  const { h: _h, s: _s, w: _w, u: _u, K: _K, ...FIXED_COLORS } = COLORS;
+  const BIG_COLS = Object.assign(FIXED_COLORS, { O: '#f8e070', Y: '#a87018', I: '#fcfcff', J: '#2f62d8', z: '#1c3a94' });
+  const BIG32 = {
+    // the golden antlers: seen side on, the far one is a shade darker
+    antlers: {
+      x: -6, y: -16,
+      down: [
+        '...kkkk..............................kkkk...',
+        '..kkkkkk............................kkkkkk..',
+        '..kkOOkkkkkk....................kkkkkkOOkk..',
+        '..kkOYkkkkkkk..................kkkkkkkOYkk..',
+        '..kkooOkkOOkk..................kkOOkkOoYkk..',
+        '..kkkOYkOoYkk..................kkOoOkOYkkk..',
+        '...kkooOooYkk..................kkoooOoYkk...',
+        '...kkkoooYkkk..................kkkOooYkkk...',
+        '.kkkkkkOoYkk....................kkOoYkkkkkk.',
+        'kkkkkkkOoYkk....................kkOoYkkkkkkk',
+        'kkOOkkkOoYkkk..................kkkOoYkkkOOkk',
+        'kkooOOOoooOkk..................kkOoooOOOoYkk',
+        'kkkoYYooooYkk..................kkOooooYYYkkk',
+        '.kkkkkooooYkkk................kkkOoooYkkkkk.',
+        '.kkkkkkoYooOkkk..............kkkOooYYkkkkkk.',
+        'kkkkkkkkkOooOkk..............kkOooYkkkkkkkkk',
+        'kkOOOOkkkoooYkkk............kkkOooYkkkOOOOkk',
+        'kkooooOOOkOooOkkk..........kkkOooYkOOOoooYkk',
+        'kkkoYYYooOooooOkkk........kkkOooooOooYYYYkkk',
+        '.kkkkkkoYooooooOkkk......kkkOooooooYYkkkkkk.',
+        '..kkkkkkkoYYYoooOkkk....kkkOoooYYYYkkkkkkk..',
+        '......kkkkkkkooooOkk....kkOoooYkkkkkkk......',
+        '........kkkkkkOooYkk....kkOooYkkkkkk........',
+        '............kkoooYkk....kkOooYkk............',
+        '............kkkoYYkk....kkoYYkkk............',
+        '.............kkkkkkk....kkkkkkk.............',
+        '..............kkkkk......kkkkk..............',
+      ],
+      left: [
+        '......kkkk.........................kkkk.....',
+        '.....kkkkkkkkk.................kkkkkkkkk....',
+        '.....kkookkkkkk...............kkkkkkOOkk....',
+        '.....kkonkkkokk...............kkOkkkOYkk....',
+        '.....kkYYokonkk...............kkOOkOoYkk....',
+        '.....kkkonkonkk...............kkOYkOYkkk....',
+        '......kkYYoYnkk...............kkOoOoYkk.....',
+        '......kkkYYYnkk...............kkOooYkkk.....',
+        '.....kkkkkoYnkk...............kkOoYkkkkk....',
+        '....kkkkkkoYnkk...............kkOoYkkkkkk...',
+        '...kkkookkoYnkk...............kkOoYkkOOkkk..',
+        '...kkoYYooYYnkk...............kkOooOOooOkk..',
+        '...kkkYnnYYYnkkk.............kkkOoooYYYkkk..',
+        '....kkkkkYYYYokk.............kkOoooYkkkkk...',
+        '.....kkkkkYYYnkkk...........kkkOooYkkkkk....',
+        '....kkkkkkkoYYokk...........kkOooYkkkkkkk...',
+        '...kkkoookkoYYnkkk.........kkkOooYkkOOOkkk..',
+        '...kkoYYYooYYYYokkk.......kkkOooooOOoooOkk..',
+        '...kkkYnnYYYYYYYokk.......kkOoooooooYYYkkk..',
+        '....kkkkkYnYYYYYnkkk.....kkkOoooooYYkkkkk...',
+        '.....kkkkkkYnnYYYokkk...kkkOoooYYYkkkkkk....',
+        '........kkkkkkYYYYokkk.kkkOoooYkkkkkk.......',
+        '..........kkkkkoYYYokk.kkOoooYkkkkk.........',
+        '.............kkYYYYnkk.kkooooYkk............',
+        '.............kkkYnnkkk.kkkoYYkkk............',
+        '..............kkkkkkk...kkkkkkk.............',
+        '...............kkkkk.....kkkkk..............',
+      ],
+    },
+  };
+  // the part of a big head thing that's inside the 32 x 32 picture, which lines up with the rest of
+  // it and is all there is of it in a mini-game
+  function insidePicture(big) {
+    const cut = (rows) => [...new Array(Math.max(0, big.y)).fill(''), ...rows.slice(Math.max(0, -big.y))]
+      .map((r) => (big.x < 0 ? r.slice(-big.x) : '.'.repeat(big.x) + r).slice(0, 32).replace(/\.+$/, ''));
+    return { down: cut(big.down), up: cut(big.up || big.down), left: cut(big.left) };
+  }
+  for (const h of HATS) {
+    h.big = BIG32[h.hd];
+    h.hi = h.big ? insidePicture(h.big) : HAT32[h.hd];
+  }
+  // The humbugs hanging off the golden antlers, as baubles with a gold cap: eyes open, and shut
+  // for a moment now and then. b, G, L and D are its greens, as in SWEEPER_BODY.
+  const BAUBLE32 = {
+    open: [
+      '.....kkk.....',
+      '.k..koOok..k.',
+      'kbk.kkkkk.kbk',
+      'kbGkGGGGGkGDk',
+      '.kGLLGGGGGDk.',
+      'kGGkkGGGkkGDk',
+      'kGYYkGGGkYYDk',
+      'kGYkkGGGkkYDk',
+      'kGGGGGGGGGDDk',
+      'kGGGkkkkkGDDk',
+      '.kGkGGGGGkDk.',
+      '..kGDDDDDDk..',
+      '...kkkkkkk...',
     ],
-    left: [
-      '........kkkk...................kkkk.......',
-      '.......kkkkkk.................kkkkkk......',
-      '.......kkookk.kkkk.......kkkk.kkOOkk......',
-      '.......kkonkkkkkkkk.....kkkkkkkkOYkk......',
-      '.......kkonkkkkookk.....kkOOkkkkOYkk......',
-      '.......kkonkkkoYnkk.....kkooOkkkOYkk......',
-      '....kkkkkYYokoYnkkk.....kkkooOkOoYkkkkk...',
-      '...kkkkkkkoYoYnkkk.......kkkooOoYkkkkkkk..',
-      '...kkookkkYYYnkkk.........kkkOooYkkkOOkk..',
-      '...kkonkkkkoYnkk...........kkooYkkkkOYkk..',
-      '...kkYYokkoYnkkk...........kkkOoOkkOoYkk..',
-      '...kkkonkkoYnkk.............kkOoYkkOYkkk..',
-      '....kkoYokoYnkk.............kkooYkOoYkk...',
-      '....kkYYYoYnkkk.............kkkOoOooYkk...',
-      '....kkkYnYYnkk...............kkOooYYkkk...',
-      '....kkkkkoYnkkk.............kkkOoYkkkkk...',
-      '....kkookYYYokk.............kkOooYkOOkk...',
-      '....kkoYokoYnkk.............kkOoYkOoYkk...',
-      '....kkYYnkoYnkk.............kkOoYkOoYkk...',
-      '....kkkYYoYYnkkk...........kkkOooOoYkkk...',
-      '.....kkkoYYYYokkk.........kkkOooooYkkk....',
-      '......kkYYYYYYokk.........kkOoooooYkk.....',
-      '......kkkYnnYYnkkk.......kkkOooYYYkkk.....',
-      '.......kkkkkoYYokkk.....kkkOooYkkkkk......',
-      '........kkkkYYYYokkk...kkkOoooYkkkk.......',
-      '..........kkkYYYYokk...kkOoooYkkk.........',
-      '...........kkkoYYnkk...kkOooYkkk..........',
-      '............kkYYYnkk...kkOooYkk...........',
-      '............kkkYnnkk...kkoYYkkk...........',
-      '.............kkkkkkk...kkkkkkk............',
-      '..............kkkkk.....kkkkk.............',
+    shut: [
+      '.....kkk.....',
+      '.k..koOok..k.',
+      'kbk.kkkkk.kbk',
+      'kbGkGGGGGkGDk',
+      '.kGLLGGGGGDk.',
+      'kGGkkGGGkkGDk',
+      'kGGGGGGGGGGDk',
+      'kGkkkGGGkkkDk',
+      'kGGGGGGGGGDDk',
+      'kGGGkkkkkGDDk',
+      '.kGkGGGGGkDk.',
+      '..kGDDDDDDk..',
+      '...kkkkkkk...',
     ],
   };
-  RACK32.up = RACK32.down;
-  // the star that floats between their tips, with an amber edge
-  const NORTH_STAR32 = [
-    '.......d.......',
-    '......dOd......',
-    '......dOd......',
-    '.....dOOod.....',
-    '.....dOOod.....',
-    '.ddddOOOoodddd.',
-    'dOOOOOOOooooYYd',
-    '.dOOOOIOoooYYd.',
-    '..dOOOIIooYYd..',
-    '...dOOOooYYd...',
-    '...dOOoooYYd...',
-    '..dOOoodooYYd..',
-    '..dOodd.ddYYd..',
-    '.dOod.....dYd..',
-    '..dd.......d...',
-  ];
   // The humbug who follows the champion about, without the outline, which is added below: one set
   // of rows for each way it can face. The feet go on in turn as it walks.
   const SWEEPER_BODY = {
@@ -2365,10 +2350,10 @@ window.Art = (function () {
     if (!sw && pants.hi.top) lay32(b, pants.hi.top[view], 20);
     const side = dir === 'left', legs = pants.hi[side ? (step > 0 ? 'leftWalk' : 'left') : step > 0 ? 'downWalk' : 'down'];
     lay32(b, step === 2 && !side ? legs.map((r) => [...r.padEnd(32, '.')].reverse().join('')) : legs, 26);
-    if (!noHat && hat.behind) lay32(b, hat.hi[dir], 0);
+    if (!noHat && hat.big) lay32(b, hat.hi[dir], 0); // (a big head thing goes behind the head)
     lay32(b, HEAD32[dir], 0);
     lay32(b, hair.hi[dir], 0);
-    if (!noHat && hat.hi && !hat.behind) { // (the first head thing is nothing at all)
+    if (!noHat && hat.hi && !hat.big) { // (the first head thing is nothing at all)
       const head = HEAD32[dir];
       (hat.hi[dir] || hat.hi.down).forEach((row, j) => [...row].forEach((ch, i) => {
         if (ch === '_') { const h = (head[j] || '')[i]; b[j * 32 + i] = h && h !== '.' ? h : null; } else if (ch !== '.') b[j * 32 + i] = ch;
@@ -5707,7 +5692,7 @@ window.Art = (function () {
   return {
     LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS, extras: EXTRAS, flairs: FLAIRS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, STAR_TRAIL, SWEEPER, RACK32, NORTH_STAR32, SWEEPER32, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, STAR_TRAIL, SWEEPER, BIG_COLS, BAUBLE32, SWEEPER32, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
     SWEATERS,
   };
 })();
