@@ -17,7 +17,8 @@ haakonlife.com updates itself: every push to `main` that changes `index.html`, `
 or `assets/` uploads those files to the Namecheap hosting by FTP
 (`.github/workflows/deploy-site.yml`, using the `FTP_SERVER`, `FTP_USERNAME` and
 `FTP_PASSWORD` repository secrets). The Actions tab has a **Run workflow** button to
-upload again without a push.
+upload again without a push. It checks first that every game is hooked up everywhere it
+needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you.
 
 | Action | Keyboard | Touch | Controller (Xbox / PlayStation) |
 | --- | --- | --- | --- |
@@ -655,6 +656,13 @@ head-to-head games, and these games only show up in the list when there's a game
 Give the entry `christmas: true` as well (as the snowball fight has) and it's only in the
 list from the day Christmas first starts (`SEASON_FROM`), then for good.
 
+**A game that's also played alone.** Pong keeps a second copy of its rules, one in the browser
+for playing the TV and one on the server, and the two have to be kept in step by hand. For a new
+game that might ever go live, keep the rules in a file of their own instead, as hockey does:
+`js/hockey.js` has the rules with nothing about drawing or keys, so the browser plays it against
+a coworker, the server runs the same file for a live game, and `server/test/hockey.test.js`
+plays it with no browser at all. The steps are in `CLAUDE.md`.
+
 **A table anyone can join.** The live poker table (`server/tables/poker.js`, drawn by
 `LivePoker` in `js/game.js`) isn't a match two people agree to: people sit down and get
 up whenever they like. `server/tables.js` describes what a table game exports, and
@@ -1238,6 +1246,15 @@ Plain `index.html#play` skips the title screen and drops you at the entrance.
 - `index.html#play&plant=1`: wake up in the Kingston plant.
 
 ## Testing
+
+`node tools/check_games.mjs` makes sure every game is hooked up everywhere it needs to be:
+it has a shortcut, something starts it, its tile is really on the map, it says what you're doing, its
+score has a board and that board is on a Hall of Fame page, and a head-to-head game the server
+runs is on the server. It says what's missing and where to add it. The site's deploy runs it
+first and won't upload if it fails. If something is missing on purpose (Kiki's jar has no board,
+since it's win or lose), it goes in the exceptions at the top of that file with the reason.
+The steps for adding a game are in `CLAUDE.md`, which is also where the rules and testing recipes
+for working on the game live.
 
 Best scores are saved in the browser, and sent to the online leaderboards when
 `BOARD_URL` is set. For testing, `index.html#play&game=punch`

@@ -4,6 +4,9 @@
 # just the changed files and removes ones deleted from the repo. That also keeps the
 # "Updated ..." date on the title screen right, since it comes from the js files' dates.
 #
+# First it checks every game is hooked up everywhere it needs to be (tools/check_games.mjs). If
+# that fails nothing is uploaded, the site stays as it was, and GitHub emails you.
+#
 # Needs three repository secrets (Settings → Secrets and variables → Actions):
 #   FTP_SERVER    e.g. ftp.haakonlife.com
 #   FTP_USERNAME  an FTP account from cPanel whose directory is the site's web root
@@ -20,7 +23,19 @@ on:
 concurrency: deploy-site
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: node tools/check_games.mjs
+
   deploy:
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,3 +58,4 @@ jobs:
             tools/**
             server/**
             README.md
+            CLAUDE.md
