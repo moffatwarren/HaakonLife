@@ -482,6 +482,13 @@ check for that hat, as `humbugBaubles` does. If it needs to know how somebody's 
 what `followOne` is for: it keeps a little memory for each person, worked out from where they're
 drawn, so nothing extra goes over the network.
 
+An ordinary head thing can have a part that moves too, like the Santa hat's tail. Give it `loose`
+in `HAT32`: its `down`, `up` and `left` rows again without that part. The sheet then has a copy of
+each picture without it (`.loose`), which `freed` picks wherever a person is drawn with `wornBehind`
+and `wornOver`, and everywhere else, like a mini-game, keeps the whole hat. Draw the part in
+`wornBehind`, so the hat in the picture covers the top of it. It can hang outside the tile, like the
+big head things.
+
 Try it with `&have=itsname&look=...` (see "Testing") in the office, in the lot with `&yard=1`, in
 hockey and in the character editor, facing all four ways and in a few hairstyles, and with a
 second player to check their name clears it. The humbug antlers reach about half a tile above the
@@ -942,6 +949,12 @@ From November 27 to December 31 (by your device's date) the office does Christma
   in the character editor, for good (not just at Christmas). It belongs to your name, not
   the browser: opening the present sets your `santa` number in the database to 1 (see
   "Special items"), so typing the same name on another phone or computer brings it with you.
+  It's alive when you walk: the tail streams out behind you, or swings from side to side if
+  you're going up or down the screen, and swings back and settles when you stop. The pom-pom
+  and the gold bell on the end of it hop with each step, the bell glints and jingles every other
+  stride and when you turn, and little snowflakes shake off it and drift down behind you. Other
+  players see all of that, but only you hear your own bell. It's `santaStep` and `santaTail`. In a
+  mini-game, which only draws your 32 x 32 picture, it's a still hat with the bell on it.
   Before the 25th the presents just say not to open them. It's "Christmas Day" in
   `js/game.js`.
 - The music changes too: indoors the office tune gives way to Deck the Halls, outside
@@ -1208,7 +1221,8 @@ nothing gets saved for real, and you're in the `test` world, away from live play
   `&name=Ada` to be Ada, and you're told you've won and offered the humbug antlers and the
   Sweeper, for this visit only; any other name sees the banner instead).
 - Add `&xmasday=1` to make it Christmas Day (the present under the tree can be opened), and
-  `&santahat=1` to have the Santa hat for this visit, as if your name had opened it.
+  `&santahat=1` to have the Santa hat for this visit, as if your name had opened it. Add
+  `&look=m100a00000000` to be wearing it, and walk around to see the tail swing.
 - Add `&sweater=moose` (or `gingerbread`, `reindeer`, `snowflake`, `tree`, `candycane`,
   `santa`, `snowman`, `hvac`, `none`) to a `#play` link to pick your ugly sweater, and
   `&sweaters` to open the sweater picker. In October add `&halloween=0` too, or you're in

@@ -576,6 +576,11 @@
     creak: () => tone(210 + Math.random() * 60, 0.14, 'sawtooth', 0.025, -70),
     wind: () => noise(1.1, 900, 0.07),
     tink: () => { tone(2640, 0.1, 'triangle', 0.07, 600); noise(0.06, 5200, 0.05); },
+    // the bell on the Santa hat, which goes with every other stride, so it's very quiet
+    bell: () => {
+      const k = 1 + Math.random() * 0.05;
+      tone(2637 * k, 0.11, 'triangle', 0.014); tone(3951 * k, 0.08, 'sine', 0.008, 0, 0.03); tone(3322 * k, 0.09, 'triangle', 0.007, 0, 0.065);
+    },
   };
   function sfx(name, arg) { if (soundOn && actx) SFX[name](arg); }
 
@@ -3823,24 +3828,105 @@
     if (!m.walking) { fine(X + 2, Y + 6.5, 6, 1, '#181820'); fine(X + 2.5, Y + 7, 5, 0.5, '#3c7a28'); } // (its folded arms)
     if (m.walking && dir !== 'up') broom();
   }
+  // The Santa hat, from the present under the tree on Christmas Day. Its tail is drawn on its own,
+  // behind the wearer, so it comes out from under the fold of the hat in their picture (see `loose`
+  // on it in js/art.js: a mini-game just has the whole picture). It streams out behind them as they
+  // walk, swings from side to side with their stride when they're going up or down the screen,
+  // and swings back and settles when they stop. The pom-pom and the bell hop with each step, the
+  // bell glints and jingles every other stride and whenever they turn, and a little snow gets shaken
+  // loose as they go. santaHang is the tail's shape: how each link of it hangs, in radians, 0 straight
+  // down and more towards the right of the screen. Without a memory of how they've been moving
+  // (in hockey and the character editor, where they're moving anyway) it just swings on its own.
+  const SANTA_TIE = { down: [27, 6], left: [27, 6], up: [4, 6], right: [4, 6] }; // (real pixels from the top left of their picture)
+  const SANTA_LINK = 3, SANTA_BELL_GAP = 6, SANTA_WALK = 32; // (real pixels; pixels walked to a stride)
+  const santaHang = (walk) => (walk && walk.tail) || [0, 0.8, 1.6, 2.4].map((d) => Math.sin(tick / 7 - d) * (0.2 + d * 0.06));
+  // where the tail's links are, in real pixels from the top left of their picture, top first
+  function santaLinks(way, tail) {
+    let [px, py] = SANTA_TIE[faced(way)];
+    const pts = [[px, py]], right = px > 16; // (it mustn't swing far in over their head)
+    for (const a of tail) {
+      const th = right ? clamp(a, -0.3, 1.5) : clamp(a, -1.5, 0.3);
+      px += Math.sin(th) * SANTA_LINK; py += Math.cos(th) * SANTA_LINK;
+      pts.push([px, py]);
+    }
+    return pts;
+  }
+  // m: as for followOne. vx and vy: how far they've just moved. x, y: the top left of their tile.
+  function santaStep(m, vx, vy, turned, f, x, y, way) {
+    const pace = Math.hypot(vx, vy), was = m.sd || 0;
+    m.sd = was + pace;
+    const phase = m.sd / SANTA_WALK * Math.PI * 2, side = Math.abs(vx) > Math.abs(vy), go = Math.min(1, pace / 1.5);
+    // (going up or down the screen, it swings round a point out to the side, or their head would hide it half the time)
+    const outward = SANTA_TIE[faced(way)][0] > 16 ? 0.3 : -0.3;
+    const want = clamp(-vx * 0.55, -1.2, 1.2) + go * (side ? Math.sin(phase) * 0.12 : outward + Math.sin(phase) * 0.42);
+    m.sa = m.sa || 0; m.sv = (m.sv || 0) + (want - m.sa) * 0.085 + (turned ? (m.sv < 0 ? -0.2 : 0.2) : 0);
+    m.sv *= 0.87;
+    m.sa = clamp(m.sa + m.sv, -1.5, 1.5);
+    const tail = m.tail || (m.tail = [0, 0, 0, 0]);
+    tail[0] = m.sa;
+    for (let i = 1; i < tail.length; i++) tail[i] += (tail[i - 1] * 0.94 - tail[i]) * 0.36; // (the end lags behind)
+    m.hop = pace ? Math.abs(Math.sin(phase)) * go : (m.hop || 0) * 0.8;
+    // every other stride and when they turn, the bell goes; a flake comes off every so often
+    if (Math.floor(m.sd / (SANTA_WALK * 2)) !== Math.floor(was / (SANTA_WALK * 2)) || (turned && pace)) {
+      m.ring = tick;
+      if (m === WALKS.me) sfx('bell');
+    }
+    if (Math.floor(m.sd / 12) !== Math.floor(was / 12)) {
+      const pts = santaLinks(way, tail), [ex, ey] = pts[pts.length - 1];
+      SWEEP_DUST.push({ f, x: x + ex / 2 + (Math.random() - 0.5) * 6, y: y + ey / 2 + (Math.random() - 0.5) * 3, vx: (Math.random() - 0.5) * 0.14 - vx * 0.06, vy: 0.1 + Math.random() * 0.08, t: tick, life: 50, flake: Math.floor(Math.random() * 2) });
+    }
+  }
+  const santaDisc = (r, c) => finePic('santaDisc' + r + c, r * 2, r * 2, (g) => {
+    g.fillStyle = c;
+    for (let j = 0; j < r * 2; j++) { const w = Math.round(Math.sqrt(r * r - (j + 0.5 - r) ** 2)); g.fillRect(r - w, j, w * 2, 1); }
+  });
+  // where the bell's middle is, in real pixels from the top left of their picture
+  function santaBellAt(way, walk) {
+    const tail = santaHang(walk), pts = santaLinks(way, tail), [ex, ey] = pts[pts.length - 1], a = clamp(tail[tail.length - 1], -1.5, 1.5);
+    return [ex + Math.sin(a) * SANTA_BELL_GAP, ey + Math.cos(a) * SANTA_BELL_GAP - (walk && walk.hop ? walk.hop * 1.5 : 0), a];
+  }
+  function santaTail(x, y, way, walk) {
+    const tail = santaHang(walk), pts = santaLinks(way, tail), C = Art.BIG_COLS, X = x * 2, Y = y * 2;
+    const stamp = (px, py, r, c) => ctx.drawImage(santaDisc(r, c), Math.round(X + px - r) / 2, Math.round(Y + py - r) / 2);
+    // a disc at each real pixel or so down the tail, narrower towards the end
+    const along = (paint) => {
+      for (let i = 1; i < pts.length; i++) for (let j = 0; j < 2; j++) {
+        const k = j / 2, n = (i - 1 + k) / (pts.length - 1);
+        paint(pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * k, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * k, n);
+      }
+    };
+    along((px, py, n) => stamp(px, py, n < 0.6 ? 4 : 3, C.k));
+    along((px, py, n) => stamp(px, py, n < 0.6 ? 2 : 1, C.r));
+    along((px, py, n) => fine(Math.round(X + px + (n < 0.6 ? 1 : 0)) / 2, Math.round(Y + py - 1) / 2, 0.5, 1, C.M));
+    const [ex, ey] = pts[pts.length - 1], [bx, by, a] = santaBellAt(way, walk);
+    const swung = Math.abs(tail[0] - a) > 0.1, flip = tail[0] > a;
+    const bell = rowsPic(swung ? 'santaBellSwung' : 'santaBell', swung ? Art.SANTA_END32.bellSwung : Art.SANTA_END32.bell, C, swung && flip);
+    ctx.drawImage(bell, Math.round(X + bx - 4) / 2, Math.round(Y + by - 4) / 2);
+    ctx.drawImage(rowsPic('santaPom', Art.SANTA_END32.pom, C), Math.round(X + ex - 5) / 2, Math.round(Y + ey - 4 - (walk && walk.hop ? walk.hop : 0)) / 2);
+  }
+  // the bell catching the light, when it rings and every so often when it doesn't
+  function santaGlint(x, y, way, walk) {
+    const t = walk && tick - walk.ring < 10 ? tick - walk.ring : tick % 170, [bx, by] = santaBellAt(way, walk);
+    if (t < 10) twinkle(realPx(x + (bx - 1) / 2), realPx(y + (by - 1) / 2), realPx(Math.sin((t + 1) / 11 * Math.PI) * 2.5));
+  }
   // What goes with somebody needs to know how they've been moving, so each person has a memory of
   // it: WALKS.me for you and o.walks for another player, worked out from where they're drawn, so
   // nothing more goes over the network. th, tv: how far the baubles on their antlers are swinging,
-  // and how fast. trail: where they've been lately, newest last, for the Sweeper to follow (at, walking; no at
-  // if it's not with them).
+  // and how fast. tail and the rest: the same for a Santa hat (santaStep). trail: where they've been
+  // lately, newest last, for the Sweeper to follow (at, walking; no at if it's not with them).
+  // hat: the head thing they've got on, or -1 in a costume.
   const WALKS = { me: {} }, SWEEP_DUST = [];
-  function followOne(m, antlers, sweeper, f, x, y, way) {
+  function followOne(m, hat, sweeper, f, x, y, way) {
     const away = m.x === undefined || m.f !== f || Math.hypot(x - m.x, y - m.y) > 24; // (a floor change or a jump)
-    const vx = away ? 0 : x - m.x, vy = away ? 0 : y - m.y;
-    m.x = x; m.y = y; m.f = f;
-    if (antlers) {
+    const vx = away ? 0 : x - m.x, vy = away ? 0 : y - m.y, turned = m.way !== undefined && m.way !== way;
+    m.x = x; m.y = y; m.f = f; m.way = way;
+    if (hat === Art.ANTLERS) {
       m.tv = m.tv || 0; m.th = m.th || 0;
       if ((vx || vy) && tick % 16 === 0) m.tv += tick % 32 === 0 ? 0.07 : -0.07; // (a nudge each step)
-      if (m.way !== way) m.tv += 0.24; // (turning)
-      m.way = way;
+      if (turned) m.tv += 0.24;
       m.th = clamp(m.th + m.tv, -1, 1);
       m.tv = (m.tv - 0.05 * m.th) * 0.965;
-    }
+    } else if (hat === Art.SANTA) santaStep(m, vx, vy, turned, f, x, y, way);
     if (!sweeper) { m.trail = null; m.at = null; return; }
     if (away || !m.trail) { m.trail = [{ x, y, dir: way }]; m.still = 0; m.at = null; m.walking = false; return; }
     const last = m.trail[m.trail.length - 1];
@@ -3866,18 +3952,27 @@
   function followTick() {
     const sc = hockey && hockey.scene(), out = (f) => f === YARD && sc;
     const worn = wornLook(myLook), [mx, my] = mePx();
-    followOne(WALKS.me, !hw.worn && worn.hat === Art.ANTLERS, worn.flair === Art.SWEEPER && !out(P.floor), P.floor, mx, my, P.dir);
-    for (const o of mpHere()) followOne(o.walks || (o.walks = {}), !o.c && o.look.hat === Art.ANTLERS, o.look.flair === Art.SWEEPER && !out(o.f), o.f, o.px, o.py, o.dir);
+    followOne(WALKS.me, hw.worn ? -1 : worn.hat, worn.flair === Art.SWEEPER && !out(P.floor), P.floor, mx, my, P.dir);
+    for (const o of mpHere()) followOne(o.walks || (o.walks = {}), o.c ? -1 : o.look.hat, o.look.flair === Art.SWEEPER && !out(o.f), o.f, o.px, o.py, o.dir);
     while (SWEEP_DUST.length && (tick - SWEEP_DUST[0].t >= SWEEP_DUST[0].life || SWEEP_DUST.length > 200)) SWEEP_DUST.shift();
   }
   // every Sweeper with somebody on this floor
   const sweepersOn = (f) => [WALKS.me].concat(mpHere().map((o) => o.walks)).filter((m) => m && m.at && m.f === f);
+  // (the snow off a Santa hat goes in with the Sweeper's dust: a flake, big or small, with a blue
+  // edge to show on the snow outside, drifting from side to side as it falls)
+  const FLAKES = [['...b...', '.b.b.b.', '..bwb..', 'bbwwwbb', '..bwb..', '.b.b.b.', '...b...'], ['..b..', '.bwb.', 'bwwwb', '.bwb.', '..b..']], FLAKE_COLS = { b: '#74aee8', w: '#ffffff' };
   function drawSweepDust(cx, cy) {
     for (const d of SWEEP_DUST) {
       if (d.f !== P.floor) continue;
-      const t = tick - d.t;
-      ctx.globalAlpha = Math.max(0, 1 - t / d.life);
-      fine(realPx(d.x + d.vx * t - cx), realPx(d.y + d.vy * t - cy - 4), d.s, d.s, d.c);
+      const t = tick - d.t, k = t / d.life;
+      if (d.flake === undefined) {
+        ctx.globalAlpha = Math.max(0, 1 - k);
+        fine(realPx(d.x + d.vx * t - cx), realPx(d.y + d.vy * t - cy - 4), d.s, d.s, d.c);
+      } else {
+        ctx.globalAlpha = Math.min(1, (1 - k) * 2.5);
+        const big = d.flake === 0 && k < 0.7;
+        ctx.drawImage(rowsPic(big ? 'flakeBig' : 'flakeSmall', FLAKES[big ? 0 : 1], FLAKE_COLS), realPx(d.x + d.vx * t + Math.sin(t / 9 + d.t) * 1.5 - cx), realPx(d.y + d.vy * t - cy - 4));
+      }
     }
     ctx.globalAlpha = 1;
   }
@@ -3886,17 +3981,21 @@
   // they've got one; rx as for hauntGhosts). A costume hides all of it. meWorn and mpWorn are what you and
   // another player have on, or null in a costume.
   const meWorn = () => (hw.worn ? null : wornLook(myLook)), mpWorn = (o) => (o.c ? null : o.look);
+  // their picture with any part of the head thing that's drawn on its own left off, to go with these
+  const freed = (img, worn) => (worn && img.loose) || img;
   function wornBehind(worn, x, y, dir, walk, rx = 10.5) {
     if (!worn) return;
     if (worn.hat === Art.HAUNTED_MASK) hauntGhosts(x, y, false, rx);
     const big = bigHat(worn);
     if (big) drawBigHat(big, worn.hat, x, y, dir);
+    if (worn.hat === Art.SANTA) santaTail(x, y, dir, walk);
   }
   function wornOver(worn, x, y, dir, walk, rx = 10.5) {
     if (!worn) return;
     if (worn.hat === Art.CROWN) crownSparkle(x, y);
     if (worn.hat === Art.HAUNTED_MASK) hauntGhosts(x, y, true, rx);
     if (worn.hat === Art.ANTLERS) humbugBaubles(x, y, dir, walk);
+    if (worn.hat === Art.SANTA) santaGlint(x, y, dir, walk);
     if (worn.extra === Art.GOLD_RIBBON) ribbonSparkle(x, y, dir);
   }
   function HallOfFame() {
@@ -13732,7 +13831,7 @@
         if (j !== 0) { say('You tuck it under your arm. It\'s in the character editor whenever you want it.'); return; }
         sfx('menu');
         wearNow('hat', Art.SANTA);
-        say('You pull the Santa hat on. The bell jingles every time you turn your head. Ho ho ho!');
+        say('You pull the Santa hat on. The bell jingles as you go, and a little snow shakes off it. Ho ho ho!');
       });
     });
   }
@@ -16477,7 +16576,7 @@
   // gap between its legs keeps them.
   const limbCuts = new WeakMap();
   function limbsOf(sheet) {
-    const img = sheet.down[0];
+    const img = freed(sheet.down[0], true); // (a Santa hat's tail is drawn on its own, as ever)
     let cut = limbCuts.get(img);
     if (cut) return cut;
     const k = img.hi || 1, W = img.width, waist = 13 * k, body = document.createElement('canvas');
@@ -16576,7 +16675,7 @@
   function drawOutside(it, cx, cy) {
     const x = realPx(it.x - cx), an = it.angel;
     const y = realPx(it.y - cy - 4 - (an ? an.lie * 11 : 0));
-    let img = it.sheet[it.dir][it.frame];
+    let img = freed(it.sheet[it.dir][it.frame], it.worn);
     if (it.skate) img = onSkates(img);
     if (an) {
       ctx.globalAlpha = 0.6 * an.lie;
@@ -16681,7 +16780,7 @@
     const f = s.push ? [1, 0, 2, 0][(tick >> 4) & 3] : 0;
     const worn = s.me ? meWorn() : s.look ? s.look.look : null; // (a hockey player's costume stays in the locker room)
     wornBehind(worn, realPx(fx - 8), realPx(fy - 15), dir);
-    ctx.drawImage(onSkates(sheet[dir][f]), realPx(fx - 8), realPx(fy - 15));
+    ctx.drawImage(onSkates(freed(sheet[dir][f], worn)), realPx(fx - 8), realPx(fy - 15));
     wornOver(worn, realPx(fx - 8), realPx(fy - 15), dir);
     if (!behind) drawStick(s.stick, s.ang, fx, fy);
   }
@@ -17653,6 +17752,7 @@
     if (r && r.key === 'flair' && editChoices(r).length < 2) return 'Be the Office Champion to earn a star trail here!';
     if (r && r.key === 'flair' && worn.flair === Art.STAR_TRAIL) return crowned ? 'Stars follow you while you stay on top!' : 'Stars follow you wherever you go!';
     if (r && r.key === 'flair' && worn.flair === Art.SWEEPER) return 'A beaten humbug sweeps up after you!';
+    if (r && r.key === 'hat' && worn.hat === Art.SANTA) return 'It jingles and shakes off snow as you walk!';
     if (r && r.key === 'hat' && worn.hat === Art.HAUNTED_MASK) return 'You\'ve set Linda free the most: it\'s haunted!';
     if (r && r.key === 'extra' && worn.extra === Art.GOLD_RIBBON) return 'Most times Employee of the Month: it\'s gold!';
     return 'Arrows: choose   Space: change   Enter: done';
@@ -17670,7 +17770,7 @@
     if (worn.flair === Art.STAR_TRAIL) trailPreview(60, 130);
     if (worn.flair === Art.SWEEPER) { ctx.save(); ctx.translate(76, 100); ctx.scale(2, 2); drawSweeper({ walking: false }, 0, 0); ctx.restore(); }
     big(() => wornBehind(worn, 0, 0, dir, null, 8.5));
-    ctx.drawImage(sp[dir][[1, 0, 2, 0][(tick >> 3) & 3]], bx, by, S, S);
+    ctx.drawImage(freed(sp[dir][[1, 0, 2, 0][(tick >> 3) & 3]], worn), bx, by, S, S);
     big(() => wornOver(worn, 0, 0, dir, null, 8.5));
     const who = playerName || 'New Hire';
     text(who, 60 - who.length * 3, 142);
@@ -17935,7 +18035,7 @@
         // a visitor fades in and out as they go through the portal
         wornBehind(a.worn, sx, sy, a.dir, a.walk);
         if (a.alpha < 1) ctx.globalAlpha = a.alpha;
-        ctx.drawImage(a.img, sx, sy);
+        ctx.drawImage(freed(a.img, a.worn), sx, sy);
         ctx.globalAlpha = 1;
         wornOver(a.worn, sx, sy, a.dir, a.walk);
       }

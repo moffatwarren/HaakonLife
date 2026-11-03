@@ -97,7 +97,8 @@ window.Art = (function () {
     // for the Office Champion while they're on top (see champLook in js/game.js), and for good for
     // a name whose number for it is 1
     { name: 'Crown', hd: 'crown', item: 'crown' },
-    // only for a name that's opened its present under the tree on Christmas Day (see js/game.js)
+    // only for a name that's opened its present under the tree on Christmas Day (see js/game.js).
+    // Its tail and bell swing as you walk, drawn there (santaTail) from `loose` in HAT32.
     { name: 'Santa hat', hd: 'santa', item: 'santa' },
     // only for the Christmas Cup's champion, the fastest at Humbug Sweeper over Christmas 2026
     // (see js/game.js): gold antlers hung with humbug baubles, too big for the picture (see BIG32)
@@ -1207,8 +1208,12 @@ window.Art = (function () {
         '........................kWWGWGkk',
         '.........................kGWWkkk',
         '.......................k.kkkkkkk',
+        '.........................kOOok',
+        '........................kOOooYk',
+        '........................kOoooYk',
         '........................kkkkkkk',
-        '.........................kkkkk',
+        '.........................kYoYk',
+        '..........................kkk',
       ],
       up: [
         '____kkMrrrrrrrrrrkkk____________',
@@ -1226,8 +1231,12 @@ window.Art = (function () {
         'kkGGWWGk',
         'kkkGWGk',
         'kkkkkkk.k',
+        '..kOOok',
+        '.kOOooYk',
+        '.kOoooYk',
         '.kkkkkkk',
-        '..kkkkk',
+        '..kYoYk',
+        '...kkk',
       ],
       left: [
         '____________kkkrrrrrrrrrrMkk____',
@@ -1245,9 +1254,57 @@ window.Art = (function () {
         '........................kWWGWGkk',
         '........................kkGWWkkk',
         '.......................kkkkkkkkk',
+        '.........................kOOok',
+        '........................kOOooYk',
+        '........................kOoooYk',
         '........................kkkkkkk',
-        '.........................kkkkk',
+        '.........................kYoYk',
+        '..........................kkk',
       ],
+      // The same hat with its tail cut off at the fold, for wherever it's drawn on its own so it
+      // can swing (santaTail in js/game.js). The whole picture above is for the mini-games.
+      loose: {
+        down: [
+          '____________kkkrrrrrrrrrrMkk____',
+          '__________kkkkrrrrrrrrrrrrMkk___',
+          '_________kkkrrrrrrrrrrrrrrrMkk__',
+          '________kkrrrkMrrrrrMMMMrrrMkk__',
+          '_______kkrrrrrkMMMMMkkkkMrrMkk__',
+          '______kkrrrrrrrkkkkkrrrMkrrrMkk_',
+          '_____kkWWWGWWWGWWWGWWWGWWMrrMkk_',
+          '....kkWWWGWWWGWWWGWWWGWWWkrrMkk',
+          '....kkWWGWWWGWWWGWWWGWWWGkkkkkk',
+          '.....kkkGGGGGGGGGGGGGGGGkkk',
+          '......kk................kk',
+        ],
+        up: [
+          '____kkMrrrrrrrrrrkkk____________',
+          '___kkMrrrrrrrrrrrrkkkk__________',
+          '__kkMrrrrrrrrrrrrrrrkkk_________',
+          '__kkMrrrMMMMrrrrrMkrrMkk________',
+          '__kkMrrMkkkkMMMMMkrrrrMkk_______',
+          '_kkMrrrkrrrrkkkkkrrrrrrMkk______',
+          '_kkMrrMWWWGWWWGWWWGWWWGWWkk_____',
+          '.kkMrrkWWGWWWGWWWGWWWGWWWGkk',
+          '.kkkkkkWGWWWGWWWGWWWGWWWGWkk',
+          '.....kkkGGGGGGGGGGGGGGGGkkk',
+          '......kk................kk',
+        ],
+        left: [
+          '____________kkkrrrrrrrrrrMkk____',
+          '__________kkkkrrrrrrrrrrrrMkk___',
+          '_________kkkrrrrrrrrrrrrrrrMkk__',
+          '________kkrrrkMrrrrrMMMMrrrMkk__',
+          '_______kkrrrrrkMMMMMkkkkMrrMkk__',
+          '______kkrrrrrrrkkkkkrrrMkrrrMkk_',
+          '_____kkWWWGWWWGWWWGWWWGWWMrrMkk_',
+          '....kkWWWGWWWGWWWGWWWGWWWkrrMkk',
+          '....kkWWGWWWGWWWGWWWGWWWGkkkkkk',
+          '.....kkkGGGGGGGGGGGGGGGGkkk',
+          '......kk................kk',
+          '..................kk',
+        ],
+      },
     },
     // Linda's face, more or less: white, with big hollow eyes and an "ooo", and a strap round the back
     ghostmask: {
@@ -1394,6 +1451,40 @@ window.Art = (function () {
     h.big = BIG32[h.hd];
     h.hi = h.big ? insidePicture(h.big) : HAT32[h.hd];
   }
+  // The end of the Santa hat's tail, drawn with the tail in js/game.js (santaTail): a pom-pom, and
+  // under it the bell. The bell's slit is in the middle, or off to one side as it swings.
+  const SANTA_END32 = {
+    pom: [
+      '..kkkkkk..',
+      '.kkIIWWkk.',
+      'kkIIWWWGkk',
+      'kkIWWWGWkk',
+      'kkWWGWWGkk',
+      'kkWWWGGGkk',
+      '.kkGGGGkk.',
+      '..kkkkkk..',
+    ],
+    bell: [
+      '...kkk...',
+      '..kOOok..',
+      '.kOOoooY.',
+      'kOOoooYYk',
+      'kOooooYYk',
+      'kYkkkkkYk',
+      '.kYoYoYk.',
+      '..kkkkk..',
+    ],
+    bellSwung: [
+      '...kkk...',
+      '..kOOok..',
+      '.kOOoooY.',
+      'kOOoooYYk',
+      'kOooooYYk',
+      'kkkkkkoYk',
+      '.kYoYoYk.',
+      '..kkkkk..',
+    ],
+  };
   // The humbugs hanging off the humbug antlers, as baubles with a gold cap: eyes open, and shut
   // for a moment now and then. b, G, L and D are its greens, as in SWEEPER_BODY.
   const BAUBLE32 = {
@@ -2338,8 +2429,9 @@ window.Art = (function () {
   // One picture of a look at 32 x 32, as a buffer: dir is 'down', 'up' or 'left', and step 0
   // standing, 1 mid-stride or 2 the other stride (which only flips the legs, so a bow or a
   // side part stays put). noHat leaves the head thing and any extra off (under a costume). sweater (a key
-  // in SWEATERS) wears that in place of the shirt, over the top of any overalls.
-  function lookBuf32(look, dir, step, noHat, sweater) {
+  // in SWEATERS) wears that in place of the shirt, over the top of any overalls. loose leaves off
+  // the part of the head thing that's drawn on its own so it can move, if it has one.
+  function lookBuf32(look, dir, step, noHat, sweater, loose) {
     const hair = HAIRS[look.hair], hat = HATS[look.hat], shirt = SHIRTS[look.shirt], pants = PANTS[look.pants];
     const b = new Array(1024).fill(null);
     // the shirt (or an ugly sweater in its place) goes on before the head, so the hoodie's
@@ -2354,8 +2446,8 @@ window.Art = (function () {
     lay32(b, HEAD32[dir], 0);
     lay32(b, hair.hi[dir], 0);
     if (!noHat && hat.hi && !hat.big) { // (the first head thing is nothing at all)
-      const head = HEAD32[dir];
-      (hat.hi[dir] || hat.hi.down).forEach((row, j) => [...row].forEach((ch, i) => {
+      const head = HEAD32[dir], rows = (loose && hat.hi.loose) || hat.hi;
+      (rows[dir] || rows.down).forEach((row, j) => [...row].forEach((ch, i) => {
         if (ch === '_') { const h = (head[j] || '')[i]; b[j * 32 + i] = h && h !== '.' ? h : null; } else if (ch !== '.') b[j * 32 + i] = ch;
       }));
     }
@@ -2386,12 +2478,15 @@ window.Art = (function () {
   // the parts in `parts`, in the colours in `pal`
   function sheet32(parts, sweater, pal) {
     const out = {};
-    const make = (dir, step, flip, body = parts) => {
+    const make = (dir, step, flip, body = parts, loose = false) => {
       const cv = document.createElement('canvas');
       cv.width = cv.height = 32; cv.hi = 2;
       const ctx = cv.getContext('2d'), img = ctx.createImageData(32, 32);
-      blit(img, lookBuf32(body, dir, step, false, sweater), 0, 0, pal, flip);
+      blit(img, lookBuf32(body, dir, step, false, sweater, loose), 0, 0, pal, flip);
       ctx.putImageData(img, 0, 0);
+      // (a head thing with a part that moves: the same picture without it, for drawing with that part)
+      const hat = HATS[body.hat];
+      if (!loose && hat && hat.hi && hat.hi.loose) cv.loose = make(dir, step, flip, body, true);
       return cv;
     };
     // (and with no hair, showing the whole of both sleeves: see armsOf in js/game.js)
@@ -5692,7 +5787,7 @@ window.Art = (function () {
   return {
     LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS, extras: EXTRAS, flairs: FLAIRS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, STAR_TRAIL, SWEEPER, BIG_COLS, BAUBLE32, SWEEPER32, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, STAR_TRAIL, SWEEPER, BIG_COLS, BAUBLE32, SANTA_END32, SWEEPER32, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
     SWEATERS,
   };
 })();
