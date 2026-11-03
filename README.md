@@ -43,7 +43,7 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
 - After the title screen, type your name (the game remembers it), then make your
   character: gender, skin, hair and its colour, something on your head (a cap, a toque,
   a hard hat, a cowboy hat, headphones, glasses, shades or a bow, a Santa hat once
-  your name has opened its present on Christmas Day, golden antlers if your name won
+  your name has opened its present on Christmas Day, humbug antlers if your name won
   the Christmas Cup: see **Christmas**, and a ghost mask once your name has set Linda
   free: see **Linda's list**), a shirt and pants, each in a colour, any extras worn
   over your clothes (a ribbon once your name has been Employee of the Month: see
@@ -424,7 +424,7 @@ items/live/warren/santa: 1
 items/live/warren/antlers: 0
 ```
 
-`santa` is the Santa hat, `antlers` the golden antlers, `sweeper` the Sweeper, `crown` the crown,
+`santa` is the Santa hat, `antlers` the humbug antlers, `sweeper` the Sweeper, `crown` the crown,
 `startrail` the star trail, `ghostmask` the ghost mask and `ribbon` the ribbon. 1 means it's theirs, so it's one of their choices in the character editor. 0 means it
 isn't, and the game won't offer it to them, even from the present, the cup or a quest. No number
 means they've never been given it.
@@ -460,7 +460,7 @@ players get it with your look, so there's nothing else to send.
 #### Head things bigger than a tile
 
 A person's picture is one 32 x 32 tile with only 2 rows above the head, so anything bigger, like
-the golden antlers, is drawn as a picture of its own, behind them. To add one:
+the humbug antlers, is drawn as a picture of its own, behind them. To add one:
 
 1. **Draw it** in `BIG32` in `js/art.js`, under a new `hd` name, as rows of colour letters at any
    size. `x` and `y` say where its top left goes, in pixels from the top left of the wearer's picture,
@@ -483,7 +483,7 @@ drawn, so nothing extra goes over the network.
 
 Try it with `&have=itsname&look=...` (see "Testing") in the office, in the lot with `&yard=1`, in
 hockey and in the character editor, facing all four ways and in a few hairstyles, and with a
-second player to check their name clears it. The golden antlers reach about half a tile above the
+second player to check their name clears it. The humbug antlers reach about half a tile above the
 picture and are a little under two tiles wide with their baubles. Much bigger than that and it
 starts to cover whoever is standing nearby.
 
@@ -510,14 +510,17 @@ which tile they're on (and has them walking from tile to tile).
   the CFM!, Coil's frozen!, Is that REV C? and so on), then a line, and it pops up over
   your head for everyone near you. Or pick **Emoji talk**, then one from the rows of
   emoji along the top of the screen, and that goes over your head instead (they're
-  `EMOJI` in `js/game.js`). Or pick **Custom** and type your own, up to 32
+  `EMOJI` in `js/game.js`). The last two rows are Haakon's own: a unit, a plenum fan, a
+  frozen coil, a dirty filter, the SDG logo and so on. Or pick **Custom** and type your own, up to 32
   characters (letters, numbers and `. , ! ? ' " - : / & ( ) +`): straight from a
   keyboard, or on a phone by picking characters with the D-pad and A, then START to say
   it. Nothing filters what people type, so it's down to everyone to keep it office-friendly.
   The ready-made lines are a list (`MP_SAY` in `js/game.js`) and are sent as their place
   in it, so add new ones only at the end of the last page (or as a new page), because
   players on older versions would otherwise see the wrong line. An emoji is sent the same
-  way, numbered from 1000 up, so add new ones only at the end of its list too. A typed line
+  way, numbered from 1000 up, so add new ones only at the end of its list too. Each is named
+  by a real emoji so that nobody can type one: for something with no emoji of its own, use
+  the closest one that's free, as a damper goes by 🪟. A typed line
   goes in your record as two 16-character pieces (`w0` and `w1`). Older versions just don't
   show an emoji or a typed line.
 - **Challenge**: walk up to another player, press A and pick a game:
@@ -1072,7 +1075,7 @@ From November 27 to December 31 (by your device's date) the office does Christma
   over Christmas it says who's leading and offers the standings, and from New Year's Day
   it has the champion's name and time engraved on its plaque, with the final board. The
   champion (1st on the cup's board; on a tie, whoever got there first) wins two things.
-  **Golden antlers**: a great gold rack hung with three of the humbugs you beat, as baubles. They
+  **Humbug antlers**: a great gold rack hung with three of the humbugs you beat, as baubles. They
   swing as you walk and when you turn, glare and blink, and the top one mutters BAH! now and then
   (`humbugBaubles`). The rack goes well outside your tile (see "Head things bigger than a tile"),
   so names and speech bubbles sit higher over it, and in a mini-game, which only draws your
@@ -1201,7 +1204,7 @@ nothing gets saved for real, and you're in the `test` world, away from live play
 - `index.html#play&christmas=1&yard=1`: start outside the parking lot's doors.
 - `#christmas=0` switches it off during the holidays.
 - Add `&champion=Ada` to make the Christmas Cup's season over with Ada as its champion (add
-  `&name=Ada` to be Ada, and you're told you've won and offered the golden antlers and the
+  `&name=Ada` to be Ada, and you're told you've won and offered the humbug antlers and the
   Sweeper, for this visit only; any other name sees the banner instead).
 - Add `&xmasday=1` to make it Christmas Day (the present under the tree can be opened), and
   `&santahat=1` to have the Santa hat for this visit, as if your name had opened it.
@@ -1318,7 +1321,7 @@ first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gi
 the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
 `&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
 `&crown=1` makes you the Office Champion, in the crown and the star trail.
-`&have=antlers,sweeper&look=m100b0000020` wears the golden antlers and the Sweeper (walk a little for
+`&have=antlers,sweeper&look=m100b0000020` wears the humbug antlers and the Sweeper (walk a little for
 the humbug to turn up), and `&have=crown,startrail&look=m10090000010` wears the crown and the star trail
 without being the champion. Add `&zoom=2` for a closer look, which is handy for screenshots.
 

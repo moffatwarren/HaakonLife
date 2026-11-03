@@ -101,14 +101,14 @@ window.Art = (function () {
     { name: 'Santa hat', hd: 'santa', item: 'santa' },
     // only for the Christmas Cup's champion, the fastest at Humbug Sweeper over Christmas 2026
     // (see js/game.js): gold antlers hung with humbug baubles, too big for the picture (see BIG32)
-    { name: 'Golden antlers', hd: 'antlers', item: 'antlers' },
+    { name: 'Humbug antlers', hd: 'antlers', item: 'antlers' },
     // only for a name that's set Linda free (see "the quests' wearables" in js/game.js)
     { name: 'Ghost mask', hd: 'ghostmask', item: 'ghostmask' },
     // the same mask on whoever has set her free the most, with ghosts going round it. Like the
     // crown it's never picked or saved: it's only ever worn, in place of the Ghost mask.
     { name: 'Haunted mask', hd: 'ghostmask' },
   ];
-  // where the crown, the Santa hat, the golden antlers and the masks are in HATS
+  // where the crown, the Santa hat, the humbug antlers and the masks are in HATS
   const CROWN = HATS.findIndex((h) => h.hd === 'crown'), SANTA = HATS.findIndex((h) => h.hd === 'santa'), ANTLERS = HATS.findIndex((h) => h.hd === 'antlers');
   const GHOST_MASK = HATS.findIndex((h) => h.item === 'ghostmask'), HAUNTED_MASK = HATS.findIndex((h) => h.name === 'Haunted mask');
   const SHIRTS = [
@@ -215,7 +215,7 @@ window.Art = (function () {
   function lookPalette(look, over) {
     const c = lookColours(look);
     // (and for 32 x 32: S, skin in shadow, f, the cheeks, j, a shine on the hair, and O and
-    // Y, light and dark gold, for the crown and the golden antlers, L, the pants in shadow,
+    // Y, light and dark gold, for the crown and the humbug antlers, L, the pants in shadow,
     // b, shoes, I, a pure white for the ghost mask, and J and z, the ribbon's blue and its shadow)
     return palette(Object.assign({ H: darker(c.h, 0.35), v: darker(c.w, 0.25) }, extras32(c), c, over));
   }
@@ -1320,7 +1320,7 @@ window.Art = (function () {
   const { h: _h, s: _s, w: _w, u: _u, K: _K, ...FIXED_COLORS } = COLORS;
   const BIG_COLS = Object.assign(FIXED_COLORS, { O: '#f8e070', Y: '#a87018', I: '#fcfcff', J: '#2f62d8', z: '#1c3a94' });
   const BIG32 = {
-    // the golden antlers: seen side on, the far one is a shade darker
+    // the humbug antlers: seen side on, the far one is a shade darker
     antlers: {
       x: -6, y: -16,
       down: [
@@ -1394,7 +1394,7 @@ window.Art = (function () {
     h.big = BIG32[h.hd];
     h.hi = h.big ? insidePicture(h.big) : HAT32[h.hd];
   }
-  // The humbugs hanging off the golden antlers, as baubles with a gold cap: eyes open, and shut
+  // The humbugs hanging off the humbug antlers, as baubles with a gold cap: eyes open, and shut
   // for a moment now and then. b, G, L and D are its greens, as in SWEEPER_BODY.
   const BAUBLE32 = {
     open: [

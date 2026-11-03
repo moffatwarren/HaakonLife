@@ -3755,7 +3755,7 @@
     })));
   };
   const faced = (dir) => (inTable(DIRS, dir) ? dir : 'down'); // (another player could send anything)
-  // A head thing too big for a 32 x 32 picture, like the golden antlers (see BIG32 in js/art.js):
+  // A head thing too big for a 32 x 32 picture, like the humbug antlers (see BIG32 in js/art.js):
   // the picture of it, drawn behind its wearer. It's the one kind of thing people wear that goes
   // outside their tile, and all that's in their own picture is the part inside the tile, so that's
   // all there is of it in a mini-game. See "Head things bigger than a tile" in the README.
@@ -3765,7 +3765,7 @@
     const left = dir === 'right' ? 32 - big.x - rows[0].length : big.x;
     ctx.drawImage(rowsPic('bigHat' + hat + view, rows, Art.BIG_COLS, dir === 'right'), x + left / 2, y + big.y / 2);
   }
-  // The golden antlers, the Christmas Cup's prize, are hung with three of the humbugs you beat,
+  // The humbug antlers, the Christmas Cup's prize, are hung with three of the humbugs you beat,
   // as baubles: two by your ears and one up in the branches, over your picture. They swing as you
   // walk and when you turn (walk: see followOne), glare, blink, and the top one mutters BAH! now
   // and then. In real pixels from the top left of the wearer's picture: where each one's string is
@@ -12258,12 +12258,25 @@
         k.rect(15, 3, 1, 7, EMOJI_SKIN[2]);
         for (const y of [15, 18, 21]) k.rect(15, y, 10, 1, EMOJI_SKIN[1]);
       },
+      // a coil: fins, with a tube going back and forth through them
+      coil(fin, gap, tube) {
+        k.rect(5, 3, 18, 20, fin);
+        for (let x = 6; x < 23; x += 2) k.rect(x, 3, 1, 20, gap);
+        for (const y of [7, 13, 19]) k.bar(3, y, 25, y, 1.2, tube);
+        k.bar(25, 7, 25, 13, 1.2, tube); k.bar(3, 13, 3, 19, 1.2, tube);
+      },
+      // a pleated filter in its frame
+      filter(frame, paper, pleat) {
+        k.rect(2, 3, 24, 22, frame); k.line();
+        k.rect(2, 3, 24, 1, '#e0b080'); k.rect(5, 6, 18, 16, paper);
+        for (let x = 6; x < 23; x += 3) k.rect(x, 6, 1, 16, pleat);
+      },
     };
     return k;
   }
   // EMOJI TALK on the say menu, in the order they're laid out there (see MpEmoji). One's sent
   // as its place in this list (see MP_EMOJI_AT), so only ever add to the end. Each is named
-  // by the real emoji, so nothing anyone types can pass for one: mpClean lets none through.
+  // by a real emoji, so nothing anyone types can pass for one: mpClean lets none through.
   const EMOJI = new Map([
     ['😀', (k) => { k.face(); k.eyes(); k.grin(); }],
     ['😂', (k) => { k.face(); k.shut(9.5, 12); k.shut(18.5, 12); k.grin(); k.drop(3.5, 15, EMOJI_TEAR); k.drop(24.5, 15, EMOJI_TEAR); }],
@@ -12369,6 +12382,331 @@
     ['🏒', (k) => {
       k.bar(23, 2, 11, 21, 1.7, '#c88848'); k.bar(11, 21, 3, 23, 2.2, '#c88848'); k.oval(21, 23.5, 5, 2.8, '#30303c'); k.oval(21, 22.5, 5, 2.6, '#484858'); k.line();
       k.bar(23, 2, 21, 5, 1.7, '#30303c'); k.bar(9, 21.5, 7.5, 22, 2.2, '#30303c'); k.rect(4, 21, 6, 1, '#e0b080');
+    }],
+    ['😅', (k) => { k.face(); k.shut(9.5, 12); k.shut(18.5, 12); k.grin(); k.drop(23.5, 6, EMOJI_TEAR); }],
+    ['😭', (k) => {
+      k.face(); k.shut(8, 8, true); k.shut(20, 8, true);
+      k.poly(EMOJI_TEAR, 5.5, 12, 10.5, 12, 11, 25, 7, 24); k.poly(EMOJI_TEAR, 17.5, 12, 22.5, 12, 21, 24, 17, 25);
+      k.oval(14, 17, 3, 3.5, EMOJI_INK); k.oval(14, 19, 2, 1.4, EMOJI_TONGUE);
+    }],
+    ['😬', (k) => {
+      k.face(); k.eyes(10); k.rect(6, 15, 16, 8, EMOJI_INK); k.rect(7, 16, 14, 6, '#f8f8f8');
+      k.rect(7, 18, 14, 1, '#a4acc4'); for (const x of [10, 14, 17]) k.rect(x, 16, 1, 6, '#a4acc4');
+    }],
+    ['🤓', (k) => {
+      k.face();
+      for (const x of [8.5, 19.5]) { k.oval(x, 11, 5, 5, EMOJI_INK); k.oval(x, 11, 3.8, 3.8, '#f8f8f8'); k.oval(x, 11, 1.6, 1.6, EMOJI_INK); }
+      k.rect(13, 10, 2, 1, EMOJI_INK); k.bow(14, 16, 6.5, 6, 1.7, EMOJI_INK); k.rect(12, 21, 4, 3, '#f8f8f8'); k.rect(14, 21, 1, 3, '#a4acc4');
+    }],
+    ['🤯', (k) => {
+      k.face(null, 14, 17, 10.5);
+      k.poly('#e8481c', 2.5, 1, 8, 5, 10, 0.5, 14, 4, 18, 0.5, 20, 5, 25.5, 1, 22.5, 10, 5.5, 10); k.line();
+      k.poly('#f8a020', 8, 9.5, 8, 7, 11, 4, 14, 6.5, 17, 4, 20, 7, 20, 9.5); k.oval(14, 9, 3.5, 1.5, '#f8e070');
+      for (const x of [9.5, 18.5]) { k.oval(x, 15, 2.8, 2.8, '#f8f8f8'); k.oval(x, 15, 1.2, 1.2, EMOJI_INK); }
+      k.oval(14, 22, 2.8, 2.6, EMOJI_INK);
+    }],
+    ['🥶', (k) => {
+      k.face(['#78b8e8', '#4888c8', '#b8e0f8']); k.bow(14, 9, 11, 7.5, 99, '#f8f8f8', true);
+      k.oval(8, 9, 1.5, 3, '#f8f8f8'); k.oval(20, 9, 1.5, 2.5, '#f8f8f8'); k.oval(14, 9, 1.2, 2, '#f8f8f8');
+      k.oval(9.5, 12.5, 1.9, 2.4, EMOJI_INK); k.oval(18.5, 12.5, 1.9, 2.4, EMOJI_INK);
+      k.rect(7, 17, 14, 6, EMOJI_INK); k.rect(8, 18, 12, 4, '#f8f8f8');
+      k.dots(8, 19, '#3a5a90', '#..#..#..#..', '.##.##.##.##');
+    }],
+    ['🥵', (k) => {
+      k.face(['#f05838', '#c83018', '#f89878']); k.shut(9.5, 11, true); k.shut(18.5, 11, true);
+      k.bow(14, 15, 7, 6, 99, EMOJI_INK); k.oval(14, 20.5, 3.6, 5, EMOJI_TONGUE); k.rect(14, 17, 1, 5, '#b83040');
+      k.drop(3.5, 13, EMOJI_TEAR); k.drop(24.5, 13, EMOJI_TEAR); k.drop(23, 4.5, EMOJI_TEAR);
+    }],
+    ['😇', (k) => {
+      k.bow(14, 3.5, 9, 3, 1.5, '#f0c030', true); k.bow(14, 3.5, 9, 3, 1.5, '#f0c030');
+      k.face(null, 14, 16.5, 10.5); k.shut(9.5, 15); k.shut(18.5, 15); k.smile(17.5, 6);
+    }],
+    ['😈', (k) => {
+      const purple = ['#8048b8', '#5c2c90', '#b080e0'];
+      k.poly(purple[1], 2, 1, 4, 11, 10, 6); k.poly(purple[1], 26, 1, 24, 11, 18, 6);
+      k.face(purple, 14, 15, 12); k.poly(EMOJI_INK, 5, 8.5, 12, 12, 12, 13.5, 5, 10.5); k.poly(EMOJI_INK, 23, 8.5, 16, 12, 16, 13.5, 23, 10.5);
+      k.oval(9.5, 14, 1.8, 1.8, '#f8e070'); k.oval(18.5, 14, 1.8, 1.8, '#f8e070');
+      k.bow(14, 17, 7, 6, 99, EMOJI_INK); k.rect(8, 17, 12, 2, '#f8f8f8');
+    }],
+    ['🤡', (k) => {
+      for (const x of [4, 24]) { k.oval(x, 9, 3.5, 4.5, '#e83848'); k.oval(x, 15, 3.5, 4, '#e83848'); }
+      k.face(['#f8f8f8', '#c8ccd8', '#ffffff'], 14, 14, 11);
+      for (const x of [9.5, 18.5]) { k.poly('#6890e0', x, 6.5, x + 2.8, 10.5, x, 14.5, x - 2.8, 10.5); k.oval(x, 10.5, 1.3, 2, EMOJI_INK); }
+      k.bow(14, 15, 7.5, 7.5, 2.2, '#e83848'); k.oval(14, 15, 2.5, 2.5, '#e83848'); k.rect(13, 14, 1, 1, '#f8a8b0');
+    }],
+    ['👀', (k) => {
+      k.oval(8, 14, 6.8, 10, '#f8f8f8'); k.oval(20, 14, 6.8, 10, '#f8f8f8'); k.line();
+      k.bow(8, 15, 5.8, 8, 1, '#c8ccd8'); k.bow(20, 15, 5.8, 8, 1, '#c8ccd8');
+      for (const x of [10.5, 22.5]) { k.oval(x, 15, 3.2, 4.8, EMOJI_INK); k.rect(x - 0.5, 12, 1, 2, '#f8f8f8'); }
+    }],
+    ['👏', (k) => {
+      const hand = (m, dx, co, r = 0) => {
+        const X = (x) => 14 + m * (x - 14) + dx;
+        for (const [x, y] of [[7.5, 11], [10.5, 8], [14, 8], [17, 10.5]]) k.bar(X(x - 1), 20, X(x), y, 1.4 + r, co);
+        k.bar(X(7), 24, X(3.5), 18, 1.4 + r, co); k.oval(X(12), 21, 6 + r, 5.5 + r, co);
+      };
+      hand(-1, 3.5, EMOJI_SKIN[0]); k.line(); hand(-1, 3.5, EMOJI_SKIN[1]);
+      hand(1, -2.5, col.dark, 1); hand(1, -2.5, EMOJI_SKIN[0]);
+      k.bow(9.5, 21, 3, 2.5, 1, EMOJI_SKIN[1]);
+      for (const [x0, y0, x1, y1] of [[14, 1, 14, 4.5], [8, 1.5, 9, 4.5], [20, 1.5, 19, 4.5]]) k.bar(x0, y0, x1, y1, 0.8, EMOJI_TEAR);
+    }],
+    ['🤝', (k) => {
+      k.rect(1, 8, 6, 12, '#3878c8'); k.rect(21, 8, 6, 12, '#7b3fb8'); k.oval(14, 14, 9.5, 7, EMOJI_SKIN[0]); k.line();
+      k.rect(2, 9, 1, 10, '#6890e0'); k.rect(22, 9, 1, 10, '#a878d8');
+      k.bar(9, 10.5, 17, 12, 1.5, col.dark); k.bar(9, 10.5, 17, 12, 0.7, EMOJI_SKIN[2]);
+      for (const x of [11, 14, 17]) k.rect(x, 15, 1, 5, EMOJI_SKIN[1]);
+    }],
+    ['💪', (k) => {
+      const s = EMOJI_SKIN[0];
+      k.oval(13, 6.5, 5.5, 5, s); k.bar(16.5, 7.5, 22, 19, 3.4, s); k.bar(22.5, 21, 3.5, 23, 3.8, s); k.oval(10.5, 19.5, 7.5, 6.5, s); k.line();
+      k.bow(10.5, 20, 5.5, 4, 1, EMOJI_SKIN[1], true); k.oval(8, 16.5, 2.5, 1, EMOJI_SKIN[2]);
+      for (const x of [9, 12, 15]) k.rect(x, 5, 1, 4, EMOJI_SKIN[1]);
+      k.bar(18, 20, 15.5, 25.5, 0.5, EMOJI_SKIN[1]);
+    }],
+    ['🙏', (k) => {
+      const s = EMOJI_SKIN[0];
+      k.bar(9, 20, 3.5, 25, 2.8, '#3878c8'); k.bar(19, 20, 24.5, 25, 2.8, '#3878c8');
+      k.bar(8.5, 16, 6.5, 11, 1.4, s); k.bar(19.5, 16, 21.5, 11, 1.4, s);
+      k.poly(s, 14, 1, 17.5, 3, 19.5, 11, 20.5, 19, 7.5, 19, 8.5, 11, 10.5, 3); k.line();
+      k.rect(14, 3, 1, 16, EMOJI_SKIN[1]); k.rect(11, 5, 1, 7, EMOJI_SKIN[2]); k.rect(17, 7, 1, 8, EMOJI_SKIN[1]);
+      k.bar(3.5, 24.5, 7.5, 21, 0.5, '#6890e0'); k.bar(24.5, 24.5, 20.5, 21, 0.5, '#6890e0');
+    }],
+    ['✅', (k) => {
+      k.poly('#58a848', 4, 2, 24, 2, 26, 4, 26, 24, 24, 26, 4, 26, 2, 24, 2, 4); k.line();
+      k.rect(4, 3, 20, 1, '#a8e070'); k.rect(4, 24, 20, 1, '#2c6a34');
+      k.bar(7.5, 14.5, 12, 19.5, 1.9, '#f8f8f8'); k.bar(12, 19.5, 20.5, 8.5, 1.9, '#f8f8f8');
+    }],
+    ['❌', (k) => {
+      k.bar(5, 5, 23, 23, 3.1, '#e03030'); k.bar(23, 5, 5, 23, 3.1, '#e03030'); k.line();
+      k.bar(5, 4.5, 8, 7.5, 0.6, '#f88868'); k.bar(23, 4.5, 20, 7.5, 0.6, '#f88868');
+    }],
+    ['❓', (k) => {
+      const r = '#e03030';
+      k.bow(14, 9.5, 8, 7.5, 3.2, r, true); k.bar(20, 9.5, 17.5, 13.5, 1.6, r); k.bar(17.5, 13.5, 14, 15.5, 1.6, r); k.bar(14, 15.5, 14, 18, 1.6, r);
+      k.bar(7.6, 9.5, 7.6, 11, 1.6, r); k.oval(14, 24, 2.6, 2.6, r); k.line();
+    }],
+    ['❗', (k) => {
+      k.poly('#e03030', 9, 2, 19, 2, 16.5, 18, 11.5, 18); k.oval(14, 23.5, 3, 3, '#e03030'); k.line();
+      k.rect(11, 3, 2, 9, '#f88868'); k.rect(13, 22, 1, 1, '#f88868');
+    }],
+    ['💯', (k) => {
+      const r = '#e03030';
+      k.bar(5, 4, 5, 17, 1.4, r); k.bar(2.5, 6.5, 5, 4, 1, r);
+      for (const x of [13, 22]) { k.bow(x, 10.5, 4, 7, 2, r, true); k.bow(x, 10.5, 4, 7, 2, r); }
+      k.rect(2, 21, 24, 2, r); k.rect(5, 24, 18, 2, r);
+    }],
+    ['💡', (k) => {
+      k.oval(14, 10.5, 9.5, 9.5, '#f8e070'); k.rect(10, 17, 8, 5, '#f8e070'); k.rect(10, 21, 8, 5, '#8890a0'); k.line();
+      k.oval(10.5, 7, 2.5, 2.5, '#fffbe0'); k.bow(14, 10.5, 8, 8, 1, '#f0c030');
+      k.rect(10, 22, 8, 1, '#c8ccd8'); k.rect(10, 24, 8, 1, '#484858');
+      k.bar(12, 12, 13, 17, 0.5, '#c8962c'); k.bar(16, 12, 15, 17, 0.5, '#c8962c'); k.bar(12, 12, 16, 12, 0.5, '#c8962c');
+    }],
+    ['⏰', (k) => {
+      k.oval(5.5, 5, 4, 3.5, '#f0b030'); k.oval(22.5, 5, 4, 3.5, '#f0b030');
+      k.bar(7, 24, 5, 26, 1, '#484858'); k.bar(21, 24, 23, 26, 1, '#484858');
+      k.oval(14, 15, 11, 11, '#e03030'); k.line();
+      k.oval(14, 15, 8, 8, '#f8f8f8'); k.bow(14, 15, 8, 8, 1, '#c8ccd8');
+      k.bar(14, 15, 14, 9, 0.8, EMOJI_INK); k.bar(14, 15, 18, 17, 0.8, EMOJI_INK);
+    }],
+    ['💰', (k) => {
+      const bag = '#d8a850';
+      k.poly(bag, 8, 1, 20, 1, 17, 8, 11, 8); k.oval(14, 18, 11.5, 9, bag); k.line();
+      k.rect(10, 7, 8, 2, '#6a3c20'); k.bow(14, 18, 10, 7.5, 1.5, '#b88838');
+      k.dots(11, 13, '#6a3c20', '..#..', '.####', '#.#..', '.###.', '..#.#', '####.', '..#..');
+      k.oval(7, 14, 1.5, 2, '#f0d890');
+    }],
+    ['🚀', (k) => {
+      k.poly('#e03030', 9, 13, 3.5, 20, 3.5, 24, 9, 20); k.poly('#e03030', 19, 13, 24.5, 20, 24.5, 24, 19, 20);
+      k.poly('#e03030', 14, 0.5, 9, 8, 19, 8); k.rect(9, 8, 10, 12, '#e8e8ee'); k.poly('#f08020', 10, 20, 18, 20, 14, 27); k.line();
+      k.oval(14, 12, 2.7, 2.7, '#3878c8'); k.rect(13, 11, 1, 1, '#bce0f8');
+      k.rect(10, 8, 1, 12, '#f8f8f8'); k.rect(17, 8, 2, 12, '#a4acc4'); k.poly('#f8e070', 12, 20, 16, 20, 14, 24);
+    }],
+    ['🍕', (k) => {
+      k.poly('#f0c030', 3, 6, 25, 6, 14, 26.5); k.bar(4, 5, 24, 5, 2.8, '#c88848'); k.line();
+      k.rect(4, 4, 20, 1, '#e0b080');
+      for (const [x, y] of [[10, 11], [18, 12], [14, 18]]) { k.oval(x, y, 2.6, 2.6, '#c83828'); k.rect(x - 1, y - 1, 1, 1, '#f06050'); }
+    }],
+    ['🍩', (k) => {
+      const ring = (rx, ry, co, cy = 14) => { k.bow(14, cy, rx, ry, rx - 4, co, true); k.bow(14, cy, rx, ry, rx - 4, co); };
+      ring(12.5, 12.5, '#b87838'); k.line();
+      ring(11.5, 10.5, '#f088a8', 13);
+      for (const [x, y, co] of [[6, 10, '#f8f8f8'], [10, 5, '#58b8f0'], [17, 5, '#f8e070'], [21, 10, '#58a848'], [20, 17, '#f8f8f8'], [8, 17, '#f8e070'], [13, 20, '#58b8f0']]) k.rect(x, y, 2, 1, co);
+    }],
+    ['🍺', (k) => {
+      k.bow(20, 16, 6, 6, 2, '#c8ccd8'); k.bow(20, 16, 6, 6, 2, '#c8ccd8', true);
+      k.rect(3, 8, 17, 18, '#f0b030'); k.oval(6.5, 6.5, 4, 4, '#f8f8f8'); k.oval(12, 5.5, 4.5, 4.5, '#f8f8f8'); k.oval(17, 6.5, 3.5, 3.5, '#f8f8f8'); k.rect(3, 7, 17, 4, '#f8f8f8'); k.line();
+      k.rect(5, 13, 2, 11, '#f8e070'); k.rect(17, 11, 3, 15, '#c88820'); k.rect(10, 15, 1, 1, '#f8e070'); k.rect(13, 19, 1, 1, '#f8e070');
+      k.oval(7, 10.5, 2, 1, '#f8f8f8'); k.rect(6, 11, 2, 2, '#f8f8f8');
+    }],
+    ['🍁', (k) => {
+      k.poly('#e03030', 14, 1, 16.5, 5.5, 18.5, 4.5, 17.5, 11, 20.5, 8, 21.5, 10, 25.5, 9.5, 24, 14, 26, 15, 20, 20, 20.5, 22.5, 15, 21.5, 15, 27, 13, 27, 13, 21.5, 7.5, 22.5, 8, 20, 2, 15, 4, 14, 2.5, 9.5, 6.5, 10, 7.5, 8, 10.5, 11, 9.5, 4.5, 11.5, 5.5);
+      k.line(); k.rect(14, 9, 1, 12, '#a02020'); k.bar(11, 9, 11, 13, 0.5, '#f88868'); k.bar(6, 12, 8, 15, 0.5, '#f88868');
+    }],
+    ['❄️', (k) => {
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3 - Math.PI / 2, at = (r, off = 0) => [14 + Math.cos(a + off) * r, 14 + Math.sin(a + off) * r];
+        k.bar(14, 14, ...at(12.5), 1, '#58b8f0'); k.bar(...at(7), ...at(11, 0.42), 0.8, '#58b8f0'); k.bar(...at(7), ...at(11, -0.42), 0.8, '#58b8f0');
+      }
+      k.line(); k.oval(14, 14, 1.5, 1.5, '#f8f8f8');
+    }],
+    ['🦫', (k) => {
+      const fur = ['#9a6434', '#6a3c20', '#c89058'];
+      k.oval(5.5, 5.5, 3, 3, fur[1]); k.oval(22.5, 5.5, 3, 3, fur[1]);
+      k.face(fur, 14, 12.5, 11);
+      k.rect(10, 18, 8, 9, '#f8f8f8'); k.line();
+      k.oval(14, 15.5, 7.5, 4.5, '#e0b080'); k.oval(14, 13, 3, 2, EMOJI_INK); k.rect(13, 12, 1, 1, '#c8ccd8');
+      k.rect(14, 20, 1, 7, '#8890a0'); k.rect(10, 20, 8, 1, '#c8ccd8');
+      k.oval(8.5, 8.5, 1.8, 2.2, EMOJI_INK); k.oval(19.5, 8.5, 1.8, 2.2, EMOJI_INK);
+      for (const [x, y] of [[8, 15], [8, 17], [20, 15], [20, 17]]) k.rect(x < 14 ? x - 3 : x, y, 3, 1, fur[1]);
+    }],
+    // Haakon's own. Most have no real emoji, so each goes by the closest one.
+    // an air handling unit
+    ['🏭', (k) => {
+      k.rect(1, 5, 26, 17, '#f8f8f8'); k.rect(1, 22, 26, 4, '#484858'); k.line();
+      k.rect(1, 5, 26, 3, '#e4e4ec'); k.rect(1, 5, 26, 1, '#f8f8f8'); k.rect(1, 8, 26, 1, '#8890a0');
+      k.rect(3, 10, 6, 10, col.dark); k.rect(4, 11, 4, 8, '#8890a0'); for (const y of [11, 13, 15, 17]) k.rect(4, y, 4, 1, '#f8f8f8');
+      k.rect(11, 10, 14, 10, '#8890a0'); k.rect(12, 11, 12, 8, '#f8f8f8');
+      k.oval(17, 15, 3.2, 3.2, col.dark); k.oval(17, 15, 2, 2, '#bce0f8'); k.rect(22, 14, 1, 3, col.dark);
+      k.rect(1, 22, 26, 1, '#8890a0'); for (const x of [5, 13, 21]) k.rect(x, 24, 3, 2, col.dark);
+    }],
+    // a plenum fan
+    ['🌀', (k) => {
+      k.oval(14, 14, 13, 13, '#8890a0'); k.line(); k.oval(14, 14, 11, 11, '#30303c');
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4;
+        k.bar(14 + Math.cos(a) * 3.5, 14 + Math.sin(a) * 3.5, 14 + Math.cos(a + 0.7) * 10, 14 + Math.sin(a + 0.7) * 10, 0.9, '#c8ccd8');
+      }
+      k.oval(14, 14, 3.5, 3.5, '#3868c8'); k.oval(14, 14, 1.3, 1.3, '#f8f8f8');
+      k.bow(14, 14, 13, 13, 1, '#c8ccd8', true);
+    }],
+    // a coil
+    ['➰', (k) => {
+      k.coil('#c8ccd8', '#8890a0', '#d08040'); k.line();
+      for (const y of [6, 12, 18]) k.rect(4, y, 20, 1, '#f0b078');
+    }],
+    // a frozen coil
+    ['🧊', (k) => {
+      k.coil('#bce0f8', '#78b8e8', '#6890e0');
+      for (const x of [7, 12, 17, 21]) k.poly('#bce0f8', x - 2, 23, x + 2, 23, x, x % 2 ? 27 : 26);
+      k.line();
+      k.oval(9, 5, 3, 1.5, '#f8f8f8'); k.oval(18, 10.5, 3.5, 1.6, '#f8f8f8'); k.oval(9, 16, 3.5, 1.5, '#f8f8f8'); k.oval(20, 21, 2.5, 1.5, '#f8f8f8');
+      for (const x of [7, 12, 17, 21]) k.rect(x - 1, 23, 1, 2, '#f8f8f8');
+    }],
+    // a damper
+    ['🪟', (k) => {
+      k.rect(1, 3, 26, 22, '#484858'); k.line(); k.rect(1, 3, 26, 1, '#8890a0'); k.rect(4, 6, 20, 16, '#d8dce8');
+      for (const y of [6.5, 11.5, 16.5]) { k.poly('#585868', 4, y + 3.5, 24, y, 24, y + 2, 4, y + 5.5); k.poly('#9098a8', 4, y + 3.5, 24, y, 24, y + 0.8, 4, y + 4.3); }
+      k.rect(25, 7, 1, 15, '#f0b030');
+    }],
+    // a clean filter
+    ['🧽', (k) => {
+      k.filter('#c89058', '#f8f8f8', '#a4acc4');
+      k.dots(19, 7, '#f0b030', '..#..', '..#..', '#####', '..#..', '..#..');
+    }],
+    // a dirty filter
+    ['🦠', (k) => {
+      k.filter('#9a6434', '#8a8070', '#5a5448');
+      k.oval(10, 18, 4, 3, '#4a443a'); k.oval(18, 12, 3.5, 2.5, '#4a443a'); k.oval(10, 9, 2.5, 1.5, '#4a443a'); k.oval(19, 19, 2, 1.5, '#4a443a');
+      k.rect(9, 17, 2, 1, '#6a6458'); k.rect(17, 11, 2, 1, '#6a6458');
+    }],
+    // a slipping belt
+    ['➿', (k) => {
+      k.bar(8, 12.5, 20, 3, 1.5, '#30303c'); k.bar(13, 23.5, 24.5, 10.5, 1.5, '#30303c');
+      k.oval(8.5, 18.5, 7.5, 7.5, '#8890a0'); k.oval(21, 7, 5, 5, '#8890a0'); k.line();
+      k.oval(8.5, 18.5, 5, 5, '#c8ccd8'); k.oval(8.5, 18.5, 1.8, 1.8, col.dark); k.oval(21, 7, 3, 3, '#c8ccd8'); k.oval(21, 7, 1.2, 1.2, col.dark);
+      k.bar(17, 15, 20, 15, 0.5, '#f08020'); k.bar(19, 18, 23, 17, 0.5, '#f0b030'); k.bar(17, 19, 18.5, 22, 0.5, '#f08020');
+    }],
+    // a motor
+    ['⚡', (k) => {
+      k.rect(9, 3, 8, 4, '#283878'); k.rect(3, 7, 16, 14, '#3868c8'); k.rect(19, 9, 3, 10, '#283878'); k.rect(22, 12, 5, 4, '#c8ccd8'); k.rect(2, 21, 18, 4, '#484858'); k.line();
+      for (const y of [9, 12, 15, 18]) k.rect(3, y, 16, 1, '#283878');
+      k.rect(3, 7, 16, 1, '#6890e0'); k.rect(10, 4, 6, 1, '#3868c8'); k.rect(22, 12, 5, 1, '#f8f8f8'); k.rect(24, 15, 3, 1, '#8890a0');
+      for (const x of [4, 15]) k.rect(x, 23, 2, 1, col.dark);
+    }],
+    // a static pressure gauge
+    ['🧭', (k) => {
+      k.oval(14, 14, 13, 13, '#484858'); k.line(); k.oval(14, 14, 10.5, 10.5, '#f8f8f8');
+      k.bow(14, 14, 13, 13, 1, '#8890a0', true);
+      for (let i = 0; i <= 8; i++) {
+        const a = Math.PI * (0.75 + i * 0.1875), hot = i >= 6;
+        k.bar(14 + Math.cos(a) * 7.5, 14 + Math.sin(a) * 7.5, 14 + Math.cos(a) * 9.5, 14 + Math.sin(a) * 9.5, hot ? 0.8 : 0.5, hot ? '#e03030' : col.dark);
+      }
+      k.bar(14, 15, 20.5, 8.5, 0.8, '#e03030'); k.oval(14, 15, 2, 2, col.dark);
+      k.rect(11, 21, 6, 2, '#c8ccd8');
+    }],
+    // CFM
+    ['💨', (k) => {
+      const b = '#3868c8';
+      k.dots(5, 2, b, '.####.#####.#...#', '#.....#.....##.##', '#.....#.....#.#.#', '#.....####..#.#.#', '#.....#.....#...#', '#.....#.....#...#', '.####.#.....#...#');
+      for (const [x, y, x1] of [[2, 14, 21], [6, 19, 25], [2, 24, 17]]) { k.bar(x, y, x1, y, 1, EMOJI_TEAR); k.poly(EMOJI_TEAR, x1, y - 3, x1 + 3.5, y, x1, y + 3); }
+    }],
+    // a thermometer
+    ['🌡️', (k) => {
+      k.bar(14, 4, 14, 18, 3.2, '#f8f8f8'); k.oval(14, 21.5, 5.5, 5.5, '#e03030'); k.line();
+      k.rect(13, 9, 3, 11, '#e03030'); k.oval(12.5, 20, 1.2, 1.2, '#f88868');
+      for (const y of [5, 8, 11, 14]) k.rect(15, y, 2, 1, '#8890a0');
+    }],
+    // a duct elbow
+    ['📯', (k) => {
+      k.poly('#c8ccd8', 2, 3, 14, 3, 20, 5, 24, 9, 26, 16, 26, 26, 14, 26, 14, 18, 12, 16, 2, 16);
+      k.rect(1, 2, 2, 15, '#8890a0'); k.rect(13, 25, 14, 2, '#8890a0'); k.line();
+      k.bar(4, 4, 14, 4, 0.5, '#f8f8f8'); k.bar(14, 4, 20, 6, 0.5, '#f8f8f8'); k.bar(20, 6, 24, 10, 0.5, '#f8f8f8');
+      k.bar(13, 4, 13, 16, 0.4, '#8890a0'); k.bar(20, 6, 14.5, 17, 0.4, '#8890a0'); k.bar(25, 16, 15, 18, 0.4, '#8890a0');
+      k.rect(1, 2, 2, 1, '#c8ccd8'); k.rect(13, 25, 14, 1, '#c8ccd8');
+    }],
+    // a drain pan
+    ['💧', (k) => {
+      k.poly(EMOJI_TEAR, 14, 1, 9, 10, 19, 10); k.oval(14, 10.5, 5, 5, EMOJI_TEAR);
+      k.poly('#8890a0', 1.5, 18, 26.5, 18, 23.5, 26, 4.5, 26); k.line();
+      k.rect(4, 19, 20, 3, EMOJI_TEAR); k.rect(4, 19, 20, 1, '#bce0f8');
+      k.rect(12, 5, 1, 2, '#f8f8f8'); k.rect(11, 8, 2, 4, '#bce0f8'); k.rect(6, 23, 16, 1, '#c8ccd8');
+    }],
+    // a hard hat
+    ['👷', (k) => {
+      k.face(null, 14, 16.5, 10.5);
+      k.bow(14, 12, 10, 10, 99, '#f0c030', true); k.rect(1, 11, 26, 3, '#f0c030'); k.line();
+      k.rect(1, 13, 26, 1, '#c8962c'); k.rect(12, 2, 4, 9, '#f8e070'); k.rect(7, 6, 2, 3, '#f8e070');
+      k.oval(9.5, 17, 1.7, 2.2, EMOJI_INK); k.oval(18.5, 17, 1.7, 2.2, EMOJI_INK); k.smile(18.5, 5);
+    }],
+    // a wrench
+    ['🔧', (k) => {
+      const s = '#a4acc4';
+      k.bar(6, 22, 18, 10, 2.3, s); k.oval(6, 22, 4.6, 4.6, s); k.bar(18, 10, 15.5, 3.5, 2.2, s); k.bar(18, 10, 24.5, 12.5, 2.2, s); k.line();
+      k.oval(6, 22, 1.8, 1.8, col.dark); k.bar(9, 17.5, 16, 10.5, 0.5, '#f8f8f8'); k.bar(15, 4, 16.5, 8, 0.4, '#f8f8f8');
+    }],
+    // a blueprint, REV C
+    ['📐', (k) => {
+      k.rect(3, 2, 22, 24, '#3868c8'); k.line(); k.rect(3, 2, 22, 1, '#6890e0');
+      k.rect(6, 5, 16, 8, '#bce0f8'); k.rect(7, 6, 14, 6, '#3868c8'); k.rect(10, 6, 1, 6, '#bce0f8'); k.rect(16, 6, 1, 6, '#bce0f8');
+      k.rect(5, 16, 18, 8, '#f8f8f8');
+      k.dots(6, 17, '#e03030', '##..###.#.#..###', '#.#.#...#.#..#..', '##..##..#.#..#..', '#.#.#...#.#..#..', '#.#.###..#...###');
+    }],
+    // the SDG logo (assets/sdg.png, redrawn so the lettering stays sharp)
+    ['💻', (k) => {
+      k.rect(0, 0, 28, 28, col.dark); k.rect(1, 1, 26, 26, '#f9f161');
+      k.dots(3, 2, '#040402', '.####...#####....####.', '##..##..##..##..##..##', '##......##..##..##....', '.####...##..##..##.###', '....##..##..##..##..##', '##..##..##..##..##..##', '.####...#####....#####');
+      k.poly('#585848', 9.5, 23, 19.5, 23, 22.5, 27, 6.5, 27); k.poly('#b4b4b8', 10, 24, 19, 24, 21, 27, 8, 27);
+      k.rect(4, 10, 11, 7, '#585848'); k.oval(14.5, 18, 7.5, 7.5, '#585848');
+      k.rect(5, 11, 10, 5, '#c0c0c4'); k.oval(14.5, 18, 6.5, 6.5, '#c0c0c4');
+      k.oval(14.5, 18.5, 3.4, 3.4, '#505450'); k.oval(14.5, 18.5, 2, 2, '#c0c0c4');
+    }],
+    // a forklift
+    ['🚜', (k) => {
+      k.rect(2, 2, 3, 21, '#484858'); k.rect(0, 22, 5, 2, '#a4acc4');
+      k.rect(9, 3, 11, 2, '#30303c'); k.rect(9, 3, 2, 10, '#30303c'); k.rect(18, 3, 2, 10, '#30303c');
+      k.rect(7, 13, 18, 9, '#f0c030'); k.oval(11, 23, 4, 4, '#30303c'); k.oval(22, 23, 3.5, 3.5, '#30303c');
+      k.oval(14.5, 8.5, 2.5, 2.5, EMOJI_SKIN[0]); k.line(); k.rect(13, 8, 1, 2, EMOJI_INK);
+      k.rect(7, 13, 18, 1, '#f8e070'); k.rect(7, 20, 18, 1, '#c8962c'); k.rect(21, 15, 3, 3, '#30303c');
+      k.oval(11, 23, 1.5, 1.5, '#c8ccd8'); k.oval(22, 23, 1.2, 1.2, '#c8ccd8');
+    }],
+    // a unit on a truck
+    ['🚛', (k) => {
+      k.rect(1, 6, 17, 13, '#f8f8f8'); k.rect(1, 19, 19, 2, '#484858'); k.poly('#3868c8', 20, 9, 24, 9, 27, 14, 27, 21, 20, 21);
+      k.oval(6, 23, 3, 3, '#30303c'); k.oval(22, 23, 3, 3, '#30303c'); k.line();
+      k.rect(1, 6, 17, 1, '#e4e4ec'); k.rect(3, 9, 5, 7, '#8890a0'); for (const y of [9, 11, 13, 15]) k.rect(3, y, 5, 1, '#f8f8f8');
+      k.oval(13, 12.5, 2.5, 2.5, col.dark); k.oval(13, 12.5, 1.4, 1.4, '#bce0f8');
+      k.poly('#bce0f8', 21, 10.5, 23.5, 10.5, 25.5, 14, 21, 14); k.rect(20, 16, 7, 1, '#6890e0');
+      k.oval(6, 23, 1.2, 1.2, '#c8ccd8'); k.oval(22, 23, 1.2, 1.2, '#c8ccd8');
     }],
   ]);
   const MP_EMOJI = [...EMOJI.keys()];
@@ -13166,7 +13504,7 @@
   // Christmas champion, for good. The cup stands on a plinth in reception under the Hall of
   // Fame from the 27th on (or with &christmas=1), and press A on it: until the New Year it
   // says who's leading, then it has the champion engraved on it. The champion's prize is
-  // a pair of golden antlers (one of their head things in the character editor from then on) and
+  // a pair of humbug antlers (one of their head things in the character editor from then on) and
   // the Sweeper (under FLAIR), on any phone or computer with the same name (see "special items":
   // winning is what sets their numbers for them to 1, and it's only ever their own name's
   // numbers, so anyone else having them already makes no difference). &champion=Ada makes
@@ -13215,7 +13553,7 @@
     if (!cupMine(playerName) || CUP_PRIZES.every((item) => items[item] === 0)) { ask(plaque, ...board('SEE THE FINAL BOARD')); return; }
     const worn = wornLook(myLook);
     if (CUP_PRIZES.every((item) => items[item] === 0 || worn[ITEMS[item].part] === ITEMS[item].i)) { say(plaque + ' That\'s you! What came with it is already with you.'); return; }
-    cupPrize(plaque + ' That\'s you! A pair of golden antlers hangs off one handle, with your name on the tag, and a humbug with a broom is sulking by the plinth.');
+    cupPrize(plaque + ' That\'s you! A pair of humbug antlers hangs off one handle, with your name on the tag, and a humbug with a broom is sulking by the plinth.');
   }
   // Winning sets the champion's numbers for the prizes to 1, unless the database already has a
   // number for one (a 1 means they have it already, and a 0 that it's been taken away, so it
@@ -13231,7 +13569,7 @@
       if (j !== 0) { say('You leave them by the cup in reception for now. They\'re in the character editor whenever you want them.'); return; }
       sfx('menu');
       for (const item of CUP_PRIZES) if (items[item] === 1) wearNow(ITEMS[item].part, ITEMS[item].i);
-      say('You put on the golden antlers, and the humbugs hanging off them glare at you. One more picks up a broom with a sigh. Champion!');
+      say('You put on the humbug antlers, and the humbugs hanging off them glare at you. One more picks up a broom with a sigh. Champion!');
     });
   }
   // Once it's over, the first time you're walking around: the champion is told they've won
@@ -13246,7 +13584,7 @@
       store.set(told, '1'); store.set(seen, '1');
       sfx('cup');
       cupPrize('Merry Christmas and a happy New Year! You won the Christmas Cup: nobody cleared Humbug Sweeper faster than your '
-        + boardFmt(CUP, cupLeader.score) + '. Your name is engraved on the cup in reception, and it came with a pair of golden antlers and a humbug to sweep up after you.');
+        + boardFmt(CUP, cupLeader.score) + '. Your name is engraved on the cup in reception, and it came with a pair of humbug antlers and a humbug to sweep up after you.');
       return true;
     }
     if (!store.get(seen)) { store.set(seen, '1'); cupFlag = { t: 0 }; }
