@@ -46,7 +46,10 @@ export function start({ port = 8080, origins = [], games = defaultGames, tables 
     // (a connection that breaks before it's a WebSocket: with nobody listening for that
     // error, it would stop the whole server)
     socket.on('error', () => {});
-    const q = new URL(req.url, 'http://localhost').searchParams;
+    // (anyone can send an address that can't be read, like "//". With nobody catching that
+    // error it would stop the whole server, so it counts as asking for nothing and is refused)
+    let q = new URLSearchParams();
+    try { q = new URL(req.url, 'http://localhost').searchParams; } catch { /* refused below */ }
     const world = Object.hasOwn(worlds, q.get('w')) ? worlds[q.get('w')] : null;
     const id = q.get('id') || '', key = q.get('key') || '';
     if (!world || (origins.length && !origins.includes(req.headers.origin)) ||

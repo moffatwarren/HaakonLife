@@ -3,6 +3,7 @@
 import { test, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import net from 'node:net';
 import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 import { start } from '../index.js';
@@ -88,6 +89,26 @@ test('a broken frame drops that connection, not the server', async () => {
     const gone = closed(bad.ws);
     bad.ws._socket.write(Buffer.from([0xff, 0x80, 0, 0, 0, 0])); // not a WebSocket frame at all
     assert.equal(await gone, 1002); // the WebSocket code for "protocol error"
+    await pause(50);
+    assert.equal(own.stopped, false, 'the server is still running');
+    await stillUp(other, port);
+    other.ws.close();
+  } finally { own.proc.kill(); }
+});
+
+test('asking to connect at an address that makes no sense gets turned away, not the server', async () => {
+  const port = PORT + 1050, own = await ownServer(port);
+  // (by hand, because a proper WebSocket client won't send these)
+  const ask = (path) => new Promise((ok) => {
+    let got = '';
+    const s = net.connect(port, 'localhost', () => s.write(`GET ${path} HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n`));
+    s.on('data', (d) => { got += d; });
+    s.on('error', () => ok(got));
+    s.on('close', () => ok(got));
+  });
+  try {
+    const other = await connect(port);
+    for (const path of ['//', 'http://']) assert.match(await ask(path), /^HTTP\/1\.1 403/);
     await pause(50);
     assert.equal(own.stopped, false, 'the server is still running');
     await stillUp(other, port);
