@@ -299,7 +299,7 @@
   // ---------- the visitor office: visitors take turns, coming and going by portal ----------
   // Everyone in VISITORS (js/people.js) gets a spell in the office. When their time is
   // up they walk into the portal in the corner and the next one steps out of it.
-  const VISIT_TICKS = 1800; // how long each one stays: about 30 seconds of walking around
+  const VISIT_TICKS = 2700; // how long each one stays: about 45 seconds of walking around
   const visit = (function () {
     const list = window.VISITORS || [];
     for (let fi = 0; fi < MAPS.floors.length; fi++) {

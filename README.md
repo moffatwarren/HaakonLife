@@ -154,7 +154,7 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   the visitor Jill don't have one yet, so they don't offer a game.
 - **Where to find them:** most people are at their desks in Richmond. Plant people are at the Kingston plant
   (see "Eugene's phone and the Kingston plant"). Ali, Garrett and Ryan are only ever in the visitor office
-  (182), where people take turns of about 30 seconds. MY CARDS says where for anyone who isn't in the office.
+  (182), where people take turns of about 45 seconds. MY CARDS says where for anyone who isn't in the office.
 - **Against a player:** see **Playing together**. Your deck goes with you. The server checks that it's
   legal, not that you own the cards, the same honour system as scores and items.
 - **Saved:** your cards go in the database with your special items, at `items/<world>/<name>/c_<id>`, so
@@ -1552,7 +1552,7 @@ press A (E / Space) to talk. Their appearance and what they say live in
 add your own `lines`. The starting appearances are random placeholders.
 
 Office 182 on the 2nd floor is the visitor office. The visitors from out of town
-take turns in it: about every 30 seconds the one who's there walks into the
+take turns in it: about every 45 seconds the one who's there walks into the
 portal in the corner and the next one steps out, so you can meet all of them in
 one sitting. They come in a different order every time the game is launched, and
 nobody leaves while you're talking to them. Their names and lines live in
