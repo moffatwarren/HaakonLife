@@ -150,8 +150,8 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   Office is the front office, accounting, purchasing and IT (clever). Engineering is designers, programmers
   and R&D (keeps everything running). Team-up cards reward sticking to one or two, and things that belong
   to everyone, like Pizza Friday, go in any deck.
-- **The cards:** everyone who works in the game has one, plus the things they're known for, 155 in all. 7
-  are legendaries, which keep moving and land in their own way (`LANDS` in `CardsGame`). Max, Jack and
+- **The cards:** everyone who works in the game has one, plus the things they're known for, 155 in all, and 6
+  versions of your own legendary. 7 of the 155 are legendaries, which keep moving and land in their own way (`LANDS` in `CardsGame`). Max, Jack and
   the visitor Jill don't have one yet, so they don't offer a game.
 - **Where to find them:** most people are at their desks in Richmond. Plant people are at the Kingston plant
   (see "Eugene's phone and the Kingston plant"). Ali, Garrett and Ryan are only ever in the visitor office
@@ -160,8 +160,15 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
 - **Rewards:** winning cards earns you these, out of the 131 you can win (`CARD_PRIZES`). A quarter, 33, gives
   your cards sparkling gold backs, for you and whoever you play (`goldOf`, `sparkle`). Half, 66, gives you the card
   crown. Three quarters, 99, gives you the card storm, a flair of five cards going round you that other players
-  see too (`deckOrbit`). MY CARDS and each new card say how far off the next one is. They're special items
-  (see "Special items"), so adding cards later moves where they come but doesn't take any away.
+  see too (`deckOrbit`). All 131 gives you your own legendary. MY CARDS and each new card say how far off the next one is.
+  They're special items (see "Special items"), so adding cards later moves where they come but doesn't take any away.
+- **Your own legendary:** it has your name on it and your character in it, as you look now, big head things and all
+  (`faceOf`, `ownFrames`), and other players see it that way too. There are six versions, cards like any other
+  in `js/cardlist.js` (`own`, `style`): pick one under YOU in MY CARDS, and pick another whenever you like. Which you
+  play is just which is in your deck, so it's kept with your deck, in the browser. It counts as your one legendary and
+  takes the place of any other. Nobody can win it, and coworkers and decks built for you never use it. Everywhere the
+  game draws a card it goes through a face id (`faceOf`), because two players can have the same version. Adding a
+  version is a line in `js/cardlist.js` and a room in `OWN_ROOMS` in `js/cardart.js`.
 - **Leaderboards:** the Hall of Fame has CARDS COLLECTED and MORALE MADNESS WINS, under Board and Card Games. A
   win counts when you beat another player, including when they resign or run out of time. It doesn't count
   if they just leave the game, and games against coworkers don't count.
@@ -479,12 +486,12 @@ items/live/warren/antlers: 0
 ```
 
 `santa` is the Santa hat, `candycane` the candy cane, `antlers` the humbug antlers, `sweeper` the Sweeper, `crown` the crown,
-`startrail` the star trail, `ghostmask` the ghost mask, `ribbon` the ribbon, `goldbacks` the gold card backs, `cardcrown` the card crown and `cardstorm` the card storm. 1 means it's theirs, so it's one of their choices in the character editor (gold backs aren't worn, so they're simply on). 0 means it
+`startrail` the star trail, `ghostmask` the ghost mask, `ribbon` the ribbon, `goldbacks` the gold card backs, `cardcrown` the card crown, `cardstorm` the card storm and `owncard` your own legendary. 1 means it's theirs, so it's one of their choices in the character editor (gold backs and your own legendary aren't worn: the backs are simply on, and the card goes in your deck). 0 means it
 isn't, and the game won't offer it to them, even at Christmas, from the present, the cup or a quest. No number
 means they've never been given it.
 
 In the game the Santa hat comes from coming in over Christmas, the candy cane from opening the
-present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, the gold backs, card crown and card storm from winning cards in
+present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, the gold backs, card crown, card storm and your own legendary from winning cards in
 Morale Madness, and the mask and the ribbon from the quests (see
 **Linda's list** and **Employee of the Month**), which add a 1 where there's no number. The game
 never sets a number for the crown or the star trail: the Office Champion wears them with no
@@ -1512,7 +1519,7 @@ or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
 and `&stapler=near` puts it right in front of you. `&helped=5` counts the
 first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gives you Kiki's list, and
 `game=kiki` opens it.
-`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=32` makes the first 32 you can win yours, so that winning one more earns the gold backs (65 for the card crown, 98 for the card storm). `&have=cardcrown&look=m100e0000000` wears the card crown, `&have=cardstorm&look=m10000000030` wears the card storm, and with `&have=goldbacks&game=cards` your cards have gold backs. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
+`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=32` makes the first 32 you can win yours, so that winning one more earns the gold backs (65 for the card crown, 98 for the card storm, 130 for your own legendary). `&have=owncard&game=deck` makes your own legendary yours, under YOU. `&have=cardcrown&look=m100e0000000` wears the card crown, `&have=cardstorm&look=m10000000030` wears the card storm, and with `&have=goldbacks&game=cards` your cards have gold backs. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
 the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
 `&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
 `&crown=1` makes you the Office Champion, in the crown and the star trail.

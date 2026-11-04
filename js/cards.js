@@ -225,7 +225,7 @@ window.CARDS = (function engine() {
   // ones. dept: lean that way. must: these go in whatever happens (a coworker's own card, say).
   function buildDeck(owned, o = {}) {
     const state = { s: (o.seed || 1) >>> 0 }, rand = seededRand(state);
-    const pool = [...new Set(STARTER.concat((owned || []).filter((id) => collectable(CARD.get(id)))))];
+    const pool = [...new Set(STARTER.concat((owned || []).filter((id) => collectable(CARD.get(id)) && !CARD.get(id).own)))];
     const score = (id) => {
       const c = CARD.get(id);
       let v = rough(c) + rand() * (o.wild === undefined ? 1 : o.wild);
@@ -262,7 +262,7 @@ window.CARDS = (function engine() {
   }
   const wonFrom = (id) => {
     const c = CARD.get(id);
-    return !collectable(c) || c.rarity === 'S' ? null : c.heldBy || c.name;
+    return !collectable(c) || c.rarity === 'S' || c.own ? null : c.heldBy || c.name;
   };
   // The deck they play: the same one every time, leaning towards their department, with what they're
   // playing for in it. How good they are says how far up the rarities the rest of it goes, and
@@ -277,7 +277,7 @@ window.CARDS = (function engine() {
     let seed = 7;
     for (const ch of String(name)) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
     const order = seededRand({ s: seed });
-    const earned = LIST.filter((c) => collectable(c) && c.rarity !== 'S' && reach.includes(c.rarity) && (!first || !c.dept || c.dept === first.dept))
+    const earned = LIST.filter((c) => collectable(c) && c.rarity !== 'S' && !c.own && reach.includes(c.rarity) && (!first || !c.dept || c.dept === first.dept))
       .map((c) => [order(), c.id]).sort((x, y) => x[0] - y[0]).slice(0, most).map((x) => x[1]);
     return buildDeck(earned, { dept: first && first.dept, must, seed });
   }
@@ -716,7 +716,7 @@ window.CARDS = (function engine() {
     };
 
     // ---------- what the outside world sees ----------
-    const open = (x) => ({ u: x.u, id: x.id, pw: x.pw, pa: x.pa, max: x.max, gate: x.gate, skin: x.skin, frozen: x.frozen, stuck: x.stuck, left: x.left, ready: canAttack(x) });
+    const open = (x) => ({ u: x.u, id: x.id, seat: x.seat, pw: x.pw, pa: x.pa, max: x.max, gate: x.gate, skin: x.skin, frozen: x.frozen, stuck: x.stuck, left: x.left, ready: canAttack(x) });
     g.view = (seat) => {
       const me = st.p[seat], them = st.p[1 - seat];
       const side = (q) => ({ name: q.name, morale: q.morale, cups: q.cups, coffee: q.coffee, burn: q.burn, deck: q.deck.length, swapped: q.swapped, table: q.table.map(open) });

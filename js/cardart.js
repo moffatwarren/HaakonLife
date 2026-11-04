@@ -3706,7 +3706,7 @@ window.CARD_ART = (function () {
     p.put(cardShell(card), 0, 0, 2);
     const dept = deptOf(card), legend = card.rarity === 'L';
     letters(p, card.name, Math.round(150 - wide(card.name) / 2), 18, legend ? GOLD : INK);
-    const label = card.kind === 'task' ? 'TASK' : dept.name;
+    const label = card.style || (card.kind === 'task' ? 'TASK' : dept.name);
     letters(p, label, Math.round(130 - wide(label) / 2), 197, legend ? '#2a2030' : '#ffffff');
     // the rule, then in a quieter colour what they said
     let y = 228;
@@ -3854,6 +3854,94 @@ window.CARD_ART = (function () {
   // A legendary is alive: its art keeps moving, wherever you see it. frames: how many pictures in
   // its loop. every: how many ticks each one lasts. Its painter in ART gets how far round it is, 0 to 1.
   const LIVE = { forklift: { frames: 16, every: 3 }, officedog: { frames: 16, every: 5 }, truck: { frames: 16, every: 3 }, printer: { frames: 16, every: 4 }, humbug: { frames: 16, every: 4 }, linda: { frames: 16, every: 5 }, airhandler: { frames: 16, every: 2 } };
+  // ---------- your own legendary ----------
+  // Each version has a room of its own. In the game the character standing in it is whoever's card it
+  // is, walking on the spot (ownArt, with pictures of them from js/game.js, since only the game knows
+  // what they look like). Anywhere else, like a page of samples, it's an outline. k is how far round
+  // its loop it is, 0 to 1.
+  const HEART = ['.xx.xx.', 'xxxxxxx', 'xxxxxxx', '.xxxxx.', '..xxx..', '...x...'];
+  const floorAt = (p, c) => { p.box(0, 64, ART_W, 11, c); p.box(0, 64, ART_W, 1, LINE); };
+  const OWN_ROOMS = {
+    // squared up, with stars going off round them
+    youbruiser(p, k) {
+      p.box(0, 0, ART_W, ART_H, '#8c2420');
+      rays(p, 59, 34, 12, '#b83028', k * Math.PI / 6);
+      floorAt(p, '#4a1c1c');
+      [[14, 16, 0], [104, 12, 0.33], [18, 46, 0.66], [100, 44, 0.5]].forEach(([x, y, o]) => { const f = (k + o) % 1; if (f < 0.4) spark(p, x, y, '#fff0a0', f < 0.13 || f > 0.27 ? 2 : 4); });
+    },
+    // bricks, and nothing's getting through them
+    youwall(p) {
+      p.box(0, 0, ART_W, ART_H, '#a85c3c');
+      for (let y = 0; y < 64; y += 8) {
+        p.box(0, y, ART_W, 1, '#7a3e28');
+        for (let x = (y / 8) % 2 ? 0 : 8; x < ART_W; x += 16) p.box(x, y, 1, 8, '#7a3e28');
+      }
+      floorAt(p, '#5c4c3a');
+    },
+    // the corner office, all gold light
+    youboss(p, k) {
+      p.box(0, 0, ART_W, ART_H, '#1e2450');
+      rays(p, 59, 30, 16, '#2c3468', k * Math.PI / 8);
+      p.box(8, 8, 18, 26, GOLD); p.box(10, 10, 14, 22, '#a8d8f0'); p.box(92, 8, 18, 26, GOLD); p.box(94, 10, 14, 22, '#a8d8f0');
+      floorAt(p, '#6a3c20');
+    },
+    // boards either side, with everybody's plan on them
+    youlead(p) {
+      p.box(0, 0, ART_W, ART_H, '#2a6a68');
+      for (const x of [5, 87]) {
+        p.box(x, 10, 26, 24, LINE); p.box(x + 1, 11, 24, 22, '#f4f4f0');
+        p.box(x + 4, 15, 16, 2, '#c84038'); p.box(x + 4, 20, 12, 2, '#3868c8'); p.box(x + 4, 25, 18, 2, '#48a048');
+      }
+      floorAt(p, '#3a4048');
+    },
+    // hearts going up
+    youmorale(p, k) {
+      p.box(0, 0, ART_W, ART_H, '#d86888');
+      rays(p, 59, 34, 12, '#e88aa4', k * Math.PI / 6);
+      [[10, 0], [26, 0.4], [90, 0.2], [104, 0.65]].forEach(([x, o]) => { const f = (k + o) % 1; p.rows(x, Math.round(58 - f * 54), HEART, { x: '#fff0f4' }); });
+      floorAt(p, '#a04868');
+    },
+    // the calendar, all filled in
+    youplanner(p) {
+      p.box(0, 0, ART_W, ART_H, '#7fa8c8');
+      for (const x of [4, 84]) {
+        p.box(x, 8, 30, 30, LINE); p.box(x + 1, 9, 28, 28, '#f4f4f0'); p.box(x + 1, 9, 28, 6, '#c84038');
+        for (let j = 0; j < 3; j++) for (let i = 0; i < 4; i++) p.box(x + 3 + i * 6, 18 + j * 6, 4, 4, (i + j) % 3 ? '#a4acc4' : '#f0b030');
+      }
+      floorAt(p, '#4a5c70');
+    },
+  };
+  const ownTwinkle = (p, k) => {
+    [[34, 10, 0], [84, 8, 0.25], [28, 40, 0.5], [90, 38, 0.75]].forEach(([x, y, o]) => { const f = (k + o) % 1; if (f < 0.2) spark(p, x, y, '#fff8d0', f < 0.07 || f > 0.13 ? 1 : 3); });
+    spark(p, 8 + Math.round(k * 102), 4, '#fff8d0', 1); // (and one always on its way across the top)
+  };
+  for (const id in OWN_ROOMS) {
+    ART[id] = (p, k = 0) => {
+      OWN_ROOMS[id](p, k);
+      fig(p, M(p).ell(59, 30, 13).rbox(39, 42, 40, 40, 8), '#2a2430', { sh: [2, 2], hi: [1, 1] });
+      ownTwinkle(p, k);
+    };
+    LIVE[id] = { frames: 16, every: 5 };
+  }
+  // This version of the card with somebody on it. frames: three pictures of them, as { w, h, px } with
+  // px as a Pic has it, standing and on each foot, twice the size here with their feet on the floor.
+  function ownArt(key, id, frames) {
+    if (ART[key]) return;
+    const rowsOf = (f) => { let top = f.h, end = 0; for (let j = 0; j < f.h; j++) for (let i = 0; i < f.w; i++) if (f.px[j * f.w + i]) { top = Math.min(top, j); end = j + 1; } return [top, end]; };
+    const [top, end] = rowsOf(frames[0]), y = Math.max(2, 72 - (end - top) * 2) - top * 2;
+    ART[key] = (p, k = 0) => {
+      OWN_ROOMS[id](p, k);
+      const f = frames[[0, 1, 0, 2][Math.floor(k * 16 / 4) % 4]];
+      for (let j = top; j < f.h; j++) for (let i = 0; i < f.w; i++) {
+        const v = f.px[j * f.w + i];
+        if (!v) continue;
+        const X = 59 - f.w + i * 2, Y = y + j * 2;
+        for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) if (Y + b < ART_H && X + a >= 0 && X + a < ART_W) p.px[(Y + b) * ART_W + X + a] = v;
+      }
+      ownTwinkle(p, k);
+    };
+    LIVE[key] = { frames: 16, every: 5 };
+  }
   const liveFrames = new Map();
   function artFrame(id, t) {
     const live = LIVE[id];
@@ -3880,5 +3968,5 @@ window.CARD_ART = (function () {
   }
 
   // (painted: whether a card has a picture of its own, rather than the stand-in)
-  return { ART_W, ART_H, LIVE, Pic, big, small, back, artPic, artFrame, cropOf, label, toCanvas, canvasOf, shine, sparkle, RARITY, DEPTS, painted: (id) => Object.prototype.hasOwnProperty.call(ART, id) };
+  return { ART_W, ART_H, LIVE, Pic, big, small, back, artPic, artFrame, cropOf, label, toCanvas, canvasOf, shine, sparkle, ownArt, RARITY, DEPTS, painted: (id) => Object.prototype.hasOwnProperty.call(ART, id) };
 })();

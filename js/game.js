@@ -5573,7 +5573,33 @@
   // draw() scales everything back down from the view's 320 x 240 while it draws them.
   const cardPics = new Map();
   const cardPic = (key, make) => { let v = cardPics.get(key); if (!v) { v = make(); cardPics.set(key, v); } return v; };
-  const cardFace = (id) => cardPic('face' + id, () => { const c = CARDS.card(id); return Object.assign({}, c, { text: CARDS.text(c) }); });
+  const cardFace = (id) => cardPic('face' + id, () => { const c = ownFaces.get(id) || CARDS.card(id); return Object.assign({}, c, { text: CARDS.text(c) }); });
+  // Your own legendary looks different for everybody, so to draw one there's a face id, which goes
+  // wherever an id does for the pictures (never for the rules). who: { name, look }, whose card it is. For
+  // any other card, or if nobody knows what they look like, it's just the id.
+  const ownFaces = new Map();
+  function faceOf(id, who) {
+    const c = CARDS.card(id);
+    if (!c || !c.own || !who || !who.look) return id;
+    const key = id + '/' + who.name + '/' + Art.lookCode(who.look);
+    if (!ownFaces.has(key)) {
+      ownFaces.set(key, Object.assign({}, c, { name: who.name, art: key }));
+      CARD_ART.ownArt(key, id, ownFrames(who.look));
+    }
+    return key;
+  }
+  // them, standing and on each foot, in anything too big for the picture, like the crown
+  function ownFrames(look) {
+    const W = 64, H = 56, X = 16, Y = 24, sheet = lookSprites(look), big = bigHat(look);
+    return [0, 1, 2].map((f) => {
+      const cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      const c = cv.getContext('2d');
+      if (big) c.drawImage(rowsPic('bigHat' + look.hat + 'down', big.down, Art.BIG_COLS), X + big.x, Y + big.y);
+      c.drawImage(sheet.down[f], X, Y);
+      return { w: W, h: H, px: new Uint32Array(c.getImageData(0, 0, W, H).data.buffer) };
+    });
+  }
   const bigCard = (id) => cardPic('big' + id, () => CARD_ART.toCanvas(CARD_ART.big(cardFace(id))));
   const backOfCard = (gold) => cardPic(gold ? 'backGold' : 'back', () => CARD_ART.toCanvas(CARD_ART.back(gold)));
   const cardWord = (s, c, n = 1) => cardPic('w' + s + '/' + c + '/' + n, () => CARD_ART.toCanvas(CARD_ART.label(s, c, n)));
@@ -5655,6 +5681,8 @@
     const sideOf = (seat) => (seat === me ? shown.you : shown.them);
     // Winning a quarter of the cards puts gold backs on yours, and the server says if the other player has them.
     const goldOf = (seat) => (seat === me ? items.goldbacks === 1 : !!(view && view.gold));
+    // the pictures of a card on this side of the table (see faceOf)
+    const F = (id, seat = me) => faceOf(id, seat === me ? { name: playerName || 'You', look: wornLook(myLook) } : vs ? { name: vs.name, look: vs.look } : null);
     const flash = (str) => { note = str; noteT = 110; };
     const foeShort = foe.length > 10 ? foe.slice(0, 10) : foe;
     const has = (table, key) => table && Object.prototype.hasOwnProperty.call(table, key);
@@ -5712,7 +5740,7 @@
     const nameOf = (u) => { if (u === me) return 'You'; if (u === 1 - me) return foeShort; const w = unitOf(u); return w ? CARDS.card(w.id).name : 'Someone'; };
     const signed = (n) => (n > 0 ? '+' : '') + n;
     function addMove(seat, id, words, target) {
-      moveNow = { seat, id, words, target: isPlayer(target) ? { seat: target } : unitOf(target) ? { id: unitOf(target).id } : null, did: [], t: 0 };
+      moveNow = { seat, id, words, target: isPlayer(target) ? { seat: target } : unitOf(target) ? { id: unitOf(target).id, on: unitOf(target).seat } : null, did: [], t: 0 };
       moves.unshift(moveNow);
       moves.length = Math.min(moves.length, MOVES);
     }
@@ -5747,9 +5775,9 @@
         default: break;
       }
     }
-    function newUnit(id, u) {
+    function newUnit(id, u, seat) {
       const c = CARDS.card(id), words = c.words || [];
-      return { u, id, pw: c.power, pa: c.patience, max: c.patience, gate: words.includes('gate'), skin: words.includes('skin'), frozen: 0, stuck: false, left: 0, ready: false };
+      return { u, id, seat, pw: c.power, pa: c.patience, max: c.patience, gate: words.includes('gate'), skin: words.includes('skin'), frozen: 0, stuck: false, left: 0, ready: false };
     }
     // How a card lands on the table, when it's its turn to. A legendary can land its own way.
     // (scraps: square bits that keep their size, thrown out from x, y)
@@ -5760,6 +5788,13 @@
       stars(x + 44, y + 58, 30, 6.5); dust(x + 44, y + 112, 22); sfx('thump');
     }
     const LANDS = {
+      // your own legendary: each comes down in its own way
+      youbruiser(x, y) { landHard(x, y); shake = 18; scraps(x + 44, y + 100, 12, '#f07858', 4, 2, 22); },
+      youwall(x, y) { landHard(x, y); shake = 24; dust(x + 44, y + 112, 34); },
+      youboss(x, y) { landHard(x, y); flare = { c: '255,224,120', a: 0.4, fade: 0.03 }; stars(x + 44, y + 58, 16); },
+      youlead(x, y) { landHard(x, y); stars(x + 44, y + 58, 20, 2.6); },
+      youmorale(x, y) { landHard(x, y); hearts(x + 44, y + 50, 22); },
+      youplanner(x, y) { landHard(x, y); scraps(x + 44, y + 90, 14, '#f4f4f0', 3.5, 2, 26); },
       officedog(x, y, u) { shake = 6; flare = { c: '255,190,170', a: 0.35, fade: 0.04 }; bounce.set(u, 44); hearts(x + 44, y + 50, 20); stars(x + 44, y + 50, 16, 5); sfx('bark'); },
       // the heaviest thing in the building, setting its forks down
       forklift(x, y) { landHard(x, y); shake = 22; dust(x + 44, y + 112, 30); scraps(x + 44, y + 100, 14, '#e8b820', 4.5, 2, 24); sfx('beep'); },
@@ -5776,7 +5811,7 @@
     };
     function put(e) { // a worker arriving on the table
       const side = sideOf(e.s), i = side.table.length, x = slotX(i), y = rowY(e.s), c = CARDS.card(e.id);
-      side.table.push(newUnit(e.id, e.u));
+      side.table.push(newUnit(e.id, e.u, e.s));
       landed = e.u;
       if (c.rarity === 'L') (LANDS[e.id] || landHard)(x, y, e.u);
       else {
@@ -5816,7 +5851,7 @@
               const u = easeOut(f / IN), spin = Math.cos(Math.pow(f / IN, 1.6) * Math.PI * 5);
               if (f === 10 || f === 20) sfx('swish');
               dim = 0.65 * u;
-              bigAt(e.id, from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66, { squash: Math.abs(spin), back: spin > 0, gold: goldOf(e.s) });
+              bigAt(F(e.id, e.s), from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66, { squash: Math.abs(spin), back: spin > 0, gold: goldOf(e.s) });
             } else if (f < OUT) {
               const since = f - IN;
               if (f === IN) {
@@ -5827,17 +5862,17 @@
               }
               if (f % 3 === 0) bits.push({ x: mid[0] - 150 + Math.random() * 300, y: mid[1] + 170 + Math.random() * 30, vx: Math.random() - 0.5, vy: -2.4 - Math.random() * 1.6, life: 42, max: 42, star: true, c: '#ffe890' }); // (sparks rising)
               dim = 0.65; halo = { x: mid[0], y: mid[1], t: since };
-              bigAt(e.id, mid[0], mid[1] + Math.round(Math.sin(since / 9) * 3), 1 + (since < 10 ? 0.16 * Math.pow(1 - since / 10, 2) : 0), { live: true, glow: true, shine: since * 3.4 % 150 });
+              bigAt(F(e.id, e.s), mid[0], mid[1] + Math.round(Math.sin(since / 9) * 3), 1 + (since < 10 ? 0.16 * Math.pow(1 - since / 10, 2) : 0), { live: true, glow: true, shine: since * 3.4 % 150 });
             } else if (f < SLAM) {
               const u = (f - OUT) / (SLAM - OUT);
               if (f === OUT) sfx('swish');
               dim = 0.65; halo = { x: mid[0], y: mid[1], t: f - IN };
-              bigAt(e.id, mid[0], mid[1] - u * 18, 1 + u * 0.08, { live: true, glow: true });
+              bigAt(F(e.id, e.s), mid[0], mid[1] - u * 18, 1 + u * 0.08, { live: true, glow: true });
             } else {
               const u = Math.pow((f - SLAM) / (END - SLAM), 2);
               legend = null;
               dim = 0.65 * (1 - u);
-              bigAt(e.id, mid[0] + (to[0] + 44 - mid[0]) * u, mid[1] - 18 + (to[1] + 58 - mid[1] + 18) * u, 1.08 - u * 0.74, { live: true });
+              bigAt(F(e.id, e.s), mid[0] + (to[0] + 44 - mid[0]) * u, mid[1] - 18 + (to[1] + 58 - mid[1] + 18) * u, 1.08 - u * 0.74, { live: true });
             }
           },
           end() { big = null; halo = null; dim = 0; legend = null; arrived(); put(e); },
@@ -5853,20 +5888,20 @@
           if (f < rise) {
             const u = easeOut(f / rise);
             dim = top * u;
-            bigAt(e.id, from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66);
+            bigAt(F(e.id, e.s), from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66);
           } else if (f < hold) {
             dim = top;
             if (f === rise && rare) { stars(mid[0], mid[1], 18, 5); shake = 4; sfx('ding'); }
             if (f === rise && c.rarity === 'U') stars(mid[0], mid[1], 10, 4);
-            bigAt(e.id, mid[0], mid[1], 1, { shine: rare ? (f - rise) * 4 : -1 });
+            bigAt(F(e.id, e.s), mid[0], mid[1], 1, { shine: rare ? (f - rise) * 4 : -1 });
           } else if (worker) {
             const u = Math.pow((f - hold) / fall, 2);
             dim = top * (1 - u);
-            bigAt(e.id, mid[0] + (to[0] + 44 - mid[0]) * u, mid[1] + (to[1] + 58 - mid[1]) * u, 1 - u * 0.66);
+            bigAt(F(e.id, e.s), mid[0] + (to[0] + 44 - mid[0]) * u, mid[1] + (to[1] + 58 - mid[1]) * u, 1 - u * 0.66);
           } else {
             const u = (f - hold) / fall;
             dim = top * (1 - u);
-            bigAt(e.id, mid[0], mid[1] + u * 30, 1 - u * 0.3, { alpha: 1 - u });
+            bigAt(F(e.id, e.s), mid[0], mid[1] + u * 30, 1 - u * 0.3, { alpha: 1 - u });
           }
         },
         end() {
@@ -5957,7 +5992,7 @@
       switch (e.e) {
         case 'play': return playAnim(e);
         case 'attack': return attackAnim(e);
-        case 'summon': return { len: 16, start() { const side = sideOf(seat); dust(slotX(side.table.length) + 44, rowY(seat) + 100, 8); side.table.push(newUnit(e.id, e.u)); sfx('tap'); } };
+        case 'summon': return { len: 16, start() { const side = sideOf(seat); dust(slotX(side.table.length) + 44, rowY(seat) + 100, 8); side.table.push(newUnit(e.id, e.u, seat)); sfx('tap'); } };
         case 'home': {
           let n = 1;
           goHome(e, 0);
@@ -5967,11 +6002,11 @@
         }
         case 'sentback': {
           const start = posOf(e.u), side = sideOf(seat), i = side.table.findIndex((x) => x.u === e.u);
-          const who = i >= 0 ? side.table[i] : newUnit(e.id, e.u);
+          const who = i >= 0 ? side.table[i] : newUnit(e.id, e.u, seat);
           if (i >= 0) side.table.splice(i, 1);
           const end = seat === me ? [handX(side.hand.length, side.hand.length + 1), HAND_Y] : [470, -120];
           sfx('swish');
-          return { len: 30, step(f) { fly = { id: who.id, pos: arcTo(start, end, f / 30, 80), spin: f / 30 * 6 }; }, end() { fly = null; } };
+          return { len: 30, step(f) { fly = { id: F(who.id, who.seat), pos: arcTo(start, end, f / 30, 80), spin: f / 30 * 6 }; }, end() { fly = null; } };
         }
         case 'tohand': {
           const side = sideOf(seat);
@@ -6281,7 +6316,7 @@
       ctx.drawImage(cardWord(going, '#c8c0d8'), Math.max(8, Math.round((W - going.length * 12) / 2)), 40);
       const n = you.hand.length, x0 = 312;
       if (!you.swapped && swapAt < n) {
-        ctx.drawImage(bigCard(you.hand[swapAt].id), 28, 72);
+        ctx.drawImage(bigCard(F(you.hand[swapAt].id)), 28, 72);
         drawMeanings(meaningsOf(you.hand[swapAt].id), 312, 316, 300); // (there's no room under it here)
       }
       else if (n) {
@@ -6290,7 +6325,7 @@
       }
       you.hand.forEach((c, i) => {
         const x = x0 + i * 100, y = 110 - (i === swapAt && !you.swapped ? 8 : 0);
-        ctx.drawImage(swapping.has(c.u) ? backOfCard(goldOf(me)) : smallCard(c.id, { cost: true }), x, y);
+        ctx.drawImage(swapping.has(c.u) ? backOfCard(goldOf(me)) : smallCard(F(c.id), { cost: true }), x, y);
         if (swapping.has(c.u) && goldOf(me)) A.sparkle(ctx, x, y, 88, 116, t, i);
         if (swapping.has(c.u)) { panel(x + 12, y + 44, 64, 28, '#ff9878'); ctx.drawImage(cardWord('SWAP', INK), x + 20, y + 51); }
         if (i === swapAt && !you.swapped) { ctx.fillStyle = '#f8d850'; for (const [a, b, w, h] of [[x - 4, y - 4, 96, 4], [x - 4, y + 116, 96, 4], [x - 4, y, 4, 116], [x + 88, y, 4, 116]]) ctx.fillRect(a, b, w, h); }
@@ -6376,11 +6411,12 @@
       const c = CARDS.card(x.id), o = {};
       if (x.pw !== c.power) { o.power = x.pw; o.up = x.pw > c.power; }
       if (x.pa !== c.patience || x.max !== c.patience) { o.patience = x.pa; o.hurt = x.pa < x.max; }
-      ctx.drawImage(smallCard(x.id, o), Math.round(X), Math.round(Y));
+      const face = F(x.id, x.seat);
+      ctx.drawImage(smallCard(face, o), Math.round(X), Math.round(Y));
       X = Math.round(X); Y = Math.round(Y);
       if (c.rarity === 'L') { // a legendary's art keeps moving, on the table too
-        const [cx, cy] = A.cropOf(x.id);
-        ctx.drawImage(A.canvasOf(A.artFrame(x.id, t)), cx, cy, 72, 72, X + 8, Y + 8, 72, 72);
+        const [cx, cy] = A.cropOf(face);
+        ctx.drawImage(A.canvasOf(A.artFrame(face, t)), cx, cy, 72, 72, X + 8, Y + 8, 72, 72);
         A.shine(ctx, X, Y, 88, 116, t, 'L', 6);
       } else if (c.rarity === 'R') A.shine(ctx, X, Y, 88, 116, t + x.u * 37, 'R', 6);
       // on your turn, one of yours who can't attack (any more, or yet) is greyed out
@@ -6475,7 +6511,7 @@
         if (q.u !== s.u) brackets(x, y, w, h, '#ffbeaa');
       }
       const [sx, sy, sw, sh] = rectOf(src);
-      if (attacker) worker(attacker, sx, sy); else ctx.drawImage(smallCard(src.c.id, { cost: true }), sx, sy);
+      if (attacker) worker(attacker, sx, sy); else ctx.drawImage(smallCard(F(src.c.id), { cost: true }), sx, sy);
       frame(sx - 2, sy - 2, sw + 4, sh + 4, 2, '#f8d850');
       // the one you're on
       const [x, y, w, h] = rectOf(s);
@@ -6503,14 +6539,14 @@
         if (m.waiting) return;
         const [x, y, w, h] = moveRect(k), fresh = m.t < 48;
         panel(x, y, w, h, m.seat === me ? '#f8d850' : '#e86048');
-        const [cx, cy] = A.cropOf(m.id);
-        ctx.drawImage(artOf(m.id), Math.max(0, Math.min(A.ART_W - 84, cx - 6)), cy, 84, 72, x + 4, y + 4, 42, 36);
+        const face = F(m.id, m.seat), [cx, cy] = A.cropOf(face);
+        ctx.drawImage(artOf(face), Math.max(0, Math.min(A.ART_W - 84, cx - 6)), cy, 84, 72, x + 4, y + 4, 42, 36);
         if (m.target) {
           const bx = x + w - 22, by = y + h - 22;
           ctx.fillStyle = INK; ctx.fillRect(bx - 10, by + 8, 10, 6); ctx.fillRect(bx - 4, by + 5, 4, 12);
           ctx.fillStyle = '#ff5040'; ctx.fillRect(bx - 8, by + 10, 6, 2); ctx.fillRect(bx - 2, by + 7, 2, 8);
           panel(bx, by, 20, 20, '#ff5040');
-          if (m.target.id) { const [tx, ty] = A.cropOf(m.target.id); ctx.drawImage(artOf(m.target.id), tx + 16, ty + 4, 40, 40, bx + 2, by + 2, 16, 16); } else {
+          if (m.target.id) { const aimed = F(m.target.id, m.target.on), [tx, ty] = A.cropOf(aimed); ctx.drawImage(artOf(aimed), tx + 16, ty + 4, 40, 40, bx + 2, by + 2, 16, 16); } else {
             const img = (m.target.seat === me ? sprites : foeSprites).down[0], u = img.width / (img.hi || 1) / 16;
             ctx.drawImage(img, 3 * u, 0, 10 * u, 10 * u, bx + 2, by + 2, 16, 16);
           }
@@ -6542,15 +6578,16 @@
         if (l.slice(c)) ctx.drawImage(cardWord(l.slice(c), INK), x + 8 + c * 12, Y);
       });
     }
-    function closeUp(id, X, Y, x) {
-      ctx.drawImage(bigCard(id), X, Y);
-      if (CARDS.card(id).rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(id, t)), X + 12, Y + 44, 236, 150);
+    function closeUp(id, X, Y, x, seat) {
+      const face = F(id, seat);
+      ctx.drawImage(bigCard(face), X, Y);
+      if (CARDS.card(id).rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(face, t)), X + 12, Y + 44, 236, 150);
       A.shine(ctx, X, Y, 260, 364, t, CARDS.card(id).rarity);
       drawMeanings(meaningsOf(id, x), X, Y + 366, 260);
     }
     // looking back at a move: the card, and in words who did what with it
     function drawMoveCloseUp(m) {
-      closeUp(m.id, 78, 2);
+      closeUp(m.id, 78, 2, null, m.seat);
       const said = wrap(m.words, 23), did = [].concat(...m.did.map((d) => wrap(d, 23))), x = 344, y = 60;
       panel(x, y, 288, 16 + (said.length + did.length) * 20 + (did.length ? 6 : 0));
       said.forEach((l, i) => ctx.drawImage(cardWord(l, INK), x + 12, y + 8 + i * 20));
@@ -6590,14 +6627,14 @@
       for (const w of gone) {
         if (w.t < 0) { worker(w.who, w.x, w.y); continue; }
         const step = Math.floor(w.t / 5) % 2 ? 4 : 0;
-        ctx.drawImage(smallCard(w.who.id, { patience: 0, hurt: true }), Math.round(w.x + w.dir * w.t * w.t * 0.2), Math.round(w.y - step));
+        ctx.drawImage(smallCard(F(w.who.id, w.who.seat), { patience: 0, hurt: true }), Math.round(w.x + w.dir * w.t * w.t * 0.2), Math.round(w.y - step));
       }
       if (glint) A.shine(ctx, glint.x, glint.y, 88, 116, glint.t, 'R', 6);
       // your hand
       you.hand.forEach((c, i) => {
         const x = handX(i, you.hand.length), on = !aim && !anim && !queue.length && cur.row === 2 && Math.min(cur.i, you.hand.length) === i;
         const can = shown.turn === me && view.can && has(view.can.play, c.u);
-        ctx.drawImage(smallCard(c.id, { cost: true }), x, HAND_Y - (on ? 10 : 0));
+        ctx.drawImage(smallCard(F(c.id), { cost: true }), x, HAND_Y - (on ? 10 : 0));
         if (shown.turn === me && !can && !anim && !queue.length) { ctx.fillStyle = 'rgba(20,16,30,0.45)'; ctx.fillRect(x, HAND_Y - (on ? 10 : 0), 88, 116); }
       });
       if (drawn) {
@@ -6638,7 +6675,7 @@
         if (b.back && b.gold) A.sparkle(ctx, x, b.y, w, b.h, t, 5);
         ctx.globalAlpha = 1;
         if (b.live) ctx.drawImage(A.canvasOf(A.artFrame(b.id, t)), b.x + Math.round(12 * sc), b.y + Math.round(44 * sc), Math.round(236 * sc), Math.round(150 * sc));
-        if (b.shine >= 0) A.shine(ctx, x, b.y, w, b.h, Math.min(CARDS.card(b.id).rarity === 'L' ? 149 : 209, b.shine), CARDS.card(b.id).rarity);
+        if (b.shine >= 0) A.shine(ctx, x, b.y, w, b.h, Math.min(cardFace(b.id).rarity === 'L' ? 149 : 209, b.shine), cardFace(b.id).rarity);
       }
       if (legend) { // the word across the top, opening out from the middle
         const w = Math.round(W * Math.min(1, legend.t / 10) / 2) * 2;
@@ -6710,7 +6747,7 @@
         if (s && s.kind === 'move') drawMoveCloseUp(s.m);
         else if (s && rest > (aim ? 45 : 18) && (s.kind === 'hand' || s.kind === 'unit')) {
           const [x, , w] = rectOf(s);
-          closeUp(s.kind === 'hand' ? s.c.id : s.x.id, x + w / 2 < W / 2 ? 372 : 8, 2, s.kind === 'unit' ? s.x : null);
+          closeUp(s.kind === 'hand' ? s.c.id : s.x.id, x + w / 2 < W / 2 ? 372 : 8, 2, s.kind === 'unit' ? s.x : null, s.kind === 'unit' ? s.x.seat : me);
         }
       }
       if (noteT > 0) {
@@ -6865,14 +6902,14 @@
   const cardsWho = () => playerName || 'New Hire';
   const cardKey = (name, what) => (BOARD_POSTS ? '' : 'test.') + what + '.' + boardKey(name);
   // the cards you can win, which is everything but the starters and the ones other cards bring in
-  const WINNABLE = CARDS.LIST.filter((c) => c.rarity !== 'T' && !CARDS.STARTER.includes(c.id));
+  const WINNABLE = CARDS.LIST.filter((c) => c.rarity !== 'T' && !c.own && !CARDS.STARTER.includes(c.id));
   // what this browser remembers (and &havecards=all, or =32 for the first 32 you can win, or =markv,steve,
   // as if those were yours)
   function cardsRead(name) {
     cardsOwned = new Set(); cardsFor = name;
     let test = (/[#&]havecards=([a-z0-9,]+)/.exec(location.hash) || ['', ''])[1].split(',');
     if (/^\d+$/.test(test[0])) test = WINNABLE.slice(0, +test[0]).map((c) => c.id);
-    for (const c of CARDS.LIST) if (c.rarity !== 'T' && (store.get(itemKey(name, 'c_' + c.id)) === '1' || test[0] === 'all' || test.includes(c.id))) cardsOwned.add(c.id);
+    for (const c of CARDS.LIST) if (c.rarity !== 'T' && !c.own && (store.get(itemKey(name, 'c_' + c.id)) === '1' || test[0] === 'all' || test.includes(c.id))) cardsOwned.add(c.id);
   }
   // what the database says. One here with nothing there is a save that didn't get through, so it goes
   // again. A 0 there means it's been taken away by hand.
@@ -6885,8 +6922,8 @@
     }
   }
   const cardsMine = () => { if (cardsFor !== cardsWho()) cardsRead(cardsWho()); return cardsOwned; };
-  const cardHave = (id) => CARDS.STARTER.includes(id) || cardsMine().has(id);
-  const cardsCount = () => CARDS.LIST.filter((c) => c.rarity !== 'T' && cardHave(c.id)).length;
+  const cardHave = (id) => CARDS.STARTER.includes(id) || ((CARDS.card(id) || {}).own ? items.owncard === 1 : cardsMine().has(id));
+  const cardsCount = () => CARDS.LIST.filter((c) => c.rarity !== 'T' && !c.own && cardHave(c.id)).length;
   // Your deck: the one you built if you still can, or else the best your cards can make.
   function cardDeck() {
     const saved = (store.get(cardKey(cardsWho(), 'carddeck')) || '').split(',');
@@ -6925,6 +6962,14 @@
         sfx('cup');
         itemOffer(['cardstorm'], 'You\'ve won three quarters of the cards in Morale Madness, and that earns you the card storm! It\'s under FLAIR, in Edit character in the Start menu.', 'Your cards lift off and start going round you. You feel very collected.');
       } },
+    { at: 1, item: 'owncard', what: 'Your own card', name: 'your own card',
+      tell() {
+        sfx('cup');
+        itemToldMark('owncard');
+        ask('You\'ve won every card in Morale Madness. Now you\'re playing with a full deck! So here\'s one more, all your own: a legendary with you on it. Pick what it does under YOU in MY CARDS, and change it whenever you like.', ['PICK NOW', 'LATER'], (i) => {
+          if (i === 0) { sfx('menu'); ui.push(DeckApp('you')); }
+        }, { above: ownPanel() });
+      } },
   ];
   // which of them you've just earned and still need telling about (see itemEarned)
   const cardPrizesDue = (name) => CARD_PRIZES.filter((p) => cardsWon() >= prizeNeeds(p) && itemEarned(name, p.item));
@@ -6944,6 +6989,22 @@
       ctx.scale(0.5, 0.5);
       ctx.drawImage(backOfCard(true), SW - 44, (y + 33) * 2);
       CARD_ART.sparkle(ctx, SW - 44, (y + 33) * 2, 88, 116, tick, 1);
+      ctx.restore();
+    };
+  }
+  // The picture above the message about your own legendary: you, on it.
+  function ownPanel() {
+    const w = 120, h = 100, x = (SW - w) >> 1, y = 16, face = faceOf('youbruiser', { name: cardsWho(), look: wornLook(myLook) }), from = tick;
+    return () => {
+      box(x, y, w, h);
+      ctext('NEW!', y + 9, GOLD);
+      ctext('Your own card', y + 21);
+      ctx.save();
+      ctx.scale(0.5, 0.5);
+      ctx.drawImage(smallCard(face), SW - 44, (y + 33) * 2);
+      const [cx, cy] = CARD_ART.cropOf(face);
+      ctx.drawImage(CARD_ART.canvasOf(CARD_ART.artFrame(face, tick - from)), cx, cy, 72, 72, SW - 36, (y + 33) * 2 + 8, 72, 72);
+      CARD_ART.shine(ctx, SW - 44, (y + 33) * 2, 88, 116, tick - from, 'L', 6);
       ctx.restore();
     };
   }
@@ -6999,6 +7060,7 @@
   }
   // Who to beat for a card and where they are, for MY CARDS. It has 3 lines of 21 letters to fit in.
   function cardWhere(id) {
+    if (CARDS.card(id).own) return 'Win every other card to make this yours.';
     const who = CARDS.wonFrom(id);
     if (!who) return '';
     const first = CARDS.prizes(who)[0], beat = 'Beat ' + who + (id === first ? '' : cardHave(first) ? ' again' : ' twice');
@@ -7011,14 +7073,15 @@
     return beat + ' in ' + here + MAPS.floors[n.floor].name + '.';
   }
   // MY CARDS in the Start menu: everything you've won, and the 20 you play with.
-  function DeckApp() {
+  function DeckApp(open) {
     const A = CARD_ART, COLS = 4, ROWS = 3, GX = 276, GY = 42, SIZE = CARDS.RULES.DECK;
     const dept = (d) => (c) => c.dept === d;
-    const TABS = [['MY DECK'], ['PLANT', dept('plant')], ['SALES', dept('sales')], ['OFFICE', dept('office')], ['ENGINEERING', dept('engineering')], ['OTHER', (c) => !c.dept], ['FILL IT']];
-    const FILL = TABS.length - 1;
+    const TABS = [['MY DECK'], ['PLANT', dept('plant')], ['SALES', dept('sales')], ['OFFICE', dept('office')], ['ENGINEERING', dept('engineering')], ['OTHER', (c) => !c.dept && !c.own], ['YOU', (c) => c.own], ['FILL']];
+    const FILL = TABS.length - 1, YOU = FILL - 1;
+    const F = (id) => faceOf(id, { name: cardsWho(), look: wornLook(myLook) });
     const byCost = (a, b) => a.cost - b.cost || a.name.localeCompare(b.name);
     const start = cardDeck();
-    let draft = start.slice(), tab = 0, at = 0, scroll = 0, onTabs = false, t = 0, note = cardsNext(), noteT = note ? 170 : 0;
+    let draft = start.slice(), tab = open === 'you' ? YOU : 0, at = 0, scroll = 0, onTabs = false, t = 0, note = cardsNext(), noteT = note ? 170 : 0;
     const list = () => (TABS[tab][1]
       ? CARDS.LIST.filter((c) => c.rarity !== 'T' && TABS[tab][1](c)).sort(byCost).map((c) => c.id)
       : draft.map(CARDS.card).sort(byCost).map((c) => c.id));
@@ -7028,6 +7091,11 @@
       const c = CARDS.card(id);
       if (!cardHave(id)) { sfx('bump'); flash(cardWhere(id)); return; }
       if (draft.includes(id)) { draft = draft.filter((x) => x !== id); sfx('select'); return; }
+      // (your own legendary takes the place of whichever legendary you had, so swapping is one press)
+      if (c.own) {
+        const was = draft.find((x) => CARDS.card(x).rarity === 'L');
+        if (was) { draft = draft.filter((x) => x !== was).concat(id); sfx('blip'); if (!CARDS.card(was).own) flash('It took the place of ' + CARDS.card(was).name + '.'); return; }
+      }
       if (draft.length >= SIZE) { sfx('bump'); flash('Your deck is full. Take one out first.'); return; }
       if (c.rarity === 'L' && draft.some((x) => CARDS.card(x).rarity === 'L')) { sfx('bump'); flash('A deck can only have one legendary.'); return; }
       draft.push(id);
@@ -7096,11 +7164,11 @@
         const ids = list(), id = ids[Math.min(at, ids.length - 1)];
         const c = id && CARDS.card(id), yours = id && cardHave(id);
         if (id) {
-          ctx.drawImage(yours ? bigCard(id) : backOfCard(), 6, 40, 260, 364);
-          if (yours && c.rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(id, t)), 18, 84, 236, 150);
+          ctx.drawImage(yours ? bigCard(F(id)) : backOfCard(), 6, 40, 260, 364);
+          if (yours && c.rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(F(id), t)), 18, 84, 236, 150);
           if (yours) A.shine(ctx, 6, 40, 260, 364, t, c.rarity);
           else {
-            const nm = cardWord(c.name, '#f8d850');
+            const nm = cardWord(c.style || c.name, '#f8d850');
             fr(14, 196, 244, 28, '#1a1622');
             ctx.drawImage(nm, Math.round(136 - nm.width / 2), 201);
           }
@@ -7109,8 +7177,8 @@
         ids.slice(scroll * COLS, (scroll + ROWS) * COLS).forEach((cid, i) => {
           const x = GX + (i % COLS) * 92, y = GY + Math.floor(i / COLS) * 120, k = CARDS.card(cid), have = cardHave(cid), sel = !onTabs && scroll * COLS + i === at;
           if (have) {
-            ctx.drawImage(smallCard(cid, { cost: true }), x, y);
-            if (k.rarity === 'L') { const [cx, cy] = A.cropOf(cid); ctx.drawImage(A.canvasOf(A.artFrame(cid, t)), cx, cy, 72, 72, x + 8, y + 8, 72, 72); }
+            ctx.drawImage(smallCard(F(cid), { cost: true }), x, y);
+            if (k.rarity === 'L') { const [cx, cy] = A.cropOf(F(cid)); ctx.drawImage(A.canvasOf(A.artFrame(F(cid), t)), cx, cy, 72, 72, x + 8, y + 8, 72, 72); }
             A.shine(ctx, x, y, 88, 116, t, k.rarity, 8);
           } else ctx.drawImage(backOfCard(), x, y);
           if (TABS[tab][1] && draft.includes(cid)) { fr(x + 60, y + 2, 26, 22, '#1a1622'); fr(x + 62, y + 4, 22, 18, '#48a048'); say2('IN', x + 62, y + 5, '#ffffff'); }
@@ -7123,7 +7191,7 @@
         // what A does, or how to get it
         const wrapped = [];
         const line = noteT > 0 ? note : onTabs ? (tab === FILL ? 'A: fill up your deck with the best of what you have.' : 'Left and Right: another page. Down: its cards.')
-          : !id ? '' : !yours ? cardWhere(id) : draft.includes(id) ? 'In your deck. A: take it out.' : 'A: put it in your deck.';
+          : !id ? '' : !yours ? cardWhere(id) : draft.includes(id) ? 'In your deck. A: take it out.' : c.own ? 'A: use this one in your deck.' : 'A: put it in your deck.';
         let cur = '';
         for (const word of line.split(' ')) { if ((cur + ' ' + word).trim().length > 21) { wrapped.push(cur); cur = word; } else cur = (cur + ' ' + word).trim(); }
         wrapped.push(cur);
@@ -7140,7 +7208,7 @@
         });
         const size = draft.length + '/' + SIZE;
         say2(size, 636 - size.length * 24, 408, legal() ? '#58d868' : '#f8d850', 2);
-        const coll = 'Won ' + cardsWon() + '/' + WINNABLE.length;
+        const coll = (cardsWon() < 100 ? 'Won ' : '') + cardsWon() + '/' + WINNABLE.length; // (at 100 it would run into the coffee)
         say2(coll, 636 - coll.length * 12, 458, '#a89cb8');
         ctx.restore();
       },
@@ -20074,8 +20142,8 @@
   // To add one, mark it in js/art.js with `item`. Anything that isn't for everyone has to be: that's
   // what gives it its number. Where it's earned, call itemEarned, then itemOffer if that says to tell
   // them. Never decide to tell somebody by looking at their number. See "To add one" in the README.
-  // (gold backs aren't worn, so they're not in any list of looks, and have no part)
-  const ITEMS = Object.assign({ goldbacks: {} }, Art.LOOK_ITEMS), TOLD = 'Told';
+  // (gold backs and your own legendary aren't worn, so they're not in any list of looks, and have no part)
+  const ITEMS = Object.assign({ goldbacks: {}, owncard: {} }, Art.LOOK_ITEMS), TOLD = 'Told';
   const ITEM_URL = LOOK_URL.replace('/looks/', '/items/');
   let items = {}; // your name's numbers, like { santa: 1, antlers: 0 } (no entry: no number)
   let itemsTold = {}; // the items your name has had its message about, like { santa: true }

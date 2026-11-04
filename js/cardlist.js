@@ -10,6 +10,7 @@
 //             plant, whatever their job: big and tough), sales (fast), office (clever) or engineering
 //             (designers, programmers and R&D: keeps everything running). Leave it out for something
 //             that goes in any deck.
+//   own, style  this is one version of your own legendary (see below), and what it says on its ribbon
 //   heldBy    who you win it from, if it isn't their own card: the coworker plays it against you, and
 //             beating them once they've given up their own card (if they have one) makes it yours.
 //             Without this, a card is won by beating the coworker with the same name.
@@ -200,4 +201,12 @@ window.CARD_LIST = [
   { id: 'xmasparty', name: 'Christmas Party', rarity: 'R', heldBy: 'Lam', kind: 'task', cost: 5, does: [{ do: 'boost', p: 1, h: 1, who: 'allies' }, { do: 'heal', n: 3, who: 'you' }] },
   { id: 'humbug', name: 'Humbug', rarity: 'L', heldBy: 'Brian', cost: 6, power: 4, patience: 4, does: [{ do: 'boost', p: -2, who: 'enemies' }] },
   { id: 'linda', name: 'Linda', rarity: 'L', heldBy: 'Davisson', cost: 5, power: 4, patience: 5, words: ['skin'], does: [{ when: 'last', do: 'back', who: 'self' }], said: 'Boooooo...' },
+  // Your own legendary, for winning every other card. Nobody holds these: they show your character and
+  // your name, and you pick which one you play in MY CARDS. Only the game ever uses "Legend" as a name.
+  { id: 'youbruiser', name: 'Legend', style: 'BRUISER', own: true, rarity: 'L', cost: 6, power: 5, patience: 4, words: ['keen'], does: [{ do: 'hit', n: 2, who: 'them' }] },
+  { id: 'youwall', name: 'Legend', style: 'WALL', own: true, rarity: 'L', cost: 6, power: 2, patience: 6, words: ['gate', 'skin'] },
+  { id: 'youboss', name: 'Legend', style: 'BOSS', own: true, rarity: 'L', cost: 7, power: 5, patience: 5, does: [{ do: 'home', who: 'enemy' }] },
+  { id: 'youlead', name: 'Legend', style: 'TEAM LEAD', own: true, rarity: 'L', cost: 4, power: 3, patience: 5, does: [{ do: 'give', word: 'skin', who: 'others' }] },
+  { id: 'youmorale', name: 'Legend', style: 'MORALE OFFICER', own: true, rarity: 'L', cost: 5, power: 3, patience: 7, does: [{ when: 'morning', do: 'heal', n: 2, who: 'you' }] },
+  { id: 'youplanner', name: 'Legend', style: 'PLANNER', own: true, rarity: 'L', cost: 4, power: 3, patience: 5, does: [{ do: 'draw', n: 2 }] },
 ];

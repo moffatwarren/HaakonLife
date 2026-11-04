@@ -828,10 +828,27 @@ for (const who of Object.values(staffCtx.window.PLANT_CREW || {})) staff.add(who
 for (const who of Object.values(staffCtx.window.VISITORS || {})) staff.add(who.name);
 const opponents = [...new Set(CARDS.LIST.map((c) => CARDS.wonFrom(c.id)).filter(Boolean))];
 
+test('your own legendary is never won, dealt to a coworker or picked for you, but it can go in a deck', () => {
+  const own = CARDS.LIST.filter((c) => c.own);
+  assert.equal(own.length, 6);
+  const others = CARDS.LIST.filter((c) => c.rarity !== 'T').map((c) => c.id);
+  const isOwn = (id) => CARDS.card(id).own;
+  assert.ok(!CARDS.buildDeck(others, { seed: 3 }).some(isOwn), 'a deck that\'s built for you');
+  for (const who of opponents) for (const level of [1, 2, 3, 4]) assert.ok(!CARDS.foeDeck(who, level).some(isOwn), who);
+  for (const c of own) {
+    assert.equal(c.rarity, 'L', c.id);
+    const deck = plain(CARDS.buildDeck(others, { seed: 3, must: [c.id] }));
+    assert.ok(deck.includes(c.id), c.id + ' stays in when you ask for it');
+    assert.equal(CARDS.deckProblem(deck), null, c.id + ' makes a legal deck');
+  }
+  const two = plain(CARDS.STARTER).slice(0, 18).concat(own[0].id, own[1].id);
+  assert.ok(CARDS.deckProblem(two), 'two versions of it are two legendaries');
+});
+
 test('every card can be won from somebody who works there, or is yours from the start', () => {
   for (const c of CARDS.LIST.filter((x) => x.rarity !== 'T')) {
     const who = CARDS.wonFrom(c.id);
-    if (c.rarity === 'S') { assert.equal(who, null, c.id); continue; }
+    if (c.rarity === 'S' || c.own) { assert.equal(who, null, c.id); continue; }
     assert.ok(staff.has(who), c.id + ' is won from ' + who + ', who is nobody in js/people.js');
     assert.ok(plain(CARDS.prizes(who)).includes(c.id), c.id);
   }
