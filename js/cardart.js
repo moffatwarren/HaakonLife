@@ -3761,22 +3761,28 @@ window.CARD_ART = (function () {
     if (o.cost) number(p, card.cost, 16, 16, 1);
     return p;
   }
-  // The back of a card: a cup on navy, in gold.
-  let backPic = null;
-  function back() {
-    if (backPic) return backPic;
+  // The back of a card: a cup on navy, in gold. Whoever has won every card gets theirs the other way
+  // round, a navy cup on gold.
+  const BACK_COLS = {
+    navy: { edge: '#2c3468', frame: GOLD, field: '#20264c', dot: '#343c74', cup: GOLD },
+    gold: { edge: '#c8941c', frame: '#fff4c0', field: '#e0a828', dot: '#f0c450', cup: '#20264c' },
+  };
+  const backPics = {};
+  function back(gold) {
+    const key = gold ? 'gold' : 'navy', k = BACK_COLS[key];
+    if (backPics[key]) return backPics[key];
     const half = Pic(44, 58), m = () => Mask(44, 58);
-    fig(half, m().rbox(1, 1, 42, 56, 4), '#2c3468', { sh: [2, 2], hi: [1, 1] });
-    flat(half, m().rbox(4, 4, 36, 50, 3), GOLD);
-    flat(half, m().rbox(5, 5, 34, 48, 2), '#20264c');
-    for (let y = 6; y < 52; y += 4) for (let x = 6 + (y % 8 ? 2 : 0); x < 38; x += 4) half.set(x, y, '#343c74');
-    fig(half, m().ell(26, 29, 4).ell(26, 29, 2, 2, 0), GOLD, { sh: 0, hi: 0 });
-    fig(half, m().ell(21, 29, 9), GOLD, { sh: [2, 2], hi: [1, 1] });
+    fig(half, m().rbox(1, 1, 42, 56, 4), k.edge, { sh: [2, 2], hi: [1, 1] });
+    flat(half, m().rbox(4, 4, 36, 50, 3), k.frame);
+    flat(half, m().rbox(5, 5, 34, 48, 2), k.field);
+    for (let y = 6; y < 52; y += 4) for (let x = 6 + (y % 8 ? 2 : 0); x < 38; x += 4) half.set(x, y, k.dot);
+    fig(half, m().ell(26, 29, 4).ell(26, 29, 2, 2, 0), k.cup, { sh: 0, hi: 0 });
+    fig(half, m().ell(21, 29, 9), k.cup, { sh: [2, 2], hi: [1, 1] });
     flat(half, m().ell(21, 29, 6), '#6a3c20');
     flat(half, m().ell(20, 28, 4), '#8a5430');
-    backPic = Pic(88, 116);
-    backPic.put(half, 0, 0, 2);
-    return backPic;
+    backPics[key] = Pic(88, 116);
+    backPics[key].put(half, 0, 0, 2);
+    return backPics[key];
   }
   const arts = new Map();
   function artPic(id) {

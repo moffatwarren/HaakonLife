@@ -5575,7 +5575,7 @@
   const cardPic = (key, make) => { let v = cardPics.get(key); if (!v) { v = make(); cardPics.set(key, v); } return v; };
   const cardFace = (id) => cardPic('face' + id, () => { const c = CARDS.card(id); return Object.assign({}, c, { text: CARDS.text(c) }); });
   const bigCard = (id) => cardPic('big' + id, () => CARD_ART.toCanvas(CARD_ART.big(cardFace(id))));
-  const backOfCard = () => cardPic('back', () => CARD_ART.toCanvas(CARD_ART.back()));
+  const backOfCard = (gold) => cardPic(gold ? 'backGold' : 'back', () => CARD_ART.toCanvas(CARD_ART.back(gold)));
   const cardWord = (s, c, n = 1) => cardPic('w' + s + '/' + c + '/' + n, () => CARD_ART.toCanvas(CARD_ART.label(s, c, n)));
   const smallCard = (id, o = {}) => cardPic('s' + id + '/' + JSON.stringify(o), () => CARD_ART.toCanvas(CARD_ART.small(cardFace(id), o)));
   const cardTable = () => cardPic('table', () => {
@@ -5653,6 +5653,8 @@
     let landed = -1; // the worker that's just landed, who doesn't jump at their own shockwave
 
     const sideOf = (seat) => (seat === me ? shown.you : shown.them);
+    // Whoever has won every card has gold backs on theirs, and the server says if the other player does.
+    const goldOf = (seat) => (seat === me ? items.fulldeck === 1 : !!(view && view.gold));
     const flash = (str) => { note = str; noteT = 110; };
     const foeShort = foe.length > 10 ? foe.slice(0, 10) : foe;
     const has = (table, key) => table && Object.prototype.hasOwnProperty.call(table, key);
@@ -5814,7 +5816,7 @@
               const u = easeOut(f / IN), spin = Math.cos(Math.pow(f / IN, 1.6) * Math.PI * 5);
               if (f === 10 || f === 20) sfx('swish');
               dim = 0.65 * u;
-              bigAt(e.id, from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66, { squash: Math.abs(spin), back: spin > 0 });
+              bigAt(e.id, from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66, { squash: Math.abs(spin), back: spin > 0, gold: goldOf(e.s) });
             } else if (f < OUT) {
               const since = f - IN;
               if (f === IN) {
@@ -5982,7 +5984,7 @@
           const end = seat === me ? [handX(side.hand.length, side.hand.length + 1), HAND_Y] : [470, -120], start = seat === me ? [8, 300] : [8, -60];
           sfx('tap');
           return {
-            len: 16, step(f) { drawn = arcTo(start, end, easeOut(f / 16), 24); },
+            len: 16, step(f) { drawn = arcTo(start, end, easeOut(f / 16), 24); drawn.gold = goldOf(seat); },
             end() { drawn = null; if (seat === me) side.hand.push({ u: e.u, id: e.id }); else side.hand++; },
           };
         }
@@ -6282,10 +6284,10 @@
         ctx.drawImage(bigCard(you.hand[swapAt].id), 28, 72);
         drawMeanings(meaningsOf(you.hand[swapAt].id), 312, 316, 300); // (there's no room under it here)
       }
-      else if (n) ctx.drawImage(backOfCard(), 0, 0, 88, 116, 28, 72, 260, 364);
+      else if (n) ctx.drawImage(backOfCard(goldOf(me)), 0, 0, 88, 116, 28, 72, 260, 364);
       you.hand.forEach((c, i) => {
         const x = x0 + i * 100, y = 110 - (i === swapAt && !you.swapped ? 8 : 0);
-        ctx.drawImage(swapping.has(c.u) ? backOfCard() : smallCard(c.id, { cost: true }), x, y);
+        ctx.drawImage(swapping.has(c.u) ? backOfCard(goldOf(me)) : smallCard(c.id, { cost: true }), x, y);
         if (swapping.has(c.u)) { panel(x + 12, y + 44, 64, 28, '#ff9878'); ctx.drawImage(cardWord('SWAP', INK), x + 20, y + 51); }
         if (i === swapAt && !you.swapped) { ctx.fillStyle = '#f8d850'; for (const [a, b, w, h] of [[x - 4, y - 4, 96, 4], [x - 4, y + 116, 96, 4], [x - 4, y, 4, 116], [x + 88, y, 4, 116]]) ctx.fillRect(a, b, w, h); }
       });
@@ -6333,7 +6335,7 @@
       }
     }
     function deckLeft(seat, x, y) {
-      ctx.drawImage(backOfCard(), 0, 0, 88, 116, x, y, 14, 18);
+      ctx.drawImage(backOfCard(goldOf(seat)), 0, 0, 88, 116, x, y, 14, 18);
       ctx.drawImage(cardWord(sideOf(seat).deck + ' in deck', '#f4ecd8'), x + 20, y + 1);
     }
     function cups(seat, x, y) {
@@ -6561,7 +6563,7 @@
       cups(1 - me, 6, 7);
       deckLeft(1 - me, 6, 30);
       const backs = Math.min(them.hand, 7);
-      for (let i = 0; i < backs; i++) ctx.drawImage(backOfCard(), 0, 0, 88, 116, 432 + i * 22, 9, 30, 36);
+      for (let i = 0; i < backs; i++) ctx.drawImage(backOfCard(goldOf(1 - me)), 0, 0, 88, 116, 432 + i * 22, 9, 30, 36);
       them.table.forEach((x, i) => { if (!mover || mover.who !== x) worker(x, slotX(i), rowY(1 - me) - jumpOf(x)); });
       // your side
       faceBox(me, playerName || 'You');
@@ -6590,7 +6592,7 @@
         ctx.drawImage(smallCard(c.id, { cost: true }), x, HAND_Y - (on ? 10 : 0));
         if (shown.turn === me && !can && !anim && !queue.length) { ctx.fillStyle = 'rgba(20,16,30,0.45)'; ctx.fillRect(x, HAND_Y - (on ? 10 : 0), 88, 116); }
       });
-      if (drawn) ctx.drawImage(backOfCard(), Math.round(drawn[0]), Math.round(drawn[1]));
+      if (drawn) ctx.drawImage(backOfCard(drawn.gold), Math.round(drawn[0]), Math.round(drawn[1]));
       if (mover) {
         const p = mover.pos || (() => { const u = easeOut(Math.min(1, mover.t / 16)); return [mover.from[0] + (mover.to[0] - mover.from[0]) * u, mover.from[1] + (mover.to[1] - mover.from[1]) * u]; })();
         worker(mover.who, p[0], p[1]);
@@ -6621,7 +6623,7 @@
         const b = big, w = Math.max(4, Math.round(b.w * (b.squash === undefined ? 1 : b.squash) / 2) * 2), x = b.x + Math.round((b.w - w) / 2), sc = b.w / 260;
         if (b.glow) for (const [r, a] of [[30, 0.1], [22, 0.14], [14, 0.2], [8, 0.3]]) { ctx.fillStyle = 'rgba(255,224,120,' + a + ')'; ctx.fillRect(b.x - r, b.y - r, b.w + r * 2, b.h + r * 2); } // (a glow round it)
         if (b.alpha !== undefined) ctx.globalAlpha = b.alpha;
-        ctx.drawImage(b.back ? backOfCard() : bigCard(b.id), x, b.y, w, b.h);
+        ctx.drawImage(b.back ? backOfCard(b.gold) : bigCard(b.id), x, b.y, w, b.h);
         ctx.globalAlpha = 1;
         if (b.live) ctx.drawImage(A.canvasOf(A.artFrame(b.id, t)), b.x + Math.round(12 * sc), b.y + Math.round(44 * sc), Math.round(236 * sc), Math.round(150 * sc));
         if (b.shine >= 0) A.shine(ctx, x, b.y, w, b.h, Math.min(CARDS.card(b.id).rarity === 'L' ? 149 : 209, b.shine), CARDS.card(b.id).rarity);
@@ -6765,7 +6767,7 @@
             if (vs.result !== undefined || (vs.gone && ++goneT > 60)) finishedLive();
             else if (!heard && t > NO_WORD) ended({ why: 'noserver' });
             else if (pressed.has('b')) leave();
-            else if (t % 30 === 1) vs.input({ deck: myDeck }); // (again, in case the first got lost)
+            else if (t % 30 === 1) vs.input({ deck: myDeck, gold: items.fulldeck === 1 }); // (again, in case the first got lost)
             return;
           }
           // The server's word on how it ended comes straight after anything else that says it's over.
@@ -6887,12 +6889,13 @@
     saveBest('cards', cardsCount());
     return true;
   }
-  // Every card in the game is yours: the Full deck, under FLAIR in the character editor. It's yours for
+  // Every card in the game is yours: the Full deck, under FLAIR in the character editor, and gold backs
+  // on your cards (goldOf in CardsGame), which go by your number for the Full deck. It's yours for
   // good, so a card added later doesn't take it away, though anybody still collecting needs that one too.
   const cardsAll = () => CARDS.LIST.every((c) => c.rarity === 'T' || CARDS.STARTER.includes(c.id) || cardsOwned.has(c.id));
   function cardPrizeTell() {
     sfx('cup');
-    itemOffer(['fulldeck'], 'You\'ve won every card in Morale Madness, so now you\'re playing with a full deck, and it\'s yours to keep! It\'s under FLAIR, in Edit character in the Start menu.',
+    itemOffer(['fulldeck'], 'You\'ve won every card in Morale Madness, so now you\'re playing with a full deck, and it\'s yours to keep! It\'s under FLAIR, in Edit character in the Start menu. Your cards have gold backs now too, for everybody you play to see.',
       'Your cards lift off and start going round you. You feel very collected.');
   }
   // A new card, turning over from its back and held up for you to look at.

@@ -157,8 +157,8 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   (182), where people take turns of about 45 seconds. In MY CARDS a card you haven't won is face down, and
   picking it says who to beat for it and where.
 - **Winning them all:** the Full deck is a flair for whoever has every card: five cards going round you, which
-  other players see too (`deckOrbit`). It's a special item (see "Special items"), and a card added later doesn't
-  take it away.
+  other players see too (`deckOrbit`). It also puts gold backs on your cards, for you and whoever you play
+  (`goldOf`). It's a special item (see "Special items"), and a card added later doesn't take it away.
 - **Leaderboards:** the Hall of Fame has CARDS COLLECTED and MORALE MADNESS WINS, under Board and Card Games. A
   win counts when you beat another player, including when they resign or run out of time. It doesn't count
   if they just leave the game, and games against coworkers don't count.
@@ -1508,7 +1508,7 @@ or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
 and `&stapler=near` puts it right in front of you. `&helped=5` counts the
 first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gives you Kiki's list, and
 `game=kiki` opens it.
-`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=almost` makes everything yours but the Forklift, so that beating Mike D. (add `&plant=1`) wins your last card and the Full deck. `&have=fulldeck&look=m10000000030` wears the Full deck. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
+`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=almost` makes everything yours but the Forklift, so that beating Mike D. (add `&plant=1`) wins your last card and the Full deck. `&have=fulldeck&look=m10000000030` wears the Full deck, and with `&have=fulldeck&game=cards` your cards have gold backs. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
 the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
 `&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
 `&crown=1` makes you the Office Champion, in the crown and the star trail.

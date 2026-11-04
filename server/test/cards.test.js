@@ -684,6 +684,16 @@ test('a deck that never comes, or isn\'t legal, is the starter deck', () => {
   const good = NOT_MINE()[1], s = dealt([good, CARDS.STARTER]);
   assert.deepEqual(had(s, 0), [...good].sort(), 'a legal deck is the one you play');
 });
+test('you\'re told if the other player\'s cards have gold backs, and nobody else can say so', () => {
+  const s = live.create({ seats: 2, rng: seeded(1) });
+  live.input(s, 0, { deck: CARDS.STARTER, gold: true });
+  live.input(s, 1, { deck: CARDS.STARTER, gold: 'yes' });
+  live.input(s, 1, { deck: CARDS.STARTER, gold: true }); // (too late: the deck's been sent)
+  live.tick(s);
+  assert.equal(live.view(s, 1).gold, true);
+  assert.equal(live.view(s, 0).gold, false);
+});
+
 test('you can only send your deck once', () => {
   const [a, b] = NOT_MINE(), s = live.create({ seats: 2, rng: seeded(1) });
   live.input(s, 0, { deck: a });
