@@ -6,7 +6,7 @@
 //   name      16 letters at most
 //   rarity    S starter, C common, U uncommon, R rare, L legendary, T only ever brought in by
 //             another card (never in a deck)
-//   dept      plant (big and tough), sales (fast), office (clever) or lunch (together). Leave it out
+//   dept      plant (big and tough), sales (fast), office (clever) or engineering (keeps everything running). Leave it out
 //             for something that goes in any deck. It's a way of playing, not anybody's job.
 //   kind      'task' if it happens once and then it's gone. Otherwise it's a worker.
 //   cost      coffee to play it
@@ -92,19 +92,19 @@ window.CARD_LIST = [
   { id: 'reorg', name: 'Reorg', dept: 'office', rarity: 'R', kind: 'task', cost: 4, does: [{ do: 'home', who: 'enemy' }] },
   { id: 'printer', name: 'The Printer', dept: 'office', rarity: 'L', cost: 4, power: 2, patience: 6, does: [{ when: 'morning', do: 'freeze', who: 'random' }] },
 
-  // ---------- Lunch Room: together ----------
-  { id: 'matthew', name: 'Matthew', dept: 'lunch', rarity: 'C', cost: 1, power: 1, patience: 1, does: [{ do: 'coffee', n: 1 }], said: 'This is my third coffee.' },
-  { id: 'kiki', name: 'Kiki', dept: 'lunch', rarity: 'C', cost: 2, power: 2, patience: 3, does: [{ do: 'heal', n: 2, who: 'ally' }], said: 'Help yourself to some candy.' },
-  { id: 'dmitriy', name: 'Dmitriy', dept: 'lunch', rarity: 'C', cost: 3, power: 3, patience: 2, does: [{ do: 'hit', n: 2, who: 'worker' }], said: 'I ran the line, not him.' },
-  { id: 'jenn', name: 'Jenn', dept: 'lunch', rarity: 'C', cost: 3, power: 3, patience: 3, does: [{ do: 'heal', n: 3, who: 'you' }], said: 'Baking is where it\'s really at.' },
-  { id: 'joe', name: 'Joe', dept: 'lunch', rarity: 'U', cost: 3, power: 2, patience: 3, does: [{ do: 'summon', id: 'legobrick', n: 1 }], said: 'Have you seen my Lego shelf?' },
-  { id: 'chris', name: 'Chris', dept: 'lunch', rarity: 'C', cost: 4, power: 4, patience: 4, does: [{ team: 'lunch', do: 'boost', h: 1, who: 'others' }] },
-  { id: 'lam', name: 'Lam', dept: 'lunch', rarity: 'U', cost: 4, power: 3, patience: 4, does: [{ do: 'boost', p: 1, who: 'others' }] },
-  { id: 'nik', name: 'Nik', dept: 'lunch', rarity: 'U', cost: 4, power: 3, patience: 5, does: [{ when: 'morning', do: 'heal', n: 1, who: 'you' }], said: 'I taught him all he knows.' },
-  { id: 'potluck', name: 'Potluck', dept: 'lunch', rarity: 'U', kind: 'task', cost: 3, does: [{ do: 'summon', id: 'leftovers', n: 2 }] },
-  { id: 'pizza', name: 'Pizza Friday', dept: 'lunch', rarity: 'R', kind: 'task', cost: 4, does: [{ do: 'heal', n: 2, who: 'allies' }, { do: 'boost', p: 1, who: 'allies' }] },
-  { id: 'felix', name: 'Felix', dept: 'lunch', rarity: 'R', cost: 3, power: 0, patience: 7, words: ['gate'], said: 'Meow... yawn... zzzz' },
-  { id: 'officedog', name: 'Office Dog', dept: 'lunch', rarity: 'L', cost: 5, power: 3, patience: 6, words: ['skin'], does: [{ when: 'morning', do: 'draw', n: 1 }] },
+  // ---------- Engineering: keeps everything running ----------
+  { id: 'matthew', name: 'Matthew', dept: 'engineering', rarity: 'C', cost: 1, power: 1, patience: 1, does: [{ do: 'coffee', n: 1 }], said: 'This is my third coffee.' },
+  { id: 'kiki', name: 'Kiki', dept: 'engineering', rarity: 'C', cost: 2, power: 2, patience: 3, does: [{ do: 'heal', n: 2, who: 'ally' }], said: 'Help yourself to some candy.' },
+  { id: 'dmitriy', name: 'Dmitriy', dept: 'engineering', rarity: 'C', cost: 3, power: 3, patience: 2, does: [{ do: 'hit', n: 2, who: 'worker' }], said: 'I ran the line, not him.' },
+  { id: 'jenn', name: 'Jenn', dept: 'engineering', rarity: 'C', cost: 3, power: 3, patience: 3, does: [{ do: 'heal', n: 3, who: 'you' }], said: 'Baking is where it\'s really at.' },
+  { id: 'joe', name: 'Joe', dept: 'engineering', rarity: 'U', cost: 3, power: 2, patience: 3, does: [{ do: 'summon', id: 'legobrick', n: 1 }], said: 'Have you seen my Lego shelf?' },
+  { id: 'chris', name: 'Chris', dept: 'engineering', rarity: 'C', cost: 4, power: 4, patience: 4, does: [{ team: 'engineering', do: 'boost', h: 1, who: 'others' }] },
+  { id: 'lam', name: 'Lam', dept: 'engineering', rarity: 'U', cost: 4, power: 3, patience: 4, does: [{ do: 'boost', p: 1, who: 'others' }] },
+  { id: 'nik', name: 'Nik', dept: 'engineering', rarity: 'U', cost: 4, power: 3, patience: 5, does: [{ when: 'morning', do: 'heal', n: 1, who: 'you' }], said: 'I taught him all he knows.' },
+  { id: 'potluck', name: 'Potluck', dept: 'engineering', rarity: 'U', kind: 'task', cost: 3, does: [{ do: 'summon', id: 'leftovers', n: 2 }] },
+  { id: 'pizza', name: 'Pizza Friday', dept: 'engineering', rarity: 'R', kind: 'task', cost: 4, does: [{ do: 'heal', n: 2, who: 'allies' }, { do: 'boost', p: 1, who: 'allies' }] },
+  { id: 'felix', name: 'Felix', dept: 'engineering', rarity: 'R', cost: 3, power: 0, patience: 7, words: ['gate'], said: 'Meow... yawn... zzzz' },
+  { id: 'officedog', name: 'Office Dog', dept: 'engineering', rarity: 'L', cost: 5, power: 3, patience: 6, words: ['skin'], does: [{ when: 'morning', do: 'draw', n: 1 }] },
 
   // ---------- for any deck ----------
   { id: 'coffeemachine', name: 'Coffee Machine', rarity: 'R', cost: 2, power: 0, patience: 4, does: [{ when: 'morning', do: 'coffee', n: 1 }] },

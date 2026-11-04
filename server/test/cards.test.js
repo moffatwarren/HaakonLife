@@ -549,7 +549,7 @@ test('a game with no clock waits as long as you like', () => {
 
 // ---------- saving ----------
 test('a saved game carries on exactly the same', () => {
-  const start = () => CARDS.create({ decks: [CARDS.buildDeck(every, { dept: 'plant', seed: 1 }), CARDS.buildDeck(every, { dept: 'lunch', seed: 2 })], seed: 4, first: 0 });
+  const start = () => CARDS.create({ decks: [CARDS.buildDeck(every, { dept: 'plant', seed: 1 }), CARDS.buildDeck(every, { dept: 'engineering', seed: 2 })], seed: 4, first: 0 });
   const a = start();
   for (const s of [0, 1]) a.act(s, a.choose(s, 3));
   for (let i = 0; i < 25 && !a.result; i++) { const t = a.view(0).turn; a.act(t, a.choose(t, 3)); }

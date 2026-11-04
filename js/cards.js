@@ -47,7 +47,7 @@ window.CARDS = (function engine() {
   const AUTO = new Set(['self', 'enemies', 'others', 'allies', 'all', 'them', 'you', 'random']);
   const DOES = new Set(['hit', 'heal', 'draw', 'coffee', 'boost', 'summon', 'home', 'back', 'freeze', 'give']);
   const WHENS = new Set(['play', 'morning', 'last']);
-  const DEPTS = { plant: 'Plant', sales: 'Sales', office: 'Office', lunch: 'Lunch Room' };
+  const DEPTS = { plant: 'Plant', sales: 'Sales', office: 'Office', engineering: 'Engineering' };
   const WORDS = { gate: 'Gatekeeper', keen: 'Keen', skin: 'Thick Skin' };
   // What the special words mean, for saying under a card. Each is short, so that a few of them fit.
   const MEANS = {

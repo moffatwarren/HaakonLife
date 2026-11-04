@@ -509,7 +509,8 @@ window.CARD_ART = (function () {
     },
   };
 
-  BACKS.sales = BACKS.road; // (a stand-in for someone in sales goes by their department, like anyone else)
+  // (a stand-in for someone goes by their department)
+  BACKS.sales = BACKS.road; BACKS.engineering = BACKS.cubicle;
 
   // ---------- the people and things on the cards ----------
   const FOCUS = {}; // the middle of each picture, for the small card
@@ -1367,7 +1368,7 @@ window.CARD_ART = (function () {
     },
   });
 
-  // ---------- Lunch Room ----------
+  // ---------- Engineering ----------
   Object.assign(ART, {
     // "Don't tell anyone, but this is my third coffee."
     matthew(p) {
@@ -2156,7 +2157,7 @@ window.CARD_ART = (function () {
     plant: { name: 'PLANT', c: '#d87830' },
     sales: { name: 'SALES', c: '#c84038' },
     office: { name: 'OFFICE', c: '#3868c8' },
-    lunch: { name: 'LUNCH ROOM', c: '#48a048' },
+    engineering: { name: 'ENGINEERING', c: '#48a048' },
     none: { name: 'OFFICE THING', c: '#74748c' },
     starter: { name: 'STARTER', c: '#a09880' },
   };

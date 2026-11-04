@@ -806,7 +806,7 @@ does that: `tools/check_games.mjs` stops the site deploying until it's the same 
 tells you what to set it to. The browser checks it too, so a browser whose rules aren't the same as
 the server's (while the server's still updating, say) says so instead of starting. To try it, open
 `tools/test.html#play&server=ws://localhost:8080&deck=sales` in two windows, side by side so that
-neither is in the background: `&deck=` is `plant`, `sales`, `office`, `lunch` or `starter`.
+neither is in the background: `&deck=` is `plant`, `sales`, `office`, `engineering` or `starter`.
 Give the entry `christmas: true` as well (as the snowball fight has) and it's only in the
 list from the day Christmas first starts (`SEASON_FROM`), then for good.
 
@@ -1425,7 +1425,7 @@ pants and their colours.
 | TVs and computers | `pong`, `snake`, `poker`, `blackjack` |
 | Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf`, `build` (Joe's Lego shelf) |
 | Coworkers | `dark` (Damir), `battle` (Richard), `dance` (Patrick), `nathan`, `wade`, `jar` (Kiki), `forms` (Jhonna), `wok` (Nik), `carrot` (Dmitriy), `lego` (Joe) |
-| Morale Madness | `cards` (the card game, still being built: nothing in the office starts it yet). `&deck=` is your deck (`plant`, `sales`, `office`, `lunch` or `starter`, the usual), `&foe=` who you play, `&level=` how good they are (1 to 4), `&first=0` or `1` who goes first, `&seed=` the same deal every time |
+| Morale Madness | `cards` (the card game, still being built: nothing in the office starts it yet). `&deck=` is your deck (`plant`, `sales`, `office`, `engineering` or `starter`, the usual), `&foe=` who you play, `&level=` how good they are (1 to 4), `&first=0` or `1` who goes first, `&seed=` the same deal every time |
 | Dogs | `catch`, `dogs` (the dogs' leaderboard) |
 | Kingston plant | `forklift`, `paint` (Even Coat) |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`), `fame` (the Hall of Fame) |
