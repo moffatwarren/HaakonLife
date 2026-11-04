@@ -108,6 +108,8 @@ window.Art = (function () {
     // the same mask on whoever has set her free the most, with ghosts going round it. Like the
     // crown it's never picked or saved: it's only ever worn, in place of the Ghost mask.
     { name: 'Haunted mask', hd: 'ghostmask' },
+    // a fan of Morale Madness cards, too big for the picture (see BIG32). Nobody can earn it yet.
+    { name: 'Card crown', hd: 'cardcrown', item: 'cardcrown' },
   ];
   // where the crown, the Santa hat, the humbug antlers and the masks are in HATS
   const CROWN = HATS.findIndex((h) => h.hd === 'crown'), SANTA = HATS.findIndex((h) => h.hd === 'santa'), ANTLERS = HATS.findIndex((h) => h.hd === 'antlers');
@@ -1382,6 +1384,124 @@ window.Art = (function () {
   const { h: _h, s: _s, w: _w, u: _u, K: _K, ...FIXED_COLORS } = COLORS;
   const BIG_COLS = Object.assign(FIXED_COLORS, { O: '#f8e070', Y: '#a87018', I: '#fcfcff', J: '#2f62d8', z: '#1c3a94' });
   const BIG32 = {
+    // the card crown: a fan of cards standing up behind a gold band, one in each class's colour and a
+    // gold one in the middle. From behind you see their backs. `over` goes over the hair: the band.
+    cardcrown: {
+      x: -8, y: -14,
+      down: [
+        '..................kkkkkkkkkkkk..................',
+        '................kkkkkkkkkkkkkkkk................',
+        '.............kkkkkkkkkkkkkkkkkkkkkk.............',
+        '...........kkkkkkkkkkkkkkkkkkkkkkkkkk...........',
+        '.........kkkkkkkkIIkooOOOOOOkIIkkkkkkkk.........',
+        '........kkkkkkUIIIIkooOOOOOOkIIIIIkkkkkk........',
+        '......kkkkkkkkUIIIJkOOoooYOOkRIIIIkkkkkkkk......',
+        '.....kkkkkkIIkUUUUUkOOoooYOOkRRrrIkEIkkkkkk.....',
+        '....kkkkkIIIIkIUUUUkOOoooYOOkRRrrIkIIIIkkkkk....',
+        '....kkkkrIIrmkIIUUUkOOoooYOOkRRrIIkEEIIIkkkk....',
+        '....kkkkrIrrrmkIUUUkOOoooYOOkRrrIkEEEeIIkkkk....',
+        '....kkkkIIrrrrkIUUUkOOYYYYOOkRrrIkEEEeIIkkkk....',
+        '.....kkkkIrrrrkIUUJkOOYYYYOOkrrrIkEEeeIkkkk.....',
+        '......kkkkIrrrkkIJJkOOOOOOOOkrrIkkEeeIkkkk......',
+        '......kkkkIIrrmkIIIkOOOOOOOOkIIIkeEeIIkkkk......',
+        '.......kkkkIrmmkIIIkOOOOOOOOkIIIkeeeIkkkk.......',
+        '........kkkkImIkkIIkOOOOOOOOkIIkkIeIkkkk........',
+        '........kkkkIIIIkIIkOOOOOOOOkIIkIIIIkkkk........',
+        '.........kkkkIIIkIIkOOOOOOOOkIIkIIIkkkk.........',
+        '..........kkkkIIkIIkOOOOOOOOkIIkIIkkkk..........',
+        '..........kkkkIIIkIkOOOOOOOOkIkIIIkkkk..........',
+        '...........kkkkIIkIkOOOOOOOOkIkIIkkkk...........',
+        '............kkkkIkIkOOOOOOOOkIkIkkkk............',
+      ],
+      left: [
+        '....................kkkkkkkk....................',
+        '...................kkkkkkkkkk...................',
+        '.................kkkkkkkkkkkkkk.................',
+        '...............kkkkkkkkkkkkkkkkkk...............',
+        '..............kkkkkkIkoOOOkIkkkkkk..............',
+        '.............kkkkkIIIkoOOOkIIIkkkkk.............',
+        '............kkkkkUIIJkoooYkRIIIkkkkk............',
+        '............kkkkIkUUUkoooYkRRrkIkkkk............',
+        '...........kkkkIIkIUUkoooYkRrIkIIkkkk...........',
+        '...........kkkIIrkIUUkoooYkRrIkEIIkkk...........',
+        '...........kkkrrrmIUUkoooYkRrIEEeIkkk...........',
+        '...........kkkIrrrIUUkYYYYkRrIEEeIkkk...........',
+        '...........kkkkrrrkUJkYYYYkrrkEeekkkk...........',
+        '............kkkIrrkIJkOOOOkrIkEeIkkk............',
+        '............kkkIrrkIIkOOOOkIIkEeIkkk............',
+        '.............kkkImkIIkOOOOkIIkeIkkk.............',
+        '.............kkkImIIIkOOOOkIIIeIkkk.............',
+        '.............kkkkIIkIkOOOOkIkIIkkkk.............',
+        '..............kkkIIkIkOOOOkIkIIkkk..............',
+        '..............kkkkIkIkOOOOkIkIkkkk..............',
+        '...............kkkIkIkOOOOkIkIkkk...............',
+        '...............kkkIIIkOOOOkIIIkkk...............',
+        '................kkkIkkOOOOkkIkkk................',
+      ],
+      up: [
+        '..................kkkkkkkkkkkk..................',
+        '................kkkkkkkkkkkkkkkk................',
+        '.............kkkkkkkkkkkkkkkkkkkkkk.............',
+        '...........kkkkkkkkkkkkkkkkkkkkkkkkkk...........',
+        '.........kkkkkkkkOOkOOOOOOOOkOOkkkkkkkk.........',
+        '........kkkkkkOOOzzkOzzzzzzOkzzOOOkkkkkk........',
+        '......kkkkkkkkOzzzzkOzzzzzzOkzzzzOkkkkkkkk......',
+        '.....kkkkkkOzkOzzzzkOzzoozzOkzzzzOkzOkkkkkk.....',
+        '....kkkkkOOzzkOzzookOzzoozzOkoozzOkzzOOkkkkk....',
+        '....kkkkOzzzzkOzzookOzzoozzOkoozzOkzzzzOkkkk....',
+        '....kkkkOzzzozkOzookOzzoozzOkoozOkzozzzOkkkk....',
+        '....kkkkOzzoookOzzokOzzoozzOkozzOkooozzOkkkk....',
+        '.....kkkkOzzookOzzokOzzzzzzOkozzOkoozzOkkkk.....',
+        '......kkkkOzzokkOzzkOzzzzzzOkzzOkkozzOkkkk......',
+        '......kkkkOzzookOzzkOzzzzzzOkzzOkoozzOkkkk......',
+        '.......kkkkOzzzkOzzkOzzzzzzOkzzOkzzzOkkkk.......',
+        '........kkkkOzzkkOzkOzzzzzzOkzOkkzzOkkkk........',
+        '........kkkkOzzzkOzkOzzzzzzOkzOkzzzOkkkk........',
+        '.........kkkkOzzkOzkOzzzzzzOkzOkzzOkkkk.........',
+        '..........kkkkOzkOOkOzzzzzzOkOOkzOkkkk..........',
+        '..........kkkkOzzkOkOzzzzzzOkOkzzOkkkk..........',
+        '...........kkkkOzkOkOzzzzzzOkOkzOkkkk...........',
+        '............kkkkOkOkOzzzzzzOkOkOkkkk............',
+      ],
+      over: {
+        down: [
+          '',
+          '',
+          '',
+          '',
+          '',
+          '......kkOOOOOOOOOOOOOOOOkk',
+          '......kkooUoooorrooooUookk',
+          '......kkooUoooorrooooUookk',
+          '......kkYYYYYYYYYYYYYYYYkk',
+          '.......k................k',
+        ],
+        left: [
+          '',
+          '',
+          '',
+          '',
+          '',
+          '......kkOOOOOOOOOOOOOOOOkk',
+          '......kkoorrooooooooooookk',
+          '......kkoorrooooooooooookk',
+          '......kkYYYYYYYYYYYYYYYYkk',
+          '.......k................k',
+        ],
+        up: [
+          '',
+          '',
+          '',
+          '',
+          '',
+          '......kkOOOOOOOOOOOOOOOOkk',
+          '......kkoooooooooooooooook',
+          '......kkoooooooooooooooook',
+          '......kkYYYYYYYYYYYYYYYYkk',
+          '.......k................k',
+        ],
+      },
+    },
     // the humbug antlers: seen side on, the far one is a shade darker
     antlers: {
       x: -6, y: -16,
@@ -2531,6 +2651,7 @@ window.Art = (function () {
     if (!noHat && hat.big) lay32(b, hat.hi[dir], 0); // (a big head thing goes behind the head)
     lay32(b, HEAD32[dir], 0);
     lay32(b, hair.hi[dir], 0);
+    if (!noHat && hat.big && hat.big.over) lay32(b, hat.big.over[dir], 0); // (a part of it that goes over the hair)
     if (!noHat && hat.hi && !hat.big) { // (the first head thing is nothing at all)
       const head = HEAD32[dir], rows = (loose && hat.hi.loose) || hat.hi;
       (rows[dir] || rows.down).forEach((row, j) => [...row].forEach((ch, i) => {

@@ -476,7 +476,7 @@ items/live/warren/antlers: 0
 ```
 
 `santa` is the Santa hat, `candycane` the candy cane, `antlers` the humbug antlers, `sweeper` the Sweeper, `crown` the crown,
-`startrail` the star trail, `ghostmask` the ghost mask, `ribbon` the ribbon and `fulldeck` the Full deck. 1 means it's theirs, so it's one of their choices in the character editor. 0 means it
+`startrail` the star trail, `ghostmask` the ghost mask, `ribbon` the ribbon, `fulldeck` the Full deck and `cardcrown` the card crown, which nothing earns yet. 1 means it's theirs, so it's one of their choices in the character editor. 0 means it
 isn't, and the game won't offer it to them, even at Christmas, from the present, the cup or a quest. No number
 means they've never been given it.
 
@@ -557,7 +557,8 @@ the humbug antlers, is drawn as a picture of its own, behind them. To add one:
    Don't add it to `HAT32`: the part inside the tile is cut out of your rows for you.
 
 That's all it needs. `wornBehind` draws it, so their head and hair cover the bottom of it and
-it never clashes with a hairstyle. Other players see it with their look, names and speech bubbles
+it never clashes with a hairstyle. To have part of it go over the hair, like the card crown's band, add
+`over` with `down`, `left` and `up`: 32-wide rows from the top of the picture, as in `HAT32`. Other players see it with their look, names and speech bubbles
 move up to clear it (`tagLift`), and the character editor draws you smaller in it so it fits
 under the title (`drawEdit`). A costume hides it. A mini-game only draws the 32 x 32 picture, so
 all it shows there is the part inside the tile.
@@ -1508,7 +1509,7 @@ or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
 and `&stapler=near` puts it right in front of you. `&helped=5` counts the
 first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gives you Kiki's list, and
 `game=kiki` opens it.
-`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=almost` makes everything yours but the Forklift, so that beating Mike D. (add `&plant=1`) wins your last card and the Full deck. `&have=fulldeck&look=m10000000030` wears the Full deck, and with `&have=fulldeck&game=cards` your cards have gold backs. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
+`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=almost` makes everything yours but the Forklift, so that beating Mike D. (add `&plant=1`) wins your last card and the Full deck. `&have=cardcrown&look=m100e0000000` wears the card crown, `&have=fulldeck&look=m10000000030` wears the Full deck, and with `&have=fulldeck&game=cards` your cards have gold backs. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
 the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
 `&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
 `&crown=1` makes you the Office Champion, in the crown and the star trail.
