@@ -652,7 +652,7 @@ which tile they're on (and has them walking from tile to tile).
     being accepted (it deploys separately from the site, so it can be a few minutes behind just
     after an update), you're both told so and go back to the office, rather than waiting on each other.
 
-  - **Office Politics**: the card game, against each other. A coin decides who goes first, and you
+  - **Morale Madness**: the card game, against each other. A coin decides who goes first, and you
     each see only your own hand. You get 75 seconds a turn, shown on END TURN, and if you run out
     three turns in a row you lose. B opens the menu, which is where you resign. The game server
     runs this one (`server/games/cards.js`), so it's only in the list when there is one, and it's
@@ -790,7 +790,7 @@ if it ever disagrees, the board goes back to what the server says. On Render a c
 something in `server/` too). To try one, open `tools/test.html#play&server=ws://localhost:8080` in two
 windows, walk up to each other and pick CHESS or CHECKERS from CHALLENGE.
 
-Office Politics (`server/games/cards.js`) is another, with its own module rather than `table.js`
+Morale Madness (`server/games/cards.js`) is another, with its own module rather than `table.js`
 because a card game has things to hide. Its rules and cards are `js/cards.js` and `js/cardlist.js`,
 the same ones the browser plays a coworker with, and `CardsGame` in `js/game.js` is the screen for
 both. Each player is only sent `g.view(their seat)`: the other hand and both decks are just counts.
@@ -805,8 +805,8 @@ redeploys the server when something in there changes. `VERSION` in `server/games
 does that: `tools/check_games.mjs` stops the site deploying until it's the same as the rules say, and
 tells you what to set it to. The browser checks it too, so a browser whose rules aren't the same as
 the server's (while the server's still updating, say) says so instead of starting. To try it, open
-`tools/test.html#play&server=ws://localhost:8080&deck=road` in two windows, side by side so that
-neither is in the background: `&deck=` is `plant`, `road`, `office`, `lunch` or `starter`.
+`tools/test.html#play&server=ws://localhost:8080&deck=sales` in two windows, side by side so that
+neither is in the background: `&deck=` is `plant`, `sales`, `office`, `lunch` or `starter`.
 Give the entry `christmas: true` as well (as the snowball fight has) and it's only in the
 list from the day Christmas first starts (`SEASON_FROM`), then for good.
 
@@ -1425,7 +1425,7 @@ pants and their colours.
 | TVs and computers | `pong`, `snake`, `poker`, `blackjack` |
 | Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf`, `build` (Joe's Lego shelf) |
 | Coworkers | `dark` (Damir), `battle` (Richard), `dance` (Patrick), `nathan`, `wade`, `jar` (Kiki), `forms` (Jhonna), `wok` (Nik), `carrot` (Dmitriy), `lego` (Joe) |
-| Office Politics | `cards` (the card game, still being built: nothing in the office starts it yet). `&deck=` is your deck (`plant`, `road`, `office`, `lunch` or `starter`, the usual), `&foe=` who you play, `&level=` how good they are (1 to 4), `&first=0` or `1` who goes first, `&seed=` the same deal every time |
+| Morale Madness | `cards` (the card game, still being built: nothing in the office starts it yet). `&deck=` is your deck (`plant`, `sales`, `office`, `lunch` or `starter`, the usual), `&foe=` who you play, `&level=` how good they are (1 to 4), `&first=0` or `1` who goes first, `&seed=` the same deal every time |
 | Dogs | `catch`, `dogs` (the dogs' leaderboard) |
 | Kingston plant | `forklift`, `paint` (Even Coat) |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`), `fame` (the Hall of Fame) |

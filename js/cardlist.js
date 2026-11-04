@@ -6,7 +6,7 @@
 //   name      16 letters at most
 //   rarity    S starter, C common, U uncommon, R rare, L legendary, T only ever brought in by
 //             another card (never in a deck)
-//   dept      plant (big and tough), road (fast), office (clever) or lunch (together). Leave it out
+//   dept      plant (big and tough), sales (fast), office (clever) or lunch (together). Leave it out
 //             for something that goes in any deck. It's a way of playing, not anybody's job.
 //   kind      'task' if it happens once and then it's gone. Otherwise it's a worker.
 //   cost      coffee to play it
@@ -67,17 +67,17 @@ window.CARD_LIST = [
   { id: 'crane', name: 'Overhead Crane', dept: 'plant', rarity: 'R', cost: 7, power: 5, patience: 7, does: [{ do: 'hit', n: 3, who: 'enemy' }] },
   { id: 'forklift', name: 'Forklift', dept: 'plant', rarity: 'L', cost: 7, power: 6, patience: 6, words: ['keen'], does: [{ do: 'back', who: 'enemy' }] },
 
-  // ---------- Road: fast, and straight at the other player ----------
-  { id: 'mauro', name: 'Mauro', dept: 'road', rarity: 'C', cost: 1, power: 2, patience: 1, said: 'I\'m young and Italian!' },
-  { id: 'patrick', name: 'Patrick', dept: 'road', rarity: 'C', cost: 2, power: 3, patience: 1, words: ['keen'], said: 'Let\'s get a workout in!' },
-  { id: 'tho', name: 'Tho', dept: 'road', rarity: 'C', cost: 2, power: 2, patience: 2, does: [{ team: 'road', do: 'hit', n: 2, who: 'them' }], said: 'Go Leafs Go!!!' },
-  { id: 'wade', name: 'Wade', dept: 'road', rarity: 'C', cost: 3, power: 2, patience: 2, does: [{ do: 'hit', n: 2, who: 'them' }] },
-  { id: 'ali', name: 'Ali', dept: 'road', rarity: 'U', cost: 3, power: 3, patience: 2, words: ['keen'], said: 'You look like a C to me.' },
-  { id: 'ryan', name: 'Ryan', dept: 'road', rarity: 'U', cost: 4, power: 3, patience: 2, words: ['keen'], does: [{ do: 'hit', n: 1, who: 'them' }] },
-  { id: 'garrett', name: 'Garrett', dept: 'road', rarity: 'C', cost: 4, power: 3, patience: 3, words: ['keen'], said: 'Do you want to move to Asheville?' },
-  { id: 'desirae', name: 'Desirae', dept: 'road', rarity: 'U', cost: 5, power: 5, patience: 3, words: ['keen'] },
-  { id: 'roadtrip', name: 'Road Trip', dept: 'road', rarity: 'R', kind: 'task', cost: 3, does: [{ do: 'hit', n: 3, who: 'them' }] },
-  { id: 'truck', name: 'Company Truck', dept: 'road', rarity: 'L', cost: 6, power: 4, patience: 5, words: ['keen'], does: [{ do: 'hit', n: 3, who: 'them' }] },
+  // ---------- Sales: fast, and straight at the other player ----------
+  { id: 'mauro', name: 'Mauro', dept: 'sales', rarity: 'C', cost: 1, power: 2, patience: 1, said: 'I\'m young and Italian!' },
+  { id: 'patrick', name: 'Patrick', dept: 'sales', rarity: 'C', cost: 2, power: 3, patience: 1, words: ['keen'], said: 'Let\'s get a workout in!' },
+  { id: 'tho', name: 'Tho', dept: 'sales', rarity: 'C', cost: 2, power: 2, patience: 2, does: [{ team: 'sales', do: 'hit', n: 2, who: 'them' }], said: 'Go Leafs Go!!!' },
+  { id: 'wade', name: 'Wade', dept: 'sales', rarity: 'C', cost: 3, power: 2, patience: 2, does: [{ do: 'hit', n: 2, who: 'them' }] },
+  { id: 'ali', name: 'Ali', dept: 'sales', rarity: 'U', cost: 3, power: 3, patience: 2, words: ['keen'], said: 'You look like a C to me.' },
+  { id: 'ryan', name: 'Ryan', dept: 'sales', rarity: 'U', cost: 4, power: 3, patience: 2, words: ['keen'], does: [{ do: 'hit', n: 1, who: 'them' }] },
+  { id: 'garrett', name: 'Garrett', dept: 'sales', rarity: 'C', cost: 4, power: 3, patience: 3, words: ['keen'], said: 'Do you want to move to Asheville?' },
+  { id: 'desirae', name: 'Desirae', dept: 'sales', rarity: 'U', cost: 5, power: 5, patience: 3, words: ['keen'] },
+  { id: 'roadtrip', name: 'Road Trip', dept: 'sales', rarity: 'R', kind: 'task', cost: 3, does: [{ do: 'hit', n: 3, who: 'them' }] },
+  { id: 'truck', name: 'Company Truck', dept: 'sales', rarity: 'L', cost: 6, power: 4, patience: 5, words: ['keen'], does: [{ do: 'hit', n: 3, who: 'them' }] },
 
   // ---------- Office: clever ----------
   { id: 'davisson', name: 'Davisson', dept: 'office', rarity: 'C', cost: 2, power: 1, patience: 1, does: [{ do: 'draw', n: 1 }], said: 'Everything perfectly organised.' },

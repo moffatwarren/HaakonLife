@@ -509,6 +509,8 @@ window.CARD_ART = (function () {
     },
   };
 
+  BACKS.sales = BACKS.road; // (a stand-in for someone in sales goes by their department, like anyone else)
+
   // ---------- the people and things on the cards ----------
   const FOCUS = {}; // the middle of each picture, for the small card
   const ART = {
@@ -940,7 +942,7 @@ window.CARD_ART = (function () {
     },
   });
 
-  // ---------- Road ----------
+  // ---------- Sales ----------
   Object.assign(ART, {
     // "I'm young and Italian!"
     mauro(p) {
@@ -2152,7 +2154,7 @@ window.CARD_ART = (function () {
   // ---------- the card ----------
   const DEPTS = {
     plant: { name: 'PLANT', c: '#d87830' },
-    road: { name: 'ROAD', c: '#c84038' },
+    sales: { name: 'SALES', c: '#c84038' },
     office: { name: 'OFFICE', c: '#3868c8' },
     lunch: { name: 'LUNCH ROOM', c: '#48a048' },
     none: { name: 'OFFICE THING', c: '#74748c' },

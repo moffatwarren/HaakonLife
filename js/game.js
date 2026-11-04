@@ -5535,7 +5535,7 @@
     });
   }
 
-  // ---------- the card game: Office Politics ----------
+  // ---------- the card game: Morale Madness ----------
   // js/cards.js is the rules and js/cardlist.js the cards, and js/cardart.js paints them. This is the
   // table you play them on. It's drawn only from what the rules say a player can see (g.view) and
   // what's happened (the events in it), one thing at a time, so a game against another player can use
@@ -6199,7 +6199,7 @@
       }[r.why] || '';
       doneLines = [won ? 'YOU WIN!' : drew ? 'IT\'S A DRAW' : nobody ? 'NOBODY WINS' : foeShort.toUpperCase() + ' WINS', why];
       if (nobody || r.why === 'gone') parting = '';
-      else if (vs) parting = won ? 'You beat ' + foe + ' at Office Politics!' : drew ? 'You and ' + foe + ' call it a draw.' : foe + ' beat you at Office Politics.';
+      else if (vs) parting = won ? 'You beat ' + foe + ' at Morale Madness!' : drew ? 'You and ' + foe + ' call it a draw.' : foe + ' beat you at Morale Madness.';
       else parting = foe + (won ? ': "Good game! Best of three?"' : drew ? ': "Fair enough."' : ': "Good game. Come back any time."');
     }
 
@@ -14870,7 +14870,7 @@
     coffee: 'Playing Coffee Machine', catch: 'Playing Frisbee Catch', punch: 'Playing Punching Bag', run: 'Playing Treadmill',
     pong: 'Playing Pong', toss: 'Playing Paper Toss', stack: 'Playing Photocopier', simon: 'Playing Control Panel',
     lunch: 'Playing Find My Lunch', candy: 'Playing Candy Table', squat: 'Playing Squat Rack', golf: 'Playing mini golf',
-    cards: 'Playing Office Politics',
+    cards: 'Playing Morale Madness',
     dark: 'Playing Damir\'s Lights', duel: 'Playing Air Duel', fan: 'Playing Fan Balancing', coil: 'Playing Cooling Coil',
     damper: 'Playing Dampers', filter: 'Playing Filter Change', snake: 'Playing Snake', parts: 'Playing Parts Sorting',
     cable: 'Playing Cable Tidy', cpr: 'Playing CPR', engrave: 'Playing Engraver', pulldown: 'Playing Lat Pulldown',
@@ -14917,7 +14917,7 @@
     snowball: { label: 'SNOWBALL FIGHT', title: 'a snowball fight', server: true, christmas: true, Game: (m) => SnowballGame(m) },
     chess: { label: 'CHESS', title: 'a game of chess', server: true, Game: (m) => ChessGame(m) },
     checkers: { label: 'CHECKERS', title: 'a game of checkers', server: true, Game: (m) => CheckersGame(m) },
-    cards: { label: 'OFFICE POLITICS', title: 'a game of Office Politics', server: true, Game: (m) => CardsGame(m) },
+    cards: { label: 'MORALE MADNESS', title: 'a game of Morale Madness', server: true, Game: (m) => CardsGame(m) },
   };
   // The little picture beside each game in the challenge list, with the same keys as VERSUS
   // (see listIcon).

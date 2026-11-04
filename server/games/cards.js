@@ -1,4 +1,4 @@
-// Office Politics between two players (CardsGame in js/game.js draws it). The rules are js/cards.js and
+// Morale Madness between two players (CardsGame in js/game.js draws it). The rules are js/cards.js and
 // the cards js/cardlist.js, the same ones the browser plays a coworker with. They're read from the
 // site's files the first time anyone plays, so the server needs the whole repository, not just this
 // folder. If they can't be read, the game stops as soon as it starts and nobody wins.
@@ -28,7 +28,7 @@ const FULL = 2 * hz; // ticks between whole views when nothing's happening, in c
 // here so that a change to the rules or the cards has to touch this folder too, because Render only
 // redeploys the server when something in server/ changes. A browser that has different rules from
 // the server is told so and doesn't start.
-export const VERSION = '13cc2pj';
+export const VERSION = 'qailbp';
 
 let rules;
 // the rules, or null if they can't be loaded

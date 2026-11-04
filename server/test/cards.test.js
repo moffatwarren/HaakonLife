@@ -99,7 +99,7 @@ test('building a deck always comes out legal, leans the way you ask and keeps wh
     }
   }
   assert.equal(CARDS.deckProblem(CARDS.buildDeck([])), null, 'with nothing but the starters');
-  assert.ok(CARDS.buildDeck(every, { must: ['felix'], dept: 'road' }).includes('felix'));
+  assert.ok(CARDS.buildDeck(every, { must: ['felix'], dept: 'sales' }).includes('felix'));
   assert.equal(CARDS.deckProblem(CARDS.buildDeck(['nosuchcard', '__proto__', 'legobrick', 'forklift'])), null, 'ignores what isn\'t a card');
 });
 
