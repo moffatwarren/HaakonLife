@@ -473,7 +473,7 @@ window.CARDS = (function engine() {
         self = newUnit(c.id, seat);
         me.table.push(self);
       }
-      log({ e: 'play', s: seat, id: c.id, u: self ? self.u : a.card, target });
+      log({ e: 'play', s: seat, id: c.id, u: self ? self.u : a.card, card: a.card, target });
       for (const e of c.does || []) {
         if (whenOf(e) === 'play' && teamUp(e, seat, self ? self.u : -1)) run(e, seat, self, target);
       }

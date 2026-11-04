@@ -55,6 +55,23 @@ test('the words on a card are written from what it does', () => {
   assert.equal(says('student'), '');
 });
 
+test('every card can be painted, big and small', () => {
+  const art = vm.createContext({ window: {} });
+  for (const f of ['font.js', 'people.js', 'cardlist.js', 'cardart.js']) {
+    vm.runInContext(readFileSync(new URL('../../js/' + f, import.meta.url), 'utf8'), art, { filename: 'js/' + f });
+  }
+  const A = art.window.CARD_ART;
+  for (const c of CARDS.LIST) {
+    const face = Object.assign({}, c, { text: CARDS.text(c) });
+    assert.equal(A.big(face).w, 260, c.id);
+    assert.equal(A.small(face, { cost: true }).w, 88, c.id);
+    assert.ok(A.artPic(c.id).px.some((v) => v), c.id + ' has a picture');
+  }
+  for (const id of Object.keys(A.LIVE)) {
+    for (let t = 0; t < 200; t += 3) assert.ok(A.artFrame(id, t).px.some((v) => v), id + ' moves');
+  }
+});
+
 // ---------- decks ----------
 test('only a legal deck is a deck', () => {
   const legend = (id) => CARDS.card(id).rarity === 'L';

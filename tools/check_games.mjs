@@ -21,7 +21,9 @@ const NO_BOARD = { // saveBest keys that don't go on a leaderboard
 };
 const NOT_DOING = {}; // games that don't say what you're doing (see MP_DOING)
 const NO_SHORTCUT = {}; // games that can't be opened with &game=
-const NOT_STARTED = {}; // games nothing starts yet
+const NOT_STARTED = { // games nothing starts yet
+  CardsGame: 'only the &game=cards shortcut for now, until coworkers offer it',
+};
 
 // ---------- reading the code ----------
 // (a failure here stops the site deploying, so say clearly if it's this that's confused)

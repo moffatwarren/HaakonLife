@@ -227,6 +227,15 @@ window.CARD_ART = (function () {
       for (let i = 0; i < 9; i++) p.set(cx - 9 + i, cy - 13 + Math.round(Math.abs(i - 4) * 0.4), lit);
       p.set(cx - 2, cy - 9, LINE); p.set(cx - 1, cy - 8, LINE); p.set(cx - 1, cy - 7, LINE);
     },
+    // long, down past the shoulders (it goes behind the head too: see back in person)
+    long(p, cx, cy, hair) {
+      const m = M(p).ell(cx, cy - 6, 18, 14);
+      m.ell(cx - 16, cy + 2, 3, 8); m.ell(cx + 16, cy + 2, 3, 8);
+      m.poly([[cx - 14, cy + 14], [cx - 14, cy - 4], [cx - 6, cy - 8], [cx + 6, cy - 5], [cx + 14, cy - 2], [cx + 14, cy + 14]], 0);
+      fig(p, m, hair, { sh: [2, 2], hi: 0 });
+      const lit = ramp(hair).hi;
+      for (let i = 0; i < 14; i++) p.set(cx - 11 + i, cy - 15 + Math.round(Math.abs(i - 6) * 0.3), lit);
+    },
     // just the bits that show below a hat
     under(p, cx, cy, hair) {
       const m = M(p).ell(cx - 15, cy - 2, 3, 6).ell(cx + 15, cy - 2, 3, 6).box(cx - 15, cy - 8, 30, 3);
@@ -272,6 +281,7 @@ window.CARD_ART = (function () {
   }
   function person(p, cx, cy, o) {
     const skin = skinRamp(o.skin);
+    if (o.hairdo === 'long') fig(p, M(p).rbox(cx - 21, cy - 6, 42, 42, 10), o.hair, { sh: [3, 2], hi: 0 });
     // shoulders
     const torso = M(p).poly([[cx - 34, 80], [cx - 33, cy + 33], [cx - 24, cy + 25], [cx - 9, cy + 20], [cx + 9, cy + 20], [cx + 24, cy + 25], [cx + 33, cy + 33], [cx + 34, 80]]);
     fig(p, torso, o.top, { sh: [5, 3], hi: [2, 2], deep: [2, 1] });
@@ -339,6 +349,16 @@ window.CARD_ART = (function () {
       p.box(82, 10, 30, 24, '#8a5a3a'); p.box(83, 11, 28, 22, '#c8986a');
       for (const [x, y, c] of [[86, 14, '#f8f0a0'], [97, 13, '#f8b0b0'], [90, 24, '#b0e0f8'], [102, 23, '#f8f0a0']]) { p.box(x, y, 8, 7, c); p.set(x + 3, y, '#c83838'); }
       p.box(6, 12, 24, 16, '#f4f4f0'); for (let y = 15; y < 26; y += 3) p.box(9, y, 18, 1, '#a8b0b8');
+    },
+    // out on the road: the mountains, the trees, and a long way to go
+    road(p) {
+      for (let y = 0; y < 44; y++) p.box(0, y, ART_W, 1, y < 14 ? '#78b8e0' : y < 28 ? '#98cce8' : '#bcdff0');
+      flat(p, M(p).poly([[0, 40], [14, 18], [26, 30], [42, 12], [60, 32], [78, 16], [98, 34], [118, 20], [118, 50], [0, 50]]), '#7888a8');
+      flat(p, M(p).poly([[42, 12], [36, 19], [41, 18], [44, 21], [49, 19]]), '#f0f6fc');
+      flat(p, M(p).poly([[78, 16], [73, 21], [78, 20], [82, 23], [85, 22]]), '#f0f6fc');
+      for (let x = -4; x < ART_W; x += 9) flat(p, M(p).poly([[x, 54], [x + 5, 34 + (x * 7 % 5 + 5) % 5], [x + 10, 54]]), (x + 4) % 18 ? '#3c6c48' : '#346040');
+      p.box(0, 52, ART_W, 23, '#585c68'); p.box(0, 52, ART_W, 1, '#c8c4a8'); p.box(0, 73, ART_W, 2, '#c8c4a8');
+      for (let x = 2; x < ART_W; x += 18) p.box(x, 62, 10, 2, '#f0d860');
     },
     // the plant: racks, columns and warm light coming down
     // (burst: light fanning out behind whatever's in front. u: how far round its loop it is, when it moves)
@@ -493,6 +513,36 @@ window.CARD_ART = (function () {
       p.box(55, 34, 6, 1, '#6a3c20');
       for (const [x, y] of [[59, 31], [62, 29], [64, 33]]) p.set(x, y, '#8a5a3a');
     },
+    felix(p) {
+      // Felix never moves. This is the sunny spot on Kim's chair they've had since morning.
+      p.box(0, 0, ART_W, ART_H, '#8c9cb4');
+      flat(p, M(p).poly([[6, 0], [52, 0], [20, 75], [-30, 75]]), '#a8b4c8');
+      p.box(0, 0, ART_W, 2, '#a8b4c8');
+      fig(p, M(p).rbox(14, 20, 90, 60, 12), '#4c5468', { sh: [5, 3], hi: [2, 2] });
+      fig(p, M(p).rbox(6, 52, 106, 30, 10), '#5c6478', { sh: [4, 2], hi: [2, 2] });
+      const coat = '#e88a30', dark = '#b85a18', pale = '#f8d8a8';
+      // the curled-up cat: back, then tail round the front
+      const body = M(p).ell(62, 50, 36, 19).ell(40, 50, 18, 16);
+      for (let i = 0; i < 8; i++) body.poly([[34 + i * 7, 34], [38 + i * 7, 28 - (i % 2) * 2], [42 + i * 7, 34]]);
+      fig(p, body, coat, { sh: [6, 4], hi: [2, 2], deep: [2, 2] });
+      for (const [x, y] of [[66, 36], [76, 38], [86, 42], [58, 35]]) flat(p, M(p).line(x, y, x - 3, y + 8, 2), dark);
+      fig(p, M(p).line(92, 60, 66, 66, 8).line(66, 66, 44, 64, 7), coat, { sh: [0, 2], hi: [0, 1] });
+      flat(p, M(p).ell(42, 64, 4, 3), pale);
+      // the head, on its paws
+      const head = M(p).ell(35, 46, 17, 14).poly([[21, 40], [20, 25], [31, 34]]).poly([[49, 40], [50, 25], [39, 34]]);
+      fig(p, head, coat, { sh: [4, 3], hi: [1, 1] });
+      flat(p, M(p).poly([[23, 36], [23, 30], [28, 35]]), '#f0a0a0');
+      flat(p, M(p).poly([[47, 36], [47, 30], [42, 35]]), '#f0a0a0');
+      flat(p, M(p).ell(35, 52, 10, 7), pale);
+      // eyes shut, a little pink nose, and whiskers
+      arc(p, 28, 44, 3.5, 0.2, 2.9, LINE); arc(p, 42, 44, 3.5, 0.2, 2.9, LINE);
+      flat(p, M(p).poly([[33, 49], [37, 49], [35, 52]]), '#e07080');
+      p.set(35, 53, LINE); p.set(34, 54, LINE); p.set(36, 54, LINE);
+      for (const [x, y, a] of [[24, 51, -1], [24, 54, 0], [46, 51, 1], [46, 54, 0]]) for (let i = 0; i < 7; i++) p.set(x + (x < 35 ? -i : i), y + Math.abs(a) * Math.floor(i / 3) * (a < 0 || a > 0 ? -1 : 0), '#f8f0e0');
+      fig(p, M(p).ell(26, 62, 6, 4).ell(44, 62, 6, 4), pale, { sh: [1, 1], hi: 0 });
+      // zzz
+      words(p, 'z', 56, 24, '#f4f8ff', 1); words(p, 'z', 62, 15, '#f4f8ff', 2); words(p, 'Z', 73, 2, '#ffffff', 2);
+    },
     // ---- legendaries ----
     officedog(p, u = 0) {
       // a sunny office, with the light fanning out behind them
@@ -553,8 +603,41 @@ window.CARD_ART = (function () {
       });
     },
   };
+  // A card with no painting of its own: a person in their colours from the game in front of their
+  // department's background, or for a thing, a plain picture of its first letter. It's what keeps every
+  // card playable: anything added to ART above takes over from this.
+  const WEARS = ['#3868c8', '#b83028', '#58a848', '#e07898', '#808898', '#38a0a0', '#c87830'];
+  const SKINS = ['#f8d8b8', '#f8d0a8', '#d8a070', '#c08860', '#8a5838'];
+  const HAIRS = ['#201818', '#5a3420', '#8a5a3a', '#6a3c20', '#b87830'];
+  const hashOf = (str) => { let h = 7; for (const ch of String(str)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+  function whoOf(card) {
+    const people = window.PEOPLE || {}, crew = Object.values(window.PLANT_CREW || {}), out = Object.values(window.VISITORS || {});
+    return (Object.prototype.hasOwnProperty.call(people, card.name) ? people[card.name] : null) || crew.find((c) => c.name === card.name) || out.find((c) => c.name === card.name) || null;
+  }
+  const NOT_PEOPLE = ['bigcoil', 'crane', 'truck', 'printer', 'coffeemachine', 'humbug', 'legobrick', 'leftovers'];
+  function standIn(p, card) {
+    const h = hashOf(card.id), back = BACKS[card.dept] || (card.rarity === 'S' ? BACKS.cubicle : BACKS.office);
+    back(p);
+    if (card.kind === 'task' || NOT_PEOPLE.includes(card.id)) {
+      fig(p, M(p).rbox(39, 13, 40, 50, 3), '#f4f0e0', { sh: [2, 2], hi: 0 });
+      words(p, card.name[0], 49, 25, '#3c3448', 4);
+      return;
+    }
+    const who = whoOf(card) || {}, female = who.body === 'female' || (!who.body && h % 3 === 0);
+    const cx = 59, cy = 33, top = who.top || WEARS[h % WEARS.length], accent = who.accent || WEARS[(h >>> 3) % WEARS.length];
+    person(p, cx, cy, {
+      skin: who.skin || SKINS[(h >>> 2) % SKINS.length], hair: who.hair || HAIRS[(h >>> 4) % HAIRS.length], top,
+      hairdo: female ? 'long' : h % 2 ? 'short' : 'sidepart', brow: h % 5 === 0 ? 'raised' : '', mouth: ['smile', 'grin', 'smirk'][(h >>> 5) % 3],
+      clothes(q, x, y) {
+        if (female) { flat(q, M(q).line(x - 8, y + 21, x, y + 30, 1).line(x + 8, y + 21, x, y + 30, 1), accent); fig(q, M(q).ell(x, y + 31, 2), accent, { sh: 0, hi: [1, 1], line: null }); return; }
+        fig(q, M(q).poly([[x - 7, y + 20], [x + 7, y + 20], [x + 3, 80], [x - 3, 80]]), '#f4f4f0', { sh: 0, hi: 0, line: null });
+        fig(q, M(q).poly([[x - 2, y + 21], [x + 2, y + 21], [x + 3, y + 36], [x, y + 41], [x - 3, y + 36]]), accent, { sh: [1, 0], hi: 0 });
+      },
+    });
+  }
+
   Object.assign(FOCUS, {
-    student: [59, 36], dmitriy: [46, 36], richard: [50, 36], firedrill: [40, 38], officedog: [59, 37], forklift: [40, 37],
+    student: [59, 36], dmitriy: [46, 36], richard: [50, 36], firedrill: [40, 38], felix: [40, 38], officedog: [59, 37], forklift: [40, 37],
   });
 
   // The forklift by itself, on nothing, as it is on its card and when it drives on. wheel: which way
@@ -640,6 +723,7 @@ window.CARD_ART = (function () {
     none: { name: 'OFFICE THING', c: '#74748c' },
     starter: { name: 'STARTER', c: '#a09880' },
   };
+  const deptOf = (card) => DEPTS[card.dept] || (card.rarity === 'S' ? DEPTS.starter : DEPTS.none);
   const INK = '#2a2230';
   const GOLD = '#e8b030', SILVER = '#b8c4d4';
   // the small colour a card's rarity is marked with, and the line round its art
@@ -701,7 +785,7 @@ window.CARD_ART = (function () {
   }
   // the whole card at half size, without its words
   function cardShell(card) {
-    const p = Pic(130, 182), dept = DEPTS[card.dept] || DEPTS.none, rar = RARITY[card.rarity] || RARITY.C, legend = card.rarity === 'L', rare = card.rarity === 'R';
+    const p = Pic(130, 182), dept = deptOf(card), rar = RARITY[card.rarity] || RARITY.C, legend = card.rarity === 'L', rare = card.rarity === 'R';
     const m = () => M(p);
     const shell = m().rbox(1, 1, 128, 180, 8);
     fig(p, shell, legend ? GOLD : dept.c, { sh: [3, 3], hi: [2, 2], deep: [1, 1] });
@@ -754,7 +838,7 @@ window.CARD_ART = (function () {
     p = Pic(260, 364);
     bigs.set(card.id, p);
     p.put(cardShell(card), 0, 0, 2);
-    const dept = DEPTS[card.dept] || DEPTS.none, legend = card.rarity === 'L';
+    const dept = deptOf(card), legend = card.rarity === 'L';
     letters(p, card.name, Math.round(150 - wide(card.name) / 2), 18, legend ? GOLD : INK);
     const label = card.kind === 'task' ? 'TASK' : dept.name;
     letters(p, label, Math.round(130 - wide(label) / 2), 197, legend ? '#2a2030' : '#ffffff');
@@ -789,7 +873,7 @@ window.CARD_ART = (function () {
   // what's printed, { hurt: true, up: true } to colour Patience that's down or Power that's up, and
   // { cost: true } to show what it costs, in your hand.
   function small(card, o = {}) {
-    const half = Pic(44, 58), dept = DEPTS[card.dept] || DEPTS.none, rar = RARITY[card.rarity] || RARITY.C, legend = card.rarity === 'L';
+    const half = Pic(44, 58), dept = deptOf(card), rar = RARITY[card.rarity] || RARITY.C, legend = card.rarity === 'L';
     fig(half, Mask(44, 58).rbox(1, 1, 42, 56, 4), legend ? GOLD : dept.c, { sh: [2, 2], hi: [1, 1] });
     flat(half, Mask(44, 58).box(3, 3, 38, 38), rar.trim);
     if (card.kind !== 'task') {
@@ -834,7 +918,7 @@ window.CARD_ART = (function () {
     if (!p) {
       p = Pic(ART_W, ART_H);
       if (ART[id]) ART[id](p);
-      else p.box(0, 0, ART_W, ART_H, '#3c3440');
+      else standIn(p, (window.CARD_LIST || []).find((c) => c.id === id) || { id, name: '?', kind: 'task' });
       arts.set(id, p);
     }
     return p;
@@ -901,7 +985,7 @@ window.CARD_ART = (function () {
   }
   // some words by themselves, in the game's letters
   function label(str, c, size = 1) {
-    const p = Pic(Math.max(1, wide(str, size)), 14 * size);
+    const p = Pic(Math.max(1, wide(str, size)), 18 * size); // (18: room for the tails on g, p and y)
     letters(p, str, 0, 0, c, size);
     return p;
   }

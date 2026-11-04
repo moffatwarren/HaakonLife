@@ -1391,6 +1391,7 @@ pants and their colours.
 | TVs and computers | `pong`, `snake`, `poker`, `blackjack` |
 | Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf`, `build` (Joe's Lego shelf) |
 | Coworkers | `dark` (Damir), `battle` (Richard), `dance` (Patrick), `nathan`, `wade`, `jar` (Kiki), `forms` (Jhonna), `wok` (Nik), `carrot` (Dmitriy), `lego` (Joe) |
+| Office Politics | `cards` (the card game, still being built: nothing in the office starts it yet). `&deck=` is your deck (`plant`, `road`, `office`, `lunch` or `starter`, the usual), `&foe=` who you play, `&level=` how good they are (1 to 4), `&first=0` or `1` who goes first, `&seed=` the same deal every time |
 | Dogs | `catch`, `dogs` (the dogs' leaderboard) |
 | Kingston plant | `forklift`, `paint` (Even Coat) |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`), `fame` (the Hall of Fame) |

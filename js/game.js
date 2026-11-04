@@ -5525,6 +5525,834 @@
     });
   }
 
+  // ---------- the card game: Office Politics ----------
+  // js/cards.js is the rules and js/cardlist.js the cards, and js/cardart.js paints them. This is the
+  // table you play them on. It's drawn only from what the rules say a player can see (g.view) and
+  // what's happened (the events in it), one thing at a time, so a game against another player can use
+  // the same screen.
+  //
+  // It's all laid out on the screen's real 640 x 480: the card pictures are made at that size, so
+  // draw() scales everything back down from the view's 320 x 240 while it draws them.
+  const cardPics = new Map();
+  const cardPic = (key, make) => { let v = cardPics.get(key); if (!v) { v = make(); cardPics.set(key, v); } return v; };
+  const cardFace = (id) => cardPic('face' + id, () => { const c = CARDS.card(id); return Object.assign({}, c, { text: CARDS.text(c) }); });
+  const bigCard = (id) => cardPic('big' + id, () => CARD_ART.toCanvas(CARD_ART.big(cardFace(id))));
+  const backOfCard = () => cardPic('back', () => CARD_ART.toCanvas(CARD_ART.back()));
+  const cardWord = (s, c, n = 1) => cardPic('w' + s + '/' + c + '/' + n, () => CARD_ART.toCanvas(CARD_ART.label(s, c, n)));
+  const smallCard = (id, o = {}) => cardPic('s' + id + '/' + JSON.stringify(o), () => CARD_ART.toCanvas(CARD_ART.small(cardFace(id), o)));
+  const cardTable = () => cardPic('table', () => {
+    const cv = document.createElement('canvas');
+    cv.width = 640; cv.height = 480;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#6c4a34'; c.fillRect(0, 0, 640, 480);
+    let seed = 7;
+    const r = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+    for (let y = 0; y < 480; y += 40) {
+      c.fillStyle = y % 80 ? '#664430' : '#70503a'; c.fillRect(0, y, 640, 38);
+      c.fillStyle = '#4c3224'; c.fillRect(0, y + 38, 640, 2);
+      c.fillStyle = '#7c5a42'; c.fillRect(0, y, 640, 2);
+      for (let i = 0; i < 16; i++) { c.fillStyle = r(2) ? '#5c3e2c' : '#785640'; c.fillRect(r(640), y + 4 + r(30), 12 + r(56), 2); }
+    }
+    for (const y of [40, 168]) {
+      c.fillStyle = '#3c2820'; c.fillRect(72, y, 496, 124);
+      c.fillStyle = '#2c4c44'; c.fillRect(74, y + 2, 492, 120);
+      c.fillStyle = '#386058'; c.fillRect(74, y + 2, 492, 2);
+      for (let i = 0; i < 5; i++) {
+        const x = 84 + i * 96;
+        c.fillRect(x, y + 4, 88, 2); c.fillRect(x, y + 118, 88, 2); c.fillRect(x, y + 4, 2, 116); c.fillRect(x + 86, y + 4, 2, 116);
+      }
+    }
+    return cv;
+  });
+  const CARD_HOW = [
+    'You each start with 20 Morale. Get the other player\'s down to 0.',
+    'Each morning you gain a cup of coffee, up to 8, and draw a card. Cards cost coffee to play.',
+    'Workers stay on the table. Each has Power and Patience. After their first turn they can attack once a turn.',
+    'Attack a worker and they hit each other. Attack the other player and nothing hits back. At 0 Patience, a worker goes home.',
+    'A Gatekeeper has to be dealt with first. Keen can attack straight away. Thick Skin ignores the first hit.',
+    'Tasks happen once. On play happens when you play it, Every morning at the start of your turn, and Last word as they go home.',
+  ];
+  let cardsNow = null; // the game going on, for trying things out (window.GAME.cards)
+  // o: { foe, npc, level, deck: a department or 'starter', mine: a deck, seed }
+  function CardsGame(vs, o = {}) {
+    const A = CARD_ART, W = 640, H = 480, INK = '#1a1622', me = 0;
+    const pal = o.npc || (o.foe ? npcs.find((n) => n.name === o.foe) : null) || tableFoe();
+    const foe = o.foe || (pal ? pal.name : 'A coworker');
+    const level = o.level || tableLevel(foe);
+    const every = CARDS.LIST.filter((c) => c.rarity !== 'T').map((c) => c.id);
+    const seed = o.seed || Math.floor(Math.random() * 2 ** 31);
+    const deptOf = (name) => { const c = CARDS.card(String(name).toLowerCase()); return c && c.dept; };
+    const foeDept = deptOf(foe) || Object.keys(CARDS.DEPTS)[Math.abs(seed) % 4];
+    const myDeck = o.mine || (o.deck && o.deck !== 'starter' ? CARDS.buildDeck(every, { dept: o.deck, seed: seed + 1 }) : CARDS.STARTER);
+    const g = CARDS.create({ decks: [myDeck, CARDS.buildDeck(every, { dept: foeDept, seed: seed + 2 })], seed, names: [playerName || 'You', foe], ai: [0, level], first: o.first });
+
+    // ---------- what's showing ----------
+    // view: what the rules say now. shown: what the table looks like at the moment, catching up with
+    // view one event at a time (each of those is an animation), and matched back to it when it has.
+    const copy = (x) => JSON.parse(JSON.stringify(x));
+    let view = g.view(me), shown = copy(view), seen = view.ev.length ? view.ev[view.ev.length - 1].i : -1;
+    const queue = [];
+    let anim = null, t = 0, doneLines = null, parting = '', doneT = 0;
+    let cur = { row: 2, i: 0 }, rest = 0, aim = null, menu = null, note = '', noteT = 0;
+    let swapAt = 0;
+    const swapping = new Set();
+    let bits = [], pops = [], gone = [];
+    let fly = null, big = null, dim = 0, halo = null, ring = null, alarm = 0, shake = 0, jolt = 0, mover = null, banner = null, glint = null, drawn = null;
+    const blink = new Map(), bounce = new Map();
+    let landed = -1; // the worker that's just landed, who doesn't jump at their own shockwave
+
+    const sideOf = (seat) => (seat === me ? shown.you : shown.them);
+    const flash = (str) => { note = str; noteT = 110; };
+    const foeShort = foe.length > 10 ? foe.slice(0, 10) : foe;
+    const has = (table, key) => table && Object.prototype.hasOwnProperty.call(table, key);
+
+    // ---------- where things are ----------
+    const slotX = (i) => 84 + i * 96;
+    const rowY = (seat) => (seat === me ? 172 : 44);
+    const HAND_Y = 350;
+    const handStep = (n) => Math.min(92, n > 1 ? (532 - 88) / (n - 1) : 92);
+    const handX = (i, n) => Math.round(266 - (handStep(n) * (n - 1) + 88) / 2 + i * handStep(n));
+    const FACE = { [me]: [8, 296, 212, 30], [1 - me]: [8, 6, 212, 30] };
+    const posOf = (u) => {
+      if (u === 0 || u === 1) { const [x, y, w, h] = FACE[u]; return [x + w / 2 - 44, y + h / 2 - 58]; }
+      for (const seat of [me, 1 - me]) {
+        const i = sideOf(seat).table.findIndex((x) => x.u === u);
+        if (i >= 0) return [slotX(i), rowY(seat)];
+      }
+      return [W / 2 - 44, H / 2 - 58];
+    };
+
+    // ---------- bits flying about ----------
+    const dust = (x, y, n, c = 'rgba(236,224,200,0.9)') => { for (let i = 0; i < n; i++) { const a = Math.PI * 2 * i / n; bits.push({ x, y, vx: Math.cos(a) * 2.6, vy: Math.sin(a) * 1.4 - 0.6, life: 22, max: 22, r: 4, c }); } };
+    const stars = (x, y, n, sp = 3.4) => { for (let i = 0; i < n; i++) { const a = Math.PI * 2 * i / n + 0.3; bits.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 30, max: 30, star: true, c: '#fff4c0' }); } };
+    const hearts = (x, y, n) => { for (let i = 0; i < n; i++) { const a = Math.PI * 2 * i / n; bits.push({ x, y, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3 - 1, life: 42, max: 42, heart: true }); } };
+    const pop = (x, y, str, c) => pops.push({ x, y, str, c, t: 0 });
+    const easeOut = (u) => 1 - Math.pow(1 - u, 3);
+    const arcTo = (a, b, u, lift) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u - Math.sin(u * Math.PI) * lift];
+
+    // ---------- catching up with what's happened ----------
+    const unitOf = (u) => { for (const s of [shown.you, shown.them]) { const x = s.table.find((y) => y.u === u); if (x) return x; } return null; };
+    function newUnit(id, u) {
+      const c = CARDS.card(id), words = c.words || [];
+      return { u, id, pw: c.power, pa: c.patience, max: c.patience, gate: words.includes('gate'), skin: words.includes('skin'), frozen: 0, stuck: false, left: 0, ready: false };
+    }
+    // How a card lands on the table, when it's its turn to. A legendary can land its own way.
+    const LANDS = {
+      officedog(x, y, u) { shake = 3; bounce.set(u, 44); hearts(x + 44, y + 50, 14); stars(x + 44, y + 50, 10, 4); sfx('bark'); },
+    };
+    function landHard(x, y) {
+      shake = 12; ring = { x: x + 44, y: y + 58, t: 0 }; jolt = 14;
+      stars(x + 44, y + 58, 22, 5.5); dust(x + 44, y + 112, 16); sfx('thump');
+    }
+    function put(e) { // a worker arriving on the table
+      const side = sideOf(e.s), i = side.table.length, x = slotX(i), y = rowY(e.s), c = CARDS.card(e.id);
+      side.table.push(newUnit(e.id, e.u));
+      landed = e.u;
+      if (c.rarity === 'L') (LANDS[e.id] || landHard)(x, y, e.u);
+      else {
+        dust(x + 44, y + 112, c.rarity === 'R' ? 14 : 10);
+        shake = c.rarity === 'R' ? 6 : 4;
+        if (c.rarity === 'U' || c.rarity === 'R') { stars(x + 44, y + 50, c.rarity === 'R' ? 18 : 14); glint = { x, y, t: 0 }; }
+        sfx('thump');
+      }
+    }
+    function bigAt(id, cx, cy, scale, more) {
+      const w = Math.round(260 * scale / 2) * 2, h = Math.round(364 * scale / 2) * 2;
+      big = Object.assign({ id, x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w, h, shine: -1 }, more);
+    }
+    function playAnim(e) {
+      const c = CARDS.card(e.id), mine = e.s === me, side = sideOf(e.s);
+      let from = [470, -120];
+      if (mine) {
+        const i = side.hand.findIndex((h) => h.u === e.card);
+        if (i >= 0) { from = [handX(i, side.hand.length), HAND_Y]; side.hand.splice(i, 1); }
+      } else side.hand = Math.max(0, side.hand - 1);
+      side.coffee = Math.max(0, side.coffee - c.cost);
+      const worker = c.kind !== 'task', to = [slotX(side.table.length), rowY(e.s)], mid = [W / 2, H / 2 - 16];
+      sfx('swish');
+      if (c.rarity === 'L') {
+        // Up out of the hand, flipping over, held up with its art moving, then down onto the table.
+        // It's all the card: the table stays there behind it.
+        return {
+          len: 72, step(f) {
+            big = null; halo = null;
+            if (f < 18) {
+              const u = easeOut(f / 18), turn = Math.cos(f / 18 * Math.PI);
+              dim = 0.35 * u;
+              bigAt(e.id, from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66, { squash: Math.abs(turn), back: turn > 0 });
+            } else if (f < 62) {
+              if (f === 18) { stars(mid[0], mid[1], 24, 6); shake = 4; sfx('cup'); }
+              dim = 0.35; halo = { x: mid[0], y: mid[1], t: f - 18 };
+              bigAt(e.id, mid[0], mid[1], 1, { live: true, shine: (f - 18) * 3.4 });
+            } else {
+              const u = Math.pow((f - 62) / 10, 2);
+              dim = 0.35 * (1 - u);
+              bigAt(e.id, mid[0] + (to[0] + 44 - mid[0]) * u, mid[1] + (to[1] + 58 - mid[1]) * u, 1 - u * 0.66, { live: true });
+            }
+          },
+          end() { big = null; halo = null; dim = 0; put(e); },
+        };
+      }
+      if (c.rarity === 'R' || !worker) {
+        // up to the middle where you can read it
+        const rare = c.rarity === 'R', hold = rare ? 72 : 52, top = rare ? 0.45 : 0.25;
+        return {
+          len: hold + (worker ? 10 : 14), step(f) {
+            big = null;
+            if (f < 22) {
+              const u = easeOut(f / 22);
+              dim = top * u;
+              bigAt(e.id, from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66);
+            } else if (f < hold) {
+              dim = top;
+              if (f === 22 && rare) { stars(mid[0], mid[1], 18, 5); shake = 4; sfx('ding'); }
+              bigAt(e.id, mid[0], mid[1], 1, { shine: rare ? (f - 22) * 4 : -1 });
+            } else if (worker) {
+              const u = Math.pow((f - hold) / 10, 2);
+              dim = top * (1 - u);
+              bigAt(e.id, mid[0] + (to[0] + 44 - mid[0]) * u, mid[1] + (to[1] + 58 - mid[1]) * u, 1 - u * 0.66);
+            } else {
+              const u = (f - hold) / 14;
+              dim = top * (1 - u);
+              bigAt(e.id, mid[0], mid[1] - u * 300, 1 - u * 0.7);
+            }
+          },
+          end() {
+            big = null; dim = 0;
+            if (worker) put(e);
+            if (e.id === 'firedrill') { alarm = 70; sfx('bell'); }
+          },
+        };
+      }
+      return {
+        len: 26, step(f) { fly = { id: e.id, pos: arcTo(from, to, easeOut(f / 26), 70) }; },
+        end() { fly = null; put(e); },
+      };
+    }
+    function attackAnim(e) {
+      const start = posOf(e.u), end = e.t === 0 || e.t === 1 ? [FACE[e.t][0] + 62, FACE[e.t][1] + (e.t === me ? -60 : 10)] : (([x, y]) => [x, y + (rowY(me) === y ? -30 : 40)])(posOf(e.t));
+      const who = unitOf(e.u);
+      sfx('swish');
+      return {
+        len: 24, step(f) {
+          if (!who) return;
+          const u = f < 10 ? 0 : Math.pow((f - 10) / 14, 2), back = f < 10 ? f : 10;
+          mover = { who, pos: [start[0] + (end[0] - start[0]) * u, start[1] + (end[1] - start[1]) * u + (e.u, f < 10 ? (start[1] > end[1] ? back : -back) : 0)] };
+        },
+        end() {
+          shake = 8; dust(end[0] + 44, end[1] + 40, 10); sfx('hit');
+          if (who) mover = { who, from: end, to: start, t: 0 };
+        },
+      };
+    }
+    function goHome(e, delay) {
+      const seat = e.s, side = sideOf(seat), i = side.table.findIndex((x) => x.u === e.u);
+      if (i < 0) return;
+      gone.push({ who: side.table[i], x: slotX(i), y: rowY(seat), dir: i < 2 ? -1 : 1, t: -delay });
+      side.table.splice(i, 1);
+    }
+    // these all happen together, with whatever comes straight after them that's the same sort of thing
+    function atOnce(e) {
+      const side = e.s === undefined ? null : sideOf(e.s);
+      switch (e.e) {
+        case 'hit': {
+          const [x, y] = posOf(e.u);
+          if (e.u === 0 || e.u === 1) { sideOf(e.u).morale -= e.n; shake = Math.max(shake, 6); } else {
+            const w = unitOf(e.u);
+            if (w) w.pa -= e.n;
+            blink.set(e.u, 22);
+          }
+          pop(x + 44, y + 34, '-' + e.n, '#ff8870');
+          break;
+        }
+        case 'skin': {
+          const w = unitOf(e.u), [x, y] = posOf(e.u);
+          if (w) w.skin = false;
+          pop(x + 44, y + 34, 'BLOCKED', '#a8d8ff');
+          sfx('tink');
+          break;
+        }
+        case 'heal': {
+          const [x, y] = posOf(e.u);
+          if (e.u === 0 || e.u === 1) sideOf(e.u).morale += e.n; else { const w = unitOf(e.u); if (w) w.pa += e.n; }
+          pop(x + 44, y + 34, '+' + e.n, '#90f070');
+          break;
+        }
+        case 'boost': {
+          const w = unitOf(e.u), [x, y] = posOf(e.u);
+          if (w) { w.pw = Math.max(0, w.pw + e.p); w.pa += e.h; w.max += e.h; }
+          const bit = [e.p ? (e.p > 0 ? '+' : '') + e.p + ' PWR' : '', e.h ? (e.h > 0 ? '+' : '') + e.h + ' PAT' : ''].filter(Boolean).join(' ');
+          pop(x + 44, y + 34, bit, e.p < 0 || e.h < 0 ? '#ff8870' : '#90f070');
+          break;
+        }
+        case 'freeze': { const w = unitOf(e.u); if (w) w.frozen = 1; sfx('tink'); break; }
+        case 'give': {
+          const w = unitOf(e.u);
+          if (w && e.word === 'gate') w.gate = true;
+          if (w && e.word === 'skin') w.skin = true;
+          break;
+        }
+        case 'coffee': if (side) { side.coffee += e.n; pop(e.s === me ? 330 : 276, e.s === me ? 318 : 42, '+' + e.n, '#f0d0a0'); } break;
+        default: break;
+      }
+    }
+    const TOGETHER = new Set(['hit', 'skin', 'heal', 'boost', 'freeze', 'give', 'coffee']);
+    function nextAnim() {
+      const e = queue.shift(), seat = e.s;
+      if (TOGETHER.has(e.e)) {
+        atOnce(e);
+        while (queue.length && TOGETHER.has(queue[0].e)) atOnce(queue.shift());
+        return { len: 26 };
+      }
+      switch (e.e) {
+        case 'play': return playAnim(e);
+        case 'attack': return attackAnim(e);
+        case 'summon': return { len: 16, start() { const side = sideOf(seat); dust(slotX(side.table.length) + 44, rowY(seat) + 100, 8); side.table.push(newUnit(e.id, e.u)); sfx('tap'); } };
+        case 'home': {
+          let n = 1;
+          goHome(e, 0);
+          while (queue.length && queue[0].e === 'home') goHome(queue.shift(), n++ * 9);
+          sfx('blip');
+          return { len: 16 + n * 9 };
+        }
+        case 'sentback': {
+          const start = posOf(e.u), side = sideOf(seat), i = side.table.findIndex((x) => x.u === e.u);
+          const who = i >= 0 ? side.table[i] : newUnit(e.id, e.u);
+          if (i >= 0) side.table.splice(i, 1);
+          const end = seat === me ? [handX(side.hand.length, side.hand.length + 1), HAND_Y] : [470, -120];
+          sfx('swish');
+          return { len: 30, step(f) { fly = { id: who.id, pos: arcTo(start, end, f / 30, 80), spin: f / 30 * 6 }; }, end() { fly = null; } };
+        }
+        case 'tohand': {
+          const side = sideOf(seat);
+          if (seat === me) side.hand.push({ u: e.u, id: e.id }); else side.hand++;
+          return { len: 4 };
+        }
+        case 'draw': {
+          const side = sideOf(seat);
+          side.deck = Math.max(0, side.deck - 1);
+          const end = seat === me ? [handX(side.hand.length, side.hand.length + 1), HAND_Y] : [470, -120], start = seat === me ? [544, HAND_Y] : [560, 0];
+          sfx('tap');
+          return {
+            len: 16, step(f) { drawn = arcTo(start, end, easeOut(f / 16), 24); },
+            end() { drawn = null; if (seat === me) side.hand.push({ u: e.u, id: e.id }); else side.hand++; },
+          };
+        }
+        case 'lost': {
+          sideOf(seat).deck = Math.max(0, sideOf(seat).deck - 1);
+          if (seat === me) flash('Your hand is full, so you lost ' + CARDS.card(e.id).name + '.');
+          return { len: 20 };
+        }
+        case 'burnout': {
+          sideOf(seat).morale -= e.n; sideOf(seat).deck = 0;
+          const [x, y] = FACE[seat];
+          pop(x + 106, y + 30, '-' + e.n, '#ff8870');
+          shake = 6;
+          if (seat === me) flash('Your deck\'s empty, and it\'s wearing you down.');
+          sfx('hit');
+          return { len: 30 };
+        }
+        case 'turn': {
+          shown.turn = seat; shown.n = e.n;
+          const side = sideOf(seat);
+          side.cups = Math.min(CARDS.RULES.CUPS, side.cups + 1); side.coffee = side.cups;
+          for (const x of side.table) { x.stuck = x.frozen > 0; x.frozen = 0; }
+          banner = { str: seat === me ? 'YOUR TURN' : foeShort.toUpperCase() + '\'S TURN', t: 0 };
+          if (seat === me) sfx('ding');
+          return { len: seat === me ? 36 : 20 };
+        }
+        case 'timeout': if (seat === me) flash('You ran out of time.'); return { len: 20 };
+        default: return { len: 1 };
+      }
+    }
+
+    // ---------- what's under the cursor ----------
+    const rowStops = (row) => {
+      if (row === 0) return [{ kind: 'face', seat: 1 - me, u: 1 - me }].concat(shown.them.table.map((x, i) => ({ kind: 'unit', seat: 1 - me, x, i, u: x.u })));
+      if (row === 1) return shown.you.table.map((x, i) => ({ kind: 'unit', seat: me, x, i, u: x.u }));
+      return shown.you.hand.map((c, i) => ({ kind: 'hand', c, i })).concat([{ kind: 'end' }]);
+    };
+    const aimStops = () => {
+      const all = rowStops(0).concat(rowStops(1), aim.targets.includes(me) ? [{ kind: 'face', seat: me, u: me }] : []);
+      return all.filter((s) => aim.targets.includes(s.u));
+    };
+    const stopNow = () => {
+      if (aim) { const s = aimStops(); return s[Math.min(cur.i, s.length - 1)] || null; }
+      const s = rowStops(cur.row);
+      return s[Math.min(cur.i, s.length - 1)] || null;
+    };
+    function rectOf(s) {
+      if (!s) return [0, 0, 0, 0];
+      if (s.kind === 'face') return FACE[s.seat];
+      if (s.kind === 'end') return [500, 296, 132, 30];
+      if (s.kind === 'hand') return [handX(s.i, shown.you.hand.length), HAND_Y - 10, 88, 116];
+      return [slotX(s.i), rowY(s.seat), 88, 116];
+    }
+    const nothingLeft = () => view.can && !Object.keys(view.can.play).length && !Object.keys(view.can.attack).length;
+    function homeCursor() {
+      // on your turn, go straight to something you can do
+      aim = null; rest = 0;
+      if (shown.turn !== me || view.ph !== 'play') return;
+      if (nothingLeft()) { cur = { row: 2, i: shown.you.hand.length }; return; }
+      const stops = rowStops(cur.row), s = stops[Math.min(cur.i, stops.length - 1)];
+      const usable = (x) => x && ((x.kind === 'hand' && has(view.can.play, x.c.u)) || (x.kind === 'unit' && x.seat === me && has(view.can.attack, x.u)));
+      if (usable(s)) return;
+      for (const row of [2, 1]) {
+        const i = rowStops(row).findIndex(usable);
+        if (i >= 0) { cur = { row, i }; return; }
+      }
+    }
+    function steer() {
+      if (aim) {
+        const stops = aimStops();
+        if (!stops.length) { aim = null; return; }
+        let i = Math.min(cur.i, stops.length - 1);
+        if (pressed.has('left') || pressed.has('up')) i = (i + stops.length - 1) % stops.length;
+        if (pressed.has('right') || pressed.has('down')) i = (i + 1) % stops.length;
+        if (i !== cur.i) { sfx('blip'); rest = 0; cur.i = i; }
+        return;
+      }
+      let { row, i } = cur;
+      const size = () => rowStops(row).length;
+      i = Math.min(i, size() - 1);
+      if (pressed.has('left')) i = (i + size() - 1) % size();
+      if (pressed.has('right')) i = (i + 1) % size();
+      const go = (d) => {
+        const from = rectOf(rowStops(row)[i]);
+        let r = row;
+        do { r += d; } while (r >= 0 && r <= 2 && !rowStops(r).length);
+        if (r < 0 || r > 2) return;
+        // the nearest thing in that row
+        let best = 0, far = Infinity;
+        rowStops(r).forEach((s, k) => { const [x] = rectOf(s), gap = Math.abs(x - from[0]); if (gap < far) { far = gap; best = k; } });
+        row = r; i = best;
+      };
+      if (pressed.has('up')) go(-1);
+      if (pressed.has('down')) go(1);
+      if (row !== cur.row || i !== cur.i) { sfx('blip'); rest = 0; cur = { row, i }; }
+    }
+    function send(a) {
+      if (g.act(me, a)) { pull(); aim = null; return true; }
+      sfx('bump');
+      return false;
+    }
+    function startAim(act, targets, where) {
+      aim = { act, targets, where };
+      cur = { row: cur.row, i: 0, was: cur };
+      // start on the first enemy worker, if there's one
+      const stops = aimStops(), first = stops.findIndex((s) => s.kind === 'unit' && s.seat !== me);
+      cur.i = first >= 0 ? first : 0;
+      rest = 0;
+      sfx('select');
+    }
+    function pressA() {
+      if (aim) {
+        const s = stopNow();
+        if (s && send(Object.assign({}, aim.act, { target: s.u }))) { cur = { row: 2, i: 0 }; }
+        return;
+      }
+      const s = stopNow();
+      if (view.ph !== 'play' || shown.turn !== me) { sfx('bump'); flash('It\'s ' + foeShort + '\'s turn.'); return; }
+      if (!s) return;
+      if (s.kind === 'end') { sfx('menu'); send({ do: 'end' }); return; }
+      if (s.kind === 'hand') {
+        const c = CARDS.card(s.c.id);
+        if (!has(view.can.play, s.c.u)) {
+          sfx('bump');
+          if (c.cost > shown.you.coffee) flash('You need ' + c.cost + ' coffee for that.');
+          else if (c.kind !== 'task') flash('There\'s no room on the table.');
+          else flash('There\'s nobody to use that on.');
+          return;
+        }
+        const targets = view.can.play[s.c.u];
+        if (!targets) send({ do: 'play', card: s.c.u });
+        else if (targets.length === 1) send({ do: 'play', card: s.c.u, target: targets[0] });
+        else startAim({ do: 'play', card: s.c.u }, targets, s);
+        return;
+      }
+      if (s.kind === 'unit' && s.seat === me) {
+        if (!has(view.can.attack, s.u)) {
+          sfx('bump');
+          flash(s.x.pw <= 0 ? 'No Power, so they can\'t attack.' : s.x.stuck ? 'They can\'t attack this turn.' : 'They\'ve done their work this turn.');
+          return;
+        }
+        const targets = view.can.attack[s.u];
+        if (targets.length === 1) send({ do: 'attack', from: s.u, target: targets[0] });
+        else startAim({ do: 'attack', from: s.u }, targets, s);
+        return;
+      }
+      sfx('bump');
+    }
+    function leave(words) {
+      remove(self);
+      if (words) say(words);
+    }
+    function backMenu() {
+      menu = Choice(['KEEP PLAYING', 'HOW TO PLAY', 'LEAVE GAME'], 110, 96, (i) => {
+        menu = null;
+        if (i === 1) { const next = (k) => { if (k < CARD_HOW.length) say(CARD_HOW[k], () => next(k + 1)); }; next(0); }
+        if (i === 2) leave(foe + ' goes back to work.');
+      });
+    }
+    function pull() {
+      view = g.view(me);
+      for (const e of view.ev) if (e.i > seen) { seen = e.i; queue.push(e); }
+    }
+    function finished() {
+      const r = view.r, won = r.w === me, drew = r.w < 0;
+      doneT = t;
+      sfx(won ? 'cup' : drew ? 'ding' : 'bump');
+      const why = { resign: won ? foeShort + ' gave up.' : 'You gave up.', time: won ? foeShort + ' ran out of time.' : 'You ran out of time.', long: 'It went on for ever.', morale: won ? foeShort + ' is out of Morale.' : drew ? 'Nobody has any Morale left.' : 'You\'re out of Morale.' }[r.why] || '';
+      doneLines = [won ? 'YOU WIN!' : drew ? 'IT\'S A DRAW' : foeShort.toUpperCase() + ' WINS', why];
+      parting = foe + (won ? ': "Good game! Best of three?"' : drew ? ': "Fair enough."' : ': "Good game. Come back any time."');
+    }
+
+    // ---------- the swap at the start ----------
+    function updateSwap() {
+      const you = shown.you;
+      if (you.swapped) return;
+      const n = you.hand.length;
+      if (pressed.has('left')) { swapAt = (swapAt + n) % (n + 1); sfx('blip'); }
+      if (pressed.has('right')) { swapAt = (swapAt + 1) % (n + 1); sfx('blip'); }
+      if (!pressed.has('a')) return;
+      if (swapAt < n) {
+        const u = you.hand[swapAt].u;
+        if (swapping.has(u)) swapping.delete(u); else swapping.add(u);
+        sfx('select');
+      } else {
+        sfx('menu');
+        send({ do: 'swap', cards: [...swapping] });
+      }
+    }
+    function drawSwap() {
+      ctx.drawImage(cardTable(), 0, 0);
+      ctx.fillStyle = 'rgba(16,12,24,0.6)'; ctx.fillRect(0, 0, W, H);
+      const you = shown.you, title = you.swapped ? 'Waiting for ' + foeShort + '...' : 'Swap any you don\'t want';
+      ctx.drawImage(cardWord(title, '#fff4c0'), Math.round((W - title.length * 12) / 2), 16);
+      const going = view.first === me ? 'You go first.' : foeShort + ' goes first: you get a card and a Double Shot.';
+      ctx.drawImage(cardWord(going, '#c8c0d8'), Math.max(8, Math.round((W - going.length * 12) / 2)), 40);
+      const n = you.hand.length, x0 = 312;
+      if (!you.swapped && swapAt < n) ctx.drawImage(bigCard(you.hand[swapAt].id), 28, 72);
+      else if (n) ctx.drawImage(backOfCard(), 0, 0, 88, 116, 28, 72, 260, 364);
+      you.hand.forEach((c, i) => {
+        const x = x0 + i * 100, y = 110 - (i === swapAt && !you.swapped ? 8 : 0);
+        ctx.drawImage(swapping.has(c.u) ? backOfCard() : smallCard(c.id, { cost: true }), x, y);
+        if (swapping.has(c.u)) ctx.drawImage(cardWord('SWAP', '#ff9878'), x + 20, y + 50);
+        if (i === swapAt && !you.swapped) { ctx.fillStyle = '#f8d850'; for (const [a, b, w, h] of [[x - 4, y - 4, 96, 4], [x - 4, y + 116, 96, 4], [x - 4, y, 4, 116], [x + 88, y, 4, 116]]) ctx.fillRect(a, b, w, h); }
+      });
+      if (!you.swapped) {
+        const str = swapping.size ? 'SWAP ' + swapping.size : 'KEEP THESE', bw = 180, bx = x0 + 60, by = 270;
+        panel(bx, by, bw, 34, swapAt === n ? '#f8d850' : '#f8f8f4');
+        ctx.drawImage(cardWord(str, INK), Math.round(bx + (bw - str.length * 12) / 2), by + 10);
+        const hint = 'A: choose   Left and right: move';
+        ctx.drawImage(cardWord(hint, '#c8c0d8'), 40 + 0, 444);
+      }
+    }
+
+    // ---------- drawing ----------
+    function panel(x, y, w, h, c = '#f8f8f4') {
+      ctx.fillStyle = INK; ctx.fillRect(x + 2, y, w - 4, h); ctx.fillRect(x, y + 2, w, h - 4);
+      ctx.fillStyle = c; ctx.fillRect(x + 4, y + 2, w - 8, h - 4); ctx.fillRect(x + 2, y + 4, w - 4, h - 8);
+    }
+    function heart(x, y, c) {
+      ctx.fillStyle = c;
+      ctx.fillRect(x + 2, y, 4, 2); ctx.fillRect(x + 10, y, 4, 2);
+      ctx.fillRect(x, y + 2, 16, 6); ctx.fillRect(x + 2, y + 8, 12, 2); ctx.fillRect(x + 4, y + 10, 8, 2); ctx.fillRect(x + 6, y + 12, 4, 2);
+    }
+    function faceBox(seat, name) {
+      const s = sideOf(seat), [x, y, w] = FACE[seat];
+      panel(x, y, w, 30);
+      ctx.drawImage(cardWord(name.slice(0, 10), INK), x + 10, y + 8);
+      heart(x + 138, y + 8, s.morale < 8 ? '#e03830' : '#d84848');
+      const m = String(Math.max(0, s.morale));
+      ctx.drawImage(cardWord(m, s.morale < 8 ? '#c02820' : INK), x + 160, y + 8);
+    }
+    function cups(seat, x, y) {
+      const s = sideOf(seat);
+      for (let i = 0; i < CARDS.RULES.CUPS; i++) {
+        const X = x + i * 22;
+        if (i >= s.cups) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(X, y + 2, 16, 16); continue; }
+        ctx.fillStyle = INK; ctx.fillRect(X, y, 18, 20);
+        ctx.fillStyle = '#f4ecd8'; ctx.fillRect(X + 2, y + 2, 14, 16);
+        if (i < s.coffee) { ctx.fillStyle = '#6a3c20'; ctx.fillRect(X + 4, y + 4, 10, 12); ctx.fillStyle = '#8a5430'; ctx.fillRect(X + 4, y + 4, 10, 4); }
+      }
+      if (s.coffee > CARDS.RULES.CUPS || s.coffee > s.cups) ctx.drawImage(cardWord('+' + (s.coffee - s.cups), '#f0d0a0'), x + CARDS.RULES.CUPS * 22, y + 3);
+    }
+    function worker(x, X, Y) {
+      const c = CARDS.card(x.id), o = {};
+      if (x.pw !== c.power) { o.power = x.pw; o.up = x.pw > c.power; }
+      if (x.pa !== c.patience || x.max !== c.patience) { o.patience = x.pa; o.hurt = x.pa < x.max; }
+      ctx.drawImage(smallCard(x.id, o), Math.round(X), Math.round(Y));
+      X = Math.round(X); Y = Math.round(Y);
+      if (c.rarity === 'L') { // a legendary's art keeps moving, on the table too
+        const [cx, cy] = A.cropOf(x.id);
+        ctx.drawImage(A.canvasOf(A.artFrame(x.id, t)), cx, cy, 72, 72, X + 8, Y + 8, 72, 72);
+        A.shine(ctx, X, Y, 88, 116, t, 'L', 6);
+      } else if (c.rarity === 'R') A.shine(ctx, X, Y, 88, 116, t + x.u * 37, 'R', 6);
+      if (x.gate) { // a Gatekeeper's shield
+        ctx.fillStyle = INK; ctx.fillRect(X + 34, Y - 4, 20, 14); ctx.fillRect(X + 38, Y + 10, 12, 4);
+        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(X + 36, Y - 2, 16, 10); ctx.fillRect(X + 40, Y + 8, 8, 4);
+        ctx.fillStyle = '#7c8498'; ctx.fillRect(X + 44, Y - 2, 8, 10); ctx.fillRect(X + 44, Y + 8, 4, 4);
+      }
+      if (x.skin) { // Thick Skin: a pale line round them
+        ctx.fillStyle = '#a8e0ff';
+        ctx.fillRect(X + 2, Y - 2, 84, 2); ctx.fillRect(X + 2, Y + 116, 84, 2); ctx.fillRect(X - 2, Y + 2, 2, 112); ctx.fillRect(X + 88, Y + 2, 2, 112);
+      }
+      if (x.frozen || x.stuck) {
+        ctx.fillStyle = 'rgba(120,180,255,0.4)'; ctx.fillRect(X, Y, 88, 116);
+        ctx.drawImage(cardWord('STUCK', '#ffffff'), X + 15, Y + 40);
+      }
+      const b = blink.get(x.u);
+      if (b && Math.floor(b / 3) % 2) { ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillRect(X, Y, 88, 116); }
+      // ready to attack
+      if (x.ready && shown.turn === me && !anim && has(view.can && view.can.attack, x.u) && !aim) {
+        ctx.fillStyle = Math.floor(t / 20) % 2 ? '#90f070' : '#60c848';
+        ctx.fillRect(X, Y + 116, 88, 4);
+      }
+    }
+    function jumpOf(x) {
+      const j = jolt && x.u !== landed ? Math.round(Math.sin(jolt / 14 * Math.PI) * 10) : 0;
+      const b = bounce.get(x.u);
+      return j + (b ? Math.round(Math.abs(Math.sin(b / 44 * Math.PI * 3)) * (6 + b / 2)) : 0);
+    }
+    function brackets(x, y, w, h, c) {
+      ctx.fillStyle = c;
+      for (const [a, b] of [[x - 4, y - 4], [x + w - 8, y - 4], [x - 4, y + h - 4], [x + w - 8, y + h - 4]]) {
+        ctx.fillRect(a, b, 12, 4);
+        ctx.fillRect(a + (a > x ? 8 : 0), b + (b > y ? -4 : 0), 4, 8);
+      }
+    }
+    function drawTable() {
+      ctx.drawImage(cardTable(), 0, 0);
+      const sh = shake ? (shake % 2 ? shake : -shake) : 0;
+      ctx.save();
+      ctx.translate(sh, Math.round(sh / 2));
+      const you = shown.you, them = shown.them;
+      // their side
+      faceBox(1 - me, foe);
+      cups(1 - me, 232, 8);
+      const backs = Math.min(them.hand, 7);
+      for (let i = 0; i < backs; i++) ctx.drawImage(backOfCard(), 0, 0, 88, 116, 438 + i * 22, 2, 30, 36);
+      them.table.forEach((x, i) => { if (!mover || mover.who !== x) worker(x, slotX(i), rowY(1 - me) - jumpOf(x)); });
+      // your side
+      faceBox(me, playerName || 'You');
+      cups(me, 232, 300);
+      const isEnd = !aim && cur.row === 2 && cur.i >= you.hand.length && shown.turn === me;
+      const canEnd = shown.turn === me && view.ph === 'play' && !anim && !queue.length;
+      panel(500, 296, 132, 30, canEnd && nothingLeft() ? (Math.floor(t / 20) % 2 ? '#f8d850' : '#f8e888') : canEnd ? '#f8f8f4' : '#a8a8a4');
+      ctx.drawImage(cardWord('END TURN', INK), 518, 304);
+      you.table.forEach((x, i) => { if (!mover || mover.who !== x) worker(x, slotX(i), rowY(me) - jumpOf(x)); });
+      // going home, a step at a time
+      for (const w of gone) {
+        if (w.t < 0) { worker(w.who, w.x, w.y); continue; }
+        const step = Math.floor(w.t / 5) % 2 ? 4 : 0;
+        ctx.drawImage(smallCard(w.who.id, { patience: 0, hurt: true }), Math.round(w.x + w.dir * w.t * w.t * 0.2), Math.round(w.y - step));
+      }
+      if (glint) A.shine(ctx, glint.x, glint.y, 88, 116, glint.t, 'R', 6);
+      // your hand
+      you.hand.forEach((c, i) => {
+        const x = handX(i, you.hand.length), on = !aim && !anim && !queue.length && cur.row === 2 && Math.min(cur.i, you.hand.length) === i;
+        const can = shown.turn === me && view.can && has(view.can.play, c.u);
+        ctx.drawImage(smallCard(c.id, { cost: true }), x, HAND_Y - (on ? 10 : 0));
+        if (shown.turn === me && !can && !anim && !queue.length) { ctx.fillStyle = 'rgba(20,16,30,0.45)'; ctx.fillRect(x, HAND_Y - (on ? 10 : 0), 88, 116); }
+      });
+      ctx.drawImage(backOfCard(), 544, HAND_Y);
+      ctx.drawImage(cardWord(String(you.deck), '#f4ecd8'), 544 + (88 - String(you.deck).length * 12) / 2, 400);
+      ctx.fillStyle = 'rgba(0,0,0,0)';
+      if (drawn) ctx.drawImage(backOfCard(), Math.round(drawn[0]), Math.round(drawn[1]));
+      if (mover) {
+        const p = mover.pos || (() => { const u = easeOut(Math.min(1, mover.t / 16)); return [mover.from[0] + (mover.to[0] - mover.from[0]) * u, mover.from[1] + (mover.to[1] - mover.from[1]) * u]; })();
+        worker(mover.who, p[0], p[1]);
+      }
+      if (fly) {
+        const pic = smallCard(fly.id);
+        if (fly.spin) { ctx.save(); ctx.translate(Math.round(fly.pos[0] + 44), Math.round(fly.pos[1] + 58)); ctx.rotate(Math.round(fly.spin * 4) / 4); ctx.drawImage(pic, -44, -58); ctx.restore(); } else ctx.drawImage(pic, Math.round(fly.pos[0]), Math.round(fly.pos[1]));
+      }
+      ctx.restore();
+      // over the whole table
+      if (alarm > 0 && Math.floor(alarm / 8) % 2 === 0) { ctx.fillStyle = 'rgba(232,48,40,0.32)'; ctx.fillRect(0, 0, W, H); }
+      if (dim) { ctx.fillStyle = 'rgba(10,8,18,' + dim + ')'; ctx.fillRect(0, 0, W, H); }
+      if (halo) {
+        const { x, y, t: at } = halo, grow = Math.min(1, at / 10);
+        for (let i = 0; i < 12; i++) {
+          const a = at * 0.02 + i * Math.PI / 6, w = 0.13 * grow, R = 300 * grow;
+          ctx.fillStyle = i % 2 ? 'rgba(232,176,48,0.26)' : 'rgba(255,232,150,0.34)';
+          ctx.beginPath(); ctx.moveTo(x, y);
+          ctx.lineTo(x + Math.cos(a - w) * R, y + Math.sin(a - w) * R); ctx.lineTo(x + Math.cos(a + w) * R, y + Math.sin(a + w) * R);
+          ctx.closePath(); ctx.fill();
+        }
+      }
+      if (big) {
+        const b = big, w = Math.max(4, Math.round(b.w * (b.squash === undefined ? 1 : b.squash) / 2) * 2), x = b.x + Math.round((b.w - w) / 2), sc = b.w / 260;
+        ctx.drawImage(b.back ? backOfCard() : bigCard(b.id), x, b.y, w, b.h);
+        if (b.live) ctx.drawImage(A.canvasOf(A.artFrame(b.id, t)), b.x + Math.round(12 * sc), b.y + Math.round(44 * sc), Math.round(236 * sc), Math.round(150 * sc));
+        if (b.shine >= 0) A.shine(ctx, x, b.y, w, b.h, Math.min(CARDS.card(b.id).rarity === 'L' ? 149 : 209, b.shine), CARDS.card(b.id).rarity);
+      }
+      if (ring) {
+        const r = ring.t * 11, n = 40;
+        ctx.globalAlpha = Math.max(0, 1 - ring.t / 26);
+        ctx.fillStyle = '#f8d860';
+        for (let i = 0; i < n; i++) { const a = i * Math.PI * 2 / n; ctx.fillRect(Math.round((ring.x + Math.cos(a) * r) / 2) * 2 - 3, Math.round((ring.y + Math.sin(a) * r * 0.8) / 2) * 2 - 3, 6, 6); }
+        ctx.globalAlpha = 1;
+      }
+      for (const b of bits) {
+        const a = Math.max(0, b.life / b.max), x = Math.round(b.x / 2) * 2, y = Math.round(b.y / 2) * 2;
+        if (b.heart) {
+          heart(x - 8, y - 6, INK); heart(x - 6, y - 4, '#f05868');
+        } else if (b.star) {
+          const n = b.life > 18 ? 6 : 3;
+          ctx.fillStyle = b.c; ctx.fillRect(x - n, y - 1, n * 2 + 2, 2); ctx.fillRect(x, y - n - 1, 2, n * 2 + 2);
+        } else {
+          ctx.globalAlpha = a; ctx.fillStyle = b.c;
+          const r = Math.round((b.r + (1 - a) * 6) / 2) * 2;
+          ctx.fillRect(x - r, y - r, r * 2, r * 2);
+          ctx.globalAlpha = 1;
+        }
+      }
+      for (const p of pops) {
+        const y = Math.round(p.y - p.t * 0.8), n = p.str.length > 3 ? 1 : 2, pic = cardWord(p.str, p.c, n), edge = cardWord(p.str, INK, n), x = Math.round(p.x - pic.width / 2);
+        for (const [a, b] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) ctx.drawImage(edge, x + a, y + b);
+        ctx.drawImage(pic, x, y);
+      }
+      if (banner) {
+        const u = banner.t < 8 ? banner.t / 8 : banner.t > 28 ? Math.max(0, (36 - banner.t) / 8) : 1, w = banner.str.length * 12 + 32, x = Math.round((W - w) / 2);
+        ctx.globalAlpha = u;
+        panel(x, 150, w, 28, '#f8d850');
+        ctx.drawImage(cardWord(banner.str, INK), x + 16, 157);
+        ctx.globalAlpha = 1;
+      }
+      // the cursor, and the card under it at the size you can read it
+      if (!anim && !queue.length && !doneLines && !menu) {
+        const s = stopNow();
+        if (s) {
+          const [x, y, w, h] = rectOf(s);
+          const pulse = Math.floor(t / 14) % 2;
+          brackets(x, y, w, h, aim ? (pulse ? '#ff8870' : '#ffb0a0') : pulse ? '#f8d850' : '#fff4b0');
+          if (rest > 18 && (s.kind === 'hand' || s.kind === 'unit')) {
+            const id = s.kind === 'hand' ? s.c.id : s.x.id, X = x + w / 2 < W / 2 ? 372 : 8;
+            ctx.drawImage(bigCard(id), X, 40);
+            if (CARDS.card(id).rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(id, t)), X + 12, 84, 236, 150);
+            A.shine(ctx, X, 40, 260, 364, t, CARDS.card(id).rarity);
+          }
+        }
+        // what A does now
+        let hint = '';
+        if (aim) hint = 'A: this one   B: cancel';
+        else if (shown.turn !== me) hint = '';
+        else if (s && s.kind === 'end') hint = 'A: end your turn';
+        else if (s && s.kind === 'hand') hint = 'A: play it';
+        else if (s && s.kind === 'unit' && s.seat === me) hint = 'A: attack';
+        if (hint) ctx.drawImage(cardWord(hint, '#f4ecd8'), 232, 328);
+      }
+      if (noteT > 0) {
+        const w = note.length * 12 + 24, x = Math.max(4, Math.round((W - w) / 2));
+        panel(x, 150, Math.min(w, W - 8), 28);
+        ctx.drawImage(cardWord(note, INK), x + 12, 157);
+      }
+      if (doneLines) {
+        ctx.fillStyle = 'rgba(10,8,18,0.6)'; ctx.fillRect(0, 0, W, H);
+        const big2 = doneLines[0], x = Math.round((W - big2.length * 24) / 2);
+        for (const [a, b] of [[-4, 0], [4, 0], [0, -4], [0, 4]]) ctx.drawImage(cardWord(big2, INK, 2), x + a, 180 + b);
+        ctx.drawImage(cardWord(big2, view.r.w === me ? '#f8d850' : '#f4ecd8', 2), x, 180);
+        const line = doneLines[1];
+        ctx.drawImage(cardWord(line, '#f4ecd8'), Math.round((W - line.length * 12) / 2), 224);
+      }
+    }
+
+    cardsNow = { g, pull, me, busy: () => !!anim || queue.length > 0, get done() { return !!doneLines; } };
+    const self = {
+      music: 'battle', doing: 'cards',
+      update() {
+        t++;
+        if (noteT > 0) noteT--;
+        rest++;
+        // everything that's moving
+        for (const b of bits) { b.x += b.vx; b.y += b.vy; if (!b.star && !b.heart) b.vy += 0.05; b.life--; }
+        bits = bits.filter((b) => b.life > 0);
+        for (const w of gone) w.t++;
+        gone = gone.filter((w) => w.t < 70);
+        for (const p of pops) p.t++;
+        pops = pops.filter((p) => p.t < 44);
+        for (const [u, n] of blink) { if (n <= 1) blink.delete(u); else blink.set(u, n - 1); }
+        for (const [u, n] of bounce) { if (n <= 1) bounce.delete(u); else bounce.set(u, n - 1); }
+        if (shake > 0) shake--;
+        if (jolt > 0) jolt--;
+        if (alarm > 0) alarm--;
+        if (ring && ++ring.t > 26) ring = null;
+        if (glint) { glint.t += 6; if (glint.t > 240) glint = null; }
+        if (banner && ++banner.t > 36) banner = null;
+        if (mover && !mover.pos && ++mover.t > 16) mover = null;
+
+        if (doneLines) {
+          if (t - doneT > 60 && (pressed.has('a') || pressed.has('b'))) leave(parting);
+          return;
+        }
+        if (menu) { menu.update(); return; }
+        // A hurries it all along
+        if ((anim || queue.length) && pressed.has('a') && shown.ph !== 'swap') {
+          if (anim) { if (anim.end) anim.end(); anim = null; }
+          while (queue.length) {
+            const a = nextAnim();
+            if (a.start) a.start();
+            if (a.end) a.end();
+          }
+          mover = null; fly = null; big = null; dim = 0; halo = null; drawn = null;
+        }
+        // whatever's next to show
+        if (anim) {
+          if (anim.step) anim.step(anim.t);
+          if (++anim.t >= anim.len) { const a = anim; anim = null; if (a.end) a.end(); }
+          return;
+        }
+        if (queue.length) {
+          anim = Object.assign({ t: 0 }, nextAnim());
+          if (anim.start) anim.start();
+          return;
+        }
+        // caught up: what the rules say is what's on the table
+        const was = shown.turn, wasCan = !!shown.can;
+        shown = copy(view);
+        if (shown.ph !== 'swap' && (was !== shown.turn || !wasCan || cur.row === undefined)) { if (shown.turn === me && !shown.keep) homeCursor(); }
+        if (view.r) { finished(); return; }
+        if (view.ph === 'swap') {
+          updateSwap();
+          g.step();
+          pull();
+          if (view.ph !== 'swap') { shown = copy(view); seen = view.ev.length ? view.ev[view.ev.length - 1].i : seen; homeCursor(); }
+          return;
+        }
+        if (shown.turn === me) {
+          steer();
+          if (pressed.has('a')) pressA();
+          else if (pressed.has('b')) {
+            if (aim) { aim = null; cur = cur.was || { row: 2, i: 0 }; rest = 0; sfx('select'); } else { sfx('select'); backMenu(); }
+          }
+          if (!aim && !anim && !queue.length && view.can) homeIfStuck();
+        } else {
+          steer();
+          if (pressed.has('a')) { sfx('bump'); flash('It\'s ' + foeShort + '\'s turn.'); } else if (pressed.has('b')) { sfx('select'); backMenu(); }
+          g.step();
+          pull();
+        }
+      },
+      draw() {
+        ctx.save();
+        ctx.scale(0.5, 0.5);
+        if (shown.ph === 'swap') drawSwap(); else drawTable();
+        ctx.restore();
+        if (menu) menu.draw();
+      },
+    };
+    // (when the last thing you could do has gone, the cursor goes to END TURN by itself)
+    let lastLeft = false;
+    function homeIfStuck() {
+      const left = nothingLeft();
+      if (left && !lastLeft) cur = { row: 2, i: shown.you.hand.length };
+      lastLeft = left;
+    }
+    return self;
+  }
+
   // ---------- Pong on the big TV ----------
   // Against the TV, or another player (VERSUS.pong). Against a player the game server runs
   // the game (server/games/pong.js, with the same sizes and speeds as here): it moves the
@@ -13592,6 +14420,7 @@
     coffee: 'Playing Coffee Machine', catch: 'Playing Frisbee Catch', punch: 'Playing Punching Bag', run: 'Playing Treadmill',
     pong: 'Playing Pong', toss: 'Playing Paper Toss', stack: 'Playing Photocopier', simon: 'Playing Control Panel',
     lunch: 'Playing Find My Lunch', candy: 'Playing Candy Table', squat: 'Playing Squat Rack', golf: 'Playing mini golf',
+    cards: 'Playing Office Politics',
     dark: 'Playing Damir\'s Lights', duel: 'Playing Air Duel', fan: 'Playing Fan Balancing', coil: 'Playing Cooling Coil',
     damper: 'Playing Dampers', filter: 'Playing Filter Change', snake: 'Playing Snake', parts: 'Playing Parts Sorting',
     cable: 'Playing Cable Tidy', cpr: 'Playing CPR', engrave: 'Playing Engraver', pulldown: 'Playing Lat Pulldown',
@@ -19193,6 +20022,7 @@
       pokertable: () => PokerApp(null, true), pokerlive: LivePoker, bjtable: () => BlackjackApp(null, true),
       hockey: () => HockeyGame(gateKeeper || npcs.find((n) => !n.ghost && !n.extra)), hockey1: () => LiveHockey(2), hockey2: () => LiveHockey(4), hockey3: () => LiveHockey(6), signhockey: () => SignUp('hockey'), signpoker: () => SignUp('poker'),
       chess: () => ChessGame(null, null, q.get('fen')), checkers: () => CheckersGame(null, null, q.get('fen')),
+      cards: () => CardsGame(null, { deck: q.get('deck'), foe: q.get('foe'), level: +q.get('level') || 0, seed: +q.get('seed') || 0, first: q.has('first') ? +q.get('first') : undefined }),
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       chop: ChopGame, mallow: MallowGame, spruce: SpruceGame, snowman: SnowmanGame, cocoa: CocoaGame, snowball: SnowballGame, humbug: HumbugGame,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
@@ -19317,5 +20147,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; } };
+  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get cards() { return cardsNow; } };
 })();
