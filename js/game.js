@@ -5553,13 +5553,13 @@
       c.fillStyle = '#7c5a42'; c.fillRect(0, y, 640, 2);
       for (let i = 0; i < 16; i++) { c.fillStyle = r(2) ? '#5c3e2c' : '#785640'; c.fillRect(r(640), y + 4 + r(30), 12 + r(56), 2); }
     }
-    for (const y of [40, 168]) {
-      c.fillStyle = '#3c2820'; c.fillRect(72, y, 496, 124);
-      c.fillStyle = '#2c4c44'; c.fillRect(74, y + 2, 492, 120);
-      c.fillStyle = '#386058'; c.fillRect(74, y + 2, 492, 2);
+    for (const y of [54, 176]) {
+      c.fillStyle = '#3c2820'; c.fillRect(72, y, 496, 120);
+      c.fillStyle = '#2c4c44'; c.fillRect(74, y + 2, 492, 116);
+      c.fillStyle = '#386058';
       for (let i = 0; i < 5; i++) {
         const x = 84 + i * 96;
-        c.fillRect(x, y + 4, 88, 2); c.fillRect(x, y + 118, 88, 2); c.fillRect(x, y + 4, 2, 116); c.fillRect(x + 86, y + 4, 2, 116);
+        c.fillRect(x, y + 2, 88, 2); c.fillRect(x, y + 116, 88, 2); c.fillRect(x, y + 2, 2, 116); c.fillRect(x + 86, y + 2, 2, 116);
       }
     }
     return cv;
@@ -5571,6 +5571,9 @@
     'Attack a worker and they hit each other. Attack the other player and nothing hits back. At 0 Patience, a worker goes home.',
     'A Gatekeeper has to be dealt with first. Keen can attack straight away. Thick Skin ignores the first hit.',
     'Tasks happen once. On play happens when you play it, Every morning at the start of your turn, and Last word as they go home.',
+    'To attack, press A on a worker, then pick who to hit: A on one of their workers, or Up and A for the other player.',
+    'When you\'re done, press Down from your hand to get to END TURN.',
+    'The column on the left is the last 4 moves, newest at the top. Press Left from the start of a row to look through them.',
   ];
   let cardsNow = null; // the game going on, for trying things out (window.GAME.cards)
   // o: { foe, npc, level, deck: a department or 'starter', mine: a deck, seed }
@@ -5582,6 +5585,7 @@
     const every = CARDS.LIST.filter((c) => c.rarity !== 'T').map((c) => c.id);
     const seed = o.seed || Math.floor(Math.random() * 2 ** 31);
     const deptOf = (name) => { const c = CARDS.card(String(name).toLowerCase()); return c && c.dept; };
+    const foeSprites = (vs && vs.sprites) || (pal && pal.sprites) || charSprites.male[0];
     const foeDept = deptOf(foe) || Object.keys(CARDS.DEPTS)[Math.abs(seed) % 4];
     const myDeck = o.mine || (o.deck && o.deck !== 'starter' ? CARDS.buildDeck(every, { dept: o.deck, seed: seed + 1 }) : CARDS.STARTER);
     const g = CARDS.create({ decks: [myDeck, CARDS.buildDeck(every, { dept: foeDept, seed: seed + 2 })], seed, names: [playerName || 'You', foe], ai: [0, level], first: o.first });
@@ -5593,11 +5597,11 @@
     let view = g.view(me), shown = copy(view), seen = view.ev.length ? view.ev[view.ev.length - 1].i : -1;
     const queue = [];
     let anim = null, t = 0, doneLines = null, parting = '', doneT = 0;
-    let cur = { row: 2, i: 0 }, rest = 0, aim = null, menu = null, note = '', noteT = 0;
+    let cur = { row: 2, i: 0 }, rest = 0, aim = null, menu = null, note = '', noteT = 0, again = false;
     let swapAt = 0;
     const swapping = new Set();
     let bits = [], pops = [], gone = [];
-    let fly = null, big = null, dim = 0, halo = null, ring = null, alarm = 0, shake = 0, jolt = 0, mover = null, banner = null, glint = null, drawn = null;
+    let fly = null, big = null, dim = 0, halo = null, rings = [], flare = null, legend = null, alarm = 0, shake = 0, jolt = 0, mover = null, banner = null, glint = null, drawn = null;
     const blink = new Map(), bounce = new Map();
     let landed = -1; // the worker that's just landed, who doesn't jump at their own shockwave
 
@@ -5608,11 +5612,21 @@
 
     // ---------- where things are ----------
     const slotX = (i) => 84 + i * 96;
-    const rowY = (seat) => (seat === me ? 172 : 44);
-    const HAND_Y = 350;
-    const handStep = (n) => Math.min(92, n > 1 ? (532 - 88) / (n - 1) : 92);
-    const handX = (i, n) => Math.round(266 - (handStep(n) * (n - 1) + 88) / 2 + i * handStep(n));
-    const FACE = { [me]: [8, 296, 212, 30], [1 - me]: [8, 6, 212, 30] };
+    const rowY = (seat) => (seat === me ? 178 : 56);
+    const HAND_Y = 358;
+    const handStep = (n) => Math.min(92, n > 1 ? (516 - 88) / (n - 1) : 92);
+    const handX = (i, n) => Math.round(262 - (handStep(n) * (n - 1) + 88) / 2 + i * handStep(n));
+    // each player's plate, in the middle at the top and the bottom of the table
+    const FACE = { [me]: [216, 298, 208, 52], [1 - me]: [216, 2, 208, 52] };
+    const END_BOX = [524, HAND_Y, 108, 116];
+    const HISTORY = 3, MOVES = 4; // (the cursor's "row" while you look through the last moves, and how many)
+    const moveRect = (k) => [11, 58 + k * 48, 50, 44];
+    // where a number floats up from: a plate's is over the table, where you can see it
+    const popSpot = (u) => {
+      if (u === 0 || u === 1) { const [x, y, w, h] = FACE[u]; return [x + w / 2, u === me ? y + 6 : y + h + 34]; }
+      const [x, y] = posOf(u);
+      return [x + 44, y + 34];
+    };
     const posOf = (u) => {
       if (u === 0 || u === 1) { const [x, y, w, h] = FACE[u]; return [x + w / 2 - 44, y + h / 2 - 58]; }
       for (const seat of [me, 1 - me]) {
@@ -5625,6 +5639,13 @@
     // ---------- bits flying about ----------
     const dust = (x, y, n, c = 'rgba(236,224,200,0.9)') => { for (let i = 0; i < n; i++) { const a = Math.PI * 2 * i / n; bits.push({ x, y, vx: Math.cos(a) * 2.6, vy: Math.sin(a) * 1.4 - 0.6, life: 22, max: 22, r: 4, c }); } };
     const stars = (x, y, n, sp = 3.4) => { for (let i = 0; i < n; i++) { const a = Math.PI * 2 * i / n + 0.3; bits.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 30, max: 30, star: true, c: '#fff4c0' }); } };
+    // bits of Thick Skin coming off, from all round a card
+    const shards = (x, y) => {
+      for (let i = 0; i < 20; i++) {
+        const a = Math.PI * 2 * i / 20, ex = Math.cos(a), ey = Math.sin(a), far = 1 / Math.max(Math.abs(ex) / 44, Math.abs(ey) / 58);
+        bits.push({ x: x + 44 + ex * far, y: y + 58 + ey * far, vx: ex * 2.6, vy: ey * 2.6 - 0.8, life: 30, max: 30, r: 3, c: i % 2 ? '#a8e0ff' : '#e8f6ff', shard: true });
+      }
+    };
     const hearts = (x, y, n) => { for (let i = 0; i < n; i++) { const a = Math.PI * 2 * i / n; bits.push({ x, y, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3 - 1, life: 42, max: 42, heart: true }); } };
     const pop = (x, y, str, c) => pops.push({ x, y, str, c, t: 0 });
     const easeOut = (u) => 1 - Math.pow(1 - u, 3);
@@ -5632,17 +5653,61 @@
 
     // ---------- catching up with what's happened ----------
     const unitOf = (u) => { for (const s of [shown.you, shown.them]) { const x = s.table.find((y) => y.u === u); if (x) return x; } return null; };
+    // The last few moves, newest first, for looking back at what a card was and what it did. They're
+    // made from the same events as the animations, so they only ever say what both of you have seen.
+    const moves = [];
+    let moveNow = null; // the move that what's happening now is part of
+    const isPlayer = (u) => u === 0 || u === 1;
+    const nameOf = (u) => { if (u === me) return 'You'; if (u === 1 - me) return foeShort; const w = unitOf(u); return w ? CARDS.card(w.id).name : 'Someone'; };
+    const signed = (n) => (n > 0 ? '+' : '') + n;
+    function addMove(seat, id, words, target) {
+      moveNow = { seat, id, words, target: isPlayer(target) ? { seat: target } : unitOf(target) ? { id: unitOf(target).id } : null, did: [], t: 0 };
+      moves.unshift(moveNow);
+      moves.length = Math.min(moves.length, MOVES);
+    }
+    function didThat(str) { if (moveNow && moveNow.did.length < 4) moveNow.did.push(str); }
+    function remember(e) {
+      const by = (seat) => (seat === me ? 'You' : foeShort);
+      const nm = (id) => CARDS.card(id).name;
+      switch (e.e) {
+        case 'play': {
+          const to = e.target, on = to === null || to === undefined ? '' : ' on ' + (!isPlayer(to) ? nameOf(to) : to === e.s ? (e.s === me ? 'yourself' : 'themselves') : to === me ? 'you' : foeShort);
+          addMove(e.s, e.id, by(e.s) + ' played ' + nm(e.id) + on + '.', to);
+          break;
+        }
+        case 'attack': {
+          const w = unitOf(e.u);
+          if (!w) break;
+          const seat = shown.you.table.includes(w) ? me : 1 - me;
+          addMove(seat, w.id, (seat === me ? 'Your ' : foeShort + '\'s ') + nm(w.id) + ' attacked ' + (e.t === me ? 'you' : nameOf(e.t)) + '.', e.t);
+          break;
+        }
+        case 'turn': moveNow = null; break;
+        case 'hit': didThat(nameOf(e.u) + ' -' + e.n + (isPlayer(e.u) ? ' Morale' : ' Patience')); break;
+        case 'heal': didThat(nameOf(e.u) + ' +' + e.n + (isPlayer(e.u) ? ' Morale' : ' Patience')); break;
+        case 'skin': didThat(nameOf(e.u) + ' blocked it'); break;
+        case 'boost': didThat(nameOf(e.u) + [e.p ? ' ' + signed(e.p) + ' Power' : '', e.h ? ' ' + signed(e.h) + ' Patience' : ''].join('')); break;
+        case 'freeze': didThat(nameOf(e.u) + ' is stuck'); break;
+        case 'coffee': didThat(by(e.s) + ' +' + e.n + ' coffee'); break;
+        case 'draw': didThat(by(e.s) + ' drew a card'); break;
+        case 'summon': didThat(nm(e.id) + ' came in'); break;
+        case 'home': didThat(nm(e.id) + ' went home'); break;
+        case 'sentback': didThat(nm(e.id) + ' went back to the hand'); break;
+        default: break;
+      }
+    }
     function newUnit(id, u) {
       const c = CARDS.card(id), words = c.words || [];
       return { u, id, pw: c.power, pa: c.patience, max: c.patience, gate: words.includes('gate'), skin: words.includes('skin'), frozen: 0, stuck: false, left: 0, ready: false };
     }
     // How a card lands on the table, when it's its turn to. A legendary can land its own way.
     const LANDS = {
-      officedog(x, y, u) { shake = 3; bounce.set(u, 44); hearts(x + 44, y + 50, 14); stars(x + 44, y + 50, 10, 4); sfx('bark'); },
+      officedog(x, y, u) { shake = 6; flare = { c: '255,190,170', a: 0.35, fade: 0.04 }; bounce.set(u, 44); hearts(x + 44, y + 50, 20); stars(x + 44, y + 50, 16, 5); sfx('bark'); },
     };
     function landHard(x, y) {
-      shake = 12; ring = { x: x + 44, y: y + 58, t: 0 }; jolt = 14;
-      stars(x + 44, y + 58, 22, 5.5); dust(x + 44, y + 112, 16); sfx('thump');
+      shake = 16; jolt = 14; flare = { c: '255,216,96', a: 0.45, fade: 0.05 };
+      rings.push({ x: x + 44, y: y + 58, t: 0 }, { x: x + 44, y: y + 58, t: -7 });
+      stars(x + 44, y + 58, 30, 6.5); dust(x + 44, y + 112, 22); sfx('thump');
     }
     function put(e) { // a worker arriving on the table
       const side = sideOf(e.s), i = side.table.length, x = slotX(i), y = rowY(e.s), c = CARDS.card(e.id);
@@ -5669,68 +5734,87 @@
       } else side.hand = Math.max(0, side.hand - 1);
       side.coffee = Math.max(0, side.coffee - c.cost);
       const worker = c.kind !== 'task', to = [slotX(side.table.length), rowY(e.s)], mid = [W / 2, H / 2 - 16];
+      // (it isn't in the last moves until it's finished coming in, so it can't give away the reveal)
+      const move = moveNow, arrived = () => { if (move) { move.waiting = false; move.t = 0; } };
+      if (move) move.waiting = true;
       sfx('swish');
       if (c.rarity === 'L') {
-        // Up out of the hand, flipping over, held up with its art moving, then down onto the table.
-        // It's all the card: the table stays there behind it.
+        // A legendary's entrance. It's all the card: the table stays there behind it. Up out of the hand,
+        // spinning faster and faster, then a flash as it's revealed, with its name for what it is across
+        // the top, light pouring out from behind it and its art moving, until it pulls back and slams
+        // down onto the table. A hurries it along, like everything else.
+        const IN = 30, OUT = 100, SLAM = 108, END = 114;
         return {
-          len: 72, step(f) {
+          len: END, step(f) {
             big = null; halo = null;
-            if (f < 18) {
-              const u = easeOut(f / 18), turn = Math.cos(f / 18 * Math.PI);
-              dim = 0.35 * u;
-              bigAt(e.id, from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66, { squash: Math.abs(turn), back: turn > 0 });
-            } else if (f < 62) {
-              if (f === 18) { stars(mid[0], mid[1], 24, 6); shake = 4; sfx('cup'); }
-              dim = 0.35; halo = { x: mid[0], y: mid[1], t: f - 18 };
-              bigAt(e.id, mid[0], mid[1], 1, { live: true, shine: (f - 18) * 3.4 });
+            if (f < IN) {
+              const u = easeOut(f / IN), spin = Math.cos(Math.pow(f / IN, 1.6) * Math.PI * 5);
+              if (f === 10 || f === 20) sfx('swish');
+              dim = 0.65 * u;
+              bigAt(e.id, from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66, { squash: Math.abs(spin), back: spin > 0 });
+            } else if (f < OUT) {
+              const since = f - IN;
+              if (f === IN) {
+                flare = { c: '255,255,255', a: 0.75, fade: 0.08 };
+                rings.push({ x: mid[0], y: mid[1], t: 0 });
+                stars(mid[0], mid[1], 36, 7.5);
+                shake = 10; legend = { t: 0 }; sfx('cup');
+              }
+              if (f % 3 === 0) bits.push({ x: mid[0] - 150 + Math.random() * 300, y: mid[1] + 170 + Math.random() * 30, vx: Math.random() - 0.5, vy: -2.4 - Math.random() * 1.6, life: 42, max: 42, star: true, c: '#ffe890' }); // (sparks rising)
+              dim = 0.65; halo = { x: mid[0], y: mid[1], t: since };
+              bigAt(e.id, mid[0], mid[1] + Math.round(Math.sin(since / 9) * 3), 1 + (since < 10 ? 0.16 * Math.pow(1 - since / 10, 2) : 0), { live: true, glow: true, shine: since * 3.4 % 150 });
+            } else if (f < SLAM) {
+              const u = (f - OUT) / (SLAM - OUT);
+              if (f === OUT) sfx('swish');
+              dim = 0.65; halo = { x: mid[0], y: mid[1], t: f - IN };
+              bigAt(e.id, mid[0], mid[1] - u * 18, 1 + u * 0.08, { live: true, glow: true });
             } else {
-              const u = Math.pow((f - 62) / 10, 2);
-              dim = 0.35 * (1 - u);
-              bigAt(e.id, mid[0] + (to[0] + 44 - mid[0]) * u, mid[1] + (to[1] + 58 - mid[1]) * u, 1 - u * 0.66, { live: true });
+              const u = Math.pow((f - SLAM) / (END - SLAM), 2);
+              legend = null;
+              dim = 0.65 * (1 - u);
+              bigAt(e.id, mid[0] + (to[0] + 44 - mid[0]) * u, mid[1] - 18 + (to[1] + 58 - mid[1] + 18) * u, 1.08 - u * 0.74, { live: true });
             }
           },
-          end() { big = null; halo = null; dim = 0; put(e); },
+          end() { big = null; halo = null; dim = 0; legend = null; arrived(); put(e); },
         };
       }
-      if (c.rarity === 'R' || !worker) {
-        // up to the middle where you can read it
-        const rare = c.rarity === 'R', hold = rare ? 72 : 52, top = rare ? 0.45 : 0.25;
-        return {
-          len: hold + (worker ? 10 : 14), step(f) {
-            big = null;
-            if (f < 22) {
-              const u = easeOut(f / 22);
-              dim = top * u;
-              bigAt(e.id, from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66);
-            } else if (f < hold) {
-              dim = top;
-              if (f === 22 && rare) { stars(mid[0], mid[1], 18, 5); shake = 4; sfx('ding'); }
-              bigAt(e.id, mid[0], mid[1], 1, { shine: rare ? (f - 22) * 4 : -1 });
-            } else if (worker) {
-              const u = Math.pow((f - hold) / 10, 2);
-              dim = top * (1 - u);
-              bigAt(e.id, mid[0] + (to[0] + 44 - mid[0]) * u, mid[1] + (to[1] + 58 - mid[1]) * u, 1 - u * 0.66);
-            } else {
-              const u = (f - hold) / 14;
-              dim = top * (1 - u);
-              bigAt(e.id, mid[0], mid[1] - u * 300, 1 - u * 0.7);
-            }
-          },
-          end() {
-            big = null; dim = 0;
-            if (worker) put(e);
-            if (e.id === 'firedrill') { alarm = 70; sfx('bell'); }
-          },
-        };
-      }
+      // Everything else goes up to the middle for a moment too, where you can read it, then down to
+      // the table, or if it's a task it's done with and fades away. It's quick and plain: a rare card
+      // gets longer, a shine and the table dimmed, and only a legendary gets all of the above.
+      const rare = c.rarity === 'R', rise = rare ? 22 : 12, hold = rare ? 72 : worker ? 40 : 52, top = rare ? 0.45 : worker ? 0 : 0.15, fall = worker ? 10 : 14;
       return {
-        len: 26, step(f) { fly = { id: e.id, pos: arcTo(from, to, easeOut(f / 26), 70) }; },
-        end() { fly = null; put(e); },
+        len: hold + fall, step(f) {
+          big = null;
+          if (f < rise) {
+            const u = easeOut(f / rise);
+            dim = top * u;
+            bigAt(e.id, from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66);
+          } else if (f < hold) {
+            dim = top;
+            if (f === rise && rare) { stars(mid[0], mid[1], 18, 5); shake = 4; sfx('ding'); }
+            if (f === rise && c.rarity === 'U') stars(mid[0], mid[1], 10, 4);
+            bigAt(e.id, mid[0], mid[1], 1, { shine: rare ? (f - rise) * 4 : -1 });
+          } else if (worker) {
+            const u = Math.pow((f - hold) / fall, 2);
+            dim = top * (1 - u);
+            bigAt(e.id, mid[0] + (to[0] + 44 - mid[0]) * u, mid[1] + (to[1] + 58 - mid[1]) * u, 1 - u * 0.66);
+          } else {
+            const u = (f - hold) / fall;
+            dim = top * (1 - u);
+            bigAt(e.id, mid[0], mid[1] + u * 30, 1 - u * 0.3, { alpha: 1 - u });
+          }
+        },
+        end() {
+          big = null; dim = 0;
+          arrived();
+          if (worker) put(e);
+          else dust(mid[0], mid[1] + 30, 12);
+          if (e.id === 'firedrill') { alarm = 70; sfx('bell'); }
+        },
       };
     }
     function attackAnim(e) {
-      const start = posOf(e.u), end = e.t === 0 || e.t === 1 ? [FACE[e.t][0] + 62, FACE[e.t][1] + (e.t === me ? -60 : 10)] : (([x, y]) => [x, y + (rowY(me) === y ? -30 : 40)])(posOf(e.t));
+      const start = posOf(e.u), end = e.t === 0 || e.t === 1 ? [FACE[e.t][0] + FACE[e.t][2] / 2 - 44, e.t === me ? FACE[e.t][1] - 92 : FACE[e.t][1] + 24] : (([x, y]) => [x, y + (rowY(me) === y ? -30 : 40)])(posOf(e.t));
       const who = unitOf(e.u);
       sfx('swish');
       return {
@@ -5753,29 +5837,29 @@
     }
     // these all happen together, with whatever comes straight after them that's the same sort of thing
     function atOnce(e) {
+      remember(e);
       const side = e.s === undefined ? null : sideOf(e.s);
       switch (e.e) {
         case 'hit': {
-          const [x, y] = posOf(e.u);
           if (e.u === 0 || e.u === 1) { sideOf(e.u).morale -= e.n; shake = Math.max(shake, 6); } else {
             const w = unitOf(e.u);
             if (w) w.pa -= e.n;
-            blink.set(e.u, 22);
           }
-          pop(x + 44, y + 34, '-' + e.n, '#ff8870');
+          blink.set(e.u, 22);
+          pop(...popSpot(e.u), '-' + e.n, '#ff8870');
           break;
         }
         case 'skin': {
           const w = unitOf(e.u), [x, y] = posOf(e.u);
           if (w) w.skin = false;
+          shards(x, y);
           pop(x + 44, y + 34, 'BLOCKED', '#a8d8ff');
           sfx('tink');
           break;
         }
         case 'heal': {
-          const [x, y] = posOf(e.u);
           if (e.u === 0 || e.u === 1) sideOf(e.u).morale += e.n; else { const w = unitOf(e.u); if (w) w.pa += e.n; }
-          pop(x + 44, y + 34, '+' + e.n, '#90f070');
+          pop(...popSpot(e.u), '+' + e.n, '#90f070');
           break;
         }
         case 'boost': {
@@ -5792,7 +5876,7 @@
           if (w && e.word === 'skin') w.skin = true;
           break;
         }
-        case 'coffee': if (side) { side.coffee += e.n; pop(e.s === me ? 330 : 276, e.s === me ? 318 : 42, '+' + e.n, '#f0d0a0'); } break;
+        case 'coffee': if (side) { side.coffee += e.n; pop(100, e.s === me ? 316 : 46, '+' + e.n, '#f0d0a0'); } break;
         default: break;
       }
     }
@@ -5804,6 +5888,7 @@
         while (queue.length && TOGETHER.has(queue[0].e)) atOnce(queue.shift());
         return { len: 26 };
       }
+      remember(e);
       switch (e.e) {
         case 'play': return playAnim(e);
         case 'attack': return attackAnim(e);
@@ -5811,7 +5896,7 @@
         case 'home': {
           let n = 1;
           goHome(e, 0);
-          while (queue.length && queue[0].e === 'home') goHome(queue.shift(), n++ * 9);
+          while (queue.length && queue[0].e === 'home') { const next = queue.shift(); remember(next); goHome(next, n++ * 9); }
           sfx('blip');
           return { len: 16 + n * 9 };
         }
@@ -5831,7 +5916,7 @@
         case 'draw': {
           const side = sideOf(seat);
           side.deck = Math.max(0, side.deck - 1);
-          const end = seat === me ? [handX(side.hand.length, side.hand.length + 1), HAND_Y] : [470, -120], start = seat === me ? [544, HAND_Y] : [560, 0];
+          const end = seat === me ? [handX(side.hand.length, side.hand.length + 1), HAND_Y] : [470, -120], start = seat === me ? [8, 300] : [8, -60];
           sfx('tap');
           return {
             len: 16, step(f) { drawn = arcTo(start, end, easeOut(f / 16), 24); },
@@ -5845,8 +5930,8 @@
         }
         case 'burnout': {
           sideOf(seat).morale -= e.n; sideOf(seat).deck = 0;
-          const [x, y] = FACE[seat];
-          pop(x + 106, y + 30, '-' + e.n, '#ff8870');
+          blink.set(seat, 22);
+          pop(...popSpot(seat), '-' + e.n, '#ff8870');
           shake = 6;
           if (seat === me) flash('Your deck\'s empty, and it\'s wearing you down.');
           sfx('hit');
@@ -5868,12 +5953,13 @@
 
     // ---------- what's under the cursor ----------
     const rowStops = (row) => {
-      if (row === 0) return [{ kind: 'face', seat: 1 - me, u: 1 - me }].concat(shown.them.table.map((x, i) => ({ kind: 'unit', seat: 1 - me, x, i, u: x.u })));
+      if (row === 0) return shown.them.table.map((x, i) => ({ kind: 'unit', seat: 1 - me, x, i, u: x.u }));
       if (row === 1) return shown.you.table.map((x, i) => ({ kind: 'unit', seat: me, x, i, u: x.u }));
+      if (row === HISTORY) return moves.map((m, k) => ({ kind: 'move', m, k }));
       return shown.you.hand.map((c, i) => ({ kind: 'hand', c, i })).concat([{ kind: 'end' }]);
     };
     const aimStops = () => {
-      const all = rowStops(0).concat(rowStops(1), aim.targets.includes(me) ? [{ kind: 'face', seat: me, u: me }] : []);
+      const all = [{ kind: 'face', seat: 1 - me, u: 1 - me }].concat(rowStops(0), rowStops(1), [{ kind: 'face', seat: me, u: me }]);
       return all.filter((s) => aim.targets.includes(s.u));
     };
     const stopNow = () => {
@@ -5884,20 +5970,23 @@
     function rectOf(s) {
       if (!s) return [0, 0, 0, 0];
       if (s.kind === 'face') return FACE[s.seat];
-      if (s.kind === 'end') return [500, 296, 132, 30];
+      if (s.kind === 'end') return END_BOX;
+      if (s.kind === 'move') return moveRect(s.k);
       if (s.kind === 'hand') return [handX(s.i, shown.you.hand.length), HAND_Y - 10, 88, 116];
       return [slotX(s.i), rowY(s.seat), 88, 116];
     }
-    const nothingLeft = () => view.can && !Object.keys(view.can.play).length && !Object.keys(view.can.attack).length;
+    // Nothing left to do: no worker can attack, and either you're out of coffee or you can't afford
+    // anything. (A free card doesn't count once you're out: you can still go back and play it.)
+    const nothingLeft = () => view.can && !Object.keys(view.can.attack).length && (view.you.coffee <= 0 || !Object.keys(view.can.play).length);
     function homeCursor() {
       // on your turn, go straight to something you can do
       aim = null; rest = 0;
       if (shown.turn !== me || view.ph !== 'play') return;
       if (nothingLeft()) { cur = { row: 2, i: shown.you.hand.length }; return; }
       const stops = rowStops(cur.row), s = stops[Math.min(cur.i, stops.length - 1)];
-      const usable = (x) => x && ((x.kind === 'hand' && has(view.can.play, x.c.u)) || (x.kind === 'unit' && x.seat === me && has(view.can.attack, x.u)));
+      const usable = (x) => x && ((x.kind === 'hand' && view.you.coffee > 0 && has(view.can.play, x.c.u)) || (x.kind === 'unit' && x.seat === me && has(view.can.attack, x.u)));
       if (usable(s)) return;
-      for (const row of [2, 1]) {
+      for (const row of [cur.row, 2, 1]) {
         const i = rowStops(row).findIndex(usable);
         if (i >= 0) { cur = { row, i }; return; }
       }
@@ -5907,14 +5996,41 @@
         const stops = aimStops();
         if (!stops.length) { aim = null; return; }
         let i = Math.min(cur.i, stops.length - 1);
-        if (pressed.has('left') || pressed.has('up')) i = (i + stops.length - 1) % stops.length;
-        if (pressed.has('right') || pressed.has('down')) i = (i + 1) % stops.length;
+        if (pressed.has('left')) i = (i + stops.length - 1) % stops.length;
+        if (pressed.has('right')) i = (i + 1) % stops.length;
+        // up and down go to the next line of things you can pick, top to bottom: their plate,
+        // their workers, your workers, your plate
+        const line = (s) => (s.kind === 'face' ? (s.seat === me ? 3 : 0) : s.seat === me ? 2 : 1);
+        for (const [key, d] of [['up', -1], ['down', 1]]) {
+          if (!pressed.has(key)) continue;
+          const at = line(stops[i]), from = rectOf(stops[i]);
+          const lines = stops.map(line).filter((n) => (n - at) * d > 0);
+          if (!lines.length) continue;
+          const next = d > 0 ? Math.min(...lines) : Math.max(...lines);
+          let far = Infinity;
+          stops.forEach((s, k) => {
+            if (line(s) !== next) return;
+            const r = rectOf(s), gap = Math.abs(r[0] + r[2] / 2 - from[0] - from[2] / 2);
+            if (gap < far) { far = gap; i = k; }
+          });
+        }
         if (i !== cur.i) { sfx('blip'); rest = 0; cur.i = i; }
         return;
       }
+      if (cur.row === HISTORY) {
+        let k = Math.min(cur.i, moves.length - 1);
+        if (pressed.has('up')) k = Math.max(0, k - 1);
+        if (pressed.has('down')) k = Math.min(moves.length - 1, k + 1);
+        if (k !== cur.i) { sfx('blip'); rest = 0; cur.i = k; }
+        if (pressed.has('right')) stopLooking();
+        return;
+      }
+      if (!rowStops(cur.row).length) cur = { row: 2, i: 0 }; // (everyone in that row has gone home)
       let { row, i } = cur;
       const size = () => rowStops(row).length;
       i = Math.min(i, size() - 1);
+      // left from the start of a row is the last moves, once there are some
+      if (pressed.has('left') && i === 0 && moves.length) { sfx('blip'); rest = 0; cur = { row: HISTORY, i: 0, back: cur }; return; }
       if (pressed.has('left')) i = (i + size() - 1) % size();
       if (pressed.has('right')) i = (i + 1) % size();
       const go = (d) => {
@@ -5928,18 +6044,25 @@
         row = r; i = best;
       };
       if (pressed.has('up')) go(-1);
-      if (pressed.has('down')) go(1);
+      // nothing's below your hand, so down from there is END TURN: from anywhere, keep pressing down
+      if (pressed.has('down')) { if (row === 2) i = size() - 1; else go(1); }
       if (row !== cur.row || i !== cur.i) { sfx('blip'); rest = 0; cur = { row, i }; }
     }
+    function stopLooking() {
+      const b = cur.back || { row: 2, i: 0 };
+      cur = rowStops(b.row).length ? b : { row: 2, i: 0 };
+      rest = 0;
+      sfx('blip');
+    }
     function send(a) {
-      if (g.act(me, a)) { pull(); aim = null; return true; }
+      if (g.act(me, a)) { pull(); aim = null; again = true; return true; }
       sfx('bump');
       return false;
     }
     function startAim(act, targets, where) {
       aim = { act, targets, where };
       cur = { row: cur.row, i: 0, was: cur };
-      // start on the first enemy worker, if there's one
+      // start on their first worker, if there's one (a Gatekeeper, if there's one of those)
       const stops = aimStops(), first = stops.findIndex((s) => s.kind === 'unit' && s.seat !== me);
       cur.i = first >= 0 ? first : 0;
       rest = 0;
@@ -5947,11 +6070,12 @@
     }
     function pressA() {
       if (aim) {
-        const s = stopNow();
-        if (s && send(Object.assign({}, aim.act, { target: s.u }))) { cur = { row: 2, i: 0 }; }
+        const s = stopNow(), was = cur.was;
+        if (s && send(Object.assign({}, aim.act, { target: s.u }))) cur = was || { row: 2, i: 0 };
         return;
       }
       const s = stopNow();
+      if (s && s.kind === 'move') return; // (you've only just got there)
       if (view.ph !== 'play' || shown.turn !== me) { sfx('bump'); flash('It\'s ' + foeShort + '\'s turn.'); return; }
       if (!s) return;
       if (s.kind === 'end') { sfx('menu'); send({ do: 'end' }); return; }
@@ -5965,8 +6089,8 @@
           return;
         }
         const targets = view.can.play[s.c.u];
+        // (a card that needs a target always shows who it's going to and waits for A, even with one choice)
         if (!targets) send({ do: 'play', card: s.c.u });
-        else if (targets.length === 1) send({ do: 'play', card: s.c.u, target: targets[0] });
         else startAim({ do: 'play', card: s.c.u }, targets, s);
         return;
       }
@@ -5976,12 +6100,12 @@
           flash(s.x.pw <= 0 ? 'No Power, so they can\'t attack.' : s.x.stuck ? 'They can\'t attack this turn.' : 'They\'ve done their work this turn.');
           return;
         }
-        const targets = view.can.attack[s.u];
-        if (targets.length === 1) send({ do: 'attack', from: s.u, target: targets[0] });
-        else startAim({ do: 'attack', from: s.u }, targets, s);
+        // An attack always shows you who it's going to hit and waits for A, even with only one choice.
+        startAim({ do: 'attack', from: s.u }, view.can.attack[s.u], s);
         return;
       }
       sfx('bump');
+      flash('Pick one of your workers first.');
     }
     function leave(words) {
       remove(self);
@@ -6014,6 +6138,8 @@
       const n = you.hand.length;
       if (pressed.has('left')) { swapAt = (swapAt + n) % (n + 1); sfx('blip'); }
       if (pressed.has('right')) { swapAt = (swapAt + 1) % (n + 1); sfx('blip'); }
+      if (pressed.has('down') && swapAt < n) { swapAt = n; sfx('blip'); }
+      if (pressed.has('up') && swapAt === n) { swapAt = 0; sfx('blip'); }
       if (!pressed.has('a')) return;
       if (swapAt < n) {
         const u = you.hand[swapAt].u;
@@ -6032,20 +6158,23 @@
       const going = view.first === me ? 'You go first.' : foeShort + ' goes first: you get a card and a Double Shot.';
       ctx.drawImage(cardWord(going, '#c8c0d8'), Math.max(8, Math.round((W - going.length * 12) / 2)), 40);
       const n = you.hand.length, x0 = 312;
-      if (!you.swapped && swapAt < n) ctx.drawImage(bigCard(you.hand[swapAt].id), 28, 72);
+      if (!you.swapped && swapAt < n) {
+        ctx.drawImage(bigCard(you.hand[swapAt].id), 28, 72);
+        drawMeanings(meaningsOf(you.hand[swapAt].id), 312, 316, 300); // (there's no room under it here)
+      }
       else if (n) ctx.drawImage(backOfCard(), 0, 0, 88, 116, 28, 72, 260, 364);
       you.hand.forEach((c, i) => {
         const x = x0 + i * 100, y = 110 - (i === swapAt && !you.swapped ? 8 : 0);
         ctx.drawImage(swapping.has(c.u) ? backOfCard() : smallCard(c.id, { cost: true }), x, y);
-        if (swapping.has(c.u)) ctx.drawImage(cardWord('SWAP', '#ff9878'), x + 20, y + 50);
+        if (swapping.has(c.u)) { panel(x + 12, y + 44, 64, 28, '#ff9878'); ctx.drawImage(cardWord('SWAP', INK), x + 20, y + 51); }
         if (i === swapAt && !you.swapped) { ctx.fillStyle = '#f8d850'; for (const [a, b, w, h] of [[x - 4, y - 4, 96, 4], [x - 4, y + 116, 96, 4], [x - 4, y, 4, 116], [x + 88, y, 4, 116]]) ctx.fillRect(a, b, w, h); }
       });
       if (!you.swapped) {
         const str = swapping.size ? 'SWAP ' + swapping.size : 'KEEP THESE', bw = 180, bx = x0 + 60, by = 270;
         panel(bx, by, bw, 34, swapAt === n ? '#f8d850' : '#f8f8f4');
         ctx.drawImage(cardWord(str, INK), Math.round(bx + (bw - str.length * 12) / 2), by + 10);
-        const hint = 'A: choose   Left and right: move';
-        ctx.drawImage(cardWord(hint, '#c8c0d8'), 40 + 0, 444);
+        const hint = swapAt < n ? (swapping.has(you.hand[swapAt].u) ? 'A: keep this card' : 'A: swap this card') + '   Down: ' + str.toLowerCase() : 'A: ' + str.toLowerCase() + '   Up: back to the cards';
+        ctx.drawImage(cardWord(hint, '#c8c0d8'), 40, 444);
       }
     }
 
@@ -6054,29 +6183,63 @@
       ctx.fillStyle = INK; ctx.fillRect(x + 2, y, w - 4, h); ctx.fillRect(x, y + 2, w, h - 4);
       ctx.fillStyle = c; ctx.fillRect(x + 4, y + 2, w - 8, h - 4); ctx.fillRect(x + 2, y + 4, w - 4, h - 8);
     }
-    function heart(x, y, c) {
+    function heart(x, y, c, n = 1) {
       ctx.fillStyle = c;
-      ctx.fillRect(x + 2, y, 4, 2); ctx.fillRect(x + 10, y, 4, 2);
-      ctx.fillRect(x, y + 2, 16, 6); ctx.fillRect(x + 2, y + 8, 12, 2); ctx.fillRect(x + 4, y + 10, 8, 2); ctx.fillRect(x + 6, y + 12, 4, 2);
+      for (const [a, b, w, h] of [[2, 0, 4, 2], [10, 0, 4, 2], [0, 2, 16, 6], [2, 8, 12, 2], [4, 10, 8, 2], [6, 12, 4, 2]]) ctx.fillRect(x + a * n, y + b * n, w * n, h * n);
     }
+    // A player's plate: head and shoulders, name and Morale. It's what you're aiming at when you go
+    // for the other player, so it's big, and in the middle where it's easy to get to.
     function faceBox(seat, name) {
-      const s = sideOf(seat), [x, y, w] = FACE[seat];
-      panel(x, y, w, 30);
-      ctx.drawImage(cardWord(name.slice(0, 10), INK), x + 10, y + 8);
-      heart(x + 138, y + 8, s.morale < 8 ? '#e03830' : '#d84848');
-      const m = String(Math.max(0, s.morale));
-      ctx.drawImage(cardWord(m, s.morale < 8 ? '#c02820' : INK), x + 160, y + 8);
+      const s = sideOf(seat), [x, y, w, h] = FACE[seat], hit = blink.get(seat) || 0, lit = Math.floor(hit / 3) % 2 === 1;
+      const stop = aim ? stopNow() : null, aimed = stop && stop.kind === 'face' && stop.seat === seat;
+      panel(x, y, w, h, lit ? '#ff9878' : aimed ? (Math.floor(t / 14) % 2 ? '#ffd8cc' : '#fff0e8') : '#f8f8f4');
+      const theirGo = shown.turn === seat;
+      ctx.fillStyle = theirGo ? '#f8d850' : '#a8bccc'; ctx.fillRect(x + 4, y + 2, 58, h - 4);
+      ctx.fillStyle = INK; ctx.fillRect(x + 62, y + 2, 2, h - 4);
+      const img = (seat === me ? sprites : foeSprites).down[0], u = img.width / (img.hi || 1) / 16;
+      const bob = theirGo && Math.floor(t / 20) % 2 ? 2 : 0; // (whoever's go it is shifts about a bit)
+      ctx.drawImage(img, u, 0, 14 * u, (h - 4 - bob) / 4 * u, x + 5 + (lit ? 2 : 0), y + 2 + bob, 56, h - 4 - bob);
+      ctx.drawImage(cardWord(name.slice(0, 10), INK), x + 70, y + 3);
+      const low = s.morale < 8, m = String(Math.max(0, s.morale));
+      heart(x + 68, y + 21, low ? '#e03830' : '#d84848', 2);
+      ctx.drawImage(cardWord(m, low ? '#c02820' : INK, 2), x + 104, y + 21);
+      if (aimed) {
+        const what = aimDoes(), n = what.hit || what.heal;
+        if (n) ctx.drawImage(cardWord((what.hit ? '-' : '+') + n, what.hit ? '#d02818' : '#2c8c28', n > 9 || m.length > 2 ? 1 : 2), x + 104 + m.length * 24 + 4, y + 21);
+      }
+    }
+    function deckLeft(seat, x, y) {
+      ctx.drawImage(backOfCard(), 0, 0, 88, 116, x, y, 14, 18);
+      ctx.drawImage(cardWord(sideOf(seat).deck + ' in deck', '#f4ecd8'), x + 20, y + 1);
     }
     function cups(seat, x, y) {
       const s = sideOf(seat);
       for (let i = 0; i < CARDS.RULES.CUPS; i++) {
-        const X = x + i * 22;
+        const X = x + i * 20;
         if (i >= s.cups) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(X, y + 2, 16, 16); continue; }
         ctx.fillStyle = INK; ctx.fillRect(X, y, 18, 20);
         ctx.fillStyle = '#f4ecd8'; ctx.fillRect(X + 2, y + 2, 14, 16);
         if (i < s.coffee) { ctx.fillStyle = '#6a3c20'; ctx.fillRect(X + 4, y + 4, 10, 12); ctx.fillStyle = '#8a5430'; ctx.fillRect(X + 4, y + 4, 10, 4); }
       }
-      if (s.coffee > CARDS.RULES.CUPS || s.coffee > s.cups) ctx.drawImage(cardWord('+' + (s.coffee - s.cups), '#f0d0a0'), x + CARDS.RULES.CUPS * 22, y + 3);
+      ctx.drawImage(cardWord(s.coffee + '/' + s.cups, s.coffee > 0 ? '#f4ecd8' : '#ff9878'), x + CARDS.RULES.CUPS * 20 + 2, y + 3);
+    }
+    // a shield centred on cx, with its top at y: lit from the left, with a stud in the middle
+    function shield(cx, y) {
+      const rows = [12, 14, 14, 14, 14, 14, 14, 12, 12, 10, 8, 6, 4, 2]; // (half its width, 2 pixels at a time)
+      ctx.fillStyle = INK;
+      ctx.fillRect(cx - 12, y, 24, 2);
+      rows.forEach((w, i) => ctx.fillRect(cx - w - 2, y + 2 + i * 2, w * 2 + 4, 2));
+      ctx.fillRect(cx - 2, y + 2 + rows.length * 2, 4, 2);
+      rows.forEach((w, i) => {
+        const Y = y + 2 + i * 2;
+        ctx.fillStyle = '#d8dce8'; ctx.fillRect(cx - w, Y, w, 2);
+        ctx.fillStyle = '#8c94a8'; ctx.fillRect(cx, Y, w, 2);
+        ctx.fillStyle = '#f4f6fc'; ctx.fillRect(cx - w, Y, 2, 2);
+      });
+      ctx.fillStyle = '#f4f6fc'; ctx.fillRect(cx - 12, y + 2, 24, 2);
+      ctx.fillStyle = INK; ctx.fillRect(cx - 5, y + 9, 10, 10);
+      ctx.fillStyle = '#e8b830'; ctx.fillRect(cx - 3, y + 11, 6, 6);
+      ctx.fillStyle = '#fff0a8'; ctx.fillRect(cx - 3, y + 11, 3, 3);
     }
     function worker(x, X, Y) {
       const c = CARDS.card(x.id), o = {};
@@ -6089,15 +6252,22 @@
         ctx.drawImage(A.canvasOf(A.artFrame(x.id, t)), cx, cy, 72, 72, X + 8, Y + 8, 72, 72);
         A.shine(ctx, X, Y, 88, 116, t, 'L', 6);
       } else if (c.rarity === 'R') A.shine(ctx, X, Y, 88, 116, t + x.u * 37, 'R', 6);
-      if (x.gate) { // a Gatekeeper's shield
-        ctx.fillStyle = INK; ctx.fillRect(X + 34, Y - 4, 20, 14); ctx.fillRect(X + 38, Y + 10, 12, 4);
-        ctx.fillStyle = '#c8ccd8'; ctx.fillRect(X + 36, Y - 2, 16, 10); ctx.fillRect(X + 40, Y + 8, 8, 4);
-        ctx.fillStyle = '#7c8498'; ctx.fillRect(X + 44, Y - 2, 8, 10); ctx.fillRect(X + 44, Y + 8, 4, 4);
+      // on your turn, one of yours who can't attack (any more, or yet) is greyed out
+      if (view.can && shown.turn === me && !aim && shown.you.table.includes(x) && !has(view.can.attack, x.u) && !(mover && mover.who === x)) {
+        ctx.fillStyle = 'rgba(72,74,86,0.4)'; ctx.fillRect(X, Y, 88, 116);
       }
-      if (x.skin) { // Thick Skin: a pale line round them
-        ctx.fillStyle = '#a8e0ff';
-        ctx.fillRect(X + 2, Y - 2, 84, 2); ctx.fillRect(X + 2, Y + 116, 84, 2); ctx.fillRect(X - 2, Y + 2, 2, 112); ctx.fillRect(X + 88, Y + 2, 2, 112);
+      if (x.skin) { // Thick Skin: plated all round and gleaming, until the first hit breaks it
+        ctx.fillStyle = 'rgba(150,215,255,' + (0.08 + (Math.sin(t / 18) + 1) * 0.06).toFixed(2) + ')'; ctx.fillRect(X, Y, 88, 116);
+        frame(X - 4, Y - 4, 96, 124, 2, INK);
+        frame(X - 2, Y - 2, 92, 120, 4, '#6cb0e4');
+        ctx.fillStyle = '#c8ecff'; ctx.fillRect(X - 2, Y - 2, 92, 2); ctx.fillRect(X - 2, Y - 2, 2, 120);
+        ctx.fillStyle = '#3c78b0'; ctx.fillRect(X - 2, Y + 116, 92, 2); ctx.fillRect(X + 88, Y - 2, 2, 120);
+        for (const [a, b] of [[0, 0], [44, 0], [88, 0], [0, 58], [88, 58], [0, 116], [44, 116], [88, 116]]) {
+          ctx.fillStyle = INK; ctx.fillRect(X + a - 4, Y + b - 4, 8, 8);
+          ctx.fillStyle = '#e8f6ff'; ctx.fillRect(X + a - 2, Y + b - 2, 4, 4);
+        }
       }
+      if (x.gate) shield(X + 44, Y - 6); // a Gatekeeper's shield, standing up over the top of the card
       if (x.frozen || x.stuck) {
         ctx.fillStyle = 'rgba(120,180,255,0.4)'; ctx.fillRect(X, Y, 88, 116);
         ctx.drawImage(cardWord('STUCK', '#ffffff'), X + 15, Y + 40);
@@ -6122,25 +6292,161 @@
         ctx.fillRect(a + (a > x ? 8 : 0), b + (b > y ? -4 : 0), 4, 8);
       }
     }
+    // How hard the thing you're aiming hits or heals, if it does.
+    function aimDoes() {
+      if (aim.act.do === 'attack') { const x = unitOf(aim.act.from); return x ? { hit: x.pw } : {}; }
+      const e = (CARDS.card(aim.where.c.id).does || []).find((q) => ['worker', 'enemy', 'ally', 'any'].includes(q.who) && (q.do === 'hit' || q.do === 'heal'));
+      return e ? { [e.do]: e.n } : {};
+    }
+    // some words with a dark edge, so they show up on anything
+    function edged(str, c, x, y) {
+      const n = str.length > 3 ? 1 : 2, pic = cardWord(str, c, n), edge = cardWord(str, INK, n), X = Math.round(x - pic.width / 2);
+      for (const [a, b] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) ctx.drawImage(edge, X + a, y + b);
+      ctx.drawImage(pic, X, y);
+    }
+    // a little sign on a card, with its top at y
+    function badge(str, bg, fg, cx, y, n = 1) {
+      const pic = cardWord(str, fg, n), w = pic.width + 12, x = Math.round(cx - w / 2);
+      panel(x, y, w, n === 2 ? 34 : 22, bg);
+      ctx.drawImage(pic, x + 6, y + 3);
+    }
+    // what a hit would do to this worker: the number, and whether they'd go home
+    function hitWords(w, x, y, n, top) {
+      if (w.skin) { badge('BLOCKED', '#a8d8ff', INK, x + 44, y + top); return; }
+      badge('-' + n, '#d02818', '#ffffff', x + 44, y + top, 2);
+      if (n >= w.pa) badge('HOME', '#f8d850', INK, x + 44, y + top + 34);
+    }
+    function frame(x, y, w, h, n, c) {
+      ctx.fillStyle = c;
+      ctx.fillRect(x, y, w, n); ctx.fillRect(x, y + h - n, w, n); ctx.fillRect(x, y, n, h); ctx.fillRect(x + w - n, y, n, h);
+    }
+    // a line of fire from a to b, its dots marching towards b, with an arrowhead on the end
+    function fireLine(a, b) {
+      const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+      const dot = (x, y, r, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x / 2) * 2 - r, Math.round(y / 2) * 2 - r, r * 2, r * 2); };
+      const head = [], dots = [];
+      for (let d = t % 14; d < len - 16; d += 14) dots.push([a[0] + ux * d, a[1] + uy * d]);
+      for (let k = 0; k < 4; k++) for (let w = -k; w <= k; w++) head.push([b[0] - ux * k * 4 - uy * w * 4, b[1] - uy * k * 4 + ux * w * 4]);
+      for (const [x, y] of dots) dot(x, y, 5, INK);
+      for (const [x, y] of head) dot(x, y, 5, INK);
+      for (const [x, y] of dots) dot(x, y, 3, '#ff5040');
+      for (const [x, y] of head) dot(x, y, 3, '#ff5040');
+    }
+    // Picking a target: everything else goes dark, a line of fire runs to the one you're on, and it
+    // shows what would happen to them, and to whoever's attacking them if they'd hit back.
+    function drawAim(s) {
+      ctx.fillStyle = 'rgba(10,8,18,0.6)'; ctx.fillRect(0, 0, W, H);
+      const src = aim.where, attacker = aim.act.do === 'attack' ? unitOf(aim.act.from) : null;
+      for (const q of aimStops()) {
+        if (q.kind === 'unit') worker(q.x, slotX(q.i), rowY(q.seat));
+        else faceBox(q.seat, q.seat === me ? playerName || 'You' : foe);
+        const [x, y, w, h] = rectOf(q);
+        if (q.u !== s.u) brackets(x, y, w, h, '#ffbeaa');
+      }
+      const [sx, sy, sw, sh] = rectOf(src);
+      if (attacker) worker(attacker, sx, sy); else ctx.drawImage(smallCard(src.c.id, { cost: true }), sx, sy);
+      frame(sx - 2, sy - 2, sw + 4, sh + 4, 2, '#f8d850');
+      // the one you're on
+      const [x, y, w, h] = rectOf(s);
+      frame(x - 6, y - 6, w + 12, h + 12, 2, INK);
+      frame(x - 4, y - 4, w + 8, h + 8, 4, Math.floor(t / 10) % 2 ? '#ff5040' : '#ffffff');
+      // (from the top of one to just under the other, or a bit further in where they're close together)
+      const close = sy + 2 - (y + h + 6) < 20;
+      fireLine([sx + sw / 2, close ? sy + 24 : sy + 2], [x + w / 2, close ? y + h - 2 : y + h + 6]);
+      if (s.kind === 'unit') {
+        const what = aimDoes();
+        if (what.hit) hitWords(s.x, x, y, what.hit, 4);
+        if (what.heal) badge('+' + what.heal, '#2c8c28', '#ffffff', x + 44, y + 4, 2);
+        if (attacker && s.x.pw > 0) hitWords(attacker, sx, sy, s.x.pw, 26);
+      }
+    }
+    const artOf = (id) => cardPic('art' + id, () => A.toCanvas(A.artPic(id)));
+    // The last moves down the left: the card, edged in yellow if it's yours and red if it's theirs, and
+    // for an attack or a card aimed at something, a little arrow to who it went for. They're small and
+    // greyed out so they don't look like part of the table, in full colour only when they're new or
+    // you're on one. (They're the only thing here that isn't crisp: the art's at half size, smoothed.)
+    function drawMoves() {
+      const now = cur.row === HISTORY ? Math.min(cur.i, moves.length - 1) : -1;
+      ctx.imageSmoothingEnabled = true;
+      moves.forEach((m, k) => {
+        if (m.waiting) return;
+        const [x, y, w, h] = moveRect(k), fresh = m.t < 48;
+        panel(x, y, w, h, m.seat === me ? '#f8d850' : '#e86048');
+        const [cx, cy] = A.cropOf(m.id);
+        ctx.drawImage(artOf(m.id), Math.max(0, Math.min(A.ART_W - 84, cx - 6)), cy, 84, 72, x + 4, y + 4, 42, 36);
+        if (m.target) {
+          const bx = x + w - 22, by = y + h - 22;
+          ctx.fillStyle = INK; ctx.fillRect(bx - 10, by + 8, 10, 6); ctx.fillRect(bx - 4, by + 5, 4, 12);
+          ctx.fillStyle = '#ff5040'; ctx.fillRect(bx - 8, by + 10, 6, 2); ctx.fillRect(bx - 2, by + 7, 2, 8);
+          panel(bx, by, 20, 20, '#ff5040');
+          if (m.target.id) { const [tx, ty] = A.cropOf(m.target.id); ctx.drawImage(artOf(m.target.id), tx + 16, ty + 4, 40, 40, bx + 2, by + 2, 16, 16); } else {
+            const img = (m.target.seat === me ? sprites : foeSprites).down[0], u = img.width / (img.hi || 1) / 16;
+            ctx.drawImage(img, 3 * u, 0, 10 * u, 10 * u, bx + 2, by + 2, 16, 16);
+          }
+        }
+        if (k !== now && !fresh) { ctx.fillStyle = 'rgba(104,104,112,0.5)'; ctx.fillRect(x, y, w, h); }
+        if (fresh && Math.floor(m.t / 8) % 2 === 0) { ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillRect(x + 2, y + 2, w - 4, h - 4); }
+      });
+      ctx.imageSmoothingEnabled = false;
+    }
+    // What the special words on a card mean. For a worker on the table it says what's true of them
+    // now: a Thick Skin that's been used up, a word they've been given, or that they're stuck.
+    function meaningsOf(id, x) {
+      const keys = CARDS.meanings(CARDS.card(id)), out = [];
+      if (x && x.gate && !keys.includes('gate')) keys.unshift('gate');
+      if (x && x.skin && !keys.includes('skin')) keys.unshift('skin');
+      for (const k of keys) out.push(k === 'skin' && x && !x.skin ? 'Thick Skin: already used up.' : CARDS.MEANS[k]);
+      if (x && (x.frozen || x.stuck)) out.unshift('Stuck: misses its next attack.');
+      return out;
+    }
+    function drawMeanings(said, x, y, w) {
+      const width = Math.floor((w - 16) / 12), rows = [];
+      for (const m of said) wrap(m, width).forEach((l, i) => rows.push([l, i === 0]));
+      const shown6 = rows.slice(0, 6);
+      if (!shown6.length) return;
+      panel(x, y, w, shown6.length * 17 + 10);
+      shown6.forEach(([l, first], i) => {
+        const Y = y + 4 + i * 17, c = first ? l.indexOf(':') + 1 : 0; // (the word itself is in red, like on the card)
+        if (c) ctx.drawImage(cardWord(l.slice(0, c), '#b02818'), x + 8, Y);
+        if (l.slice(c)) ctx.drawImage(cardWord(l.slice(c), INK), x + 8 + c * 12, Y);
+      });
+    }
+    function closeUp(id, X, Y, x) {
+      ctx.drawImage(bigCard(id), X, Y);
+      if (CARDS.card(id).rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(id, t)), X + 12, Y + 44, 236, 150);
+      A.shine(ctx, X, Y, 260, 364, t, CARDS.card(id).rarity);
+      drawMeanings(meaningsOf(id, x), X, Y + 366, 260);
+    }
+    // looking back at a move: the card, and in words who did what with it
+    function drawMoveCloseUp(m) {
+      closeUp(m.id, 78, 2);
+      const said = wrap(m.words, 23), did = [].concat(...m.did.map((d) => wrap(d, 23))), x = 344, y = 60;
+      panel(x, y, 288, 16 + (said.length + did.length) * 20 + (did.length ? 6 : 0));
+      said.forEach((l, i) => ctx.drawImage(cardWord(l, INK), x + 12, y + 8 + i * 20));
+      did.forEach((l, i) => ctx.drawImage(cardWord(l, '#8a2018'), x + 12, y + 14 + (said.length + i) * 20));
+    }
     function drawTable() {
       ctx.drawImage(cardTable(), 0, 0);
       const sh = shake ? (shake % 2 ? shake : -shake) : 0;
       ctx.save();
       ctx.translate(sh, Math.round(sh / 2));
       const you = shown.you, them = shown.them;
+      drawMoves();
       // their side
       faceBox(1 - me, foe);
-      cups(1 - me, 232, 8);
+      cups(1 - me, 6, 7);
+      deckLeft(1 - me, 6, 30);
       const backs = Math.min(them.hand, 7);
-      for (let i = 0; i < backs; i++) ctx.drawImage(backOfCard(), 0, 0, 88, 116, 438 + i * 22, 2, 30, 36);
+      for (let i = 0; i < backs; i++) ctx.drawImage(backOfCard(), 0, 0, 88, 116, 432 + i * 22, 9, 30, 36);
       them.table.forEach((x, i) => { if (!mover || mover.who !== x) worker(x, slotX(i), rowY(1 - me) - jumpOf(x)); });
       // your side
       faceBox(me, playerName || 'You');
-      cups(me, 232, 300);
-      const isEnd = !aim && cur.row === 2 && cur.i >= you.hand.length && shown.turn === me;
+      cups(me, 6, 303);
+      deckLeft(me, 6, 326);
       const canEnd = shown.turn === me && view.ph === 'play' && !anim && !queue.length;
-      panel(500, 296, 132, 30, canEnd && nothingLeft() ? (Math.floor(t / 20) % 2 ? '#f8d850' : '#f8e888') : canEnd ? '#f8f8f4' : '#a8a8a4');
-      ctx.drawImage(cardWord('END TURN', INK), 518, 304);
+      panel(...END_BOX, canEnd && nothingLeft() ? (Math.floor(t / 20) % 2 ? '#f8d850' : '#f8e888') : canEnd ? '#f8f8f4' : '#a8a8a4');
+      ctx.drawImage(cardWord('END', INK, 2), END_BOX[0] + 18, END_BOX[1] + 22);
+      ctx.drawImage(cardWord('TURN', INK, 2), END_BOX[0] + 6, END_BOX[1] + 58);
       you.table.forEach((x, i) => { if (!mover || mover.who !== x) worker(x, slotX(i), rowY(me) - jumpOf(x)); });
       // going home, a step at a time
       for (const w of gone) {
@@ -6156,9 +6462,6 @@
         ctx.drawImage(smallCard(c.id, { cost: true }), x, HAND_Y - (on ? 10 : 0));
         if (shown.turn === me && !can && !anim && !queue.length) { ctx.fillStyle = 'rgba(20,16,30,0.45)'; ctx.fillRect(x, HAND_Y - (on ? 10 : 0), 88, 116); }
       });
-      ctx.drawImage(backOfCard(), 544, HAND_Y);
-      ctx.drawImage(cardWord(String(you.deck), '#f4ecd8'), 544 + (88 - String(you.deck).length * 12) / 2, 400);
-      ctx.fillStyle = 'rgba(0,0,0,0)';
       if (drawn) ctx.drawImage(backOfCard(), Math.round(drawn[0]), Math.round(drawn[1]));
       if (mover) {
         const p = mover.pos || (() => { const u = easeOut(Math.min(1, mover.t / 16)); return [mover.from[0] + (mover.to[0] - mover.from[0]) * u, mover.from[1] + (mover.to[1] - mover.from[1]) * u]; })();
@@ -6174,21 +6477,38 @@
       if (dim) { ctx.fillStyle = 'rgba(10,8,18,' + dim + ')'; ctx.fillRect(0, 0, W, H); }
       if (halo) {
         const { x, y, t: at } = halo, grow = Math.min(1, at / 10);
-        for (let i = 0; i < 12; i++) {
-          const a = at * 0.02 + i * Math.PI / 6, w = 0.13 * grow, R = 300 * grow;
-          ctx.fillStyle = i % 2 ? 'rgba(232,176,48,0.26)' : 'rgba(255,232,150,0.34)';
+        const ray = (a, w, R, c) => {
+          ctx.fillStyle = c;
           ctx.beginPath(); ctx.moveTo(x, y);
           ctx.lineTo(x + Math.cos(a - w) * R, y + Math.sin(a - w) * R); ctx.lineTo(x + Math.cos(a + w) * R, y + Math.sin(a + w) * R);
           ctx.closePath(); ctx.fill();
-        }
+        };
+        // two sets of rays going opposite ways, that reach the corners of the screen
+        const beat = (0.34 + Math.sin(at / 7) * 0.08).toFixed(2);
+        for (let i = 0; i < 16; i++) ray(at * 0.018 + i * Math.PI / 8, 0.11 * grow, 520 * grow, i % 2 ? 'rgba(232,160,40,' + beat + ')' : 'rgba(255,232,150,' + beat + ')');
+        for (let i = 0; i < 8; i++) ray(-at * 0.03 + i * Math.PI / 4, 0.05 * grow, 420 * grow, 'rgba(255,250,220,0.3)');
       }
+      if (flare) { ctx.fillStyle = 'rgba(' + flare.c + ',' + Math.max(0, flare.a).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H); }
       if (big) {
         const b = big, w = Math.max(4, Math.round(b.w * (b.squash === undefined ? 1 : b.squash) / 2) * 2), x = b.x + Math.round((b.w - w) / 2), sc = b.w / 260;
+        if (b.glow) for (const [r, a] of [[30, 0.1], [22, 0.14], [14, 0.2], [8, 0.3]]) { ctx.fillStyle = 'rgba(255,224,120,' + a + ')'; ctx.fillRect(b.x - r, b.y - r, b.w + r * 2, b.h + r * 2); } // (a glow round it)
+        if (b.alpha !== undefined) ctx.globalAlpha = b.alpha;
         ctx.drawImage(b.back ? backOfCard() : bigCard(b.id), x, b.y, w, b.h);
+        ctx.globalAlpha = 1;
         if (b.live) ctx.drawImage(A.canvasOf(A.artFrame(b.id, t)), b.x + Math.round(12 * sc), b.y + Math.round(44 * sc), Math.round(236 * sc), Math.round(150 * sc));
         if (b.shine >= 0) A.shine(ctx, x, b.y, w, b.h, Math.min(CARDS.card(b.id).rarity === 'L' ? 149 : 209, b.shine), CARDS.card(b.id).rarity);
       }
-      if (ring) {
+      if (legend) { // the word across the top, opening out from the middle
+        const w = Math.round(W * Math.min(1, legend.t / 10) / 2) * 2;
+        ctx.save();
+        ctx.beginPath(); ctx.rect((W - w) / 2, 2, w, 40); ctx.clip();
+        ctx.fillStyle = INK; ctx.fillRect(0, 2, W, 40);
+        ctx.fillStyle = '#e8b830'; ctx.fillRect(0, 4, W, 2); ctx.fillRect(0, 38, W, 2);
+        ctx.drawImage(cardWord('LEGENDARY', Math.floor(t / 8) % 2 ? '#ffe890' : '#f8c830', 2), (W - 216) / 2, 8);
+        ctx.restore();
+      }
+      for (const ring of rings) {
+        if (ring.t < 0) continue;
         const r = ring.t * 11, n = 40;
         ctx.globalAlpha = Math.max(0, 1 - ring.t / 26);
         ctx.fillStyle = '#f8d860';
@@ -6204,50 +6524,57 @@
           ctx.fillStyle = b.c; ctx.fillRect(x - n, y - 1, n * 2 + 2, 2); ctx.fillRect(x, y - n - 1, 2, n * 2 + 2);
         } else {
           ctx.globalAlpha = a; ctx.fillStyle = b.c;
-          const r = Math.round((b.r + (1 - a) * 6) / 2) * 2;
+          const r = b.shard ? b.r : Math.round((b.r + (1 - a) * 6) / 2) * 2; // (dust spreads as it fades)
           ctx.fillRect(x - r, y - r, r * 2, r * 2);
           ctx.globalAlpha = 1;
         }
       }
       for (const p of pops) {
-        const y = Math.round(p.y - p.t * 0.8), n = p.str.length > 3 ? 1 : 2, pic = cardWord(p.str, p.c, n), edge = cardWord(p.str, INK, n), x = Math.round(p.x - pic.width / 2);
-        for (const [a, b] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) ctx.drawImage(edge, x + a, y + b);
-        ctx.drawImage(pic, x, y);
+        edged(p.str, p.c, p.x, Math.round(p.y - p.t * 0.8));
       }
       if (banner) {
         const u = banner.t < 8 ? banner.t / 8 : banner.t > 28 ? Math.max(0, (36 - banner.t) / 8) : 1, w = banner.str.length * 12 + 32, x = Math.round((W - w) / 2);
         ctx.globalAlpha = u;
-        panel(x, 150, w, 28, '#f8d850');
-        ctx.drawImage(cardWord(banner.str, INK), x + 16, 157);
+        panel(x, 161, w, 28, '#f8d850');
+        ctx.drawImage(cardWord(banner.str, INK), x + 16, 168);
         ctx.globalAlpha = 1;
       }
-      // the cursor, and the card under it at the size you can read it
+      // the cursor, what the keys do, and the card under it at the size you can read it
       if (!anim && !queue.length && !doneLines && !menu) {
         const s = stopNow();
-        if (s) {
+        if (aim && s) drawAim(s);
+        else if (s) {
           const [x, y, w, h] = rectOf(s);
-          const pulse = Math.floor(t / 14) % 2;
-          brackets(x, y, w, h, aim ? (pulse ? '#ff8870' : '#ffb0a0') : pulse ? '#f8d850' : '#fff4b0');
-          if (rest > 18 && (s.kind === 'hand' || s.kind === 'unit')) {
-            const id = s.kind === 'hand' ? s.c.id : s.x.id, X = x + w / 2 < W / 2 ? 372 : 8;
-            ctx.drawImage(bigCard(id), X, 40);
-            if (CARDS.card(id).rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(id, t)), X + 12, 84, 236, 150);
-            A.shine(ctx, X, 40, 260, 364, t, CARDS.card(id).rarity);
-          }
+          brackets(x, y, w, h, Math.floor(t / 14) % 2 ? '#f8d850' : '#fff4b0');
         }
-        // what A does now
-        let hint = '';
-        if (aim) hint = 'A: this one   B: cancel';
-        else if (shown.turn !== me) hint = '';
-        else if (s && s.kind === 'end') hint = 'A: end your turn';
-        else if (s && s.kind === 'hand') hint = 'A: play it';
-        else if (s && s.kind === 'unit' && s.seat === me) hint = 'A: attack';
-        if (hint) ctx.drawImage(cardWord(hint, '#f4ecd8'), 232, 328);
+        let hint = '', hint2 = '', hint3 = '';
+        if (aim) {
+          const name = !s ? '' : s.kind === 'face' ? (s.seat === me ? 'yourself' : foeShort) : CARDS.card(s.x.id).name;
+          hint = (aim.act.do === 'attack' ? 'Attack ' : 'Use on ') + name;
+          if (hint.length > 17) hint = name.slice(0, 17);
+          hint2 = 'A: go   B: cancel';
+          if (s && s.kind === 'unit' && s.seat !== me && aim.targets.includes(1 - me)) hint3 = 'Up: their Morale';
+        } else if (s && s.kind === 'move') {
+          hint = 'Up, Down: look';
+          hint2 = 'Right or B: back';
+        } else if (shown.turn === me && s) {
+          if (s.kind === 'end') hint = 'A: end your turn';
+          if (s.kind === 'hand') { hint = view.can && has(view.can.play, s.c.u) ? 'A: play it' : ''; hint2 = 'Down: end turn'; }
+          if (s.kind === 'unit' && s.seat === me) { hint = view.can && has(view.can.attack, s.u) ? 'A: attack' : ''; hint2 = 'Down: your hand'; }
+        }
+        if (!aim && s && s.kind !== 'move' && moves.length && Math.min(cur.i, rowStops(cur.row).length - 1) === 0) hint3 = 'Left: last moves';
+        [[hint, '#f4ecd8'], [hint2, '#c8c0d8'], [hint3, '#c8c0d8']].filter(([l]) => l).forEach(([l, c], i) => ctx.drawImage(cardWord(l, c), 432, 303 + i * 19));
+        // (it takes longer to come up while you're aiming, so that it isn't in the way)
+        if (s && s.kind === 'move') drawMoveCloseUp(s.m);
+        else if (s && rest > (aim ? 45 : 18) && (s.kind === 'hand' || s.kind === 'unit')) {
+          const [x, , w] = rectOf(s);
+          closeUp(s.kind === 'hand' ? s.c.id : s.x.id, x + w / 2 < W / 2 ? 372 : 8, 2, s.kind === 'unit' ? s.x : null);
+        }
       }
       if (noteT > 0) {
         const w = note.length * 12 + 24, x = Math.max(4, Math.round((W - w) / 2));
-        panel(x, 150, Math.min(w, W - 8), 28);
-        ctx.drawImage(cardWord(note, INK), x + 12, 157);
+        panel(x, 161, Math.min(w, W - 8), 28);
+        ctx.drawImage(cardWord(note, INK), x + 12, 168);
       }
       if (doneLines) {
         ctx.fillStyle = 'rgba(10,8,18,0.6)'; ctx.fillRect(0, 0, W, H);
@@ -6259,7 +6586,7 @@
       }
     }
 
-    cardsNow = { g, pull, me, busy: () => !!anim || queue.length > 0, get done() { return !!doneLines; } };
+    cardsNow = { g, pull, me, busy: () => !!anim || queue.length > 0, get done() { return !!doneLines; }, get cursor() { return stopNow(); }, get aiming() { return !!aim; }, get moves() { return moves; } };
     const self = {
       music: 'battle', doing: 'cards',
       update() {
@@ -6269,6 +6596,7 @@
         // everything that's moving
         for (const b of bits) { b.x += b.vx; b.y += b.vy; if (!b.star && !b.heart) b.vy += 0.05; b.life--; }
         bits = bits.filter((b) => b.life > 0);
+        for (const m of moves) m.t++;
         for (const w of gone) w.t++;
         gone = gone.filter((w) => w.t < 70);
         for (const p of pops) p.t++;
@@ -6278,7 +6606,10 @@
         if (shake > 0) shake--;
         if (jolt > 0) jolt--;
         if (alarm > 0) alarm--;
-        if (ring && ++ring.t > 26) ring = null;
+        for (const r of rings) r.t++;
+        rings = rings.filter((r) => r.t <= 26);
+        if (flare) { flare.a -= flare.fade; if (flare.a <= 0) flare = null; }
+        if (legend) legend.t++;
         if (glint) { glint.t += 6; if (glint.t > 240) glint = null; }
         if (banner && ++banner.t > 36) banner = null;
         if (mover && !mover.pos && ++mover.t > 16) mover = null;
@@ -6296,7 +6627,8 @@
             if (a.start) a.start();
             if (a.end) a.end();
           }
-          mover = null; fly = null; big = null; dim = 0; halo = null; drawn = null;
+          mover = null; fly = null; big = null; dim = 0; halo = null; drawn = null; legend = null;
+          return; // (that press was for hurrying, so it doesn't also pick whatever's under the cursor)
         }
         // whatever's next to show
         if (anim) {
@@ -6310,9 +6642,12 @@
           return;
         }
         // caught up: what the rules say is what's on the table
+        // ...and when it's just become your turn, or you've just done something, the cursor moves on
+        // to the next thing you can do: another worker who can attack, a card, or END TURN.
         const was = shown.turn, wasCan = !!shown.can;
         shown = copy(view);
-        if (shown.ph !== 'swap' && (was !== shown.turn || !wasCan || cur.row === undefined)) { if (shown.turn === me && !shown.keep) homeCursor(); }
+        if (shown.ph !== 'swap' && (was !== shown.turn || !wasCan || again) && shown.turn === me) homeCursor();
+        again = false;
         if (view.r) { finished(); return; }
         if (view.ph === 'swap') {
           updateSwap();
@@ -6321,19 +6656,15 @@
           if (view.ph !== 'swap') { shown = copy(view); seen = view.ev.length ? view.ev[view.ev.length - 1].i : seen; homeCursor(); }
           return;
         }
-        if (shown.turn === me) {
-          steer();
+        const looking = cur.row === HISTORY;
+        steer();
+        if (looking) { if (cur.row === HISTORY && (pressed.has('a') || pressed.has('b'))) stopLooking(); } else if (shown.turn === me) {
           if (pressed.has('a')) pressA();
           else if (pressed.has('b')) {
             if (aim) { aim = null; cur = cur.was || { row: 2, i: 0 }; rest = 0; sfx('select'); } else { sfx('select'); backMenu(); }
           }
-          if (!aim && !anim && !queue.length && view.can) homeIfStuck();
-        } else {
-          steer();
-          if (pressed.has('a')) { sfx('bump'); flash('It\'s ' + foeShort + '\'s turn.'); } else if (pressed.has('b')) { sfx('select'); backMenu(); }
-          g.step();
-          pull();
-        }
+        } else if (pressed.has('a')) { sfx('bump'); flash('It\'s ' + foeShort + '\'s turn.'); } else if (pressed.has('b')) { sfx('select'); backMenu(); }
+        if (shown.turn !== me) { g.step(); pull(); }
       },
       draw() {
         ctx.save();
@@ -6343,13 +6674,6 @@
         if (menu) menu.draw();
       },
     };
-    // (when the last thing you could do has gone, the cursor goes to END TURN by itself)
-    let lastLeft = false;
-    function homeIfStuck() {
-      const left = nothingLeft();
-      if (left && !lastLeft) cur = { row: 2, i: shown.you.hand.length };
-      lastLeft = left;
-    }
     return self;
   }
 

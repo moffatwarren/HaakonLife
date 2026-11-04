@@ -331,10 +331,22 @@ test('Every morning happens at the start of each of your turns', () => {
   nextTurn(g); nextTurn(g);
   assert.equal(me(g, 0).morale, 12);
 });
-test('Morale never goes over where it started', () => {
+test('every special word on a card gets explained', () => {
+  for (const c of CARDS.LIST) {
+    const said = CARDS.text(c), means = plain(CARDS.meanings(c)).map((k) => CARDS.MEANS[k]);
+    assert.ok(means.every(Boolean), c.id + ' has a word with no meaning');
+    for (const word of ['Gatekeeper', 'Keen', 'Thick Skin', 'On play', 'Every morning', 'Last word', 'Team-up']) {
+      if (said.includes(word)) assert.ok(means.some((m) => m.startsWith(word + ':')), c.id + ' says ' + word + ' and doesn\'t explain it');
+      else assert.ok(!means.some((m) => m.startsWith(word + ':')), c.id + ' explains ' + word + ' and doesn\'t say it');
+    }
+  }
+});
+test('Morale can go over where it started, and keeps going', () => {
   const g = game();
   play(g, 0, 'longlunch');
-  assert.equal(me(g, 0).morale, MORALE);
+  assert.equal(me(g, 0).morale, MORALE + 4);
+  play(g, 0, 'longlunch');
+  assert.equal(me(g, 0).morale, MORALE + 8);
 });
 test('a last word happens when they go home', () => {
   const g = game();
@@ -562,7 +574,7 @@ test('better computer players beat worse ones', () => {
   const wins = (hi, lo, n) => { let w = 0; for (let k = 0; k < n; k++) if (playThrough(CARDS.create({ decks: [deck, deck], seed: 100 + k, first: k % 2 }), [hi, lo]).w === 0) w++; return w / n; };
   assert.ok(wins(2, 1, 200) > 0.6, 'level 2 beats level 1');
   assert.ok(wins(3, 2, 200) > 0.55, 'level 3 beats level 2');
-  assert.ok(wins(4, 3, 80) > 0.55, 'level 4 beats level 3');
+  assert.ok(wins(4, 3, 300) > 0.55, 'level 4 beats level 3'); // (it's close enough that 80 games could go either way)
 });
 test('the computer plays by itself as the clock goes by', () => {
   const g = CARDS.create({ decks: [deckOf(), deckOf()], seed: 2, first: 0, ai: [3, 2] });
@@ -602,7 +614,6 @@ test('thousands of random games all finish, and nothing ever goes out of bounds'
       assert.ok(g.act(t, a), 'a legal move works: ' + JSON.stringify(a));
       for (const s of [0, 1]) {
         const v = g.view(s).you;
-        assert.ok(v.morale <= MORALE, 'Morale stays at or under the most');
         assert.ok(v.table.length <= TABLE, 'room on the table');
         assert.ok(v.hand.length <= HAND, 'room in the hand');
         assert.ok(v.coffee >= 0, 'coffee');

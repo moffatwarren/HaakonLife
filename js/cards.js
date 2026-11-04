@@ -49,6 +49,16 @@ window.CARDS = (function engine() {
   const WHENS = new Set(['play', 'morning', 'last']);
   const DEPTS = { plant: 'Plant', road: 'Road', office: 'Office', lunch: 'Lunch Room' };
   const WORDS = { gate: 'Gatekeeper', keen: 'Keen', skin: 'Thick Skin' };
+  // What the special words mean, for saying under a card. Each is short, so that a few of them fit.
+  const MEANS = {
+    gate: 'Gatekeeper: has to be attacked first.',
+    keen: 'Keen: can attack the turn it\'s played.',
+    skin: 'Thick Skin: ignores the first hit.',
+    play: 'On play: happens when you play it.',
+    morning: 'Every morning: when your turn starts.',
+    last: 'Last word: happens when it goes home.',
+    team: 'Team-up: only with that department on the table.',
+  };
   const RARITIES = new Set(['S', 'C', 'U', 'R', 'L', 'T']);
 
   // ---------- the words on a card ----------
@@ -100,6 +110,19 @@ window.CARDS = (function engine() {
       last = label;
     }
     return bits.join(' ');
+  }
+  // Which of those a card needs explaining: any word its text uses, in the order it uses them.
+  function meanings(card) {
+    const out = [...(card.words || [])];
+    const add = (k) => { if (!out.includes(k)) out.push(k); };
+    for (const e of card.does || []) {
+      const when = e.when || 'play';
+      if (e.team) add('team');
+      else if (when === 'morning' || when === 'last') add(when);
+      else if (card.kind !== 'task') add('play');
+      if (e.do === 'give') add(e.word);
+    }
+    return out;
   }
   // the same splitting into lines as the card itself (see wrap in js/cardart.js)
   function lines(str, width) {
@@ -161,6 +184,8 @@ window.CARDS = (function engine() {
       const rule = lines(text(c).replace(/\*/g, ''), 18), said = c.said ? lines(c.said, 18) : [];
       if (rule.some((w) => w > 18)) say(c, 'a word in its text is too long for a line');
       if (rule.length + said.length > 5) say(c, 'its words take ' + (rule.length + said.length) + ' lines and only 5 fit on the card');
+      const under = meanings(c).reduce((n, k) => n + lines(MEANS[k], 20).length, 0);
+      if (under > 6) say(c, 'explaining its words takes ' + under + ' lines and only 6 fit under the card');
     }
     if (LIST.filter((c) => c.rarity === 'S').length !== DECK) bad.push('there should be exactly ' + DECK + ' starters, so everybody can make a deck from the start');
     return bad;
@@ -314,9 +339,9 @@ window.CARDS = (function engine() {
         case 'hit': for (const u of who) hurt(u, e.n); break;
         case 'heal':
           for (const u of who) {
-            if (u === 0 || u === 1) {
-              const gain = Math.min(e.n, MORALE - st.p[u].morale);
-              if (gain > 0) { st.p[u].morale += gain; log({ e: 'heal', u, n: gain }); }
+            if (u === 0 || u === 1) { // (Morale has no top: you only start at 20)
+              st.p[u].morale += e.n;
+              log({ e: 'heal', u, n: e.n });
             } else {
               const x = unit(u), gain = x ? Math.min(e.n, x.max - x.pa) : 0;
               if (gain > 0) { x.pa += gain; log({ e: 'heal', u, n: gain }); }
@@ -710,7 +735,7 @@ window.CARDS = (function engine() {
   VERSION = (VERSION >>> 0).toString(36);
 
   return {
-    create, check, deckProblem, buildDeck, text, LIST, STARTER, VERSION, DEPTS, WORDS,
+    create, check, deckProblem, buildDeck, text, LIST, STARTER, VERSION, DEPTS, WORDS, MEANS, meanings,
     card: (id) => CARD.get(id),
     RULES: { MORALE, DECK, CUPS, TABLE, HAND, OPENING, STRIKES },
   };
