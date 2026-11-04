@@ -6914,13 +6914,18 @@
       : draft.map(CARDS.card).sort(byCost).map((c) => c.id));
     const flash = (str) => { note = str; noteT = 170; };
     const legal = () => !CARDS.deckProblem(draft);
+    // (and where they are, for anyone who isn't in the office)
+    const crew = Object.values(window.PLANT_CREW || {}).map((c) => c.name);
+    const visiting = (window.VISITORS || []).map((v) => v.name);
     const winFrom = (id) => {
       const who = CARDS.wonFrom(id);
-      return !who ? '' : 'Beat ' + who + (CARDS.prizes(who).indexOf(id) > 0 ? ' twice' : '') + ' to win this.';
+      if (!who) return '';
+      const where = crew.includes(who) ? ' at the Kingston plant' : visiting.includes(who) ? ' in the visitor office' : '';
+      return 'Beat ' + who + where + (CARDS.prizes(who).indexOf(id) > 0 ? ' twice' : '') + ' to win this.';
     };
     function toggle(id) {
       const c = CARDS.card(id);
-      if (!cardHave(id)) { sfx('bump'); flash('Not yours yet. ' + winFrom(id)); return; }
+      if (!cardHave(id)) { sfx('bump'); flash(winFrom(id)); return; }
       if (draft.includes(id)) { draft = draft.filter((x) => x !== id); sfx('select'); return; }
       if (draft.length >= SIZE) { sfx('bump'); flash('Your deck is full. Take one out first.'); return; }
       if (c.rarity === 'L' && draft.some((x) => CARDS.card(x).rarity === 'L')) { sfx('bump'); flash('A deck can only have one legendary.'); return; }
@@ -18435,7 +18440,9 @@
   // HockeyGame's), with places in tiles from the map's corner.
   let hockey = null;
   function hockeyTalk(npc, says) {
-    ask(says('Fancy a game? One on one, three minutes, most goals wins. I\'ve got a spare stick.'), ['LET\'S PLAY', 'NOT NOW'], (i) => {
+    const cards = cardsOpened() && CARDS.prizes(npc.name).length > 0;
+    ask(says('Fancy a game? One on one, three minutes, most goals wins. I\'ve got a spare stick.'), ['LET\'S PLAY'].concat(cards ? ['MORALE MADNESS'] : [], ['NOT NOW']), (i) => {
+      if (cards && i === 1) { cardOffer(npc); return; }
       if (i !== 0) { say(says('The ice isn\'t going anywhere.')); return; }
       sfx('menu');
       startFade(() => ui.push(HockeyGame(npc)), '#f8f8f8');
@@ -19534,7 +19541,9 @@
     if (npc.guest) { guestTalk(npc, says); return; }
     if (npc === gateKeeper) { hockeyTalk(npc, says); return; }
     if (npc.name === 'Damir') {
-      say(says('Do you feel safe in the dark?'), () => ui.push(DarkGame()));
+      const game = cardsOpened() && CARDS.prizes(npc.name).length > 0;
+      if (game) ask(says('Do you feel safe in the dark?'), ['I DO', 'MORALE MADNESS', 'NOT NOW'], (i) => { if (i === 0) ui.push(DarkGame()); else if (i === 1) cardOffer(npc); });
+      else say(says('Do you feel safe in the dark?'), () => ui.push(DarkGame()));
       return;
     }
     if (npc.name === 'Kiki' && !eotm && helped.size === COWORKERS.length) {

@@ -152,6 +152,9 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
 - **The cards:** everyone who works in the game has one, plus the things they're known for, 155 in all. 7
   are legendaries, which keep moving and land in their own way (`LANDS` in `CardsGame`). Max, Jack and
   the visitor Jill don't have one yet, so they don't offer a game.
+- **Where to find them:** most people are at their desks in Richmond. Plant people are at the Kingston plant
+  (see "Eugene's phone and the Kingston plant"). Ali, Garrett and Ryan are only ever in the visitor office
+  (182), where people take turns of about 30 seconds. MY CARDS says where for anyone who isn't in the office.
 - **Against a player:** see **Playing together**. Your deck goes with you. The server checks that it's
   legal, not that you own the cards, the same honour system as scores and items.
 - **Saved:** your cards go in the database with your special items, at `items/<world>/<name>/c_<id>`, so
