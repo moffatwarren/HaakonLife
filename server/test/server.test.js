@@ -234,6 +234,23 @@ test('a challenge that waited for a menu to close says so, and its server game s
   a.ws.close(); b.ws.close();
 });
 
+test('a dropped player gets the newest messages when there are too many to keep', async () => {
+  const a = client(), b = client();
+  await a.open(); await b.open();
+  await a.for((d) => d.k === 'all'); await b.for((d) => d.k === 'all');
+  b.ws.close();
+  await pause(50);
+  for (let i = 0; i < 60; i++) a.send({ k: 'to', to: b.id, m: { k: 'mv', m: 'x', i } });
+  await pause(100);
+  const b2 = client('test', b.id, 'k' + b.id);
+  await b2.open();
+  await b2.for((d) => d.k === 'all');
+  // (the last one is the one that would be somebody's final score)
+  await b2.for((d) => d.k === 'm' && d.m.i === 59);
+  assert.equal(b2.got.some((d) => d.k === 'm' && d.m.i === 0), false);
+  a.ws.close(); b2.ws.close();
+});
+
 test('giving up ends a server game for both', async () => {
   const { a, b, m } = await match('count');
   await a.for((d) => d.k === 'st');

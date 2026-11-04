@@ -204,7 +204,7 @@ export class World {
     const p = this.players.get(id);
     if (!p) return;
     if (p.sock) this.write(p.sock, msg);
-    else if (keep && p.mail.length < MAIL_MAX) p.mail.push(msg);
+    else if (keep && p.mail.push(msg) > MAIL_MAX) p.mail.shift(); // (the newest matter most: a final score, say)
   }
 
   // Their record changed (r is null once they've gone). A copy that takes bundles hears

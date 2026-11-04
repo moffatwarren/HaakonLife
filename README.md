@@ -654,10 +654,19 @@ which tile they're on (and has them walking from tile to tile).
 
   - **Office Politics**: the card game, against each other. A coin decides who goes first, and you
     each see only your own hand. You get 75 seconds a turn, shown on END TURN, and if you run out
-    three turns in a row you lose. B opens the menu, which is where you resign. If your connection
-    drops, or theirs does, the game waits for 12 seconds in case it comes back, and if it doesn't
-    the other player wins. The game server runs this one (`server/games/cards.js`), so it's only in
-    the list when there is one, and it's the server that shuffles and says who won.
+    three turns in a row you lose. B opens the menu, which is where you resign. The game server
+    runs this one (`server/games/cards.js`), so it's only in the list when there is one, and it's
+    the server that shuffles and says who won.
+
+  **If a connection drops**, yours or theirs, the game waits 12 seconds in case it comes back,
+  with a note across the top of the screen saying who it's waiting for, and carries on if it does.
+  A game the browsers run holds on to your moves and sends them when you're back. A game the server
+  runs keeps going while it waits, so in Pong, Forklift Rush and the snowball fight you can lose
+  points while you're away, and in chess, checkers and Office Politics your clock keeps running. If
+  it doesn't come back, the one still there is told the other player left, and the one who dropped
+  out is told it was them. A tab left in the background or a laptop closed for that long counts too.
+  Closing the tab on purpose ends it straight away. It's `mpUpdate` in `js/game.js`, with the note
+  in `mpDropNote`.
 
   The treadmill, Snake, the control panel and mini golf carry on until you're both done.
 
@@ -763,7 +772,7 @@ starting state, what to do with a player's input, one tick of the game, and what
 player gets sent. Then add an entry with the same key and `server: true` to `VERSUS` in
 `js/game.js`. Its `Game(m)` draws `m.view` (the latest state from the server), sends
 what the player does with `m.input(...)`, and finishes when `m.result` is set (or
-`m.gone`, if the other player left). Challenging somebody works just like the other
+`m.gone`, if the other player left, or `m.lost` as well if it was you who was gone too long). Challenging somebody works just like the other
 head-to-head games, and these games only show up in the list when there's a game server.
 
 Chess and checkers (`server/games/chess.js` and `server/games/checkers.js`) are two of these. They're

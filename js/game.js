@@ -4315,7 +4315,7 @@
   // higher final score wins (or the lower, if low).
   function scoreRace(vs, { what, fmt, hear, low }) {
     const foe = vs.name;
-    let sentKey = '', sendT = 0;
+    let sentKey = '', sendT = 0, again = 0;
     const r = {
       now: 0, theirs: 0, theirsDone: false, mine: 0, mineDone: false, outcome: null,
       // read their messages and see whether it's settled: 'win', 'lose', 'tie' or 'gone'
@@ -4325,6 +4325,8 @@
           if (m.e === 'f') { r.theirs = r.now; r.theirsDone = true; } else if (hear) hear(m);
         }
         if (r.outcome) return r.outcome;
+        // (your score again every few seconds, in case it went astray as a connection dropped)
+        if (r.mineDone && !r.theirsDone && ++again % 90 === 0) vs.send({ e: 'f', s: r.mine });
         if (r.theirsDone && r.mineDone) {
           const ahead = low ? r.theirs - r.mine : r.mine - r.theirs;
           r.outcome = ahead > 0 ? 'win' : ahead < 0 ? 'lose' : 'tie';
@@ -4350,12 +4352,12 @@
       },
       box(t) {
         const score = 'You ' + fmt(r.mine) + '   ' + foe + ' ' + fmt(r.theirs);
-        doneBox(r.outcome === 'gone' ? [foe + ' left.', 'Nobody wins this one.']
+        doneBox(r.outcome === 'gone' ? [whoLeft(vs, foe), 'Nobody wins this one.']
           : [r.outcome === 'win' ? 'You beat ' + foe + '!' : r.outcome === 'lose' ? foe + ' wins!' : 'A dead heat!', score], t);
       },
       say() {
         const a = fmt(r.mine), b = fmt(r.theirs);
-        say(r.outcome === 'gone' ? foe + ' has gone. Nobody wins this one.'
+        say(r.outcome === 'gone' ? whoLeft(vs, foe, ' has gone.') + ' Nobody wins this one.'
           : r.outcome === 'win' ? 'You beat ' + foe + ' at ' + what + ', ' + a + ' to ' + b + '!'
             : r.outcome === 'lose' ? foe + ' beat you at ' + what + ', ' + b + ' to ' + a + '.'
               : 'A dead heat at ' + what + ': ' + a + ' each.');
@@ -5281,6 +5283,7 @@
         time: won ? [foe + ' ran out of time.', 'You win!'] : ['You ran out of time.', foe + ' wins.'],
         repetition: ['The same position, three', 'times over: a draw.'],
         gone: [foe + ' left the game.', 'It\'s yours!'],
+        lost: ['You dropped out for', 'too long. Nobody wins.'],
         stopped: ['Someone knocked the board.', 'Nobody wins this one.'],
         noserver: ['The game server can\'t start', 'this one. Try again soon.'],
       }, spec.endings(won, foe, drew));
@@ -5293,6 +5296,7 @@
       const r = vs.result, seat = view ? view.s : 0;
       if (r && typeof r.w === 'number') over(r.w < 0 ? 'draw' : r.w === seat ? 'win' : 'lose', r.why);
       else if (r && (r.error || r.timeout)) over('none', 'stopped');
+      else if (vs.lost || (view && r && r.quit === seat)) over('none', 'lost'); // it was you who was gone too long
       else over('gone', 'gone'); // they left, or dropped out for too long
     }
     function hear(v) {
@@ -6649,15 +6653,6 @@
       }
       if (doneLines) drawDone();
     }
-    // a word if the connection's gone, yours or theirs: the server gives you both a while to come back
-    function drawConnection() {
-      if (!vs || !view || doneLines || view.r) return;
-      const str = t - heardT > 180 ? 'Trying to get back to the game...' : !mpLive(mp.others[vs.opp]) ? foeShort + ' dropped out. Waiting for them...' : '';
-      if (!str) return;
-      const w = str.length * 12 + 24, x = Math.round((W - w) / 2);
-      panel(x, 16, w, 28, '#ffb0a0');
-      ctx.drawImage(cardWord(str, INK), x + 12, 23);
-    }
     function drawDone() {
       ctx.fillStyle = 'rgba(10,8,18,0.6)'; ctx.fillRect(0, 0, W, H);
       const big2 = doneLines[0], x = Math.round((W - big2.length * 24) / 2);
@@ -6785,7 +6780,6 @@
         ctx.save();
         ctx.scale(0.5, 0.5);
         if (!shown) drawDealing(); else if (shown.ph === 'swap') { drawSwap(); if (doneLines) drawDone(); } else drawTable();
-        drawConnection();
         ctx.restore();
         if (menu) menu.draw();
       },
@@ -6856,7 +6850,7 @@
           const a = mine + ' to ' + theirs, b = theirs + ' to ' + mine;
           say(outcome === 'win' ? 'You beat ' + foe + ' at Pong, ' + a + '!'
             : outcome === 'lose' ? foe + ' beat you at Pong, ' + b + '.'
-              : outcome === 'gone' ? foe + ' has gone. Nobody wins this one.'
+              : outcome === 'gone' ? whoLeft(vs, foe, ' has gone.') + ' Nobody wins this one.'
                 : 'The TV lost the signal. Nobody wins this one.');
         }
         return;
@@ -6937,7 +6931,7 @@
         if (vs && !view && state !== 'done') { box(60, 92, 200, 48); ctext('Waiting for ' + foe + '...', 104); ctext('Esc: give up', 120); }
         else if (state === 'ready') readyBox(t, 'Up/Down: move paddle');
         else if (state === 'done' && vs) {
-          doneBox(outcome === 'gone' ? [foe + ' left.', 'Nobody wins this one.', '']
+          doneBox(outcome === 'gone' ? [whoLeft(vs, foe), 'Nobody wins this one.', '']
             : outcome === 'stopped' ? ['The TV lost the signal.', 'Nobody wins this one.', '']
               : [outcome === 'win' ? 'You beat ' + foe + '!' : foe + ' wins!', mine + ' - ' + theirs, ''], t);
         } else if (state === 'done') doneBox([mine > theirs ? 'You win!' : 'The TV wins.', mine + ' - ' + theirs, ''], t);
@@ -8074,6 +8068,7 @@
   // each of you picks a move, and the round plays out once both are in.
   function BattleGame(vs) {
     const MAX_HP = 3;
+    let again = 0;
     const RX = 230, RY = 38, RS = 64;      // Richard, top right
     const PX = 26, PY = 100, PS = 76;      // you, seen from behind, bottom left
     const ECX = RX + RS / 2, ECY = RY + RS / 2, PCX = PX + PS / 2, PCY = PY + PS / 3;
@@ -8145,7 +8140,7 @@
           if (state === 'wait' && theirs[rounds]) { play(mine, theirs[rounds]); return; }
           if (vs.gone && !result) {
             result = 'left'; queue = [];
-            push(foe + ' has left the duel.');
+            push(whoLeft(vs, foe, ' has left the duel.'));
             state = 'msg'; nextMsg();
           }
         }
@@ -8163,7 +8158,11 @@
           if (pressed.has('b')) giveUp();
           return;
         }
-        if (state === 'wait') { if (pressed.has('b')) giveUp(); return; }
+        if (state === 'wait') {
+          if (pressed.has('b')) giveUp();
+          else if (vs && ++again % 90 === 0) vs.send({ r: rounds, mv: mine.key }); // (in case it went astray)
+          return;
+        }
         const len = lines.join('').length;
         if (chars < len) { chars += held.a || held.b ? 3 : 1; return; }
         if (draining || fx) return;
@@ -10623,10 +10622,11 @@
         if (vs) {
           for (let m; (m = vs.take());) hear(m);
           if (vs.gone && state !== 'done' && state !== 'gone') { state = 'gone'; t = 0; }
+          if (state === 'done' && you.dead && t % 90 === 89) vs.send({ e: 'x' }); // (in case it went astray)
           if (state === 'gone' || state === 'done') {
             if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
               remove(self); vs.end();
-              say(state === 'gone' ? foe + ' has gone. Nobody wins this one.'
+              say(state === 'gone' ? whoLeft(vs, foe, ' has gone.') + ' Nobody wins this one.'
                 : won ? 'You beat ' + foe + ' at the brick battle!' : foe + ' beat you at the brick battle.');
             }
             return;
@@ -10733,7 +10733,7 @@
           ctext('Esc: give up', 200);
         }
         if (state === 'ready') readyBox(t, 'Clear 2+ rows to send bricks');
-        else if (state === 'gone') doneBox([foe + ' has gone.', 'Nobody wins this one.'], t);
+        else if (state === 'gone') doneBox([whoLeft(vs, foe, ' has gone.'), 'Nobody wins this one.'], t);
         else if (state === 'done' && vs) doneBox([won ? 'You buried ' + foe + ' in bricks!' : foe + ' out-built you!',
           'Lines: ' + you.lines + ' - ' + them.lines], t);
         else if (state === 'done') doneBox([won ? 'You buried Joe in bricks!' : 'Joe out-built you!',
@@ -11121,10 +11121,11 @@
           if (++sendT >= 10 && pct() !== sentPct && state === 'play') { vs.send({ e: 's', p: pct() }); sentPct = pct(); sendT = 0; }
           if (vs.gone && !theirsDone && state !== 'gone') { state = 'gone'; t = 0; }
           if (state === 'wait' && theirsDone) { state = 'done'; t = 0; sfx(pct() > PATRICK ? 'cup' : 'bump'); }
+          if (state === 'wait' && t % 90 === 89) vs.send({ e: 'f', p: pct() }); // (in case it went astray)
           if (state === 'done' || state === 'gone') {
             if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
               remove(self); vs.end();
-              say(state === 'gone' ? foe + ' left the dance floor. Nobody wins this one.'
+              say(state === 'gone' ? whoLeft(vs, foe, ' left the dance floor.') + ' Nobody wins this one.'
                 : pct() > PATRICK ? 'You out-danced ' + foe + ', ' + pct() + '% to ' + PATRICK + '%!'
                   : pct() < PATRICK ? foe + ' out-danced you, ' + PATRICK + '% to ' + pct() + '%.'
                     : 'A dead heat: ' + pct() + '% each.');
@@ -11232,7 +11233,7 @@
           ctext('Arrows on the beat', 148);
         }
         if (state === 'wait') { box(60, 100, 200, 40); ctext('Waiting for ' + foe + '...', 108); ctext('to finish the song', 122); }
-        else if (state === 'gone') doneBox([foe + ' left the floor.', 'Nobody wins this one.'], t);
+        else if (state === 'gone') doneBox([whoLeft(vs, foe, ' left the floor.'), 'Nobody wins this one.'], t);
         else if (state === 'done' && vs) doneBox([pct() > PATRICK ? 'You out-danced ' + foe + '!' : pct() < PATRICK ? foe + ' wins!' : 'A dead heat!',
           'You ' + pct() + '%  ' + foe + ' ' + PATRICK + '%', 'Your best combo ' + maxCombo], t);
         else if (state === 'done') doneBox([pct() > PATRICK ? 'You out-danced Patrick!' : 'Patrick wins!',
@@ -11370,8 +11371,9 @@
         if (vs) {
           for (let m; (m = vs.take());) if (m.r >= 0 && m.g >= 1) theirs[m.r] = Math.round(m.g);
           if (vs.gone && state !== 'done' && state !== 'gone') { state = 'gone'; t = 0; }
+          if (state === 'wait' && t % 90 === 0) vs.send({ r: round, g: guess }); // (in case it went astray)
           if (state === 'gone') {
-            if (t > 30 && (pressed.has('a') || pressed.has('b'))) { remove(self); vs.end(); say(foe + ' has gone. The jar is all yours.'); }
+            if (t > 30 && (pressed.has('a') || pressed.has('b'))) { remove(self); vs.end(); say(whoLeft(vs, foe, ' has gone.') + ' The jar is all yours.'); }
             return;
           }
           if (state === 'done') {
@@ -11462,7 +11464,7 @@
           text(mine < them ? 'You take the round!' : mine > them ? foe + ' takes the round!' : 'Tied! Nobody scores.', 40, 218, 1,
             mine < them ? '#2c6a34' : mine > them ? '#b83028' : '#3050a8');
         }
-        if (state === 'gone') doneBox([foe + ' has gone.', 'The jar is all yours.'], t);
+        if (state === 'gone') doneBox([whoLeft(vs, foe, ' has gone.'), 'The jar is all yours.'], t);
         else if (state === 'done' && vs) {
           doneBox([!decided() ? 'Dead even!' : score[0] > score[1] ? 'You win the jar!' : foe + ' wins the jar.',
             'Rounds: ' + score[0] + ' - ' + score[1]], t);
@@ -13038,7 +13040,7 @@
       if (state === 'done' || state === 'gone') {
         if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
           remove(self); vs.end();
-          say(state === 'gone' ? foe + ' has parked up and gone. Nobody wins this one.'
+          say(state === 'gone' ? whoLeft(vs, foe, ' has parked up and gone.') + ' Nobody wins this one.'
             : outcome === 'win' ? 'You out-loaded ' + foe + ', ' + loaded + ' pallets to ' + theirs + '!'
               : outcome === 'lose' ? foe + ' out-loaded you, ' + theirs + ' pallets to ' + loaded + '.'
                 : 'Dead even: ' + loaded + ' pallets each.');
@@ -13287,7 +13289,7 @@
         }
         if (vs && !view && state !== 'gone') { box(60, 100, 200, 40); ctext('Waiting for ' + foe + '...', 108); ctext('Esc: give up', 122); }
         else if (state === 'ready') readyBox(t, vs ? 'Same truck. Swipe their pallets!' : 'Space: drop pallet, straighten');
-        else if (state === 'gone') doneBox([foe + ' has gone.', 'Nobody wins this one.'], t);
+        else if (state === 'gone') doneBox([whoLeft(vs, foe, ' has gone.'), 'Nobody wins this one.'], t);
         else if (state === 'done' && vs) doneBox([outcome === 'win' ? 'You out-loaded ' + foe + '!' : outcome === 'lose' ? foe + ' wins!' : 'Dead even!',
           'You ' + loaded + '  ' + foe + ' ' + theirs], t);
         else if (state === 'done') doneBox(['Time\'s up! The truck has to go.', 'Pallets loaded: ' + loaded,
@@ -14826,6 +14828,7 @@
   const MP_VER = window.GAME_VERSION ? +window.GAME_VERSION : 0;
   const MP_LIVE = 12000; // ms without word from a player before they count as gone
   const MP_ASK = 30000; // ms a challenge waits for an answer
+  const MP_HOLD = 40; // moves a match keeps for when your connection's back
   // ms you then get to answer one that waited for you to come out of a menu (with MP_ASK,
   // this has to stay under the game server's ASK_MS or a game it runs won't start)
   const MP_ANSWER = 20000;
@@ -14889,9 +14892,9 @@
   // `input(d)` sends the server what you did, and `result` is set once it's over. Those
   // can only be picked when there's a game server. A game with `christmas: true` is only
   // in the list once Christmas has first come round (SEASON_FROM), and from then on for
-  // good; &christmas=1 puts it there early for testing. Anybody can still accept one. A game with
-  // `waits: true` leaves it to the server to say when someone's gone for good, so that a dropped
-  // connection can come back and carry on: there, it gives them a while (GRACE in server/rooms.js).
+  // good; &christmas=1 puts it there early for testing. Anybody can still accept one. Every match
+  // gives a dropped connection a while to come back (see mpUpdate). A game with `waits: true` has
+  // its own clock for someone who's stopped playing, so it doesn't give up on a silent player.
   const VERSUS = {
     duel: { label: 'AIR DUEL', title: 'an air handling duel', Game: (m) => BattleGame(m) },
     jar: { label: 'CANDY JAR', title: 'a candy jar guess-off', Game: (m) => CandyJarGame(m) },
@@ -15010,6 +15013,8 @@
     };
   }
   const mpLive = (o) => !!o && Date.now() - o.seen < MP_LIVE;
+  // what a game says when it's over early: they left, or it was you who was gone too long
+  const whoLeft = (vs, foe, str = ' left.') => (vs.lost ? 'You dropped out.' : foe + str);
   const mpHere = () => Object.values(mp.others).filter(mpLive);
   // where someone is, in pixels: exactly (from a copy that says), or the tile they're on
   const mpTarget = (o) => (typeof o.fx === 'number' && typeof o.fy === 'number' ? [o.fx, o.fy] : [o.x * 16, o.y * 16]);
@@ -15106,7 +15111,9 @@
       mpPlayers(ws.tree);
       // a server-run game the server no longer has (it restarted, or you were gone too
       // long) is over
-      if (m && m.server && !m.gone && !(d.rooms || []).includes(m.id)) m.gone = true;
+      if (m && m.server && !m.gone && !(d.rooms || []).includes(m.id)) { m.gone = true; m.lost = true; }
+      // and you're back: what you did while you were away can go now
+      if (m && !m.gone) for (const msg of m.out.splice(0)) mpSend(m.opp, msg);
       // the same for a table: lost, or if you hadn't got a seat yet, ask again
       const tb = mp.table;
       if (tb && !tb.out && !(d.tables || []).includes(tb.t)) { if (tb.view) tb.out = 'gone'; else tb.asked = false; }
@@ -15127,8 +15134,7 @@
     } else if (d.k === 'm' && d.m && typeof d.m === 'object') {
       mp.mail.push(d.m);
     } else if (m && m.server && d.m === m.id) {
-      if (d.k === 'st') m.view = d.s;
-      else if (d.k === 'end') m.result = d.r === undefined ? null : d.r;
+      if (d.k === 'st') { m.view = d.s; m.stAt = Date.now(); } else if (d.k === 'end') m.result = d.r === undefined ? null : d.r;
     }
   }
 
@@ -15264,13 +15270,33 @@
   // you is on a touch screen, so a game that goes easier on touch does for both of you.
   // In a game the server runs (`server`), view, input() and result take the place of
   // take() and send() (see VERSUS).
+  // A word over the top of any head-to-head game while a connection's down, yours or theirs, since
+  // otherwise it just looks stuck.
+  function mpDropNote() {
+    const m = mp.match;
+    if (!m || m.gone || m.result !== undefined) return;
+    const now = Date.now(), o = mp.others[m.opp];
+    const str = m.off || (m.server && m.stAt && now - m.stAt > 4000) ? 'Trying to get back to the game...'
+      : !o || now - o.seen > 6000 ? m.name + ' dropped out. Waiting for them...' : '';
+    if (!str) return;
+    const w = str.length * 6 + 16;
+    box(Math.round((SW - w) / 2), 6, w, 22);
+    ctext(str, 13);
+  }
   function mpMatch(id, opp, name, seed, soft, server) {
     const o = mp.others[opp];
     const m = {
       id, opp, name, gone: false, rng: seeded(seed), soft: !!soft, moves: [],
       sprites: o ? mpSprites(o) : charSprites.male[0], look: o ? o.look : null, code: o ? o.a : '', xs: o ? o.xs : '',
       server: !!server, view: null, result: undefined,
-      send(data) { mpSend(opp, Object.assign({}, data, { k: 'mv', m: id })); },
+      // off, missing: when your connection and theirs dropped, if they're down now. lost: it ended
+      // because of you, not them. out: moves waiting for your connection. stAt: when the server last spoke.
+      off: 0, missing: 0, lost: false, out: [], stAt: 0,
+      send(data) {
+        const msg = Object.assign({}, data, { k: 'mv', m: id });
+        if (!MP_WS || (ws.sock && ws.sock.readyState === 1)) mpSend(opp, msg);
+        else if (m.out.push(msg) > MP_HOLD) m.out.shift();
+      },
       take() { return m.moves.shift(); },
       input(d) { wsSend({ k: 'in', m: id, d }); },
       end() {
@@ -15380,13 +15406,25 @@
       mp.invite.els.forEach(remove); mp.invite = null;
       say('The challenge ran out of time.');
     }
-    // They've gone quiet (a closed tab, or a phone that's been put away): tell them it's
-    // over too, so if they come back they aren't left waiting on you. And if this copy is
-    // the one that was frozen that long, they'll have given up on you already.
-    const now = Date.now();
-    if (mp.match && !mp.match.gone && ((!mp.match.waits && !mpLive(mp.others[mp.match.opp])) || now - mp.tickAt > MP_LIVE)) {
-      mpSend(mp.match.opp, { k: 'quit', m: mp.match.id });
-      mp.match.gone = true;
+    // Is the match still on? A dropped connection might well come back (a phone changing networks,
+    // a flaky signal), so yours or theirs gets MP_LIVE to, and whatever you send meanwhile waits for
+    // it (see mpMatch). In a game the server runs, the server decides when they're gone for good: it
+    // knows when they dropped, gives them GRACE (the same length, in server/rooms.js) and tells you both.
+    const now = Date.now(), m = mp.match;
+    if (m && !m.gone) {
+      const o = mp.others[m.opp], here = !MP_WS || mp.heard;
+      m.off = here ? 0 : m.off || now;
+      m.missing = !here || o ? 0 : m.missing || now;
+      // this copy was frozen that long (a phone put away), so they'll have given up on you, or you've
+      // had no connection for that long
+      const meGone = now - mp.tickAt > MP_LIVE || (m.off && now - m.off > MP_LIVE);
+      // they're connected but have stopped sending (a closed laptop), or their connection's been
+      // gone that long
+      const themGone = (here && o && !m.waits && !mpLive(o)) || (!m.server && m.missing && now - m.missing > MP_LIVE);
+      if (meGone || themGone) {
+        mpSend(m.opp, { k: 'quit', m: m.id }); // (so if they come back they aren't left waiting on you)
+        m.gone = true; m.lost = !!meGone;
+      }
     }
     mp.tickAt = now;
     if (mp.newer && !mp.nudged && mode === 'play' && !ui.length && !fade) {
@@ -17889,7 +17927,7 @@
           say(outcome === 'win' ? 'You won the snowball fight against ' + foe + ', ' + score(hits, theirHits) + '! They have snow down their collar.'
             : outcome === 'lose' ? foe + ' won the snowball fight, ' + score(theirHits, hits) + '. You have snow down your collar.'
               : outcome === 'draw' ? 'A draw, ' + score(hits, theirHits) + '. Everyone has snow down their collar.'
-                : outcome === 'gone' ? foe + ' has gone. Nobody wins this one.' : 'The snowball fight fizzled out. Nobody wins this one.');
+                : outcome === 'gone' ? whoLeft(vs, foe, ' has gone.') + ' Nobody wins this one.' : 'The snowball fight fizzled out. Nobody wins this one.');
         }
         return;
       }
@@ -18062,7 +18100,7 @@
         if (state === 'wait') { box(60, 92, 200, 48); ctext('Waiting for ' + foe + '...', 104); ctext('Esc: give up', 120); }
         else if (state === 'ready') readyBox(t, 'Space: throw  Down: duck');
         else if (state === 'done' && vs) {
-          doneBox(outcome === 'gone' ? [foe + ' left.', 'Nobody wins this one.', '']
+          doneBox(outcome === 'gone' ? [whoLeft(vs, foe), 'Nobody wins this one.', '']
             : outcome === 'stopped' ? ['The snowball fight fizzled out.', 'Nobody wins this one.', '']
               : [msg, outcome === 'win' ? 'You win!' : outcome === 'lose' ? foe + ' wins!' : 'A draw!', 'Hits: you ' + hits + ', ' + foe + ' ' + theirHits], t);
         } else if (state === 'done') doneBox([msg, 'Hits: ' + hits, record ? 'New record!' : 'Best ' + getBest('snowball')], t);
@@ -20352,6 +20390,7 @@
       drawBanner();
       drawCupFlag();
       ui.forEach(layerDraw);
+      try { mpDropNote(); } catch (e) { console.error(e); }
     }
     drawHeld();
     if (fade) {
