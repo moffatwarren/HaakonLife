@@ -4,6 +4,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import WebSocket from 'ws';
 import { start } from '../index.js';
+import * as cards from '../games/cards.js';
 
 // first to 3 presses wins; ticks fast so the tests don't wait
 const count = {
@@ -16,7 +17,7 @@ const count = {
 const broken = { create: () => ({}), tick() { throw new Error('oops'); } };
 
 const PORT = 18080 + Math.floor(Math.random() * 1000);
-const srv = start({ port: PORT, games: { count, broken } });
+const srv = start({ port: PORT, games: { count, broken, cards } });
 after(() => srv.close());
 
 let n = 0;
@@ -175,6 +176,26 @@ async function match(game) {
   b.send({ k: 'to', to: a.id, m: { k: 'yes', m } });
   return { a, b, m };
 }
+
+test('a card game, over real connections: decks, a turn, and resigning', async () => {
+  const { a, b, m } = await match('cards');
+  a.send({ k: 'in', m, d: { deck: 'not a deck' } });
+  b.send({ k: 'in', m, d: { deck: [] } });
+  const deal = await a.for((d) => d.k === 'st' && d.m === m && d.s.you, 4000);
+  assert.equal(typeof deal.s.them.hand, 'number');
+  assert.equal(deal.s.ph, 'swap');
+  a.send({ k: 'in', m, d: { do: 'swap', cards: [] } });
+  b.send({ k: 'in', m, d: { do: 'swap', cards: [] } });
+  const play = await a.for((d) => d.k === 'st' && d.m === m && d.s.ph === 'play', 4000);
+  const mine = play.s.turn === play.s.me;
+  (mine ? a : b).send({ k: 'in', m, d: { do: 'end' } });
+  await a.for((d) => d.k === 'st' && d.m === m && d.s.ph === 'play' && d.s.turn !== play.s.turn, 4000);
+  b.send({ k: 'in', m, d: { do: 'resign' } });
+  const [ea, eb] = await Promise.all([a.for((d) => d.k === 'end'), b.for((d) => d.k === 'end')]);
+  assert.deepEqual(ea.r, { w: 0, why: 'resign' });
+  assert.deepEqual(eb.r, { w: 0, why: 'resign' });
+  a.ws.close(); b.ws.close();
+});
 
 test('an accepted challenge for a server game starts it, and it plays to the end', async () => {
   const { a, b, m } = await match('count');

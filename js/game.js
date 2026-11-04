@@ -5578,23 +5578,31 @@
   let cardsNow = null; // the game going on, for trying things out (window.GAME.cards)
   // o: { foe, npc, level, deck: a department or 'starter', mine: a deck, seed }
   function CardsGame(vs, o = {}) {
-    const A = CARD_ART, W = 640, H = 480, INK = '#1a1622', me = 0;
-    const pal = o.npc || (o.foe ? npcs.find((n) => n.name === o.foe) : null) || tableFoe();
-    const foe = o.foe || (pal ? pal.name : 'A coworker');
-    const level = o.level || tableLevel(foe);
+    const A = CARD_ART, W = 640, H = 480, INK = '#1a1622';
+    let me = 0; // your seat (against a player the server says which, in its first view)
+    const pal = vs ? null : o.npc || (o.foe ? npcs.find((n) => n.name === o.foe) : null) || tableFoe();
+    const foe = vs ? vs.name : o.foe || (pal ? pal.name : 'A coworker');
+    const level = vs ? 0 : o.level || tableLevel(foe);
     const every = CARDS.LIST.filter((c) => c.rarity !== 'T').map((c) => c.id);
     const seed = o.seed || Math.floor(Math.random() * 2 ** 31);
     const deptOf = (name) => { const c = CARDS.card(String(name).toLowerCase()); return c && c.dept; };
     const foeSprites = (vs && vs.sprites) || (pal && pal.sprites) || charSprites.male[0];
     const foeDept = deptOf(foe) || Object.keys(CARDS.DEPTS)[Math.abs(seed) % 4];
-    const myDeck = o.mine || (o.deck && o.deck !== 'starter' ? CARDS.buildDeck(every, { dept: o.deck, seed: seed + 1 }) : CARDS.STARTER);
-    const g = CARDS.create({ decks: [myDeck, CARDS.buildDeck(every, { dept: foeDept, seed: seed + 2 })], seed, names: [playerName || 'You', foe], ai: [0, level], first: o.first });
+    // (on a test address, &deck= picks your deck in a game against a player too)
+    const deckName = vs ? (/[#&]deck=(\w+)/.exec(location.hash) || [])[1] : o.deck;
+    const myDeck = o.mine || (deckName && deckName !== 'starter' ? CARDS.buildDeck(every, { dept: deckName, seed: seed + 1 }) : CARDS.STARTER);
+    // Against a coworker the rules run here (g). Against a player they run on the game server
+    // (server/games/cards.js), and all there is here is what it says you can see.
+    const g = vs ? null : CARDS.create({ decks: [myDeck, CARDS.buildDeck(every, { dept: foeDept, seed: seed + 2 })], seed, names: [playerName || 'You', foe], ai: [0, level], first: o.first });
 
     // ---------- what's showing ----------
     // view: what the rules say now. shown: what the table looks like at the moment, catching up with
     // view one event at a time (each of those is an animation), and matched back to it when it has.
     const copy = (x) => JSON.parse(JSON.stringify(x));
-    let view = g.view(me), shown = copy(view), seen = view.ev.length ? view.ev[view.ev.length - 1].i : -1;
+    let view = g ? g.view(me) : null, shown = view ? copy(view) : null;
+    let seen = view && view.ev.length ? view.ev[view.ev.length - 1].i : -1;
+    // (against a player: their last word and when it came, when you last sent one, how long you've been told they've gone)
+    let heard = null, heardT = 0, sentT = -1, goneT = 0, won = false, lastBeep = 0;
     const queue = [];
     let anim = null, t = 0, doneLines = null, parting = '', doneT = 0;
     let cur = { row: 2, i: 0 }, rest = 0, aim = null, menu = null, note = '', noteT = 0, again = false;
@@ -5617,7 +5625,9 @@
     const handStep = (n) => Math.min(92, n > 1 ? (516 - 88) / (n - 1) : 92);
     const handX = (i, n) => Math.round(262 - (handStep(n) * (n - 1) + 88) / 2 + i * handStep(n));
     // each player's plate, in the middle at the top and the bottom of the table
-    const FACE = { [me]: [216, 298, 208, 52], [1 - me]: [216, 2, 208, 52] };
+    let FACE;
+    const sitAt = (seat) => { me = seat; FACE = { [me]: [216, 298, 208, 52], [1 - me]: [216, 2, 208, 52] }; };
+    sitAt(0);
     const END_BOX = [524, HAND_Y, 108, 116];
     const HISTORY = 3, MOVES = 4; // (the cursor's "row" while you look through the last moves, and how many)
     const moveRect = (k) => [11, 58 + k * 48, 50, 44];
@@ -5946,7 +5956,7 @@
           if (seat === me) sfx('ding');
           return { len: seat === me ? 36 : 20 };
         }
-        case 'timeout': if (seat === me) flash('You ran out of time.'); return { len: 20 };
+        case 'timeout': flash(seat === me ? 'You ran out of time.' : foeShort + ' ran out of time.'); return { len: 20 };
         default: return { len: 1 };
       }
     }
@@ -6055,6 +6065,7 @@
       sfx('blip');
     }
     function send(a) {
+      if (vs) { vs.input(a); aim = null; again = true; sentT = t; return true; } // (it shows when the server says)
       if (g.act(me, a)) { pull(); aim = null; again = true; return true; }
       sfx('bump');
       return false;
@@ -6109,31 +6120,83 @@
     }
     function leave(words) {
       remove(self);
+      if (vs) vs.end();
       if (words) say(words);
     }
     function backMenu() {
-      menu = Choice(['KEEP PLAYING', 'HOW TO PLAY', 'LEAVE GAME'], 110, 96, (i) => {
+      menu = Choice(['KEEP PLAYING', 'HOW TO PLAY', vs ? 'RESIGN' : 'LEAVE GAME'], 110, 96, (i) => {
         menu = null;
         if (i === 1) { const next = (k) => { if (k < CARD_HOW.length) say(CARD_HOW[k], () => next(k + 1)); }; next(0); }
-        if (i === 2) leave(foe + ' goes back to work.');
+        if (i === 2) {
+          if (!vs) leave(foe + ' goes back to work.');
+          else if (t - heardT > 180) leave(); // (the server can't hear you say it)
+          else vs.input({ do: 'resign' });
+        }
       });
     }
     function pull() {
       view = g.view(me);
       for (const e of view.ev) if (e.i > seen) { seen = e.i; queue.push(e); }
     }
-    function finished() {
-      const r = view.r, won = r.w === me, drew = r.w < 0;
-      doneT = t;
-      sfx(won ? 'cup' : drew ? 'ding' : 'bump');
-      const why = { resign: won ? foeShort + ' gave up.' : 'You gave up.', time: won ? foeShort + ' ran out of time.' : 'You ran out of time.', long: 'It went on for ever.', morale: won ? foeShort + ' is out of Morale.' : drew ? 'Nobody has any Morale left.' : 'You\'re out of Morale.' }[r.why] || '';
-      doneLines = [won ? 'YOU WIN!' : drew ? 'IT\'S A DRAW' : foeShort.toUpperCase() + ' WINS', why];
-      parting = foe + (won ? ': "Good game! Best of three?"' : drew ? ': "Fair enough."' : ': "Good game. Come back any time."');
+    // Against a player: what the server last said. A view with q in it only has the clock.
+    function hear(v) {
+      if (!v || typeof v !== 'object') return;
+      if (v.q) { if (view) view.clock = +v.clock || 0; return; }
+      if (v.cv !== CARDS.VERSION) { ended({ why: 'version' }); return; }
+      if (!v.you || !v.them) return; // (it's still being dealt)
+      if (!view) {
+        sitAt(v.me === 1 ? 1 : 0);
+        view = v; shown = copy(v);
+        seen = v.ev.length ? v.ev[v.ev.length - 1].i : -1;
+        sfx('menu');
+        return;
+      }
+      view = v;
+      for (const e of v.ev) if (e.i > seen) { seen = e.i; queue.push(e); sentT = -1; }
+      if (shown.ph === 'swap' && v.ph !== 'swap') firstTurn();
+    }
+    // Everyone's chosen. The table's just as the view says, with the first turn already begun, so
+    // those events have nothing left to show but whose turn it is.
+    function firstTurn() {
+      shown = copy(view);
+      queue.length = 0;
+      banner = { str: view.turn === me ? 'YOUR TURN' : foeShort.toUpperCase() + '\'S TURN', t: 0 };
+      if (view.turn === me) sfx('ding');
+      again = true;
+    }
+    function finishedLive() {
+      const r = vs.result;
+      if (r && typeof r.w === 'number') ended(r);
+      else if (r && (r.error || r.timeout)) ended({ why: r.error ? 'stopped' : 'long' });
+      else if (r && r.quit === me) ended({ w: 1 - me, why: 'dropped' }); // (you were gone too long)
+      else if (r) ended({ why: 'gone' }); // they left, or dropped out for too long
+      else serverLost();
+    }
+    // the server doesn't have the game any more: because you've been away too long, or it restarted
+    const serverLost = () => ended({ why: t - heardT > 180 ? 'lost' : 'stopped' });
+    // how it ended: r.w is who won (-1 for a draw). With no r.w, nobody did.
+    function ended(r) {
+      if (doneLines) return;
+      won = r.w === me || r.why === 'gone';
+      const drew = r.w < 0, nobody = r.w === undefined && !won;
+      doneT = t; menu = null; aim = null; noteT = 0;
+      sfx(won ? 'cup' : drew || nobody ? 'ding' : 'bump');
+      const why = {
+        resign: won ? foeShort + ' gave up.' : 'You gave up.', time: won ? foeShort + ' ran out of time.' : 'You ran out of time.',
+        long: 'It went on for ever.', morale: won ? foeShort + ' is out of Morale.' : drew ? 'Nobody has any Morale left.' : 'You\'re out of Morale.',
+        gone: foeShort + ' left the game.', dropped: 'You dropped out for too long.', lost: 'The connection was gone for too long.', stopped: 'Someone knocked the table.', noserver: 'The game server can\'t start this one. Try again soon.',
+        version: 'The game server is still updating. Try again soon.',
+      }[r.why] || '';
+      doneLines = [won ? 'YOU WIN!' : drew ? 'IT\'S A DRAW' : nobody ? 'NOBODY WINS' : foeShort.toUpperCase() + ' WINS', why];
+      if (nobody || r.why === 'gone') parting = '';
+      else if (vs) parting = won ? 'You beat ' + foe + ' at Office Politics!' : drew ? 'You and ' + foe + ' call it a draw.' : foe + ' beat you at Office Politics.';
+      else parting = foe + (won ? ': "Good game! Best of three?"' : drew ? ': "Fair enough."' : ': "Good game. Come back any time."');
     }
 
     // ---------- the swap at the start ----------
     function updateSwap() {
       const you = shown.you;
+      if (pressed.has('b')) { sfx('select'); backMenu(); return; }
       if (you.swapped) return;
       const n = you.hand.length;
       if (pressed.has('left')) { swapAt = (swapAt + n) % (n + 1); sfx('blip'); }
@@ -6173,6 +6236,10 @@
         const str = swapping.size ? 'SWAP ' + swapping.size : 'KEEP THESE', bw = 180, bx = x0 + 60, by = 270;
         panel(bx, by, bw, 34, swapAt === n ? '#f8d850' : '#f8f8f4');
         ctx.drawImage(cardWord(str, INK), Math.round(bx + (bw - str.length * 12) / 2), by + 10);
+        if (vs) { // (how long you've got: the clock goes below 0 while you choose)
+          const left = String(Math.max(0, Math.ceil((1800 + view.clock) / 60)));
+          ctx.drawImage(cardWord(left, left < 10 ? '#ff9878' : '#fff4c0'), W - 12 - left.length * 12, 16);
+        }
         const hint = swapAt < n ? (swapping.has(you.hand[swapAt].u) ? 'A: keep this card' : 'A: swap this card') + '   Down: ' + str.toLowerCase() : 'A: ' + str.toLowerCase() + '   Up: back to the cards';
         ctx.drawImage(cardWord(hint, '#c8c0d8'), 40, 444);
       }
@@ -6445,8 +6512,12 @@
       deckLeft(me, 6, 326);
       const canEnd = shown.turn === me && view.ph === 'play' && !anim && !queue.length;
       panel(...END_BOX, canEnd && nothingLeft() ? (Math.floor(t / 20) % 2 ? '#f8d850' : '#f8e888') : canEnd ? '#f8f8f4' : '#a8a8a4');
-      ctx.drawImage(cardWord('END', INK, 2), END_BOX[0] + 18, END_BOX[1] + 22);
-      ctx.drawImage(cardWord('TURN', INK, 2), END_BOX[0] + 6, END_BOX[1] + 58);
+      ctx.drawImage(cardWord('END', INK, 2), END_BOX[0] + 18, END_BOX[1] + (vs ? 8 : 22));
+      ctx.drawImage(cardWord('TURN', INK, 2), END_BOX[0] + 6, END_BOX[1] + (vs ? 44 : 58));
+      if (vs && view.ph === 'play' && !view.r) { // the time left for whoever's turn it is
+        const left = Math.max(0, Math.ceil(view.clock / 60)), str = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+        ctx.drawImage(cardWord(str, left <= 15 ? '#c02820' : INK), END_BOX[0] + Math.round((END_BOX[2] - str.length * 12) / 2), END_BOX[1] + 88);
+      }
       you.table.forEach((x, i) => { if (!mover || mover.who !== x) worker(x, slotX(i), rowY(me) - jumpOf(x)); });
       // going home, a step at a time
       for (const w of gone) {
@@ -6576,17 +6647,36 @@
         panel(x, 161, Math.min(w, W - 8), 28);
         ctx.drawImage(cardWord(note, INK), x + 12, 168);
       }
-      if (doneLines) {
-        ctx.fillStyle = 'rgba(10,8,18,0.6)'; ctx.fillRect(0, 0, W, H);
-        const big2 = doneLines[0], x = Math.round((W - big2.length * 24) / 2);
-        for (const [a, b] of [[-4, 0], [4, 0], [0, -4], [0, 4]]) ctx.drawImage(cardWord(big2, INK, 2), x + a, 180 + b);
-        ctx.drawImage(cardWord(big2, view.r.w === me ? '#f8d850' : '#f4ecd8', 2), x, 180);
-        const line = doneLines[1];
-        ctx.drawImage(cardWord(line, '#f4ecd8'), Math.round((W - line.length * 12) / 2), 224);
-      }
+      if (doneLines) drawDone();
+    }
+    // a word if the connection's gone, yours or theirs: the server gives you both a while to come back
+    function drawConnection() {
+      if (!vs || !view || doneLines || view.r) return;
+      const str = t - heardT > 180 ? 'Trying to get back to the game...' : !mpLive(mp.others[vs.opp]) ? foeShort + ' dropped out. Waiting for them...' : '';
+      if (!str) return;
+      const w = str.length * 12 + 24, x = Math.round((W - w) / 2);
+      panel(x, 16, w, 28, '#ffb0a0');
+      ctx.drawImage(cardWord(str, INK), x + 12, 23);
+    }
+    function drawDone() {
+      ctx.fillStyle = 'rgba(10,8,18,0.6)'; ctx.fillRect(0, 0, W, H);
+      const big2 = doneLines[0], x = Math.round((W - big2.length * 24) / 2);
+      for (const [a, b] of [[-4, 0], [4, 0], [0, -4], [0, 4]]) ctx.drawImage(cardWord(big2, INK, 2), x + a, 180 + b);
+      ctx.drawImage(cardWord(big2, won ? '#f8d850' : '#f4ecd8', 2), x, 180);
+      const line = doneLines[1];
+      ctx.drawImage(cardWord(line, '#f4ecd8'), Math.max(8, Math.round((W - line.length * 12) / 2)), 224);
+    }
+    // waiting for the server to deal
+    function drawDealing() {
+      ctx.drawImage(cardTable(), 0, 0);
+      ctx.fillStyle = 'rgba(16,12,24,0.6)'; ctx.fillRect(0, 0, W, H);
+      if (doneLines) { drawDone(); return; }
+      const str = 'Dealing' + '.'.repeat(1 + (Math.floor(t / 20) % 3));
+      ctx.drawImage(cardWord(str, '#fff4c0'), Math.round((W - 10 * 12) / 2), 220);
+      ctx.drawImage(cardWord('Against ' + foeShort, '#c8c0d8'), Math.round((W - (8 + foeShort.length) * 12) / 2), 246);
     }
 
-    cardsNow = { g, pull, me, busy: () => !!anim || queue.length > 0, get done() { return !!doneLines; }, get cursor() { return stopNow(); }, get aiming() { return !!aim; }, get moves() { return moves; } };
+    cardsNow = { g, pull, me, busy: () => !!anim || queue.length > 0, get done() { return !!doneLines; }, get cursor() { return stopNow(); }, get aiming() { return !!aim; }, get moves() { return moves; }, get view() { return view; }, get seat() { return me; } };
     const self = {
       music: 'battle', doing: 'cards',
       update() {
@@ -6618,6 +6708,22 @@
           if (t - doneT > 60 && (pressed.has('a') || pressed.has('b'))) leave(parting);
           return;
         }
+        if (vs) {
+          if (vs.view !== heard) { heard = vs.view; heardT = t; hear(heard); if (doneLines) return; }
+          if (!view) {
+            // Nothing from the server at all: it isn't running this game (the site and the server
+            // update separately, so it can be a few minutes behind). Better to say so than to leave
+            // you both waiting for each other.
+            if (vs.result !== undefined || (vs.gone && ++goneT > 60)) finishedLive();
+            else if (!heard && t > NO_WORD) ended({ why: 'noserver' });
+            else if (pressed.has('b')) leave();
+            else if (t % 30 === 1) vs.input({ deck: myDeck }); // (again, in case the first got lost)
+            return;
+          }
+          // The server's word on how it ended comes straight after anything else that says it's over.
+          // If it doesn't, the server has lost the game.
+          if (vs.gone && vs.result === undefined && ++goneT > 60) { serverLost(); return; }
+        }
         if (menu) { menu.update(); return; }
         // A hurries it all along
         if ((anim || queue.length) && pressed.has('a') && shown.ph !== 'swap') {
@@ -6644,16 +6750,25 @@
         // caught up: what the rules say is what's on the table
         // ...and when it's just become your turn, or you've just done something, the cursor moves on
         // to the next thing you can do: another worker who can attack, a card, or END TURN.
+        if (vs && vs.result !== undefined) { finishedLive(); return; }
+        if (!vs && view.r) { ended(view.r); return; }
+        // (you've done something, and the server hasn't said yet. If it doesn't, it didn't take it.)
+        if (sentT >= 0) { if (t - sentT < 90) return; sentT = -1; }
         const was = shown.turn, wasCan = !!shown.can;
         shown = copy(view);
         if (shown.ph !== 'swap' && (was !== shown.turn || !wasCan || again) && shown.turn === me) homeCursor();
         again = false;
-        if (view.r) { finished(); return; }
+        if (vs && view.ph === 'play' && view.turn === me) { // the last few seconds tick
+          const left = Math.ceil(view.clock / 60);
+          if (left <= 10 && left > 0 && left !== lastBeep) { lastBeep = left; sfx('tap'); }
+        }
         if (view.ph === 'swap') {
           updateSwap();
-          g.step();
-          pull();
-          if (view.ph !== 'swap') { shown = copy(view); seen = view.ev.length ? view.ev[view.ev.length - 1].i : seen; homeCursor(); }
+          if (g) {
+            g.step();
+            pull();
+            if (view.ph !== 'swap') firstTurn();
+          }
           return;
         }
         const looking = cur.row === HISTORY;
@@ -6664,12 +6779,13 @@
             if (aim) { aim = null; cur = cur.was || { row: 2, i: 0 }; rest = 0; sfx('select'); } else { sfx('select'); backMenu(); }
           }
         } else if (pressed.has('a')) { sfx('bump'); flash('It\'s ' + foeShort + '\'s turn.'); } else if (pressed.has('b')) { sfx('select'); backMenu(); }
-        if (shown.turn !== me) { g.step(); pull(); }
+        if (g && shown.turn !== me) { g.step(); pull(); }
       },
       draw() {
         ctx.save();
         ctx.scale(0.5, 0.5);
-        if (shown.ph === 'swap') drawSwap(); else drawTable();
+        if (!shown) drawDealing(); else if (shown.ph === 'swap') { drawSwap(); if (doneLines) drawDone(); } else drawTable();
+        drawConnection();
         ctx.restore();
         if (menu) menu.draw();
       },
@@ -14773,7 +14889,9 @@
   // `input(d)` sends the server what you did, and `result` is set once it's over. Those
   // can only be picked when there's a game server. A game with `christmas: true` is only
   // in the list once Christmas has first come round (SEASON_FROM), and from then on for
-  // good; &christmas=1 puts it there early for testing. Anybody can still accept one.
+  // good; &christmas=1 puts it there early for testing. Anybody can still accept one. A game with
+  // `waits: true` leaves it to the server to say when someone's gone for good, so that a dropped
+  // connection can come back and carry on: there, it gives them a while (GRACE in server/rooms.js).
   const VERSUS = {
     duel: { label: 'AIR DUEL', title: 'an air handling duel', Game: (m) => BattleGame(m) },
     jar: { label: 'CANDY JAR', title: 'a candy jar guess-off', Game: (m) => CandyJarGame(m) },
@@ -14789,10 +14907,16 @@
     snowball: { label: 'SNOWBALL FIGHT', title: 'a snowball fight', server: true, christmas: true, Game: (m) => SnowballGame(m) },
     chess: { label: 'CHESS', title: 'a game of chess', server: true, Game: (m) => ChessGame(m) },
     checkers: { label: 'CHECKERS', title: 'a game of checkers', server: true, Game: (m) => CheckersGame(m) },
+    cards: { label: 'OFFICE POLITICS', title: 'a game of Office Politics', server: true, waits: true, Game: (m) => CardsGame(m) },
   };
   // The little picture beside each game in the challenge list, with the same keys as VERSUS
   // (see listIcon).
   const VS_ICONS = {
+    cards: (r) => { // a hand of cards
+      r(2, 6, 10, 15, '#1a1622'); r(3, 7, 8, 13, '#2c3468'); r(4, 8, 6, 11, '#3c4888');
+      r(7, 4, 10, 15, '#1a1622'); r(8, 5, 8, 13, '#2c3468'); r(9, 6, 6, 11, '#3c4888');
+      r(12, 2, 10, 15, '#1a1622'); r(13, 3, 8, 13, '#f4ecd8'); r(14, 4, 6, 6, '#e8a030'); r(14, 11, 6, 1, '#685848'); r(14, 13, 4, 1, '#685848');
+    },
     duel: (r, o) => { // an air handler's fan
       r(2, 2, 20, 20, '#9098a8'); r(2, 2, 20, 2, '#c8ccd8'); r(2, 2, 2, 20, '#c8ccd8'); r(4, 20, 18, 2, '#5c6474'); r(20, 4, 2, 18, '#5c6474');
       o(12, 12, 8, '#283040');
@@ -15160,6 +15284,7 @@
   function mpStart(id, opp, name, seed, game, soft) {
     sfx('menu');
     mp.match = mpMatch(id, opp, name, seed, soft, VERSUS[game].server);
+    mp.match.waits = !!VERSUS[game].waits;
     ui.push(VERSUS[game].Game(mp.match));
   }
   // Waiting for the other player to answer your challenge.
@@ -15259,7 +15384,7 @@
     // over too, so if they come back they aren't left waiting on you. And if this copy is
     // the one that was frozen that long, they'll have given up on you already.
     const now = Date.now();
-    if (mp.match && !mp.match.gone && (!mpLive(mp.others[mp.match.opp]) || now - mp.tickAt > MP_LIVE)) {
+    if (mp.match && !mp.match.gone && ((!mp.match.waits && !mpLive(mp.others[mp.match.opp])) || now - mp.tickAt > MP_LIVE)) {
       mpSend(mp.match.opp, { k: 'quit', m: mp.match.id });
       mp.match.gone = true;
     }

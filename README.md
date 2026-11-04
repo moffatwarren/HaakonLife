@@ -652,6 +652,13 @@ which tile they're on (and has them walking from tile to tile).
     being accepted (it deploys separately from the site, so it can be a few minutes behind just
     after an update), you're both told so and go back to the office, rather than waiting on each other.
 
+  - **Office Politics**: the card game, against each other. A coin decides who goes first, and you
+    each see only your own hand. You get 75 seconds a turn, shown on END TURN, and if you run out
+    three turns in a row you lose. B opens the menu, which is where you resign. If your connection
+    drops, or theirs does, the game waits for 12 seconds in case it comes back, and if it doesn't
+    the other player wins. The game server runs this one (`server/games/cards.js`), so it's only in
+    the list when there is one, and it's the server that shuffles and says who won.
+
   The treadmill, Snake, the control panel and mini golf carry on until you're both done.
 
   They get 30 seconds to accept. Someone who's in a game has what they're playing
@@ -773,6 +780,24 @@ if it ever disagrees, the board goes back to what the server says. On Render a c
 `js/chess.js` or `js/checkers.js` doesn't redeploy the server, so deploy it by hand then (or change
 something in `server/` too). To try one, open `tools/test.html#play&server=ws://localhost:8080` in two
 windows, walk up to each other and pick CHESS or CHECKERS from CHALLENGE.
+
+Office Politics (`server/games/cards.js`) is another, with its own module rather than `table.js`
+because a card game has things to hide. Its rules and cards are `js/cards.js` and `js/cardlist.js`,
+the same ones the browser plays a coworker with, and `CardsGame` in `js/game.js` is the screen for
+both. Each player is only sent `g.view(their seat)`: the other hand and both decks are just counts.
+The shuffle comes from a seed of the server's own, because the room's `rng` comes from the
+challenger's browser. A browser first sends `{ deck: ids }`: the server checks that it's legal, and
+if it isn't, or doesn't come, that player gets the starter deck. It can't check that you own the
+cards, which is the same honour system as the scores. With nothing happening it sends just the clock,
+with the whole view every couple of seconds in case one went missing.
+
+A change to `js/cards.js` or `js/cardlist.js` has to touch `server/` as well, because Render only
+redeploys the server when something in there changes. `VERSION` in `server/games/cards.js` is what
+does that: `tools/check_games.mjs` stops the site deploying until it's the same as the rules say, and
+tells you what to set it to. The browser checks it too, so a browser whose rules aren't the same as
+the server's (while the server's still updating, say) says so instead of starting. To try it, open
+`tools/test.html#play&server=ws://localhost:8080&deck=road` in two windows, side by side so that
+neither is in the background: `&deck=` is `plant`, `road`, `office`, `lunch` or `starter`.
 Give the entry `christmas: true` as well (as the snowball fight has) and it's only in the
 list from the day Christmas first starts (`SEASON_FROM`), then for good.
 

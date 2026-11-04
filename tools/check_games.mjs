@@ -10,6 +10,7 @@
 // the exceptions just below. A game is a function called SomethingGame or SomethingApp, or any
 // other that says what you're `doing`.
 import { readFileSync, readdirSync } from 'node:fs';
+import vm from 'node:vm';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,9 +22,7 @@ const NO_BOARD = { // saveBest keys that don't go on a leaderboard
 };
 const NOT_DOING = {}; // games that don't say what you're doing (see MP_DOING)
 const NO_SHORTCUT = {}; // games that can't be opened with &game=
-const NOT_STARTED = { // games nothing starts yet
-  CardsGame: 'only the &game=cards shortcut for now, until coworkers offer it',
-};
+const NOT_STARTED = {}; // games nothing starts yet
 
 // ---------- reading the code ----------
 // (a failure here stops the site deploying, so say clearly if it's this that's confused)
@@ -319,6 +318,16 @@ for (const f of loaded.filter((x) => x !== 'game')) {
   if (!names.some((n) => needs.has(n))) say(`js/${f}.js has nothing in the list at the very top of js/game.js: add ${names[0] || 'the window.NAME it sets'} there, or anyone with a saved index.html crashes when something uses it.`);
 }
 for (const n of needs) if (!scriptNames.has(n)) say(`The list at the very top of js/game.js has ${n}, but no script sets window.${n}, so the game would never start for anyone.`);
+
+// ---------- the card game's rules on the server ----------
+// Render only redeploys the server when something in server/ changes, and a live game is played by
+// the server's copy of the rules and the cards, so a change to either has to touch server/ as well.
+{
+  const box = vm.createContext({ window: {} });
+  for (const f of ['cardlist.js', 'cards.js']) vm.runInContext(read('js/' + f), box, { filename: 'js/' + f });
+  const now = box.window.CARDS.VERSION, m = /export const VERSION = '(\w+)'/.exec(read('server/games/cards.js'));
+  if (!m || m[1] !== now) say(`js/cards.js or js/cardlist.js has changed, so the game server needs to know: set VERSION in server/games/cards.js to '${now}'.`);
+}
 
 // ---------- and the verdict ----------
 const unique = [...new Set(problems)];

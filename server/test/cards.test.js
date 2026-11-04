@@ -4,6 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import * as live from '../games/cards.js';
+import { seeded } from '../rooms.js';
 
 const ctx = vm.createContext({ window: {} });
 for (const f of ['cardlist.js', 'cards.js']) {
@@ -629,4 +631,180 @@ test('thousands of random games all finish, and nothing ever goes out of bounds'
     games++;
   }
   assert.equal(games, 1500);
+});
+
+// ---------- the game the server runs ----------
+const LIVE_TURN = 75 * 5; // the server's ticks in a 75 second turn
+const dealt = (decks) => {
+  const s = live.create({ seats: 2, rng: seeded(42) });
+  if (decks) { live.input(s, 0, { deck: decks[0] }); live.input(s, 1, { deck: decks[1] }); }
+  for (let i = 0; i < 100 && !s.g; i++) live.tick(s);
+  assert.ok(s.g, 'it gets dealt');
+  return s;
+};
+// a whole view, whatever the server would have said about nothing having changed
+const fresh = (s, seat) => { s.said[seat] = null; return plain(live.view(s, seat)); };
+// two decks with no card in common, so anything of one showing up in the other's view is a leak
+const NOT_MINE = () => {
+  const mine = CARDS.STARTER, theirs = every.filter((id) => !mine.includes(id) && CARDS.card(id).rarity !== 'L').slice(0, DECK);
+  assert.equal(CARDS.deckProblem(theirs), null);
+  return [mine, theirs];
+};
+
+test('the server has the rules\' version, so a change to the cards has to touch server/', () => {
+  assert.equal(live.VERSION, CARDS.VERSION, 'set VERSION in server/games/cards.js to what the rules say it is now');
+  assert.equal(live.load().VERSION, live.VERSION, 'and those are the rules the server really loads');
+});
+test('it waits for both decks, and starts as soon as it has them', () => {
+  const s = live.create({ seats: 2, rng: seeded(1) });
+  assert.equal(live.tick(s), undefined);
+  assert.equal(s.g, null);
+  assert.deepEqual(plain(live.view(s, 0)), { ph: 'deal', cv: CARDS.VERSION });
+  live.input(s, 0, { deck: CARDS.STARTER });
+  live.tick(s);
+  assert.equal(s.g, null, 'one deck isn\'t enough');
+  live.input(s, 1, { deck: CARDS.STARTER });
+  live.tick(s);
+  assert.ok(s.g, 'both decks are');
+});
+test('a deck that never comes, or isn\'t legal, is the starter deck', () => {
+  const had = (s, seat) => { const sv = plain(s.g.save()).p[seat]; return sv.deck.concat(sv.hand).map((c) => c.id || c).sort(); };
+  const nobody = dealt();
+  assert.deepEqual(had(nobody, 0), [...CARDS.STARTER].sort());
+  const legends = every.filter((id) => CARDS.card(id).rarity === 'L');
+  const two = legends.slice(0, 2).concat(CARDS.STARTER.slice(0, DECK - 2));
+  assert.ok(CARDS.deckProblem(two));
+  for (const bad of [two, 'all of them', 7, null, [], ['forklift'], Array(DECK).fill('forklift'), Array(DECK).fill({}), { length: DECK }]) {
+    const s = live.create({ seats: 2, rng: seeded(1) });
+    live.input(s, 0, { deck: bad });
+    live.input(s, 1, { deck: CARDS.STARTER });
+    for (let i = 0; i < 100 && !s.g; i++) live.tick(s);
+    assert.deepEqual(had(s, 0), [...CARDS.STARTER].sort(), 'not ' + JSON.stringify(bad).slice(0, 30));
+  }
+  const good = NOT_MINE()[1], s = dealt([good, CARDS.STARTER]);
+  assert.deepEqual(had(s, 0), [...good].sort(), 'a legal deck is the one you play');
+});
+test('you can only send your deck once', () => {
+  const [a, b] = NOT_MINE(), s = live.create({ seats: 2, rng: seeded(1) });
+  live.input(s, 0, { deck: a });
+  live.input(s, 0, { deck: b });
+  assert.deepEqual(s.decks[0], a);
+});
+test('the shuffle isn\'t the room\'s seed, which comes from a browser', () => {
+  const order = () => { const s = live.create({ seats: 2, rng: seeded(42) }); live.input(s, 0, { deck: CARDS.STARTER }); live.input(s, 1, { deck: CARDS.STARTER }); live.tick(s); const sv = plain(s.g.save()); return sv.p[0].hand.map((h) => h.id).concat(sv.p[0].deck).join(); };
+  const seen = new Set();
+  for (let i = 0; i < 8; i++) seen.add(order());
+  assert.ok(seen.size > 1, 'the same room seed deals different games');
+});
+test('neither player is sent the other\'s hand or either deck', () => {
+  const [a, b] = NOT_MINE();
+  const s = dealt([a, b]);
+  // Anything that's been in the open stops being secret: a card that's been played, and then sent back
+  // to its owner's hand, and the Double Shot, which everybody knows you get for going second.
+  const open = () => { const ids = new Set(['doubleshot']); for (const e of plain(s.g.events)) if (e.e !== 'draw' && e.id) ids.add(e.id); return ids; };
+  const secret = (seat) => { const sv = plain(s.g.save()), ids = new Set(), known = open(); for (const c of sv.p[1 - seat].hand) if (!known.has(c.id)) ids.add(c.id); for (const c of sv.p[1 - seat].deck) if (!known.has(c.id || c)) ids.add(c.id || c); return ids; };
+  const check = () => {
+    for (const seat of [0, 1]) {
+      const v = fresh(s, seat), text = JSON.stringify(v), hiding = secret(seat);
+      assert.equal(typeof v.them.hand, 'number');
+      assert.equal(typeof v.them.deck, 'number');
+      assert.equal(typeof v.you.deck, 'number', 'not even the order of your own');
+      assert.equal(v.s, undefined, 'no seed');
+      assert.ok(!/"s":\d{6,}/.test(text), 'nothing that looks like one');
+      for (const id of hiding) assert.ok(!text.includes('"' + id + '"'), 'seat ' + seat + ' can see ' + id);
+    }
+  };
+  check();
+  live.input(s, 0, { do: 'swap', cards: [] });
+  live.input(s, 1, { do: 'swap', cards: [] });
+  check();
+  // and all through a game
+  for (let m = 0; m < 400 && !s.g.result; m++) {
+    const t = s.g.view(0).turn;
+    live.input(s, t, s.g.choose(t, 2));
+    check();
+  }
+  assert.ok(s.g.result, 'a whole game was played');
+});
+test('a game played through the server ends with who won', () => {
+  const s = dealt([CARDS.STARTER, CARDS.STARTER]);
+  live.input(s, 0, { do: 'swap', cards: [] });
+  live.input(s, 1, { do: 'swap', cards: [] });
+  let r;
+  for (let m = 0; m < 2000 && r === undefined; m++) {
+    const t = s.g.view(0).turn;
+    live.input(s, t, s.g.choose(t, 3));
+    r = live.tick(s);
+  }
+  assert.ok(r, 'it finished');
+  assert.ok([-1, 0, 1].includes(r.w));
+  assert.equal(r.why, 'morale');
+});
+test('you can only play on your turn, and your own cards, and rubbish does nothing', () => {
+  const s = dealt([CARDS.STARTER, CARDS.STARTER]);
+  live.input(s, 0, { do: 'swap', cards: [] });
+  live.input(s, 1, { do: 'swap', cards: [] });
+  const t = s.g.view(0).turn, other = 1 - t, before = JSON.stringify(plain(s.g.save()));
+  const notYours = s.g.view(t).you.hand[0].u;
+  for (const d of [{ do: 'end' }, { do: 'play', card: notYours }, { do: 'attack', from: 1, target: 0 }]) live.input(s, other, d);
+  for (const d of [null, 1, 'end', [], {}, { do: 'nonsense' }, { do: 'play' }, { do: 'play', card: 'x' }, { do: 'play', card: {} }, { do: 'attack', from: {}, target: [] }, { do: 'swap', cards: 'x' }, { deck: CARDS.STARTER }, { do: '__proto__' }, JSON.parse('{"__proto__":{"do":"end"}}')]) {
+    live.input(s, t, d);
+    live.tick(s);
+  }
+  const was = JSON.parse(before), now = plain(s.g.save());
+  assert.equal(now.turn, was.turn, 'still their turn');
+  assert.equal(now.n, was.n);
+  assert.deepEqual(now.p[0].hand, was.p[0].hand);
+  assert.deepEqual(now.p[1].hand, was.p[1].hand);
+  assert.equal(s.g.result, null);
+});
+test('resigning loses, at any point, and the other player can\'t do it for you', () => {
+  const s = dealt([CARDS.STARTER, CARDS.STARTER]);
+  live.input(s, 1, { do: 'resign' });
+  assert.deepEqual(live.tick(s), { w: 0, why: 'resign' });
+});
+test('run out of time three turns running and you lose', () => {
+  const s = dealt([CARDS.STARTER, CARDS.STARTER]);
+  live.input(s, 0, { do: 'swap', cards: [] });
+  live.input(s, 1, { do: 'swap', cards: [] });
+  const first = s.g.view(0).turn;
+  assert.equal(s.g.view(0).clock, 75 * 60);
+  let r, ticks = 0;
+  while (r === undefined && ticks < LIVE_TURN * 8) { r = live.tick(s); ticks++; }
+  assert.deepEqual(r, { w: 1 - first, why: 'time' });
+  assert.ok(Math.abs(ticks - LIVE_TURN * 5) < 10, 'that was five turns of 75 seconds, not ' + ticks + ' ticks');
+});
+test('someone who never picks their cards gets on with what they have', () => {
+  const s = dealt([CARDS.STARTER, CARDS.STARTER]);
+  live.input(s, 0, { do: 'swap', cards: [] });
+  for (let i = 0; i < 29 * 5; i++) live.tick(s);
+  assert.equal(s.g.view(0).ph, 'swap', 'they get 30 seconds');
+  for (let i = 0; i < 2 * 5; i++) live.tick(s);
+  assert.equal(s.g.view(0).ph, 'play', 'and no more');
+});
+test('with nothing happening only the clock is sent, and now and then the whole view again', () => {
+  const s = dealt([CARDS.STARTER, CARDS.STARTER]);
+  live.input(s, 0, { do: 'swap', cards: [] });
+  live.input(s, 1, { do: 'swap', cards: [] });
+  const whole = plain(live.view(s, 0));
+  assert.ok(whole.you && whole.them, 'the first one\'s all of it');
+  assert.equal(whole.cv, CARDS.VERSION);
+  live.tick(s);
+  const quiet = plain(live.view(s, 0));
+  assert.deepEqual(Object.keys(quiet).sort(), ['clock', 'q']);
+  assert.equal(quiet.clock, whole.clock - 12);
+  let kinds = 0;
+  for (let i = 0; i < 25; i++) { live.tick(s); if (plain(live.view(s, 0)).you) kinds++; }
+  assert.ok(kinds >= 2, 'a whole view every couple of seconds, in case one was lost: ' + kinds);
+  const t = s.g.view(0).turn;
+  live.input(s, t, { do: 'end' });
+  assert.ok(plain(live.view(s, 0)).you, 'and straight away when something happens');
+});
+test('a view isn\'t huge, even late in a long game', () => {
+  const s = dealt([CARDS.STARTER, CARDS.STARTER]);
+  live.input(s, 0, { do: 'swap', cards: [] });
+  live.input(s, 1, { do: 'swap', cards: [] });
+  for (let m = 0; m < 60 && !s.g.result; m++) { const t = s.g.view(0).turn; live.input(s, t, s.g.choose(t, 3)); }
+  assert.ok(fresh(s, 0).ev.length <= 30);
+  assert.ok(JSON.stringify(fresh(s, 0)).length < 6000, JSON.stringify(fresh(s, 0)).length + ' characters');
 });
