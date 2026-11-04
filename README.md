@@ -154,7 +154,14 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   the visitor Jill don't have one yet, so they don't offer a game.
 - **Where to find them:** most people are at their desks in Richmond. Plant people are at the Kingston plant
   (see "Eugene's phone and the Kingston plant"). Ali, Garrett and Ryan are only ever in the visitor office
-  (182), where people take turns of about 45 seconds. MY CARDS says where for anyone who isn't in the office.
+  (182), where people take turns of about 45 seconds. In MY CARDS a card you haven't won is face down, and
+  picking it says who to beat for it and where.
+- **Winning them all:** the Full deck is a flair for whoever has every card: five cards going round you, which
+  other players see too (`deckOrbit`). It's a special item (see "Special items"), and a card added later doesn't
+  take it away.
+- **Leaderboards:** the Hall of Fame has CARDS COLLECTED and MORALE MADNESS WINS, under Board and Card Games. A
+  win counts when you beat another player, including when they resign or run out of time. It doesn't count
+  if they just leave the game, and games against coworkers don't count.
 - **Against a player:** see **Playing together**. Your deck goes with you. The server checks that it's
   legal, not that you own the cards, the same honour system as scores and items.
 - **Saved:** your cards go in the database with your special items, at `items/<world>/<name>/c_<id>`, so
@@ -469,12 +476,13 @@ items/live/warren/antlers: 0
 ```
 
 `santa` is the Santa hat, `candycane` the candy cane, `antlers` the humbug antlers, `sweeper` the Sweeper, `crown` the crown,
-`startrail` the star trail, `ghostmask` the ghost mask and `ribbon` the ribbon. 1 means it's theirs, so it's one of their choices in the character editor. 0 means it
+`startrail` the star trail, `ghostmask` the ghost mask, `ribbon` the ribbon and `fulldeck` the Full deck. 1 means it's theirs, so it's one of their choices in the character editor. 0 means it
 isn't, and the game won't offer it to them, even at Christmas, from the present, the cup or a quest. No number
 means they've never been given it.
 
 In the game the Santa hat comes from coming in over Christmas, the candy cane from opening the
-present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, and the mask and the ribbon from the quests (see
+present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, the Full deck from winning every card in
+Morale Madness, and the mask and the ribbon from the quests (see
 **Linda's list** and **Employee of the Month**), which add a 1 where there's no number. The game
 never sets a number for the crown or the star trail: the Office Champion wears them with no
 number, for as long as they're on top, so a number is only for giving them to somebody for good.
@@ -1500,7 +1508,7 @@ or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
 and `&stapler=near` puts it right in front of you. `&helped=5` counts the
 first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gives you Kiki's list, and
 `game=kiki` opens it.
-`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
+`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=almost` makes everything yours but the Forklift, so that beating Mike D. (add `&plant=1`) wins your last card and the Full deck. `&have=fulldeck&look=m10000000030` wears the Full deck. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
 the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
 `&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
 `&crown=1` makes you the Office Champion, in the crown and the star trail.

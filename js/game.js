@@ -4102,8 +4102,33 @@
   const meWorn = () => (hw.worn ? null : wornLook(myLook)), mpWorn = (o) => (o.c ? null : o.look);
   // their picture with any part of the head thing that's drawn on its own left off, to go with these
   const freed = (img, worn) => (worn && img.loose) || img;
+  // The Full deck, for winning every card in Morale Madness: five cards going round you, turning
+  // over as they go, one in each class's colour and one gold with a twinkle on it. Those on the far
+  // side go behind you (wornBehind) and the near ones in front (wornOver). They stay off the ice, as
+  // the rest of the flair does. Each picture is 12 x 16 real pixels.
+  const DECK_FACE = ['kkkkkkkkkkkk', 'kkkkkkkkkkkk', 'kkLLLLLLLLkk', 'kkLCCCCCCDkk', 'kkLCCCCCCDkk', 'kkCCCCCCCDkk', 'kkCCCCCDDDkk', 'kkDDDDDDDDkk', 'kkWWWWWWWWkk', 'kkWggggggWkk', 'kkWWWWWWWWkk', 'kkWggggWWWkk', 'kkWWWWWWWWkk', 'kkWWWWWWWWkk', 'kkkkkkkkkkkk', 'kkkkkkkkkkkk'];
+  const DECK_BACK = ['kkkkkkkkkkkk', 'kkkkkkkkkkkk', 'kkOOOOOOOOkk', 'kkOnnnnnnOkk', 'kkOnNnnNnOkk', 'kkOnnYYnnOkk', 'kkOnYYYYnOkk', 'kkOnYYYYnOkk', 'kkOnYYYYnOkk', 'kkOnYYYYnOkk', 'kkOnnYYnnOkk', 'kkOnNnnNnOkk', 'kkOnnnnnnOkk', 'kkOOOOOOOOkk', 'kkkkkkkkkkkk', 'kkkkkkkkkkkk'];
+  const DECK_COLS = { k: '#1a1622', W: '#f4ecd8', g: '#8a7c68', O: '#c89828', Y: '#f8d850', n: '#20264c', N: '#343c74' };
+  const DECK_CARDS = [['#f0a060', '#d87830', '#a85820'], ['#e87068', '#c84038', '#982c28'], ['#6890e8', '#3868c8', '#284c98'], ['#78c878', '#48a048', '#347a34'], ['#fff0a0', '#f0c030', '#c89020']];
+  const deckFace = (i) => rowsPic('deckFace' + i, DECK_FACE, Object.assign({ L: DECK_CARDS[i][0], C: DECK_CARDS[i][1], D: DECK_CARDS[i][2] }, DECK_COLS));
+  const deckOn = (worn) => worn.flair === Art.FULL_DECK && !(hockey && hockey.scene() && P.floor === YARD);
+  function deckOrbit(x, y, front, rx) {
+    DECK_CARDS.forEach((_, i) => {
+      const a = tick / 44 + i * Math.PI * 2 / DECK_CARDS.length;
+      if (Math.sin(a) > 0 !== front) return;
+      const cx = x + 8 + Math.cos(a) * rx * 1.15, cy = y + 9 + Math.sin(a) * 3.5 + Math.sin(tick / 26 + i * 2) * 0.5;
+      // lying flat most of the way round, then a quick turn over to show the other side
+      const turn = Math.cos(tick / 30 + i * 1.7), w = Math.max(0.5, realPx(Math.min(1, Math.abs(turn) * 2.5) * 6));
+      ctx.globalAlpha = front ? 1 : 0.85;
+      ctx.drawImage(turn > 0 ? deckFace(i) : rowsPic('deckBack', DECK_BACK, DECK_COLS), realPx(cx - w / 2), realPx(cy - 4), w, 8);
+      ctx.globalAlpha = 1;
+      const t = (tick + i * 11) % 70;
+      if (i === 4 && t < 14) twinkle(realPx(cx + 1.5), realPx(cy - 3), realPx(Math.sin(t / 14 * Math.PI) * 2.5));
+    });
+  }
   function wornBehind(worn, x, y, dir, walk, rx = 10.5) {
     if (!worn) return;
+    if (deckOn(worn)) deckOrbit(x, y, false, rx);
     if (worn.hat === Art.HAUNTED_MASK) hauntGhosts(x, y, false, rx);
     const big = bigHat(worn);
     if (big) drawBigHat(big, worn.hat, x, y, dir);
@@ -4116,6 +4141,7 @@
     if (worn.hat === Art.ANTLERS) humbugBaubles(x, y, dir, walk);
     if (worn.hat === Art.SANTA) santaGlint(x, y, dir, walk);
     if (worn.extra === Art.GOLD_RIBBON) ribbonSparkle(x, y, dir);
+    if (deckOn(worn)) deckOrbit(x, y, true, rx);
   }
   function HallOfFame() {
     const name = playerName || store.get('name') || '', me = name ? boardKey(name) : null;
@@ -6824,11 +6850,12 @@
   let cardsOwned = new Set(), cardsFor = null;
   const cardsWho = () => playerName || 'New Hire';
   const cardKey = (name, what) => (BOARD_POSTS ? '' : 'test.') + what + '.' + boardKey(name);
-  // what this browser remembers (and &havecards=all or &havecards=markv,steve, as if those were yours)
+  // what this browser remembers (and &havecards=all, or =almost for all but the Forklift, or =markv,steve,
+  // as if those were yours)
   function cardsRead(name) {
     cardsOwned = new Set(); cardsFor = name;
     const test = (/[#&]havecards=([a-z0-9,]+)/.exec(location.hash) || ['', ''])[1].split(',');
-    for (const c of CARDS.LIST) if (c.rarity !== 'T' && (store.get(itemKey(name, 'c_' + c.id)) === '1' || test[0] === 'all' || test.includes(c.id))) cardsOwned.add(c.id);
+    for (const c of CARDS.LIST) if (c.rarity !== 'T' && (store.get(itemKey(name, 'c_' + c.id)) === '1' || test[0] === 'all' || (test[0] === 'almost' && c.id !== 'forklift') || test.includes(c.id))) cardsOwned.add(c.id);
   }
   // what the database says. One here with nothing there is a save that didn't get through, so it goes
   // again. A 0 there means it's been taken away by hand.
@@ -6860,6 +6887,14 @@
     saveBest('cards', cardsCount());
     return true;
   }
+  // Every card in the game is yours: the Full deck, under FLAIR in the character editor. It's yours for
+  // good, so a card added later doesn't take it away, though anybody still collecting needs that one too.
+  const cardsAll = () => CARDS.LIST.every((c) => c.rarity === 'T' || CARDS.STARTER.includes(c.id) || cardsOwned.has(c.id));
+  function cardPrizeTell() {
+    sfx('cup');
+    itemOffer(['fulldeck'], 'You\'ve won every card in Morale Madness, so now you\'re playing with a full deck, and it\'s yours to keep! It\'s under FLAIR, in Edit character in the Start menu.',
+      'Your cards lift off and start going round you. You feel very collected.');
+  }
   // A new card, turning over from its back and held up for you to look at.
   function CardReveal(id) {
     const A = CARD_ART, c = CARDS.card(id), legend = c.rarity === 'L', rare = legend || c.rarity === 'R';
@@ -6869,7 +6904,11 @@
     const self = {
       update() {
         t++;
-        if (t > FLIP + 12 && (pressed.has('a') || pressed.has('b'))) { sfx('select'); remove(self); }
+        if (t > FLIP + 12 && (pressed.has('a') || pressed.has('b'))) {
+          sfx('select');
+          remove(self);
+          if (cardsAll() && itemEarned(cardsWho(), 'fulldeck')) cardPrizeTell();
+        }
       },
       draw() {
         ctx.save();
@@ -6900,6 +6939,19 @@
     };
     return self;
   }
+  // Who to beat for a card and where they are, for MY CARDS. It has 3 lines of 21 letters to fit in.
+  function cardWhere(id) {
+    const who = CARDS.wonFrom(id);
+    if (!who) return '';
+    const first = CARDS.prizes(who)[0], beat = 'Beat ' + who + (id === first ? '' : cardHave(first) ? ' again' : ' twice');
+    const crew = Object.values(window.PLANT_CREW || {}).some((c) => c.name === who);
+    // (the visitors take turns, so there mightn't be anybody of that name there right now)
+    if (visit && !crew && (window.VISITORS || []).some((v) => v.name === who)) return beat + ' when they visit office ' + parseInt(visit.room.name, 10) + ', ' + MAPS.floors[visit.npc.floor].name + '.';
+    const n = npcs.find((k) => k.name === who), room = n && roomAt(n.floor, n.x, n.y);
+    if (!n) return beat + ' to win this.';
+    const num = room ? parseInt(room.name, 10) : NaN, here = !room ? '' : num ? 'office ' + num + ', ' : room.name + ', ';
+    return beat + ' in ' + here + MAPS.floors[n.floor].name + '.';
+  }
   // MY CARDS in the Start menu: everything you've won, and the 20 you play with.
   function DeckApp() {
     const A = CARD_ART, COLS = 4, ROWS = 3, GX = 276, GY = 42, SIZE = CARDS.RULES.DECK;
@@ -6914,18 +6966,9 @@
       : draft.map(CARDS.card).sort(byCost).map((c) => c.id));
     const flash = (str) => { note = str; noteT = 170; };
     const legal = () => !CARDS.deckProblem(draft);
-    // (and where they are, for anyone who isn't in the office)
-    const crew = Object.values(window.PLANT_CREW || {}).map((c) => c.name);
-    const visiting = (window.VISITORS || []).map((v) => v.name);
-    const winFrom = (id) => {
-      const who = CARDS.wonFrom(id);
-      if (!who) return '';
-      const where = crew.includes(who) ? ' at the Kingston plant' : visiting.includes(who) ? ' in the visitor office' : '';
-      return 'Beat ' + who + where + (CARDS.prizes(who).indexOf(id) > 0 ? ' twice' : '') + ' to win this.';
-    };
     function toggle(id) {
       const c = CARDS.card(id);
-      if (!cardHave(id)) { sfx('bump'); flash(winFrom(id)); return; }
+      if (!cardHave(id)) { sfx('bump'); flash(cardWhere(id)); return; }
       if (draft.includes(id)) { draft = draft.filter((x) => x !== id); sfx('select'); return; }
       if (draft.length >= SIZE) { sfx('bump'); flash('Your deck is full. Take one out first.'); return; }
       if (c.rarity === 'L' && draft.some((x) => CARDS.card(x).rarity === 'L')) { sfx('bump'); flash('A deck can only have one legendary.'); return; }
@@ -7011,11 +7054,7 @@
             ctx.drawImage(smallCard(cid, { cost: true }), x, y);
             if (k.rarity === 'L') { const [cx, cy] = A.cropOf(cid); ctx.drawImage(A.canvasOf(A.artFrame(cid, t)), cx, cy, 72, 72, x + 8, y + 8, 72, 72); }
             A.shine(ctx, x, y, 88, 116, t, k.rarity, 8);
-          } else {
-            ctx.drawImage(backOfCard(), x, y);
-            fr(x, y, 88, 116, 'rgba(20,16,28,0.55)');
-            say2('?', x + 38, y + 49, '#d8d0e0');
-          }
+          } else ctx.drawImage(backOfCard(), x, y);
           if (TABS[tab][1] && draft.includes(cid)) { fr(x + 60, y + 2, 26, 22, '#1a1622'); fr(x + 62, y + 4, 22, 18, '#48a048'); say2('IN', x + 62, y + 5, '#ffffff'); }
           if (sel) { fr(x - 3, y - 3, 94, 3, '#f8d850'); fr(x - 3, y + 116, 94, 3, '#f8d850'); fr(x - 3, y, 3, 116, '#f8d850'); fr(x + 88, y, 3, 116, '#f8d850'); }
         });
@@ -7026,7 +7065,7 @@
         // what A does, or how to get it
         const wrapped = [];
         const line = noteT > 0 ? note : onTabs ? (tab === FILL ? 'A: fill up your deck with the best of what you have.' : 'Left and Right: another page. Down: its cards.')
-          : !id ? '' : !yours ? winFrom(id) : draft.includes(id) ? 'In your deck. A: take it out.' : 'A: put it in your deck.';
+          : !id ? '' : !yours ? cardWhere(id) : draft.includes(id) ? 'In your deck. A: take it out.' : 'A: put it in your deck.';
         let cur = '';
         for (const word of line.split(' ')) { if ((cur + ' ' + word).trim().length > 21) { wrapped.push(cur); cur = word; } else cur = (cur + ' ' + word).trim(); }
         wrapped.push(cur);
@@ -7063,6 +7102,8 @@
       'Now when you talk to a coworker, they\'ll offer you a game. Beat them and their card is yours.',
       'Some of them are holding on to something rarer, and you\'ll see it played against you. Beat them again and you win that too.',
       'You can\'t lose a card. Pick any 20 here, one of each and at most one legendary, and that\'s your deck against coworkers and other players.',
+      'The cards you haven\'t won yet are face down, and picking one says who to beat for it and where. For the Kingston plant, answer the phone in Eugene\'s office.',
+      'Win every last card and there\'s something special in it for you.',
       'In a game, B opens a menu with HOW TO PLAY.',
     ];
     const next = (k) => { if (k < LINES.length) say(LINES[k], () => next(k + 1)); };
@@ -20022,6 +20063,8 @@
       if (/[#&]santahat=1/.test(location.hash)) items.santa = 1;
       cupAward(name);
       if (comingIn) santaAward(name);
+      // (won the last card and left before the message, or given them by hand: you're told as you walk in)
+      if (cardsAll() && itemEarned(name, 'fulldeck')) questEarned.push({ what: 'Full deck (FLAIR)', told: cardPrizeTell });
       questAward(name, quests);
       // (&have=ghostmask,ribbon: as if these were yours, for testing)
       for (const item of (/[#&]have=([a-z,]+)/.exec(location.hash) || ['', ''])[1].split(',')) if (inTable(ITEMS, item)) items[item] = 1;
@@ -20300,6 +20343,7 @@
     if (r && r.key === 'flair' && editChoices(r).length < 2) return 'Be the Office Champion to earn a star trail here!';
     if (r && r.key === 'flair' && worn.flair === Art.STAR_TRAIL) return crowned ? 'Stars follow you while you stay on top!' : 'Stars follow you wherever you go!';
     if (r && r.key === 'flair' && worn.flair === Art.SWEEPER) return 'A beaten humbug sweeps up after you!';
+    if (r && r.key === 'flair' && worn.flair === Art.FULL_DECK) return 'Every card in the game, and they go where you go!';
     if (r && r.key === 'hat' && worn.hat === Art.SANTA) return 'It jingles and shakes off snow as you walk!';
     if (r && r.key === 'hat' && worn.hat === Art.HAUNTED_MASK) return 'You\'ve set Linda free the most: it\'s haunted!';
     if (r && r.key === 'extra' && worn.extra === Art.CANDY_CANE) return 'It makes a fine walking stick, and a better snack!';
@@ -20310,7 +20354,7 @@
   // they've got on: the character editor, and the picture with a new item (itemPanel). sheet is
   // their sprites, and they're smaller in a big head thing, so it fits under the title.
   function showOff(worn, sheet, dir, x, y) {
-    const k = bigHat(worn) ? 3 : 5, S = 16 * k, bx = x - S / 2, by = y + 2 - S;
+    const k = bigHat(worn) ? 3 : worn.flair === Art.FULL_DECK ? 4 : 5, S = 16 * k, bx = x - S / 2, by = y + 2 - S;
     const big = (paint) => { ctx.save(); ctx.translate(bx, by); ctx.scale(k, k); paint(); ctx.restore(); };
     floorShadow(x, y, 4 * k, 4);
     if (worn.flair === Art.STAR_TRAIL) trailPreview(x, y);
@@ -20961,5 +21005,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get cards() { return cardsNow; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, get myCards() { return [...cardsMine()]; } };
+  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get cards() { return cardsNow; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, cardWhere, get myCards() { return [...cardsMine()]; } };
 })();

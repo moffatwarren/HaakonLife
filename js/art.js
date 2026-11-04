@@ -151,8 +151,10 @@ window.Art = (function () {
     // a beaten humbug who follows you about with a broom (followTick in js/game.js): the
     // Christmas Cup's champion's, along with the antlers
     { name: 'Sweeper', item: 'sweeper' },
+    // Morale Madness cards going round you (deckOrbit in js/game.js), for a name that's won every card
+    { name: 'Full deck', item: 'fulldeck' },
   ];
-  const STAR_TRAIL = FLAIRS.findIndex((f) => f.name === 'Star trail'), SWEEPER = FLAIRS.findIndex((f) => f.item === 'sweeper');
+  const STAR_TRAIL = FLAIRS.findIndex((f) => f.name === 'Star trail'), SWEEPER = FLAIRS.findIndex((f) => f.item === 'sweeper'), FULL_DECK = FLAIRS.findIndex((f) => f.item === 'fulldeck');
   // Not a part you pick from a list: which of the Office Champion's things they've chosen not
   // to wear, 1 for the crown plus 2 for the star trail (see champLook in js/game.js).
   const CHAMP_OFF = [0, 1, 2, 3];
@@ -5897,7 +5899,7 @@ window.Art = (function () {
   return {
     LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS, extras: EXTRAS, flairs: FLAIRS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, CANDY_CANE, STAR_TRAIL, SWEEPER, BIG_COLS, BAUBLE32, SANTA_END32, SWEEPER32, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, CANDY_CANE, STAR_TRAIL, SWEEPER, FULL_DECK, BIG_COLS, BAUBLE32, SANTA_END32, SWEEPER32, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
     SWEATERS,
   };
 })();
