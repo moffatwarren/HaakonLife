@@ -2,14 +2,15 @@
 //   wss://<host>/?w=<live or test>&id=<its player id>&key=<its secret>&b=1
 // and from then on it's JSON messages both ways (see world.js). &b=1 says it takes
 // everyone's moves bundled up (copies from before that leave it off). A plain web request
-// gets "ok" and how many people are on, for the host's health check, and how many problems
-// browsers have reported (see problems.js, for a POST to /problem).
+// gets "ok", for the host's health check. /status is who's on and how many problems browsers
+// have reported, behind a password (see status.js, and problems.js for a POST to /problem).
 //
 // Settings, from the environment:
 //   PORT     where to listen (default 8080)
 //   ORIGINS  the pages allowed to connect, comma separated, e.g.
 //            "https://haakonlife.com,https://www.haakonlife.com". Unset allows any page,
 //            which is what you want on your own computer.
+//   STATUS_PASSWORD  the password for /status. Unset keeps that page locked.
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
@@ -17,19 +18,27 @@ import { World, BUNDLE_MS } from './world.js';
 import defaultGames from './games/index.js';
 import defaultTables from './tables/index.js';
 import { problemDesk } from './problems.js';
+import { statusDesk } from './status.js';
 
 // A bug in handling one player's message shouldn't stop the game for everybody else.
 function safely(what, id, fn) {
   try { return fn(); } catch (e) { console.error(what, id, 'failed:', e); return undefined; }
 }
 
-export function start({ port = 8080, origins = [], games = defaultGames, tables = defaultTables } = {}) {
+export function start({ port = 8080, origins = [], games = defaultGames, tables = defaultTables, statusPassword = '' } = {}) {
   const worlds = { live: new World('live', games, Date.now, tables), test: new World('test', games, Date.now, tables) };
   const problems = problemDesk(origins);
+  const status = statusDesk(statusPassword, worlds, problems);
   const server = http.createServer((req, res) => {
     if (req.method === 'POST' && req.url === '/problem') { problems.take(req, res); return; }
+    if (req.url === '/status') {
+      if (safely('status', 'page', () => { status.take(req, res); return true; })) return;
+      if (!res.headersSent) res.writeHead(500);
+      res.end();
+      return;
+    }
     res.writeHead(200, { 'content-type': 'text/plain' });
-    res.end('ok ' + Object.entries(worlds).map(([n, w]) => n + ':' + w.online()).join(' ') + ' problems:' + problems.count + '\n');
+    res.end('ok\n');
   });
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
 
@@ -93,7 +102,7 @@ export function start({ port = 8080, origins = [], games = defaultGames, tables 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = +process.env.PORT || 8080;
   const origins = (process.env.ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const s = start({ port, origins });
+  const s = start({ port, origins, statusPassword: process.env.STATUS_PASSWORD });
   console.log('Haakon Life server on port ' + port + (origins.length ? ', for ' + origins.join(', ') : ''));
   // hosts stop the old copy with SIGTERM when they deploy a new one
   for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => s.close().then(() => process.exit(0)));

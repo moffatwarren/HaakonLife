@@ -27,6 +27,7 @@ import { Table } from './tables.js';
 const NAME_MAX = 12, STR_MAX = 16, KEY_RE = /^[A-Za-z0-9_]{1,16}$/;
 const MAIL_MAX = 50; // messages kept for someone whose connection has dropped
 const KEEP = 600000; // ms an id stays reserved for its owner after they disconnect
+const ACTIVE_MS = 12000; // ms without a record before someone isn't playing (MP_LIVE in js/game.js)
 const ASK_MS = 60000; // ms a challenge stays open
 const PER_SEC = 100; // messages a second from one player before the rest are dropped
 const TABLE_RE = /^[a-z0-9]{1,16}(:[A-Za-z0-9]{1,16})?$/; // a table's name (see tables.js)
@@ -60,6 +61,20 @@ export class World {
   }
 
   online() { return [...this.players.values()].filter((p) => p.sock).length; }
+
+  // The names behind every open connection, for the status page. Active is everyone actually
+  // playing. Inactive is a tab in the background, which stops running the game but keeps its
+  // connection, or a connection that hasn't said who it is yet. The name is whatever the
+  // browser sent, so anything that could fake a new line on the page comes out.
+  connections() {
+    const now = this.now(), out = { active: [], inactive: [] };
+    for (const p of this.players.values()) {
+      if (!p.sock) continue;
+      const name = p.rec ? p.rec.n.replace(/[\p{C}\p{Zl}\p{Zp}]/gu, '') || '?' : '(no name yet)';
+      out[p.rec && now - p.rec.t < ACTIVE_MS ? 'active' : 'inactive'].push(name);
+    }
+    return out;
+  }
 
   // A connection says who it is. The id is the browser's own, so it keeps it across a
   // reconnect; the key proves it's the same browser. bundles: it takes 'ps' rather than

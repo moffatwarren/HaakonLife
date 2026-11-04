@@ -4,6 +4,8 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import WebSocket from 'ws';
 import { start } from '../index.js';
+import { World } from '../world.js';
+import { statusDesk } from '../status.js';
 
 // first to 3 presses wins; ticks fast so the tests don't wait
 const count = {
@@ -16,7 +18,7 @@ const count = {
 const broken = { create: () => ({}), tick() { throw new Error('oops'); } };
 
 const PORT = 18080 + Math.floor(Math.random() * 1000);
-const srv = start({ port: PORT, games: { count, broken } });
+const srv = start({ port: PORT, games: { count, broken }, statusPassword: 'letmein' });
 after(() => srv.close());
 
 let n = 0;
@@ -244,7 +246,97 @@ test('a game that crashes ends with an error, and the server carries on', async 
     a.ws.close(); b.ws.close();
   } finally { console.error = orig; }
   const res = await fetch(`http://localhost:${PORT}/`);
-  assert.match(await res.text(), /^ok live:\d+ test:\d+/);
+  assert.equal(await res.text(), 'ok\n');
+});
+
+const statusPage = (password, port = PORT) => fetch(`http://localhost:${port}/status`, password === undefined ? {} : { headers: { authorization: 'Basic ' + btoa('me:' + password) } });
+
+test('the status page lists active and inactive connections, by name', async () => {
+  const a = client('live');
+  await a.open(); await a.for((d) => d.k === 'all');
+  a.me({ n: 'Ann' });
+  const quiet = client('live'); // connected, but hasn't sent a record
+  await quiet.open(); await quiet.for((d) => d.k === 'all');
+  await pause(50);
+  const res = await statusPage('letmein');
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+  const lines = (await res.text()).split('\n');
+  assert.match(lines[0], /^ok live:2 test:\d+ problems:\d+$/);
+  assert.deepEqual(lines.slice(2, 6), ['live active:1', '  Ann', 'live inactive:1', '  (no name yet)']);
+  a.ws.close(); quiet.ws.close();
+  await pause(50);
+  assert.deepEqual((await (await statusPage('letmein')).text()).split('\n').slice(2, 4), ['live active:0', 'live inactive:0']);
+});
+
+test('only the right password gets you the names', async () => {
+  const a = client('live');
+  await a.open(); await a.for((d) => d.k === 'all');
+  a.me({ n: 'Ann' });
+  await pause(50);
+  const none = await statusPage();
+  assert.equal(none.status, 401);
+  assert.match(none.headers.get('www-authenticate'), /^Basic /);
+  assert.ok(!(await none.text()).includes('Ann'));
+  const wrong = await statusPage('nope');
+  assert.equal(wrong.status, 401);
+  assert.ok(!(await wrong.text()).includes('Ann'));
+  const plain = await (await fetch(`http://localhost:${PORT}/`)).text();
+  assert.equal(plain, 'ok\n'); // (the address anyone can open says nothing about who's on)
+  a.ws.close();
+});
+
+test('with no password set on the server, the status page stays locked', async () => {
+  const port = PORT + 2000, s = start({ port, games: {} });
+  try {
+    for (const tried of [undefined, '', 'letmein']) assert.equal((await statusPage(tried, port)).status, 403);
+  } finally { await s.close(); }
+});
+
+test('too many wrong passwords and the status page stops checking for a while', () => {
+  let t = 60000;
+  const desk = statusDesk('letmein', {}, { count: 0 }, () => t);
+  const tryIt = (password) => {
+    let code = 0;
+    desk.take({ headers: { authorization: 'Basic ' + btoa('me:' + password) } }, { writeHead(c) { code = c; }, end() {} });
+    return code;
+  };
+  assert.equal(tryIt('letmein'), 200);
+  for (let i = 0; i < 10; i++) assert.equal(tryIt('nope'), 401);
+  assert.equal(tryIt('letmein'), 429); // (even the right one, or guessing would still work)
+  t += 60000;
+  assert.equal(tryIt('letmein'), 200);
+});
+
+test('a connection goes inactive after 12 seconds with no record, and keeps its name', () => {
+  let t = 1000;
+  const world = new World('test', {}, () => t);
+  const sock = { readyState: 1, send() {}, close() {} };
+  world.join('a', 'k', sock);
+  assert.deepEqual(world.connections(), { active: [], inactive: ['(no name yet)'] });
+  world.hear(sock, { k: 'me', r: { n: 'Ann', f: 0, x: 1, y: 2, p: 1 } });
+  assert.deepEqual(world.connections(), { active: ['Ann'], inactive: [] });
+  t += 11999;
+  assert.deepEqual(world.connections(), { active: ['Ann'], inactive: [] });
+  t += 1;
+  assert.deepEqual(world.connections(), { active: [], inactive: ['Ann'] });
+  world.leave(sock);
+  assert.deepEqual(world.connections(), { active: [], inactive: [] });
+  world.close();
+});
+
+test('a name can\'t fake a line on the status page', () => {
+  const world = new World('test', {}, () => 1000);
+  const add = (id, n) => {
+    const sock = { readyState: 1, send() {}, close() {} };
+    world.join(id, 'k', sock);
+    world.hear(sock, { k: 'me', r: { n, f: 0, x: 1, y: 2, p: 1 } });
+  };
+  add('a', 'Ann\nok live');
+  add('b', '\r\n');
+  add('c', 'Zoë 🎄');
+  assert.deepEqual(world.connections().active, ['Annok live', '?', 'Zoë 🎄']);
+  world.close();
 });
 
 // sitting down at the poker table, the way browsers do it

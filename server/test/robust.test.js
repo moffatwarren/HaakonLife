@@ -16,7 +16,7 @@ const tables = {
   blind: { ...table, sit: () => true, view() { throw new Error('oops'); } },
 };
 const PORT = 19080 + Math.floor(Math.random() * 400);
-const srv = start({ port: PORT, tables });
+const srv = start({ port: PORT, tables, statusPassword: 'letmein' });
 const ORIGIN = 'https://game.example';
 const PORT2 = PORT + 500;
 const srv2 = start({ port: PORT2, origins: [ORIGIN], tables });
@@ -121,9 +121,9 @@ test('a bug while handling a message goes in the log, and the server carries on'
 });
 
 const report = (body, port = PORT, headers = {}) => fetch(`http://localhost:${port}/problem`, { method: 'POST', body, headers });
-const problems = async (port = PORT) => +/problems:(\d+)/.exec(await (await fetch(`http://localhost:${port}/`)).text())[1];
+const problems = async () => +/problems:(\d+)/.exec(await (await fetch(`http://localhost:${PORT}/status`, { headers: { authorization: 'Basic ' + btoa('me:letmein') } })).text())[1];
 
-test('a problem a browser reports goes in the log on one line and on the health check', async () => {
+test('a problem a browser reports goes in the log on one line and on the status page', async () => {
   const before = await problems();
   const res = await report(JSON.stringify({ m: 'boom\nfake log line', s: 'at draw (js/game.js:1:1)', at: 'play / laundry', v: 123 }), PORT, { 'user-agent': 'A phone' });
   assert.equal(res.status, 204);

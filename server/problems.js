@@ -2,8 +2,8 @@
 // a POST to /problem with JSON { m: the error's message, s: where in the code it happened,
 // at: what they were doing, v: which version of the game they have } (see reportProblem in
 // index.html). Each one goes in the server's log on a line of its own starting "browser
-// problem", with the kind of device it came from, and the health check's line says how many
-// have come in since the server started. No names: it's about the bug, not who hit it.
+// problem", with the kind of device it came from, and the status page says how many have
+// come in since the server started. No names: it's about the bug, not who hit it.
 const MAX_BODY = 8 * 1024;
 const PER_MIN = 60; // how many go in the log a minute, so nobody can flood it
 

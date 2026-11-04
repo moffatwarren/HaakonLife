@@ -711,8 +711,33 @@ npm test           # checks it works
 
 Then open `tools/test.html#play&server=ws://localhost:8080` in two tabs (served by any
 local web server, or straight from the folder) and you'll see each other.
-`http://localhost:8080` in a browser says how many people are on, and how many problems
-browsers have reported since it started (see **When something goes wrong**).
+`http://localhost:8080` in a browser just says `ok`, which is what the host's health check reads.
+
+`/status` is the status page: `http://localhost:8080/status`, or
+https://play.haakonlife.com/status on the real server. It has people's names on it, so your
+browser asks for a password first. Leave the username blank, or put anything. The password is
+the `STATUS_PASSWORD` setting, so start the server with `STATUS_PASSWORD=something npm start`
+to try it. With no password set, the page stays locked.
+
+```
+ok live:3 test:0 problems:0
+
+live active:1
+  Warren
+live inactive:2
+  Sam
+  (no name yet)
+
+test active:0
+test inactive:0
+```
+
+`live:3` counts every open connection, including yours, and each tab or device is its own
+connection. **Active** means the same as the in-game list, somebody the server has heard from in
+the last 12 seconds. **Inactive** is still connected but not in the office: mostly a tab in the
+background, which stops running the game but keeps its connection. After 10 wrong passwords in
+a minute, the page stops checking until the next minute. `problems` is how many problems browsers
+have reported since the server started (see **When something goes wrong**).
 
 Step by step, with two terminals:
 
@@ -745,7 +770,8 @@ plays on your own (and keeps trying to reconnect). Reloading is what fails.
 Render, Fly.io, a VPS); not on the haakonlife.com shared hosting, which doesn't allow
 that. Point the host at the `server/` folder (start command `npm start`), and set the
 `ORIGINS` setting to `https://haakonlife.com,https://www.haakonlife.com` so only the game
-can connect. The host tells it which port to use. Restarting it (which deploying a new
+can connect, and the `STATUS_PASSWORD` setting to a password of your own for the status page
+(set it on the host, and never put it in this repo). The host tells it which port to use. Restarting it (which deploying a new
 version does) drops everyone for a moment; they reconnect on their own, but a game the
 server was running is lost.
 
@@ -865,7 +891,7 @@ their browser and device; `v` is which version of the game they had, in millisec
 1970, the same date as "Updated ..." on the title screen; and `s` lists the code they were in, with line
 numbers. It doesn't say who it was. A browser sends each different error once, and at most five
 a page load, and the server logs at most 60 a minute. For a quick look, open
-https://play.haakonlife.com: `problems:3` on the end of the line is how many have come in
+https://play.haakonlife.com/status: `problems:3` on the end of the first line is how many have come in
 since the server last restarted. Only the hosted copy with nothing after a `#` in the address
 reports anything, so your own testing doesn't show up. Errors go to the browser's console
 either way.
