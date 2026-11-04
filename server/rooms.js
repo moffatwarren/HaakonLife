@@ -17,8 +17,16 @@
 // and strings.
 
 // How long a player can drop out (a phone waking up, a flaky connection) before the
-// game counts them as gone. The same as how long the browsers wait.
+// game counts them as gone. The same as how long the browsers wait. While anyone's out the
+// game stands still, clocks and all, so nobody loses points for it: nothing ticks, and each
+// player's state goes out with w saying why (1: it's waiting for the other player, 2: for you,
+// 3: everyone's back, and it carries on in a moment).
 export const GRACE = 12000;
+// A player's browser says something every 4 seconds, so this long with nothing means they've
+// stopped, even with their connection still open: a closed laptop, or a tab in the background.
+const QUIET = 6000;
+// How long it holds on once everyone's back, so nobody's caught out.
+const BACK_MS = 2000;
 // No game runs longer than this.
 const MAX_MS = 30 * 60000;
 
@@ -35,11 +43,13 @@ export function seeded(seed) {
 
 export class Room {
   // seats: the players' ids, in seat order. send(id, msg) reaches a player; done() is
-  // called once, when the game is over.
-  constructor({ id, game, seats, seed, soft, send, done }) {
-    Object.assign(this, { id, game, seats, send, done, over: false, ticks: 0, away: new Map() });
+  // called once, when the game is over. quiet(id): how long since that player last said
+  // anything, in ms.
+  constructor({ id, game, seats, seed, soft, send, done, quiet = () => 0 }) {
+    Object.assign(this, { id, game, seats, send, done, quiet, over: false, ticks: 0, hold: 0, away: new Map() });
     const hz = game.hz || 20;
     this.maxTicks = Math.ceil(MAX_MS / 1000 * hz);
+    this.holdFor = Math.ceil(BACK_MS / 1000 * hz);
     try {
       this.state = game.create({ seats: seats.length, rng: seeded(seed), soft: !!soft });
     } catch (e) { this.crash(e); return; }
@@ -56,12 +66,21 @@ export class Room {
 
   step() {
     if (this.over) return;
+    const stopped = this.seats.find((pid) => this.quiet(pid) > GRACE);
+    if (stopped !== undefined) { this.quit(stopped); return; }
+    // who it's waiting for, and if that's nobody, whether it's still holding on for a moment
+    const out = this.seats.filter((pid) => this.away.has(pid) || this.quiet(pid) > QUIET);
+    if (out.length) this.hold = this.holdFor;
+    const still = this.hold > 0;
+    if (still && !out.length) this.hold--;
     let result;
     try {
-      result = this.game.tick(this.state);
-      this.seats.forEach((pid, seat) => this.send(pid, {
-        k: 'st', m: this.id, s: this.game.view ? this.game.view(this.state, seat) : this.state,
-      }));
+      if (!still) result = this.game.tick(this.state);
+      this.seats.forEach((pid, seat) => {
+        const msg = { k: 'st', m: this.id, s: this.game.view ? this.game.view(this.state, seat) : this.state };
+        if (still) msg.w = !out.length ? 3 : out.some((o) => o !== pid) ? 1 : 2;
+        this.send(pid, msg);
+      });
     } catch (e) { this.crash(e); return; }
     if (result !== undefined) this.end(result);
     else if (++this.ticks >= this.maxTicks) this.end({ timeout: true });

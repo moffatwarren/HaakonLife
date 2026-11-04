@@ -6,5 +6,6 @@ import * as forklift from './forklift.js';
 import * as snowball from './snowball.js';
 import * as chess from './chess.js';
 import * as checkers from './checkers.js';
+import * as cards from './cards.js';
 
-export default { pong, forklift, snowball, chess, checkers };
+export default { pong, forklift, snowball, chess, checkers, cards };

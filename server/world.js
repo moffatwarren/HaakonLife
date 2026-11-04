@@ -204,6 +204,7 @@ export class World {
     const room = new Room({
       id, game: this.games[c.g], seats, seed: c.seed, soft: c.soft,
       send: (pid, msg) => this.send(pid, msg),
+      quiet: (pid) => { const p = this.players.get(pid); return p && p.rec ? this.now() - p.rec.t : 0; },
       done: () => {
         this.rooms.delete(id);
         for (const pid of seats) { const p = this.players.get(pid); if (p && p.room === id) p.room = null; }
@@ -219,7 +220,7 @@ export class World {
     const p = this.players.get(id);
     if (!p) return;
     if (p.sock) this.write(p.sock, msg);
-    else if (keep && p.mail.length < MAIL_MAX) p.mail.push(msg);
+    else if (keep && p.mail.push(msg) > MAIL_MAX) p.mail.shift(); // (the newest matter most: a final score, say)
   }
 
   // Their record changed (r is null once they've gone). A copy that takes bundles hears

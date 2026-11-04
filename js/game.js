@@ -4,7 +4,7 @@
   // only whatever uses that script would break, much later on. Stop here instead: with no
   // window.GAME, index.html reloads the page, and a reload always asks for the newest index.html.
   // (tools/check_games.mjs makes sure every script has a name in this list.)
-  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'CHESS', 'CHECKERS', 'SWEEPER'].some((name) => !window[name])) return;
+  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'CHESS', 'CHECKERS', 'SWEEPER', 'CARD_LIST', 'CARDS', 'CARD_ART'].some((name) => !window[name])) return;
 
   // View: 20 x 15 tiles of 16px.
   const SW = 320, SH = 240;
@@ -299,7 +299,7 @@
   // ---------- the visitor office: visitors take turns, coming and going by portal ----------
   // Everyone in VISITORS (js/people.js) gets a spell in the office. When their time is
   // up they walk into the portal in the corner and the next one steps out of it.
-  const VISIT_TICKS = 1800; // how long each one stays: about 30 seconds of walking around
+  const VISIT_TICKS = 2700; // how long each one stays: about 45 seconds of walking around
   const visit = (function () {
     const list = window.VISITORS || [];
     for (let fi = 0; fi < MAPS.floors.length; fi++) {
@@ -667,7 +667,7 @@
     music = { name, song: SONGS[name], step: 0, next: actx.currentTime + 0.05, out };
   }
   setInterval(() => {
-    if (!music || !actx) return;
+    if (!music || !actx || music.held) return;
     const step = 60 / music.song.bpm / 2;
     if (music.next < actx.currentTime - 0.5) music.next = actx.currentTime + 0.02; // came back from a background tab
     while (music.next < actx.currentTime + 0.12) {
@@ -680,6 +680,12 @@
       music.step++; music.next += step;
     }
   }, 30);
+  // A head-to-head game standing still (mpWaiting): the song stops where it is, and picks up from there.
+  function musicHold(on) {
+    if (!music || !actx || !!music.held === on) return;
+    music.held = on;
+    if (!on) music.next = actx.currentTime + 0.02;
+  }
   // Where the song is right now, in eighth-note steps (fractional), or null if it isn't playing.
   // Notes are scheduled a little ahead, so this backs up from the next step to what's audible.
   function musicPos(name) {
@@ -3444,6 +3450,8 @@
     snowman: { title: 'SNOWMAN', unit: ' cm' }, cocoa: { title: 'HOT CHOCOLATE STAND', unit: ' stars' }, snowball: { title: 'SNOWBALL FIGHT', unit: ' hits' },
     // the most you've scored in one game of hockey against a coworker (played to the end)
     hockey: { title: 'HOCKEY GOALS', unit: goals },
+    // Morale Madness: how many cards you have, starter cards and all, and how many times you've beaten another player
+    cards: { title: 'CARDS COLLECTED', unit: ' cards' }, cardwins: { title: 'MORALE MADNESS WINS', unit: times, count: true },
     // the side quests: the "score" is how many times that name has done it (see questBoard), as it is for Pong (count)
     linda: { title: 'LINDA SET FREE', unit: times, quest: true, count: true }, eotm: { title: 'EMPLOYEE OF THE MONTH', unit: times, quest: true, count: true },
   };
@@ -3593,7 +3601,7 @@
     ['TVS AND CODY\'S CASINO', ['pong', 'snake', 'poker', 'pokerlive', 'blackjack', 'slots']],
     ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cpr', 'engrave', 'golf', 'legosolo']],
     ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catchrun']],
-    ['BOARD GAMES', ['chess', 'checkers']],
+    ['BOARD AND CARD GAMES', ['chess', 'checkers', 'cards', 'cardwins']],
     ['KINGSTON PLANT', ['forklift', 'paint']],
     ['HALLOWEEN', ['bob', 'mummy', 'carve', 'treat', 'ghosts', 'costume']],
     ['CHRISTMAS', ['chop', 'mallow', 'spruce', 'snowman', 'cocoa', 'snowball', 'hockey', 'humbug']],
@@ -4094,8 +4102,33 @@
   const meWorn = () => (hw.worn ? null : wornLook(myLook)), mpWorn = (o) => (o.c ? null : o.look);
   // their picture with any part of the head thing that's drawn on its own left off, to go with these
   const freed = (img, worn) => (worn && img.loose) || img;
+  // The card storm, for winning three quarters of the cards in Morale Madness: five cards going round you, turning
+  // over as they go, one in each class's colour and one gold with a twinkle on it. Those on the far
+  // side go behind you (wornBehind) and the near ones in front (wornOver). They stay off the ice, as
+  // the rest of the flair does. Each picture is 12 x 16 real pixels.
+  const DECK_FACE = ['kkkkkkkkkkkk', 'kkkkkkkkkkkk', 'kkLLLLLLLLkk', 'kkLCCCCCCDkk', 'kkLCCCCCCDkk', 'kkCCCCCCCDkk', 'kkCCCCCDDDkk', 'kkDDDDDDDDkk', 'kkWWWWWWWWkk', 'kkWggggggWkk', 'kkWWWWWWWWkk', 'kkWggggWWWkk', 'kkWWWWWWWWkk', 'kkWWWWWWWWkk', 'kkkkkkkkkkkk', 'kkkkkkkkkkkk'];
+  const DECK_BACK = ['kkkkkkkkkkkk', 'kkkkkkkkkkkk', 'kkOOOOOOOOkk', 'kkOnnnnnnOkk', 'kkOnNnnNnOkk', 'kkOnnYYnnOkk', 'kkOnYYYYnOkk', 'kkOnYYYYnOkk', 'kkOnYYYYnOkk', 'kkOnYYYYnOkk', 'kkOnnYYnnOkk', 'kkOnNnnNnOkk', 'kkOnnnnnnOkk', 'kkOOOOOOOOkk', 'kkkkkkkkkkkk', 'kkkkkkkkkkkk'];
+  const DECK_COLS = { k: '#1a1622', W: '#f4ecd8', g: '#8a7c68', O: '#c89828', Y: '#f8d850', n: '#20264c', N: '#343c74' };
+  const DECK_CARDS = [['#f0a060', '#d87830', '#a85820'], ['#e87068', '#c84038', '#982c28'], ['#6890e8', '#3868c8', '#284c98'], ['#78c878', '#48a048', '#347a34'], ['#fff0a0', '#f0c030', '#c89020']];
+  const deckFace = (i) => rowsPic('deckFace' + i, DECK_FACE, Object.assign({ L: DECK_CARDS[i][0], C: DECK_CARDS[i][1], D: DECK_CARDS[i][2] }, DECK_COLS));
+  const deckOn = (worn) => worn.flair === Art.CARD_STORM && !(hockey && hockey.scene() && P.floor === YARD);
+  function deckOrbit(x, y, front, rx) {
+    DECK_CARDS.forEach((_, i) => {
+      const a = tick / 44 + i * Math.PI * 2 / DECK_CARDS.length;
+      if (Math.sin(a) > 0 !== front) return;
+      const cx = x + 8 + Math.cos(a) * rx * 1.15, cy = y + 9 + Math.sin(a) * 3.5 + Math.sin(tick / 26 + i * 2) * 0.5;
+      // lying flat most of the way round, then a quick turn over to show the other side
+      const turn = Math.cos(tick / 30 + i * 1.7), w = Math.max(0.5, realPx(Math.min(1, Math.abs(turn) * 2.5) * 6));
+      ctx.globalAlpha = front ? 1 : 0.85;
+      ctx.drawImage(turn > 0 ? deckFace(i) : rowsPic('deckBack', DECK_BACK, DECK_COLS), realPx(cx - w / 2), realPx(cy - 4), w, 8);
+      ctx.globalAlpha = 1;
+      const t = (tick + i * 11) % 70;
+      if (i === 4 && t < 14) twinkle(realPx(cx + 1.5), realPx(cy - 3), realPx(Math.sin(t / 14 * Math.PI) * 2.5));
+    });
+  }
   function wornBehind(worn, x, y, dir, walk, rx = 10.5) {
     if (!worn) return;
+    if (deckOn(worn)) deckOrbit(x, y, false, rx);
     if (worn.hat === Art.HAUNTED_MASK) hauntGhosts(x, y, false, rx);
     const big = bigHat(worn);
     if (big) drawBigHat(big, worn.hat, x, y, dir);
@@ -4108,6 +4141,7 @@
     if (worn.hat === Art.ANTLERS) humbugBaubles(x, y, dir, walk);
     if (worn.hat === Art.SANTA) santaGlint(x, y, dir, walk);
     if (worn.extra === Art.GOLD_RIBBON) ribbonSparkle(x, y, dir);
+    if (deckOn(worn)) deckOrbit(x, y, true, rx);
   }
   function HallOfFame() {
     const name = playerName || store.get('name') || '', me = name ? boardKey(name) : null;
@@ -4315,7 +4349,7 @@
   // higher final score wins (or the lower, if low).
   function scoreRace(vs, { what, fmt, hear, low }) {
     const foe = vs.name;
-    let sentKey = '', sendT = 0;
+    let sentKey = '', sendT = 0, again = 0;
     const r = {
       now: 0, theirs: 0, theirsDone: false, mine: 0, mineDone: false, outcome: null,
       // read their messages and see whether it's settled: 'win', 'lose', 'tie' or 'gone'
@@ -4325,6 +4359,8 @@
           if (m.e === 'f') { r.theirs = r.now; r.theirsDone = true; } else if (hear) hear(m);
         }
         if (r.outcome) return r.outcome;
+        // (your score again every few seconds, in case it went astray as a connection dropped)
+        if (r.mineDone && !r.theirsDone && ++again % 90 === 0) vs.send({ e: 'f', s: r.mine });
         if (r.theirsDone && r.mineDone) {
           const ahead = low ? r.theirs - r.mine : r.mine - r.theirs;
           r.outcome = ahead > 0 ? 'win' : ahead < 0 ? 'lose' : 'tie';
@@ -4350,12 +4386,12 @@
       },
       box(t) {
         const score = 'You ' + fmt(r.mine) + '   ' + foe + ' ' + fmt(r.theirs);
-        doneBox(r.outcome === 'gone' ? [foe + ' left.', 'Nobody wins this one.']
+        doneBox(r.outcome === 'gone' ? [whoLeft(vs, foe), 'Nobody wins this one.']
           : [r.outcome === 'win' ? 'You beat ' + foe + '!' : r.outcome === 'lose' ? foe + ' wins!' : 'A dead heat!', score], t);
       },
       say() {
         const a = fmt(r.mine), b = fmt(r.theirs);
-        say(r.outcome === 'gone' ? foe + ' has gone. Nobody wins this one.'
+        say(r.outcome === 'gone' ? whoLeft(vs, foe, ' has gone.') + ' Nobody wins this one.'
           : r.outcome === 'win' ? 'You beat ' + foe + ' at ' + what + ', ' + a + ' to ' + b + '!'
             : r.outcome === 'lose' ? foe + ' beat you at ' + what + ', ' + b + ' to ' + a + '.'
               : 'A dead heat at ' + what + ': ' + a + ' each.');
@@ -5281,6 +5317,7 @@
         time: won ? [foe + ' ran out of time.', 'You win!'] : ['You ran out of time.', foe + ' wins.'],
         repetition: ['The same position, three', 'times over: a draw.'],
         gone: [foe + ' left the game.', 'It\'s yours!'],
+        lost: ['You dropped out for', 'too long. Nobody wins.'],
         stopped: ['Someone knocked the board.', 'Nobody wins this one.'],
         noserver: ['The game server can\'t start', 'this one. Try again soon.'],
       }, spec.endings(won, foe, drew));
@@ -5293,6 +5330,7 @@
       const r = vs.result, seat = view ? view.s : 0;
       if (r && typeof r.w === 'number') over(r.w < 0 ? 'draw' : r.w === seat ? 'win' : 'lose', r.why);
       else if (r && (r.error || r.timeout)) over('none', 'stopped');
+      else if (vs.lost || (view && r && r.quit === seat)) over('none', 'lost'); // it was you who was gone too long
       else over('gone', 'gone'); // they left, or dropped out for too long
     }
     function hear(v) {
@@ -5525,6 +5563,1690 @@
     });
   }
 
+  // ---------- the card game: Morale Madness ----------
+  // js/cards.js is the rules and js/cardlist.js the cards, and js/cardart.js paints them. This is the
+  // table you play them on. It's drawn only from what the rules say a player can see (g.view) and
+  // what's happened (the events in it), one thing at a time, so a game against another player can use
+  // the same screen.
+  //
+  // It's all laid out on the screen's real 640 x 480: the card pictures are made at that size, so
+  // draw() scales everything back down from the view's 320 x 240 while it draws them.
+  const cardPics = new Map();
+  const cardPic = (key, make) => { let v = cardPics.get(key); if (!v) { v = make(); cardPics.set(key, v); } return v; };
+  const cardFace = (id) => cardPic('face' + id, () => { const c = ownFaces.get(id) || CARDS.card(id); return Object.assign({}, c, { text: CARDS.text(c) }); });
+  // Your own legendary looks different for everybody, so to draw one there's a face id, which goes
+  // wherever an id does for the pictures (never for the rules). who: { name, look }, whose card it is. For
+  // any other card, or if nobody knows what they look like, it's just the id.
+  const ownFaces = new Map();
+  function faceOf(id, who) {
+    const c = CARDS.card(id);
+    if (!c || !c.own || !who || !who.look) return id;
+    const key = id + '/' + who.name + '/' + Art.lookCode(who.look);
+    if (!ownFaces.has(key)) {
+      ownFaces.set(key, Object.assign({}, c, { name: who.name, art: key }));
+      CARD_ART.ownArt(key, id, ownFrames(who.look));
+    }
+    return key;
+  }
+  // them, standing and on each foot, in anything too big for the picture, like the crown
+  function ownFrames(look) {
+    const W = 64, H = 56, X = 16, Y = 24, sheet = lookSprites(look), big = bigHat(look);
+    return [0, 1, 2].map((f) => {
+      const cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      const c = cv.getContext('2d');
+      if (big) c.drawImage(rowsPic('bigHat' + look.hat + 'down', big.down, Art.BIG_COLS), X + big.x, Y + big.y);
+      c.drawImage(sheet.down[f], X, Y);
+      return { w: W, h: H, px: new Uint32Array(c.getImageData(0, 0, W, H).data.buffer) };
+    });
+  }
+  const bigCard = (id) => cardPic('big' + id, () => CARD_ART.toCanvas(CARD_ART.big(cardFace(id))));
+  const backOfCard = (gold) => cardPic(gold ? 'backGold' : 'back', () => CARD_ART.toCanvas(CARD_ART.back(gold)));
+  const cardWord = (s, c, n = 1) => cardPic('w' + s + '/' + c + '/' + n, () => CARD_ART.toCanvas(CARD_ART.label(s, c, n)));
+  const smallCard = (id, o = {}) => cardPic('s' + id + '/' + JSON.stringify(o), () => CARD_ART.toCanvas(CARD_ART.small(cardFace(id), o)));
+  const cardTable = () => cardPic('table', () => {
+    const cv = document.createElement('canvas');
+    cv.width = 640; cv.height = 480;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#6c4a34'; c.fillRect(0, 0, 640, 480);
+    let seed = 7;
+    const r = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+    for (let y = 0; y < 480; y += 40) {
+      c.fillStyle = y % 80 ? '#664430' : '#70503a'; c.fillRect(0, y, 640, 38);
+      c.fillStyle = '#4c3224'; c.fillRect(0, y + 38, 640, 2);
+      c.fillStyle = '#7c5a42'; c.fillRect(0, y, 640, 2);
+      for (let i = 0; i < 16; i++) { c.fillStyle = r(2) ? '#5c3e2c' : '#785640'; c.fillRect(r(640), y + 4 + r(30), 12 + r(56), 2); }
+    }
+    for (const y of [54, 176]) {
+      c.fillStyle = '#3c2820'; c.fillRect(72, y, 496, 120);
+      c.fillStyle = '#2c4c44'; c.fillRect(74, y + 2, 492, 116);
+      c.fillStyle = '#386058';
+      for (let i = 0; i < 5; i++) {
+        const x = 84 + i * 96;
+        c.fillRect(x, y + 2, 88, 2); c.fillRect(x, y + 116, 88, 2); c.fillRect(x, y + 2, 2, 116); c.fillRect(x + 86, y + 2, 2, 116);
+      }
+    }
+    return cv;
+  });
+  const CARD_HOW = [
+    'You each start with 20 Morale. Get the other player\'s down to 0.',
+    'Each morning you gain a cup of coffee, up to 8, and draw a card. Cards cost coffee to play.',
+    'Workers stay on the table. Each has Power and Patience. After their first turn they can attack once a turn.',
+    'Attack a worker and they hit each other. Attack the other player and nothing hits back. At 0 Patience, a worker goes home.',
+    'A Gatekeeper has to be dealt with first. Keen can attack straight away. Thick Skin ignores the first hit.',
+    'Tasks happen once. On play happens when you play it, Every morning at the start of your turn, and Last word as they go home.',
+    'To attack, press A on a worker, then pick who to hit: A on one of their workers, or Up and A for the other player.',
+    'When you\'re done, press Down from your hand to get to END TURN.',
+    'The column on the left is the last 4 moves, newest at the top. Press Left from the start of a row to look through them.',
+  ];
+  let cardsNow = null; // the game going on, for trying things out (window.GAME.cards)
+  // o: { foe, npc, level, deck: a department or 'starter', mine: a deck, foeDeck: theirs, seed,
+  //      after(won): called once the game's over and everything's been said }
+  function CardsGame(vs, o = {}) {
+    const A = CARD_ART, W = 640, H = 480, INK = '#1a1622';
+    let me = 0; // your seat (against a player the server says which, in its first view)
+    const pal = vs ? null : o.npc || (o.foe ? npcs.find((n) => n.name === o.foe) : null) || tableFoe();
+    const foe = vs ? vs.name : o.foe || (pal ? pal.name : 'A coworker');
+    const level = vs ? 0 : o.level || tableLevel(foe);
+    const every = CARDS.LIST.filter((c) => c.rarity !== 'T').map((c) => c.id);
+    const seed = o.seed || Math.floor(Math.random() * 2 ** 31);
+    const deptOf = (name) => { const c = CARDS.card(String(name).toLowerCase()); return c && c.dept; };
+    const foeSprites = (vs && vs.sprites) || (pal && pal.sprites) || charSprites.male[0];
+    const foeDept = deptOf(foe) || Object.keys(CARDS.DEPTS)[Math.abs(seed) % 4];
+    // (on a test address, &deck= picks your deck in a game against a player too)
+    const deckName = vs ? (/[#&]deck=(\w+)/.exec(location.hash) || [])[1] : o.deck;
+    const myDeck = o.mine || (deckName && deckName !== 'starter' ? CARDS.buildDeck(every, { dept: deckName, seed: seed + 1 }) : vs && !deckName ? cardDeck() : CARDS.STARTER);
+    // Against a coworker the rules run here (g). Against a player they run on the game server
+    // (server/games/cards.js), and all there is here is what it says you can see.
+    const g = vs ? null : CARDS.create({ decks: [myDeck, o.foeDeck || CARDS.buildDeck(every, { dept: foeDept, seed: seed + 2 })], seed, names: [playerName || 'You', foe], ai: [0, level], first: o.first });
+
+    // ---------- what's showing ----------
+    // view: what the rules say now. shown: what the table looks like at the moment, catching up with
+    // view one event at a time (each of those is an animation), and matched back to it when it has.
+    const copy = (x) => JSON.parse(JSON.stringify(x));
+    let view = g ? g.view(me) : null, shown = view ? copy(view) : null;
+    let seen = view && view.ev.length ? view.ev[view.ev.length - 1].i : -1;
+    // (against a player: their last word and when it came, when you last sent one, how long you've been told they've gone)
+    let heard = null, heardT = 0, sentT = -1, goneT = 0, won = false, lastBeep = 0;
+    const queue = [];
+    let anim = null, t = 0, doneLines = null, parting = '', doneT = 0;
+    let cur = { row: 2, i: 0 }, rest = 0, aim = null, menu = null, note = '', noteT = 0, again = false;
+    let swapAt = 0;
+    const swapping = new Set();
+    let bits = [], pops = [], gone = [];
+    let fly = null, big = null, dim = 0, halo = null, rings = [], flare = null, legend = null, alarm = 0, shake = 0, jolt = 0, mover = null, banner = null, glint = null, drawn = null;
+    const blink = new Map(), bounce = new Map();
+    let landed = -1; // the worker that's just landed, who doesn't jump at their own shockwave
+
+    const sideOf = (seat) => (seat === me ? shown.you : shown.them);
+    // Winning a quarter of the cards puts gold backs on yours, and the server says if the other player has them.
+    const goldOf = (seat) => (seat === me ? items.goldbacks === 1 : !!(view && view.gold));
+    // the pictures of a card on this side of the table (see faceOf)
+    const F = (id, seat = me) => faceOf(id, seat === me ? { name: playerName || 'You', look: wornLook(myLook) } : vs ? { name: vs.name, look: vs.look } : null);
+    const flash = (str) => { note = str; noteT = 110; };
+    const foeShort = foe.length > 10 ? foe.slice(0, 10) : foe;
+    const has = (table, key) => table && Object.prototype.hasOwnProperty.call(table, key);
+
+    // ---------- where things are ----------
+    const slotX = (i) => 84 + i * 96;
+    const rowY = (seat) => (seat === me ? 178 : 56);
+    const HAND_Y = 358;
+    const handStep = (n) => Math.min(92, n > 1 ? (516 - 88) / (n - 1) : 92);
+    const handX = (i, n) => Math.round(262 - (handStep(n) * (n - 1) + 88) / 2 + i * handStep(n));
+    // each player's plate, in the middle at the top and the bottom of the table
+    let FACE;
+    const sitAt = (seat) => { me = seat; FACE = { [me]: [216, 298, 208, 52], [1 - me]: [216, 2, 208, 52] }; };
+    sitAt(0);
+    const END_BOX = [524, HAND_Y, 108, 116];
+    const HISTORY = 3, MOVES = 4; // (the cursor's "row" while you look through the last moves, and how many)
+    const moveRect = (k) => [11, 58 + k * 48, 50, 44];
+    // where a number floats up from: a plate's is over the table, where you can see it
+    const popSpot = (u) => {
+      if (u === 0 || u === 1) { const [x, y, w, h] = FACE[u]; return [x + w / 2, u === me ? y + 6 : y + h + 34]; }
+      const [x, y] = posOf(u);
+      return [x + 44, y + 34];
+    };
+    const posOf = (u) => {
+      if (u === 0 || u === 1) { const [x, y, w, h] = FACE[u]; return [x + w / 2 - 44, y + h / 2 - 58]; }
+      for (const seat of [me, 1 - me]) {
+        const i = sideOf(seat).table.findIndex((x) => x.u === u);
+        if (i >= 0) return [slotX(i), rowY(seat)];
+      }
+      return [W / 2 - 44, H / 2 - 58];
+    };
+
+    // ---------- bits flying about ----------
+    const dust = (x, y, n, c = 'rgba(236,224,200,0.9)') => { for (let i = 0; i < n; i++) { const a = Math.PI * 2 * i / n; bits.push({ x, y, vx: Math.cos(a) * 2.6, vy: Math.sin(a) * 1.4 - 0.6, life: 22, max: 22, r: 4, c }); } };
+    const stars = (x, y, n, sp = 3.4) => { for (let i = 0; i < n; i++) { const a = Math.PI * 2 * i / n + 0.3; bits.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 30, max: 30, star: true, c: '#fff4c0' }); } };
+    // bits of Thick Skin coming off, from all round a card
+    const shards = (x, y) => {
+      for (let i = 0; i < 20; i++) {
+        const a = Math.PI * 2 * i / 20, ex = Math.cos(a), ey = Math.sin(a), far = 1 / Math.max(Math.abs(ex) / 44, Math.abs(ey) / 58);
+        bits.push({ x: x + 44 + ex * far, y: y + 58 + ey * far, vx: ex * 2.6, vy: ey * 2.6 - 0.8, life: 30, max: 30, r: 3, c: i % 2 ? '#a8e0ff' : '#e8f6ff', shard: true });
+      }
+    };
+    const hearts = (x, y, n) => { for (let i = 0; i < n; i++) { const a = Math.PI * 2 * i / n; bits.push({ x, y, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3 - 1, life: 42, max: 42, heart: true }); } };
+    const pop = (x, y, str, c) => pops.push({ x, y, str, c, t: 0 });
+    const easeOut = (u) => 1 - Math.pow(1 - u, 3);
+    const arcTo = (a, b, u, lift) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u - Math.sin(u * Math.PI) * lift];
+
+    // ---------- catching up with what's happened ----------
+    const unitOf = (u) => { for (const s of [shown.you, shown.them]) { const x = s.table.find((y) => y.u === u); if (x) return x; } return null; };
+    // The last few moves, newest first, for looking back at what a card was and what it did. They're
+    // made from the same events as the animations, so they only ever say what both of you have seen.
+    const moves = [];
+    let moveNow = null; // the move that what's happening now is part of
+    const isPlayer = (u) => u === 0 || u === 1;
+    const nameOf = (u) => { if (u === me) return 'You'; if (u === 1 - me) return foeShort; const w = unitOf(u); return w ? CARDS.card(w.id).name : 'Someone'; };
+    const signed = (n) => (n > 0 ? '+' : '') + n;
+    function addMove(seat, id, words, target) {
+      moveNow = { seat, id, words, target: isPlayer(target) ? { seat: target } : unitOf(target) ? { id: unitOf(target).id, on: unitOf(target).seat } : null, did: [], t: 0 };
+      moves.unshift(moveNow);
+      moves.length = Math.min(moves.length, MOVES);
+    }
+    function didThat(str) { if (moveNow && moveNow.did.length < 4) moveNow.did.push(str); }
+    function remember(e) {
+      const by = (seat) => (seat === me ? 'You' : foeShort);
+      const nm = (id) => CARDS.card(id).name;
+      switch (e.e) {
+        case 'play': {
+          const to = e.target, on = to === null || to === undefined ? '' : ' on ' + (!isPlayer(to) ? nameOf(to) : to === e.s ? (e.s === me ? 'yourself' : 'themselves') : to === me ? 'you' : foeShort);
+          addMove(e.s, e.id, by(e.s) + ' played ' + nm(e.id) + on + '.', to);
+          break;
+        }
+        case 'attack': {
+          const w = unitOf(e.u);
+          if (!w) break;
+          const seat = shown.you.table.includes(w) ? me : 1 - me;
+          addMove(seat, w.id, (seat === me ? 'Your ' : foeShort + '\'s ') + nm(w.id) + ' attacked ' + (e.t === me ? 'you' : nameOf(e.t)) + '.', e.t);
+          break;
+        }
+        case 'turn': moveNow = null; break;
+        case 'hit': didThat(nameOf(e.u) + ' -' + e.n + (isPlayer(e.u) ? ' Morale' : ' Patience')); break;
+        case 'heal': didThat(nameOf(e.u) + ' +' + e.n + (isPlayer(e.u) ? ' Morale' : ' Patience')); break;
+        case 'skin': didThat(nameOf(e.u) + ' blocked it'); break;
+        case 'boost': didThat(nameOf(e.u) + [e.p ? ' ' + signed(e.p) + ' Power' : '', e.h ? ' ' + signed(e.h) + ' Patience' : ''].join('')); break;
+        case 'freeze': didThat(nameOf(e.u) + ' is stuck'); break;
+        case 'coffee': didThat(by(e.s) + ' +' + e.n + ' coffee'); break;
+        case 'draw': didThat(by(e.s) + ' drew a card'); break;
+        case 'summon': didThat(nm(e.id) + ' came in'); break;
+        case 'home': didThat(nm(e.id) + ' went home'); break;
+        case 'sentback': didThat(nm(e.id) + ' went back to the hand'); break;
+        default: break;
+      }
+    }
+    function newUnit(id, u, seat) {
+      const c = CARDS.card(id), words = c.words || [];
+      return { u, id, seat, pw: c.power, pa: c.patience, max: c.patience, gate: words.includes('gate'), skin: words.includes('skin'), frozen: 0, stuck: false, left: 0, ready: false };
+    }
+    // How a card lands on the table, when it's its turn to. A legendary can land its own way.
+    // (scraps: square bits that keep their size, thrown out from x, y)
+    const scraps = (x, y, n, c, spread, up, life, r = 3) => { for (let i = 0; i < n; i++) { const a = i * 2.4; const k = 0.35 + (i * 7 % 10) / 10; bits.push({ x: x + Math.cos(a) * 34 * k, y: y + Math.sin(a) * 44 * k, vx: Math.cos(a) * spread * k, vy: Math.sin(a) * spread * 0.6 * k - up, life: life + (i % 7) * 2, max: life + 12, r, c: Array.isArray(c) ? c[i % c.length] : c, shard: true }); } };
+    function landHard(x, y) {
+      shake = 16; jolt = 14; flare = { c: '255,216,96', a: 0.45, fade: 0.05 };
+      rings.push({ x: x + 44, y: y + 58, t: 0 }, { x: x + 44, y: y + 58, t: -7 });
+      stars(x + 44, y + 58, 30, 6.5); dust(x + 44, y + 112, 22); sfx('thump');
+    }
+    const LANDS = {
+      // your own legendary: each comes down in its own way
+      youbruiser(x, y) { landHard(x, y); shake = 18; scraps(x + 44, y + 100, 12, '#f07858', 4, 2, 22); },
+      youwall(x, y) { landHard(x, y); shake = 24; dust(x + 44, y + 112, 34); },
+      youboss(x, y) { landHard(x, y); flare = { c: '255,224,120', a: 0.4, fade: 0.03 }; stars(x + 44, y + 58, 16); },
+      youlead(x, y) { landHard(x, y); stars(x + 44, y + 58, 20, 2.6); },
+      youmorale(x, y) { landHard(x, y); hearts(x + 44, y + 50, 22); },
+      youplanner(x, y) { landHard(x, y); scraps(x + 44, y + 90, 14, '#f4f4f0', 3.5, 2, 26); },
+      officedog(x, y, u) { shake = 6; flare = { c: '255,190,170', a: 0.35, fade: 0.04 }; bounce.set(u, 44); hearts(x + 44, y + 50, 20); stars(x + 44, y + 50, 16, 5); sfx('bark'); },
+      // the heaviest thing in the building, setting its forks down
+      forklift(x, y) { landHard(x, y); shake = 22; dust(x + 44, y + 112, 30); scraps(x + 44, y + 100, 14, '#e8b820', 4.5, 2, 24); sfx('beep'); },
+      // in from the road, in a cloud of its own
+      truck(x, y) { shake = 14; jolt = 12; flare = { c: '255,170,90', a: 0.4, fade: 0.05 }; for (let i = 0; i < 26; i++) bits.push({ x: x + 44 - i * 7, y: y + 96 + (i % 5) * 5, vx: -3 - (i % 4), vy: -0.5, life: 26 + i % 9, max: 34, r: 5, c: i % 3 ? 'rgba(200,190,180,0.9)' : 'rgba(120,112,108,0.9)' }); stars(x + 44, y + 58, 16, 6); sfx('dash'); sfx('thump'); },
+      // paper everywhere, and that noise it makes
+      printer(x, y) { shake = 9; flare = { c: '255,255,255', a: 0.5, fade: 0.05 }; scraps(x + 44, y + 40, 34, ['#f8f8f0', '#ffffff', '#e8e8e0'], 5, 3.4, 44, 5); sfx('buzz'); },
+      // the lights go green, and everyone feels a bit worse
+      humbug(x, y) { shake = 12; jolt = 8; flare = { c: '110,210,90', a: 0.5, fade: 0.025 }; scraps(x + 44, y + 58, 34, ['#58c848', '#2c7838', '#a8e850'], 6, 0.6, 34); stars(x + 44, y + 58, 14, 7); sfx('buzz'); sfx('thump'); },
+      // nothing lands: the room just goes cold
+      linda(x, y) { shake = 3; flare = { c: '170,210,255', a: 0.55, fade: 0.012 }; scraps(x + 44, y + 58, 30, ['#d8ecff', '#a8d0f8', '#ffffff'], 1.1, 1.9, 40); sfx('wind'); },
+      // somebody's turned it on, and everything that isn't bolted down goes with it
+      airhandler(x, y) { landHard(x, y); shake = 12; flare = { c: '150,230,255', a: 0.45, fade: 0.04 }; for (let i = 0; i < 36; i++) bits.push({ x: x - 40 + (i * 37) % 180, y: y + (i * 53) % 120, vx: 8 + i % 6, vy: -0.8, life: 22 + i % 12, max: 30, r: i % 4 ? 2 : 4, c: i % 4 ? '#c8f0ff' : '#f8f8f0', shard: true }); sfx('wind'); },
+    };
+    function put(e) { // a worker arriving on the table
+      const side = sideOf(e.s), i = side.table.length, x = slotX(i), y = rowY(e.s), c = CARDS.card(e.id);
+      side.table.push(newUnit(e.id, e.u, e.s));
+      landed = e.u;
+      if (c.rarity === 'L') (LANDS[e.id] || landHard)(x, y, e.u);
+      else {
+        dust(x + 44, y + 112, c.rarity === 'R' ? 14 : 10);
+        shake = c.rarity === 'R' ? 6 : 4;
+        if (c.rarity === 'U' || c.rarity === 'R') { stars(x + 44, y + 50, c.rarity === 'R' ? 18 : 14); glint = { x, y, t: 0 }; }
+        sfx('thump');
+      }
+    }
+    function bigAt(id, cx, cy, scale, more) {
+      const w = Math.round(260 * scale / 2) * 2, h = Math.round(364 * scale / 2) * 2;
+      big = Object.assign({ id, x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w, h, shine: -1 }, more);
+    }
+    function playAnim(e) {
+      const c = CARDS.card(e.id), mine = e.s === me, side = sideOf(e.s);
+      let from = [470, -120];
+      if (mine) {
+        const i = side.hand.findIndex((h) => h.u === e.card);
+        if (i >= 0) { from = [handX(i, side.hand.length), HAND_Y]; side.hand.splice(i, 1); }
+      } else side.hand = Math.max(0, side.hand - 1);
+      side.coffee = Math.max(0, side.coffee - c.cost);
+      const worker = c.kind !== 'task', to = [slotX(side.table.length), rowY(e.s)], mid = [W / 2, H / 2 - 16];
+      // (it isn't in the last moves until it's finished coming in, so it can't give away the reveal)
+      const move = moveNow, arrived = () => { if (move) { move.waiting = false; move.t = 0; } };
+      if (move) move.waiting = true;
+      sfx('swish');
+      if (c.rarity === 'L') {
+        // A legendary's entrance. It's all the card: the table stays there behind it. Up out of the hand,
+        // spinning faster and faster, then a flash as it's revealed, with its name for what it is across
+        // the top, light pouring out from behind it and its art moving, until it pulls back and slams
+        // down onto the table. A hurries it along, like everything else.
+        const IN = 30, OUT = 100, SLAM = 108, END = 114;
+        return {
+          len: END, step(f) {
+            big = null; halo = null;
+            if (f < IN) {
+              const u = easeOut(f / IN), spin = Math.cos(Math.pow(f / IN, 1.6) * Math.PI * 5);
+              if (f === 10 || f === 20) sfx('swish');
+              dim = 0.65 * u;
+              bigAt(F(e.id, e.s), from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66, { squash: Math.abs(spin), back: spin > 0, gold: goldOf(e.s) });
+            } else if (f < OUT) {
+              const since = f - IN;
+              if (f === IN) {
+                flare = { c: '255,255,255', a: 0.75, fade: 0.08 };
+                rings.push({ x: mid[0], y: mid[1], t: 0 });
+                stars(mid[0], mid[1], 36, 7.5);
+                shake = 10; legend = { t: 0 }; sfx('cup');
+              }
+              if (f % 3 === 0) bits.push({ x: mid[0] - 150 + Math.random() * 300, y: mid[1] + 170 + Math.random() * 30, vx: Math.random() - 0.5, vy: -2.4 - Math.random() * 1.6, life: 42, max: 42, star: true, c: '#ffe890' }); // (sparks rising)
+              dim = 0.65; halo = { x: mid[0], y: mid[1], t: since };
+              bigAt(F(e.id, e.s), mid[0], mid[1] + Math.round(Math.sin(since / 9) * 3), 1 + (since < 10 ? 0.16 * Math.pow(1 - since / 10, 2) : 0), { live: true, glow: true, shine: since * 3.4 % 150 });
+            } else if (f < SLAM) {
+              const u = (f - OUT) / (SLAM - OUT);
+              if (f === OUT) sfx('swish');
+              dim = 0.65; halo = { x: mid[0], y: mid[1], t: f - IN };
+              bigAt(F(e.id, e.s), mid[0], mid[1] - u * 18, 1 + u * 0.08, { live: true, glow: true });
+            } else {
+              const u = Math.pow((f - SLAM) / (END - SLAM), 2);
+              legend = null;
+              dim = 0.65 * (1 - u);
+              bigAt(F(e.id, e.s), mid[0] + (to[0] + 44 - mid[0]) * u, mid[1] - 18 + (to[1] + 58 - mid[1] + 18) * u, 1.08 - u * 0.74, { live: true });
+            }
+          },
+          end() { big = null; halo = null; dim = 0; legend = null; arrived(); put(e); },
+        };
+      }
+      // Everything else goes up to the middle for a moment too, where you can read it, then down to
+      // the table, or if it's a task it's done with and fades away. It's quick and plain: a rare card
+      // gets longer, a shine and the table dimmed, and only a legendary gets all of the above.
+      const rare = c.rarity === 'R', rise = rare ? 22 : 12, hold = rare ? 72 : worker ? 40 : 52, top = rare ? 0.45 : worker ? 0 : 0.15, fall = worker ? 10 : 14;
+      return {
+        len: hold + fall, step(f) {
+          big = null;
+          if (f < rise) {
+            const u = easeOut(f / rise);
+            dim = top * u;
+            bigAt(F(e.id, e.s), from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.66);
+          } else if (f < hold) {
+            dim = top;
+            if (f === rise && rare) { stars(mid[0], mid[1], 18, 5); shake = 4; sfx('ding'); }
+            if (f === rise && c.rarity === 'U') stars(mid[0], mid[1], 10, 4);
+            bigAt(F(e.id, e.s), mid[0], mid[1], 1, { shine: rare ? (f - rise) * 4 : -1 });
+          } else if (worker) {
+            const u = Math.pow((f - hold) / fall, 2);
+            dim = top * (1 - u);
+            bigAt(F(e.id, e.s), mid[0] + (to[0] + 44 - mid[0]) * u, mid[1] + (to[1] + 58 - mid[1]) * u, 1 - u * 0.66);
+          } else {
+            const u = (f - hold) / fall;
+            dim = top * (1 - u);
+            bigAt(F(e.id, e.s), mid[0], mid[1] + u * 30, 1 - u * 0.3, { alpha: 1 - u });
+          }
+        },
+        end() {
+          big = null; dim = 0;
+          arrived();
+          if (worker) put(e);
+          else dust(mid[0], mid[1] + 30, 12);
+          if (e.id === 'firedrill') { alarm = 70; sfx('bell'); }
+        },
+      };
+    }
+    function attackAnim(e) {
+      const start = posOf(e.u), end = e.t === 0 || e.t === 1 ? [FACE[e.t][0] + FACE[e.t][2] / 2 - 44, e.t === me ? FACE[e.t][1] - 92 : FACE[e.t][1] + 24] : (([x, y]) => [x, y + (rowY(me) === y ? -30 : 40)])(posOf(e.t));
+      const who = unitOf(e.u);
+      sfx('swish');
+      return {
+        len: 24, step(f) {
+          if (!who) return;
+          const u = f < 10 ? 0 : Math.pow((f - 10) / 14, 2), back = f < 10 ? f : 10;
+          mover = { who, pos: [start[0] + (end[0] - start[0]) * u, start[1] + (end[1] - start[1]) * u + (e.u, f < 10 ? (start[1] > end[1] ? back : -back) : 0)] };
+        },
+        end() {
+          shake = 8; dust(end[0] + 44, end[1] + 40, 10); sfx('hit');
+          if (who) mover = { who, from: end, to: start, t: 0 };
+        },
+      };
+    }
+    function goHome(e, delay) {
+      const seat = e.s, side = sideOf(seat), i = side.table.findIndex((x) => x.u === e.u);
+      if (i < 0) return;
+      gone.push({ who: side.table[i], x: slotX(i), y: rowY(seat), dir: i < 2 ? -1 : 1, t: -delay });
+      side.table.splice(i, 1);
+    }
+    // these all happen together, with whatever comes straight after them that's the same sort of thing
+    function atOnce(e) {
+      remember(e);
+      const side = e.s === undefined ? null : sideOf(e.s);
+      switch (e.e) {
+        case 'hit': {
+          if (e.u === 0 || e.u === 1) { sideOf(e.u).morale -= e.n; shake = Math.max(shake, 6); } else {
+            const w = unitOf(e.u);
+            if (w) w.pa -= e.n;
+          }
+          blink.set(e.u, 22);
+          pop(...popSpot(e.u), '-' + e.n, '#ff8870');
+          break;
+        }
+        case 'skin': {
+          const w = unitOf(e.u), [x, y] = posOf(e.u);
+          if (w) w.skin = false;
+          shards(x, y);
+          pop(x + 44, y + 34, 'BLOCKED', '#a8d8ff');
+          sfx('tink');
+          break;
+        }
+        case 'heal': {
+          if (e.u === 0 || e.u === 1) sideOf(e.u).morale += e.n; else { const w = unitOf(e.u); if (w) w.pa += e.n; }
+          pop(...popSpot(e.u), '+' + e.n, '#90f070');
+          break;
+        }
+        case 'boost': {
+          const w = unitOf(e.u), [x, y] = posOf(e.u);
+          if (w) { w.pw = Math.max(0, w.pw + e.p); w.pa += e.h; w.max += e.h; }
+          const bit = [e.p ? (e.p > 0 ? '+' : '') + e.p + ' PWR' : '', e.h ? (e.h > 0 ? '+' : '') + e.h + ' PAT' : ''].filter(Boolean).join(' ');
+          pop(x + 44, y + 34, bit, e.p < 0 || e.h < 0 ? '#ff8870' : '#90f070');
+          break;
+        }
+        case 'freeze': { const w = unitOf(e.u); if (w) w.frozen = 1; sfx('tink'); break; }
+        case 'give': {
+          const w = unitOf(e.u);
+          if (w && e.word === 'gate') w.gate = true;
+          if (w && e.word === 'skin') w.skin = true;
+          break;
+        }
+        case 'coffee': if (side) { side.coffee += e.n; pop(100, e.s === me ? 316 : 46, '+' + e.n, '#f0d0a0'); } break;
+        default: break;
+      }
+    }
+    const TOGETHER = new Set(['hit', 'skin', 'heal', 'boost', 'freeze', 'give', 'coffee']);
+    function nextAnim() {
+      const e = queue.shift(), seat = e.s;
+      if (TOGETHER.has(e.e)) {
+        atOnce(e);
+        while (queue.length && TOGETHER.has(queue[0].e)) atOnce(queue.shift());
+        return { len: 26 };
+      }
+      remember(e);
+      switch (e.e) {
+        case 'play': return playAnim(e);
+        case 'attack': return attackAnim(e);
+        case 'summon': return { len: 16, start() { const side = sideOf(seat); dust(slotX(side.table.length) + 44, rowY(seat) + 100, 8); side.table.push(newUnit(e.id, e.u, seat)); sfx('tap'); } };
+        case 'home': {
+          let n = 1;
+          goHome(e, 0);
+          while (queue.length && queue[0].e === 'home') { const next = queue.shift(); remember(next); goHome(next, n++ * 9); }
+          sfx('blip');
+          return { len: 16 + n * 9 };
+        }
+        case 'sentback': {
+          const start = posOf(e.u), side = sideOf(seat), i = side.table.findIndex((x) => x.u === e.u);
+          const who = i >= 0 ? side.table[i] : newUnit(e.id, e.u, seat);
+          if (i >= 0) side.table.splice(i, 1);
+          const end = seat === me ? [handX(side.hand.length, side.hand.length + 1), HAND_Y] : [470, -120];
+          sfx('swish');
+          return { len: 30, step(f) { fly = { id: F(who.id, who.seat), pos: arcTo(start, end, f / 30, 80), spin: f / 30 * 6 }; }, end() { fly = null; } };
+        }
+        case 'tohand': {
+          const side = sideOf(seat);
+          if (seat === me) side.hand.push({ u: e.u, id: e.id }); else side.hand++;
+          return { len: 4 };
+        }
+        case 'draw': {
+          const side = sideOf(seat);
+          side.deck = Math.max(0, side.deck - 1);
+          const end = seat === me ? [handX(side.hand.length, side.hand.length + 1), HAND_Y] : [470, -120], start = seat === me ? [8, 300] : [8, -60];
+          sfx('tap');
+          return {
+            len: 16, step(f) { drawn = arcTo(start, end, easeOut(f / 16), 24); drawn.gold = goldOf(seat); },
+            end() { drawn = null; if (seat === me) side.hand.push({ u: e.u, id: e.id }); else side.hand++; },
+          };
+        }
+        case 'lost': {
+          sideOf(seat).deck = Math.max(0, sideOf(seat).deck - 1);
+          if (seat === me) flash('Your hand is full, so you lost ' + CARDS.card(e.id).name + '.');
+          return { len: 20 };
+        }
+        case 'burnout': {
+          sideOf(seat).morale -= e.n; sideOf(seat).deck = 0;
+          blink.set(seat, 22);
+          pop(...popSpot(seat), '-' + e.n, '#ff8870');
+          shake = 6;
+          if (seat === me) flash('Your deck\'s empty, and it\'s wearing you down.');
+          sfx('hit');
+          return { len: 30 };
+        }
+        case 'turn': {
+          shown.turn = seat; shown.n = e.n;
+          const side = sideOf(seat);
+          side.cups = Math.min(CARDS.RULES.CUPS, side.cups + 1); side.coffee = side.cups;
+          for (const x of side.table) { x.stuck = x.frozen > 0; x.frozen = 0; }
+          banner = { str: seat === me ? 'YOUR TURN' : foeShort.toUpperCase() + '\'S TURN', t: 0 };
+          if (seat === me) sfx('ding');
+          return { len: seat === me ? 36 : 20 };
+        }
+        case 'timeout': flash(seat === me ? 'You ran out of time.' : foeShort + ' ran out of time.'); return { len: 20 };
+        default: return { len: 1 };
+      }
+    }
+
+    // ---------- what's under the cursor ----------
+    const rowStops = (row) => {
+      if (row === 0) return shown.them.table.map((x, i) => ({ kind: 'unit', seat: 1 - me, x, i, u: x.u }));
+      if (row === 1) return shown.you.table.map((x, i) => ({ kind: 'unit', seat: me, x, i, u: x.u }));
+      if (row === HISTORY) return moves.map((m, k) => ({ kind: 'move', m, k }));
+      return shown.you.hand.map((c, i) => ({ kind: 'hand', c, i })).concat([{ kind: 'end' }]);
+    };
+    const aimStops = () => {
+      const all = [{ kind: 'face', seat: 1 - me, u: 1 - me }].concat(rowStops(0), rowStops(1), [{ kind: 'face', seat: me, u: me }]);
+      return all.filter((s) => aim.targets.includes(s.u));
+    };
+    const stopNow = () => {
+      if (aim) { const s = aimStops(); return s[Math.min(cur.i, s.length - 1)] || null; }
+      const s = rowStops(cur.row);
+      return s[Math.min(cur.i, s.length - 1)] || null;
+    };
+    function rectOf(s) {
+      if (!s) return [0, 0, 0, 0];
+      if (s.kind === 'face') return FACE[s.seat];
+      if (s.kind === 'end') return END_BOX;
+      if (s.kind === 'move') return moveRect(s.k);
+      if (s.kind === 'hand') return [handX(s.i, shown.you.hand.length), HAND_Y - 10, 88, 116];
+      return [slotX(s.i), rowY(s.seat), 88, 116];
+    }
+    // Nothing left to do: no worker can attack, and either you're out of coffee or you can't afford
+    // anything. (A free card doesn't count once you're out: you can still go back and play it.)
+    const nothingLeft = () => view.can && !Object.keys(view.can.attack).length && (view.you.coffee <= 0 || !Object.keys(view.can.play).length);
+    function homeCursor() {
+      // on your turn, go straight to something you can do
+      aim = null; rest = 0;
+      if (shown.turn !== me || view.ph !== 'play') return;
+      if (nothingLeft()) { cur = { row: 2, i: shown.you.hand.length }; return; }
+      const stops = rowStops(cur.row), s = stops[Math.min(cur.i, stops.length - 1)];
+      const usable = (x) => x && ((x.kind === 'hand' && view.you.coffee > 0 && has(view.can.play, x.c.u)) || (x.kind === 'unit' && x.seat === me && has(view.can.attack, x.u)));
+      if (usable(s)) return;
+      for (const row of [cur.row, 2, 1]) {
+        const i = rowStops(row).findIndex(usable);
+        if (i >= 0) { cur = { row, i }; return; }
+      }
+    }
+    function steer() {
+      if (aim) {
+        const stops = aimStops();
+        if (!stops.length) { aim = null; return; }
+        let i = Math.min(cur.i, stops.length - 1);
+        if (pressed.has('left')) i = (i + stops.length - 1) % stops.length;
+        if (pressed.has('right')) i = (i + 1) % stops.length;
+        // up and down go to the next line of things you can pick, top to bottom: their plate,
+        // their workers, your workers, your plate
+        const line = (s) => (s.kind === 'face' ? (s.seat === me ? 3 : 0) : s.seat === me ? 2 : 1);
+        for (const [key, d] of [['up', -1], ['down', 1]]) {
+          if (!pressed.has(key)) continue;
+          const at = line(stops[i]), from = rectOf(stops[i]);
+          const lines = stops.map(line).filter((n) => (n - at) * d > 0);
+          if (!lines.length) continue;
+          const next = d > 0 ? Math.min(...lines) : Math.max(...lines);
+          let far = Infinity;
+          stops.forEach((s, k) => {
+            if (line(s) !== next) return;
+            const r = rectOf(s), gap = Math.abs(r[0] + r[2] / 2 - from[0] - from[2] / 2);
+            if (gap < far) { far = gap; i = k; }
+          });
+        }
+        if (i !== cur.i) { sfx('blip'); rest = 0; cur.i = i; }
+        return;
+      }
+      if (cur.row === HISTORY) {
+        let k = Math.min(cur.i, moves.length - 1);
+        if (pressed.has('up')) k = Math.max(0, k - 1);
+        if (pressed.has('down')) k = Math.min(moves.length - 1, k + 1);
+        if (k !== cur.i) { sfx('blip'); rest = 0; cur.i = k; }
+        if (pressed.has('right')) stopLooking();
+        return;
+      }
+      if (!rowStops(cur.row).length) cur = { row: 2, i: 0 }; // (everyone in that row has gone home)
+      let { row, i } = cur;
+      const size = () => rowStops(row).length;
+      i = Math.min(i, size() - 1);
+      // left from the start of a row is the last moves, once there are some
+      if (pressed.has('left') && i === 0 && moves.length) { sfx('blip'); rest = 0; cur = { row: HISTORY, i: 0, back: cur }; return; }
+      if (pressed.has('left')) i = (i + size() - 1) % size();
+      if (pressed.has('right')) i = (i + 1) % size();
+      const go = (d) => {
+        const from = rectOf(rowStops(row)[i]);
+        let r = row;
+        do { r += d; } while (r >= 0 && r <= 2 && !rowStops(r).length);
+        if (r < 0 || r > 2) return;
+        // the nearest thing in that row
+        let best = 0, far = Infinity;
+        rowStops(r).forEach((s, k) => { const [x] = rectOf(s), gap = Math.abs(x - from[0]); if (gap < far) { far = gap; best = k; } });
+        row = r; i = best;
+      };
+      if (pressed.has('up')) go(-1);
+      // nothing's below your hand, so down from there is END TURN: from anywhere, keep pressing down
+      if (pressed.has('down')) { if (row === 2) i = size() - 1; else go(1); }
+      if (row !== cur.row || i !== cur.i) { sfx('blip'); rest = 0; cur = { row, i }; }
+    }
+    function stopLooking() {
+      const b = cur.back || { row: 2, i: 0 };
+      cur = rowStops(b.row).length ? b : { row: 2, i: 0 };
+      rest = 0;
+      sfx('blip');
+    }
+    function send(a) {
+      if (vs) { vs.input(a); aim = null; again = true; sentT = t; return true; } // (it shows when the server says)
+      if (g.act(me, a)) { pull(); aim = null; again = true; return true; }
+      sfx('bump');
+      return false;
+    }
+    function startAim(act, targets, where) {
+      aim = { act, targets, where };
+      cur = { row: cur.row, i: 0, was: cur };
+      // start on their first worker, if there's one (a Gatekeeper, if there's one of those)
+      const stops = aimStops(), first = stops.findIndex((s) => s.kind === 'unit' && s.seat !== me);
+      cur.i = first >= 0 ? first : 0;
+      rest = 0;
+      sfx('select');
+    }
+    function pressA() {
+      if (aim) {
+        const s = stopNow(), was = cur.was;
+        if (s && send(Object.assign({}, aim.act, { target: s.u }))) cur = was || { row: 2, i: 0 };
+        return;
+      }
+      const s = stopNow();
+      if (s && s.kind === 'move') return; // (you've only just got there)
+      if (view.ph !== 'play' || shown.turn !== me) { sfx('bump'); flash('It\'s ' + foeShort + '\'s turn.'); return; }
+      if (!s) return;
+      if (s.kind === 'end') { sfx('menu'); send({ do: 'end' }); return; }
+      if (s.kind === 'hand') {
+        const c = CARDS.card(s.c.id);
+        if (!has(view.can.play, s.c.u)) {
+          sfx('bump');
+          if (c.cost > shown.you.coffee) flash('You need ' + c.cost + ' coffee for that.');
+          else if (c.kind !== 'task') flash('There\'s no room on the table.');
+          else flash('There\'s nobody to use that on.');
+          return;
+        }
+        const targets = view.can.play[s.c.u];
+        // (a card that needs a target always shows who it's going to and waits for A, even with one choice)
+        if (!targets) send({ do: 'play', card: s.c.u });
+        else startAim({ do: 'play', card: s.c.u }, targets, s);
+        return;
+      }
+      if (s.kind === 'unit' && s.seat === me) {
+        if (!has(view.can.attack, s.u)) {
+          sfx('bump');
+          flash(s.x.pw <= 0 ? 'No Power, so they can\'t attack.' : s.x.stuck ? 'They can\'t attack this turn.' : 'They\'ve done their work this turn.');
+          return;
+        }
+        // An attack always shows you who it's going to hit and waits for A, even with only one choice.
+        startAim({ do: 'attack', from: s.u }, view.can.attack[s.u], s);
+        return;
+      }
+      sfx('bump');
+      flash('Pick one of your workers first.');
+    }
+    function leave(words) {
+      remove(self);
+      if (vs) vs.end();
+      if (wonLive) questBoard('cardwins');
+      const after = doneLines && o.after ? () => o.after(won) : undefined;
+      if (words) say(words, after); else if (after) after();
+    }
+    function backMenu() {
+      menu = Choice(['KEEP PLAYING', 'HOW TO PLAY', vs ? 'RESIGN' : 'LEAVE GAME'], 110, 96, (i) => {
+        menu = null;
+        if (i === 1) { const next = (k) => { if (k < CARD_HOW.length) say(CARD_HOW[k], () => next(k + 1)); }; next(0); }
+        if (i === 2) {
+          if (!vs) leave(foe + ' goes back to work.');
+          else if (t - heardT > 180) leave(); // (the server can't hear you say it)
+          else vs.input({ do: 'resign' });
+        }
+      });
+    }
+    function pull() {
+      view = g.view(me);
+      for (const e of view.ev) if (e.i > seen) { seen = e.i; queue.push(e); }
+    }
+    // Against a player: what the server last said. A view with q in it only has the clock.
+    function hear(v) {
+      if (!v || typeof v !== 'object') return;
+      if (v.q) { if (view) view.clock = +v.clock || 0; return; }
+      if (v.cv !== CARDS.VERSION) { ended({ why: 'version' }); return; }
+      if (!v.you || !v.them) return; // (it's still being dealt)
+      if (!view) {
+        sitAt(v.me === 1 ? 1 : 0);
+        view = v; shown = copy(v);
+        seen = v.ev.length ? v.ev[v.ev.length - 1].i : -1;
+        sfx('menu');
+        return;
+      }
+      view = v;
+      for (const e of v.ev) if (e.i > seen) { seen = e.i; queue.push(e); sentT = -1; }
+      if (shown.ph === 'swap' && v.ph !== 'swap') firstTurn();
+    }
+    // Everyone's chosen. The table's just as the view says, with the first turn already begun, so
+    // those events have nothing left to show but whose turn it is.
+    function firstTurn() {
+      shown = copy(view);
+      queue.length = 0;
+      banner = { str: view.turn === me ? 'YOUR TURN' : foeShort.toUpperCase() + '\'S TURN', t: 0 };
+      if (view.turn === me) sfx('ding');
+      again = true;
+    }
+    function finishedLive() {
+      const r = vs.result;
+      if (r && typeof r.w === 'number') ended(r);
+      else if (r && (r.error || r.timeout)) ended({ why: r.error ? 'stopped' : 'long' });
+      else if (r && r.quit === me) ended({ w: 1 - me, why: 'dropped' }); // (you were gone too long)
+      else if (r) ended({ why: 'gone' }); // they left, or dropped out for too long
+      else serverLost();
+    }
+    // the server doesn't have the game any more: because you've been away too long, or it restarted
+    const serverLost = () => ended({ why: vs.lost || t - heardT > 180 ? 'lost' : 'stopped' });
+    // how it ended: r.w is who won (-1 for a draw). With no r.w, nobody did.
+    let wonLive = false; // (beating another player counts on the board. Them leaving doesn't.)
+    function ended(r) {
+      if (doneLines) return;
+      won = r.w === me || r.why === 'gone';
+      wonLive = !!vs && r.w === me;
+      const drew = r.w < 0, nobody = r.w === undefined && !won;
+      doneT = t; menu = null; aim = null; noteT = 0;
+      sfx(won ? 'cup' : drew || nobody ? 'ding' : 'bump');
+      const why = {
+        resign: won ? foeShort + ' gave up.' : 'You gave up.', time: won ? foeShort + ' ran out of time.' : 'You ran out of time.',
+        long: 'It went on for ever.', morale: won ? foeShort + ' is out of Morale.' : drew ? 'Nobody has any Morale left.' : 'You\'re out of Morale.',
+        gone: foeShort + ' left the game.', dropped: 'You dropped out for too long.', lost: 'The connection was gone for too long.', stopped: 'Someone knocked the table.', noserver: 'The game server can\'t start this one. Try again soon.',
+        version: 'The game server is still updating. Try again soon.',
+      }[r.why] || '';
+      doneLines = [won ? 'YOU WIN!' : drew ? 'IT\'S A DRAW' : nobody ? 'NOBODY WINS' : foeShort.toUpperCase() + ' WINS', why];
+      if (nobody || r.why === 'gone') parting = '';
+      else if (vs) parting = won ? 'You beat ' + foe + ' at Morale Madness!' : drew ? 'You and ' + foe + ' call it a draw.' : foe + ' beat you at Morale Madness.';
+      else parting = foe + (won ? ': "Good game! Best of three?"' : drew ? ': "Fair enough."' : ': "Good game. Come back any time."');
+    }
+
+    // ---------- the swap at the start ----------
+    function updateSwap() {
+      const you = shown.you;
+      if (pressed.has('b')) { sfx('select'); backMenu(); return; }
+      if (you.swapped) return;
+      const n = you.hand.length;
+      if (pressed.has('left')) { swapAt = (swapAt + n) % (n + 1); sfx('blip'); }
+      if (pressed.has('right')) { swapAt = (swapAt + 1) % (n + 1); sfx('blip'); }
+      if (pressed.has('down') && swapAt < n) { swapAt = n; sfx('blip'); }
+      if (pressed.has('up') && swapAt === n) { swapAt = 0; sfx('blip'); }
+      if (!pressed.has('a')) return;
+      if (swapAt < n) {
+        const u = you.hand[swapAt].u;
+        if (swapping.has(u)) swapping.delete(u); else swapping.add(u);
+        sfx('select');
+      } else {
+        sfx('menu');
+        send({ do: 'swap', cards: [...swapping] });
+      }
+    }
+    function drawSwap() {
+      ctx.drawImage(cardTable(), 0, 0);
+      ctx.fillStyle = 'rgba(16,12,24,0.6)'; ctx.fillRect(0, 0, W, H);
+      const you = shown.you, title = you.swapped ? 'Waiting for ' + foeShort + '...' : 'Swap any you don\'t want';
+      ctx.drawImage(cardWord(title, '#fff4c0'), Math.round((W - title.length * 12) / 2), 16);
+      const going = view.first === me ? 'You go first.' : foeShort + ' goes first: you get a card and a Double Shot.';
+      ctx.drawImage(cardWord(going, '#c8c0d8'), Math.max(8, Math.round((W - going.length * 12) / 2)), 40);
+      const n = you.hand.length, x0 = 312;
+      if (!you.swapped && swapAt < n) {
+        ctx.drawImage(bigCard(F(you.hand[swapAt].id)), 28, 72);
+        drawMeanings(meaningsOf(you.hand[swapAt].id), 312, 316, 300); // (there's no room under it here)
+      }
+      else if (n) {
+        ctx.drawImage(backOfCard(goldOf(me)), 0, 0, 88, 116, 28, 72, 260, 364);
+        if (goldOf(me)) A.sparkle(ctx, 28, 72, 260, 364, t, 9);
+      }
+      you.hand.forEach((c, i) => {
+        const x = x0 + i * 100, y = 110 - (i === swapAt && !you.swapped ? 8 : 0);
+        ctx.drawImage(swapping.has(c.u) ? backOfCard(goldOf(me)) : smallCard(F(c.id), { cost: true }), x, y);
+        if (swapping.has(c.u) && goldOf(me)) A.sparkle(ctx, x, y, 88, 116, t, i);
+        if (swapping.has(c.u)) { panel(x + 12, y + 44, 64, 28, '#ff9878'); ctx.drawImage(cardWord('SWAP', INK), x + 20, y + 51); }
+        if (i === swapAt && !you.swapped) { ctx.fillStyle = '#f8d850'; for (const [a, b, w, h] of [[x - 4, y - 4, 96, 4], [x - 4, y + 116, 96, 4], [x - 4, y, 4, 116], [x + 88, y, 4, 116]]) ctx.fillRect(a, b, w, h); }
+      });
+      if (!you.swapped) {
+        const str = swapping.size ? 'SWAP ' + swapping.size : 'KEEP THESE', bw = 180, bx = x0 + 60, by = 270;
+        panel(bx, by, bw, 34, swapAt === n ? '#f8d850' : '#f8f8f4');
+        ctx.drawImage(cardWord(str, INK), Math.round(bx + (bw - str.length * 12) / 2), by + 10);
+        if (vs) { // (how long you've got: the clock goes below 0 while you choose)
+          const left = String(Math.max(0, Math.ceil((1800 + view.clock) / 60)));
+          ctx.drawImage(cardWord(left, left < 10 ? '#ff9878' : '#fff4c0'), W - 12 - left.length * 12, 16);
+        }
+        const hint = swapAt < n ? (swapping.has(you.hand[swapAt].u) ? 'A: keep this card' : 'A: swap this card') + '   Down: ' + str.toLowerCase() : 'A: ' + str.toLowerCase() + '   Up: back to the cards';
+        ctx.drawImage(cardWord(hint, '#c8c0d8'), 40, 444);
+      }
+    }
+
+    // ---------- drawing ----------
+    function panel(x, y, w, h, c = '#f8f8f4') {
+      ctx.fillStyle = INK; ctx.fillRect(x + 2, y, w - 4, h); ctx.fillRect(x, y + 2, w, h - 4);
+      ctx.fillStyle = c; ctx.fillRect(x + 4, y + 2, w - 8, h - 4); ctx.fillRect(x + 2, y + 4, w - 4, h - 8);
+    }
+    function heart(x, y, c, n = 1) {
+      ctx.fillStyle = c;
+      for (const [a, b, w, h] of [[2, 0, 4, 2], [10, 0, 4, 2], [0, 2, 16, 6], [2, 8, 12, 2], [4, 10, 8, 2], [6, 12, 4, 2]]) ctx.fillRect(x + a * n, y + b * n, w * n, h * n);
+    }
+    // A player's plate: head and shoulders, name and Morale. It's what you're aiming at when you go
+    // for the other player, so it's big, and in the middle where it's easy to get to.
+    function faceBox(seat, name) {
+      const s = sideOf(seat), [x, y, w, h] = FACE[seat], hit = blink.get(seat) || 0, lit = Math.floor(hit / 3) % 2 === 1;
+      const stop = aim ? stopNow() : null, aimed = stop && stop.kind === 'face' && stop.seat === seat;
+      panel(x, y, w, h, lit ? '#ff9878' : aimed ? (Math.floor(t / 14) % 2 ? '#ffd8cc' : '#fff0e8') : '#f8f8f4');
+      const theirGo = shown.turn === seat;
+      ctx.fillStyle = theirGo ? '#f8d850' : '#a8bccc'; ctx.fillRect(x + 4, y + 2, 58, h - 4);
+      ctx.fillStyle = INK; ctx.fillRect(x + 62, y + 2, 2, h - 4);
+      const img = (seat === me ? sprites : foeSprites).down[0], u = img.width / (img.hi || 1) / 16;
+      const bob = theirGo && Math.floor(t / 20) % 2 ? 2 : 0; // (whoever's go it is shifts about a bit)
+      ctx.drawImage(img, u, 0, 14 * u, (h - 4 - bob) / 4 * u, x + 5 + (lit ? 2 : 0), y + 2 + bob, 56, h - 4 - bob);
+      ctx.drawImage(cardWord(name.slice(0, 10), INK), x + 70, y + 3);
+      const low = s.morale < 8, m = String(Math.max(0, s.morale));
+      heart(x + 68, y + 21, low ? '#e03830' : '#d84848', 2);
+      ctx.drawImage(cardWord(m, low ? '#c02820' : INK, 2), x + 104, y + 21);
+      if (aimed) {
+        const what = aimDoes(), n = what.hit || what.heal;
+        if (n) ctx.drawImage(cardWord((what.hit ? '-' : '+') + n, what.hit ? '#d02818' : '#2c8c28', n > 9 || m.length > 2 ? 1 : 2), x + 104 + m.length * 24 + 4, y + 21);
+      }
+    }
+    function deckLeft(seat, x, y) {
+      ctx.drawImage(backOfCard(goldOf(seat)), 0, 0, 88, 116, x, y, 14, 18);
+      if (goldOf(seat)) A.sparkle(ctx, x, y, 14, 18, t, seat + 20);
+      ctx.drawImage(cardWord(sideOf(seat).deck + ' in deck', '#f4ecd8'), x + 20, y + 1);
+    }
+    function cups(seat, x, y) {
+      const s = sideOf(seat);
+      for (let i = 0; i < CARDS.RULES.CUPS; i++) {
+        const X = x + i * 20;
+        if (i >= s.cups) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(X, y + 2, 16, 16); continue; }
+        ctx.fillStyle = INK; ctx.fillRect(X, y, 18, 20);
+        ctx.fillStyle = '#f4ecd8'; ctx.fillRect(X + 2, y + 2, 14, 16);
+        if (i < s.coffee) { ctx.fillStyle = '#6a3c20'; ctx.fillRect(X + 4, y + 4, 10, 12); ctx.fillStyle = '#8a5430'; ctx.fillRect(X + 4, y + 4, 10, 4); }
+      }
+      ctx.drawImage(cardWord(s.coffee + '/' + s.cups, s.coffee > 0 ? '#f4ecd8' : '#ff9878'), x + CARDS.RULES.CUPS * 20 + 2, y + 3);
+    }
+    // a shield centred on cx, with its top at y: lit from the left, with a stud in the middle
+    function shield(cx, y) {
+      const rows = [12, 14, 14, 14, 14, 14, 14, 12, 12, 10, 8, 6, 4, 2]; // (half its width, 2 pixels at a time)
+      ctx.fillStyle = INK;
+      ctx.fillRect(cx - 12, y, 24, 2);
+      rows.forEach((w, i) => ctx.fillRect(cx - w - 2, y + 2 + i * 2, w * 2 + 4, 2));
+      ctx.fillRect(cx - 2, y + 2 + rows.length * 2, 4, 2);
+      rows.forEach((w, i) => {
+        const Y = y + 2 + i * 2;
+        ctx.fillStyle = '#d8dce8'; ctx.fillRect(cx - w, Y, w, 2);
+        ctx.fillStyle = '#8c94a8'; ctx.fillRect(cx, Y, w, 2);
+        ctx.fillStyle = '#f4f6fc'; ctx.fillRect(cx - w, Y, 2, 2);
+      });
+      ctx.fillStyle = '#f4f6fc'; ctx.fillRect(cx - 12, y + 2, 24, 2);
+      ctx.fillStyle = INK; ctx.fillRect(cx - 5, y + 9, 10, 10);
+      ctx.fillStyle = '#e8b830'; ctx.fillRect(cx - 3, y + 11, 6, 6);
+      ctx.fillStyle = '#fff0a8'; ctx.fillRect(cx - 3, y + 11, 3, 3);
+    }
+    function worker(x, X, Y) {
+      const c = CARDS.card(x.id), o = {};
+      if (x.pw !== c.power) { o.power = x.pw; o.up = x.pw > c.power; }
+      if (x.pa !== c.patience || x.max !== c.patience) { o.patience = x.pa; o.hurt = x.pa < x.max; }
+      const face = F(x.id, x.seat);
+      ctx.drawImage(smallCard(face, o), Math.round(X), Math.round(Y));
+      X = Math.round(X); Y = Math.round(Y);
+      if (c.rarity === 'L') { // a legendary's art keeps moving, on the table too
+        const [cx, cy] = A.cropOf(face);
+        ctx.drawImage(A.canvasOf(A.artFrame(face, t)), cx, cy, 72, 72, X + 8, Y + 8, 72, 72);
+        A.shine(ctx, X, Y, 88, 116, t, 'L', 6);
+      } else if (c.rarity === 'R') A.shine(ctx, X, Y, 88, 116, t + x.u * 37, 'R', 6);
+      // on your turn, one of yours who can't attack (any more, or yet) is greyed out
+      if (view.can && shown.turn === me && !aim && shown.you.table.includes(x) && !has(view.can.attack, x.u) && !(mover && mover.who === x)) {
+        ctx.fillStyle = 'rgba(72,74,86,0.4)'; ctx.fillRect(X, Y, 88, 116);
+      }
+      if (x.skin) { // Thick Skin: plated all round and gleaming, until the first hit breaks it
+        ctx.fillStyle = 'rgba(150,215,255,' + (0.08 + (Math.sin(t / 18) + 1) * 0.06).toFixed(2) + ')'; ctx.fillRect(X, Y, 88, 116);
+        frame(X - 4, Y - 4, 96, 124, 2, INK);
+        frame(X - 2, Y - 2, 92, 120, 4, '#6cb0e4');
+        ctx.fillStyle = '#c8ecff'; ctx.fillRect(X - 2, Y - 2, 92, 2); ctx.fillRect(X - 2, Y - 2, 2, 120);
+        ctx.fillStyle = '#3c78b0'; ctx.fillRect(X - 2, Y + 116, 92, 2); ctx.fillRect(X + 88, Y - 2, 2, 120);
+        for (const [a, b] of [[0, 0], [44, 0], [88, 0], [0, 58], [88, 58], [0, 116], [44, 116], [88, 116]]) {
+          ctx.fillStyle = INK; ctx.fillRect(X + a - 4, Y + b - 4, 8, 8);
+          ctx.fillStyle = '#e8f6ff'; ctx.fillRect(X + a - 2, Y + b - 2, 4, 4);
+        }
+      }
+      if (x.gate) shield(X + 44, Y - 6); // a Gatekeeper's shield, standing up over the top of the card
+      if (x.frozen || x.stuck) {
+        ctx.fillStyle = 'rgba(120,180,255,0.4)'; ctx.fillRect(X, Y, 88, 116);
+        ctx.drawImage(cardWord('STUCK', '#ffffff'), X + 15, Y + 40);
+      }
+      const b = blink.get(x.u);
+      if (b && Math.floor(b / 3) % 2) { ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillRect(X, Y, 88, 116); }
+      // ready to attack
+      if (x.ready && shown.turn === me && !anim && has(view.can && view.can.attack, x.u) && !aim) {
+        ctx.fillStyle = Math.floor(t / 20) % 2 ? '#90f070' : '#60c848';
+        ctx.fillRect(X, Y + 116, 88, 4);
+      }
+    }
+    function jumpOf(x) {
+      const j = jolt && x.u !== landed ? Math.round(Math.sin(jolt / 14 * Math.PI) * 10) : 0;
+      const b = bounce.get(x.u);
+      return j + (b ? Math.round(Math.abs(Math.sin(b / 44 * Math.PI * 3)) * (6 + b / 2)) : 0);
+    }
+    function brackets(x, y, w, h, c) {
+      ctx.fillStyle = c;
+      for (const [a, b] of [[x - 4, y - 4], [x + w - 8, y - 4], [x - 4, y + h - 4], [x + w - 8, y + h - 4]]) {
+        ctx.fillRect(a, b, 12, 4);
+        ctx.fillRect(a + (a > x ? 8 : 0), b + (b > y ? -4 : 0), 4, 8);
+      }
+    }
+    // How hard the thing you're aiming hits or heals, if it does.
+    function aimDoes() {
+      if (aim.act.do === 'attack') { const x = unitOf(aim.act.from); return x ? { hit: x.pw } : {}; }
+      const e = (CARDS.card(aim.where.c.id).does || []).find((q) => ['worker', 'enemy', 'ally', 'any'].includes(q.who) && (q.do === 'hit' || q.do === 'heal'));
+      return e ? { [e.do]: e.n } : {};
+    }
+    // some words with a dark edge, so they show up on anything
+    function edged(str, c, x, y) {
+      const n = str.length > 3 ? 1 : 2, pic = cardWord(str, c, n), edge = cardWord(str, INK, n), X = Math.round(x - pic.width / 2);
+      for (const [a, b] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) ctx.drawImage(edge, X + a, y + b);
+      ctx.drawImage(pic, X, y);
+    }
+    // a little sign on a card, with its top at y
+    function badge(str, bg, fg, cx, y, n = 1) {
+      const pic = cardWord(str, fg, n), w = pic.width + 12, x = Math.round(cx - w / 2);
+      panel(x, y, w, n === 2 ? 34 : 22, bg);
+      ctx.drawImage(pic, x + 6, y + 3);
+    }
+    // what a hit would do to this worker: the number, and whether they'd go home
+    function hitWords(w, x, y, n, top) {
+      if (w.skin) { badge('BLOCKED', '#a8d8ff', INK, x + 44, y + top); return; }
+      badge('-' + n, '#d02818', '#ffffff', x + 44, y + top, 2);
+      if (n >= w.pa) badge('HOME', '#f8d850', INK, x + 44, y + top + 34);
+    }
+    function frame(x, y, w, h, n, c) {
+      ctx.fillStyle = c;
+      ctx.fillRect(x, y, w, n); ctx.fillRect(x, y + h - n, w, n); ctx.fillRect(x, y, n, h); ctx.fillRect(x + w - n, y, n, h);
+    }
+    // a line of fire from a to b, its dots marching towards b, with an arrowhead on the end
+    function fireLine(a, b) {
+      const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+      const dot = (x, y, r, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x / 2) * 2 - r, Math.round(y / 2) * 2 - r, r * 2, r * 2); };
+      const head = [], dots = [];
+      for (let d = t % 14; d < len - 16; d += 14) dots.push([a[0] + ux * d, a[1] + uy * d]);
+      for (let k = 0; k < 4; k++) for (let w = -k; w <= k; w++) head.push([b[0] - ux * k * 4 - uy * w * 4, b[1] - uy * k * 4 + ux * w * 4]);
+      for (const [x, y] of dots) dot(x, y, 5, INK);
+      for (const [x, y] of head) dot(x, y, 5, INK);
+      for (const [x, y] of dots) dot(x, y, 3, '#ff5040');
+      for (const [x, y] of head) dot(x, y, 3, '#ff5040');
+    }
+    // Picking a target: everything else goes dark, a line of fire runs to the one you're on, and it
+    // shows what would happen to them, and to whoever's attacking them if they'd hit back.
+    function drawAim(s) {
+      ctx.fillStyle = 'rgba(10,8,18,0.6)'; ctx.fillRect(0, 0, W, H);
+      const src = aim.where, attacker = aim.act.do === 'attack' ? unitOf(aim.act.from) : null;
+      for (const q of aimStops()) {
+        if (q.kind === 'unit') worker(q.x, slotX(q.i), rowY(q.seat));
+        else faceBox(q.seat, q.seat === me ? playerName || 'You' : foe);
+        const [x, y, w, h] = rectOf(q);
+        if (q.u !== s.u) brackets(x, y, w, h, '#ffbeaa');
+      }
+      const [sx, sy, sw, sh] = rectOf(src);
+      if (attacker) worker(attacker, sx, sy); else ctx.drawImage(smallCard(F(src.c.id), { cost: true }), sx, sy);
+      frame(sx - 2, sy - 2, sw + 4, sh + 4, 2, '#f8d850');
+      // the one you're on
+      const [x, y, w, h] = rectOf(s);
+      frame(x - 6, y - 6, w + 12, h + 12, 2, INK);
+      frame(x - 4, y - 4, w + 8, h + 8, 4, Math.floor(t / 10) % 2 ? '#ff5040' : '#ffffff');
+      // (from the top of one to just under the other, or a bit further in where they're close together)
+      const close = sy + 2 - (y + h + 6) < 20;
+      fireLine([sx + sw / 2, close ? sy + 24 : sy + 2], [x + w / 2, close ? y + h - 2 : y + h + 6]);
+      if (s.kind === 'unit') {
+        const what = aimDoes();
+        if (what.hit) hitWords(s.x, x, y, what.hit, 4);
+        if (what.heal) badge('+' + what.heal, '#2c8c28', '#ffffff', x + 44, y + 4, 2);
+        if (attacker && s.x.pw > 0) hitWords(attacker, sx, sy, s.x.pw, 26);
+      }
+    }
+    const artOf = (id) => cardPic('art' + id, () => A.toCanvas(A.artPic(id)));
+    // The last moves down the left: the card, edged in yellow if it's yours and red if it's theirs, and
+    // for an attack or a card aimed at something, a little arrow to who it went for. They're small and
+    // greyed out so they don't look like part of the table, in full colour only when they're new or
+    // you're on one. (They're the only thing here that isn't crisp: the art's at half size, smoothed.)
+    function drawMoves() {
+      const now = cur.row === HISTORY ? Math.min(cur.i, moves.length - 1) : -1;
+      ctx.imageSmoothingEnabled = true;
+      moves.forEach((m, k) => {
+        if (m.waiting) return;
+        const [x, y, w, h] = moveRect(k), fresh = m.t < 48;
+        panel(x, y, w, h, m.seat === me ? '#f8d850' : '#e86048');
+        const face = F(m.id, m.seat), [cx, cy] = A.cropOf(face);
+        ctx.drawImage(artOf(face), Math.max(0, Math.min(A.ART_W - 84, cx - 6)), cy, 84, 72, x + 4, y + 4, 42, 36);
+        if (m.target) {
+          const bx = x + w - 22, by = y + h - 22;
+          ctx.fillStyle = INK; ctx.fillRect(bx - 10, by + 8, 10, 6); ctx.fillRect(bx - 4, by + 5, 4, 12);
+          ctx.fillStyle = '#ff5040'; ctx.fillRect(bx - 8, by + 10, 6, 2); ctx.fillRect(bx - 2, by + 7, 2, 8);
+          panel(bx, by, 20, 20, '#ff5040');
+          if (m.target.id) { const aimed = F(m.target.id, m.target.on), [tx, ty] = A.cropOf(aimed); ctx.drawImage(artOf(aimed), tx + 16, ty + 4, 40, 40, bx + 2, by + 2, 16, 16); } else {
+            const img = (m.target.seat === me ? sprites : foeSprites).down[0], u = img.width / (img.hi || 1) / 16;
+            ctx.drawImage(img, 3 * u, 0, 10 * u, 10 * u, bx + 2, by + 2, 16, 16);
+          }
+        }
+        if (k !== now && !fresh) { ctx.fillStyle = 'rgba(104,104,112,0.5)'; ctx.fillRect(x, y, w, h); }
+        if (fresh && Math.floor(m.t / 8) % 2 === 0) { ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillRect(x + 2, y + 2, w - 4, h - 4); }
+      });
+      ctx.imageSmoothingEnabled = false;
+    }
+    // What the special words on a card mean. For a worker on the table it says what's true of them
+    // now: a Thick Skin that's been used up, a word they've been given, or that they're stuck.
+    function meaningsOf(id, x) {
+      const keys = CARDS.meanings(CARDS.card(id)), out = [];
+      if (x && x.gate && !keys.includes('gate')) keys.unshift('gate');
+      if (x && x.skin && !keys.includes('skin')) keys.unshift('skin');
+      for (const k of keys) out.push(k === 'skin' && x && !x.skin ? 'Thick Skin: already used up.' : CARDS.MEANS[k]);
+      if (x && (x.frozen || x.stuck)) out.unshift('Stuck: misses its next attack.');
+      return out;
+    }
+    function drawMeanings(said, x, y, w) {
+      const width = Math.floor((w - 16) / 12), rows = [];
+      for (const m of said) wrap(m, width).forEach((l, i) => rows.push([l, i === 0]));
+      const shown6 = rows.slice(0, 6);
+      if (!shown6.length) return;
+      panel(x, y, w, shown6.length * 17 + 10);
+      shown6.forEach(([l, first], i) => {
+        const Y = y + 4 + i * 17, c = first ? l.indexOf(':') + 1 : 0; // (the word itself is in red, like on the card)
+        if (c) ctx.drawImage(cardWord(l.slice(0, c), '#b02818'), x + 8, Y);
+        if (l.slice(c)) ctx.drawImage(cardWord(l.slice(c), INK), x + 8 + c * 12, Y);
+      });
+    }
+    function closeUp(id, X, Y, x, seat) {
+      const face = F(id, seat);
+      ctx.drawImage(bigCard(face), X, Y);
+      if (CARDS.card(id).rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(face, t)), X + 12, Y + 44, 236, 150);
+      A.shine(ctx, X, Y, 260, 364, t, CARDS.card(id).rarity);
+      drawMeanings(meaningsOf(id, x), X, Y + 366, 260);
+    }
+    // looking back at a move: the card, and in words who did what with it
+    function drawMoveCloseUp(m) {
+      closeUp(m.id, 78, 2, null, m.seat);
+      const said = wrap(m.words, 23), did = [].concat(...m.did.map((d) => wrap(d, 23))), x = 344, y = 60;
+      panel(x, y, 288, 16 + (said.length + did.length) * 20 + (did.length ? 6 : 0));
+      said.forEach((l, i) => ctx.drawImage(cardWord(l, INK), x + 12, y + 8 + i * 20));
+      did.forEach((l, i) => ctx.drawImage(cardWord(l, '#8a2018'), x + 12, y + 14 + (said.length + i) * 20));
+    }
+    function drawTable() {
+      ctx.drawImage(cardTable(), 0, 0);
+      const sh = shake ? (shake % 2 ? shake : -shake) : 0;
+      ctx.save();
+      ctx.translate(sh, Math.round(sh / 2));
+      const you = shown.you, them = shown.them;
+      drawMoves();
+      // their side
+      faceBox(1 - me, foe);
+      cups(1 - me, 6, 7);
+      deckLeft(1 - me, 6, 30);
+      const backs = Math.min(them.hand, 7);
+      for (let i = 0; i < backs; i++) {
+        ctx.drawImage(backOfCard(goldOf(1 - me)), 0, 0, 88, 116, 432 + i * 22, 9, 30, 36);
+        if (goldOf(1 - me)) A.sparkle(ctx, 432 + i * 22, 9, 30, 36, t, i);
+      }
+      them.table.forEach((x, i) => { if (!mover || mover.who !== x) worker(x, slotX(i), rowY(1 - me) - jumpOf(x)); });
+      // your side
+      faceBox(me, playerName || 'You');
+      cups(me, 6, 303);
+      deckLeft(me, 6, 326);
+      const canEnd = shown.turn === me && view.ph === 'play' && !anim && !queue.length;
+      panel(...END_BOX, canEnd && nothingLeft() ? (Math.floor(t / 20) % 2 ? '#f8d850' : '#f8e888') : canEnd ? '#f8f8f4' : '#a8a8a4');
+      ctx.drawImage(cardWord('END', INK, 2), END_BOX[0] + 18, END_BOX[1] + (vs ? 8 : 22));
+      ctx.drawImage(cardWord('TURN', INK, 2), END_BOX[0] + 6, END_BOX[1] + (vs ? 44 : 58));
+      if (vs && view.ph === 'play' && !view.r) { // the time left for whoever's turn it is
+        const left = Math.max(0, Math.ceil(view.clock / 60)), str = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+        ctx.drawImage(cardWord(str, left <= 15 ? '#c02820' : INK), END_BOX[0] + Math.round((END_BOX[2] - str.length * 12) / 2), END_BOX[1] + 88);
+      }
+      you.table.forEach((x, i) => { if (!mover || mover.who !== x) worker(x, slotX(i), rowY(me) - jumpOf(x)); });
+      // going home, a step at a time
+      for (const w of gone) {
+        if (w.t < 0) { worker(w.who, w.x, w.y); continue; }
+        const step = Math.floor(w.t / 5) % 2 ? 4 : 0;
+        ctx.drawImage(smallCard(F(w.who.id, w.who.seat), { patience: 0, hurt: true }), Math.round(w.x + w.dir * w.t * w.t * 0.2), Math.round(w.y - step));
+      }
+      if (glint) A.shine(ctx, glint.x, glint.y, 88, 116, glint.t, 'R', 6);
+      // your hand
+      you.hand.forEach((c, i) => {
+        const x = handX(i, you.hand.length), on = !aim && !anim && !queue.length && cur.row === 2 && Math.min(cur.i, you.hand.length) === i;
+        const can = shown.turn === me && view.can && has(view.can.play, c.u);
+        ctx.drawImage(smallCard(F(c.id), { cost: true }), x, HAND_Y - (on ? 10 : 0));
+        if (shown.turn === me && !can && !anim && !queue.length) { ctx.fillStyle = 'rgba(20,16,30,0.45)'; ctx.fillRect(x, HAND_Y - (on ? 10 : 0), 88, 116); }
+      });
+      if (drawn) {
+        ctx.drawImage(backOfCard(drawn.gold), Math.round(drawn[0]), Math.round(drawn[1]));
+        if (drawn.gold) A.sparkle(ctx, Math.round(drawn[0]), Math.round(drawn[1]), 88, 116, t, 3);
+      }
+      if (mover) {
+        const p = mover.pos || (() => { const u = easeOut(Math.min(1, mover.t / 16)); return [mover.from[0] + (mover.to[0] - mover.from[0]) * u, mover.from[1] + (mover.to[1] - mover.from[1]) * u]; })();
+        worker(mover.who, p[0], p[1]);
+      }
+      if (fly) {
+        const pic = smallCard(fly.id);
+        if (fly.spin) { ctx.save(); ctx.translate(Math.round(fly.pos[0] + 44), Math.round(fly.pos[1] + 58)); ctx.rotate(Math.round(fly.spin * 4) / 4); ctx.drawImage(pic, -44, -58); ctx.restore(); } else ctx.drawImage(pic, Math.round(fly.pos[0]), Math.round(fly.pos[1]));
+      }
+      ctx.restore();
+      // over the whole table
+      if (alarm > 0 && Math.floor(alarm / 8) % 2 === 0) { ctx.fillStyle = 'rgba(232,48,40,0.32)'; ctx.fillRect(0, 0, W, H); }
+      if (dim) { ctx.fillStyle = 'rgba(10,8,18,' + dim + ')'; ctx.fillRect(0, 0, W, H); }
+      if (halo) {
+        const { x, y, t: at } = halo, grow = Math.min(1, at / 10);
+        const ray = (a, w, R, c) => {
+          ctx.fillStyle = c;
+          ctx.beginPath(); ctx.moveTo(x, y);
+          ctx.lineTo(x + Math.cos(a - w) * R, y + Math.sin(a - w) * R); ctx.lineTo(x + Math.cos(a + w) * R, y + Math.sin(a + w) * R);
+          ctx.closePath(); ctx.fill();
+        };
+        // two sets of rays going opposite ways, that reach the corners of the screen
+        const beat = (0.34 + Math.sin(at / 7) * 0.08).toFixed(2);
+        for (let i = 0; i < 16; i++) ray(at * 0.018 + i * Math.PI / 8, 0.11 * grow, 520 * grow, i % 2 ? 'rgba(232,160,40,' + beat + ')' : 'rgba(255,232,150,' + beat + ')');
+        for (let i = 0; i < 8; i++) ray(-at * 0.03 + i * Math.PI / 4, 0.05 * grow, 420 * grow, 'rgba(255,250,220,0.3)');
+      }
+      if (flare) { ctx.fillStyle = 'rgba(' + flare.c + ',' + Math.max(0, flare.a).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H); }
+      if (big) {
+        const b = big, w = Math.max(4, Math.round(b.w * (b.squash === undefined ? 1 : b.squash) / 2) * 2), x = b.x + Math.round((b.w - w) / 2), sc = b.w / 260;
+        if (b.glow) for (const [r, a] of [[30, 0.1], [22, 0.14], [14, 0.2], [8, 0.3]]) { ctx.fillStyle = 'rgba(255,224,120,' + a + ')'; ctx.fillRect(b.x - r, b.y - r, b.w + r * 2, b.h + r * 2); } // (a glow round it)
+        if (b.alpha !== undefined) ctx.globalAlpha = b.alpha;
+        ctx.drawImage(b.back ? backOfCard(b.gold) : bigCard(b.id), x, b.y, w, b.h);
+        if (b.back && b.gold) A.sparkle(ctx, x, b.y, w, b.h, t, 5);
+        ctx.globalAlpha = 1;
+        if (b.live) ctx.drawImage(A.canvasOf(A.artFrame(b.id, t)), b.x + Math.round(12 * sc), b.y + Math.round(44 * sc), Math.round(236 * sc), Math.round(150 * sc));
+        if (b.shine >= 0) A.shine(ctx, x, b.y, w, b.h, Math.min(cardFace(b.id).rarity === 'L' ? 149 : 209, b.shine), cardFace(b.id).rarity);
+      }
+      if (legend) { // the word across the top, opening out from the middle
+        const w = Math.round(W * Math.min(1, legend.t / 10) / 2) * 2;
+        ctx.save();
+        ctx.beginPath(); ctx.rect((W - w) / 2, 2, w, 40); ctx.clip();
+        ctx.fillStyle = INK; ctx.fillRect(0, 2, W, 40);
+        ctx.fillStyle = '#e8b830'; ctx.fillRect(0, 4, W, 2); ctx.fillRect(0, 38, W, 2);
+        ctx.drawImage(cardWord('LEGENDARY', Math.floor(t / 8) % 2 ? '#ffe890' : '#f8c830', 2), (W - 216) / 2, 8);
+        ctx.restore();
+      }
+      for (const ring of rings) {
+        if (ring.t < 0) continue;
+        const r = ring.t * 11, n = 40;
+        ctx.globalAlpha = Math.max(0, 1 - ring.t / 26);
+        ctx.fillStyle = '#f8d860';
+        for (let i = 0; i < n; i++) { const a = i * Math.PI * 2 / n; ctx.fillRect(Math.round((ring.x + Math.cos(a) * r) / 2) * 2 - 3, Math.round((ring.y + Math.sin(a) * r * 0.8) / 2) * 2 - 3, 6, 6); }
+        ctx.globalAlpha = 1;
+      }
+      for (const b of bits) {
+        const a = Math.max(0, b.life / b.max), x = Math.round(b.x / 2) * 2, y = Math.round(b.y / 2) * 2;
+        if (b.heart) {
+          heart(x - 8, y - 6, INK); heart(x - 6, y - 4, '#f05868');
+        } else if (b.star) {
+          const n = b.life > 18 ? 6 : 3;
+          ctx.fillStyle = b.c; ctx.fillRect(x - n, y - 1, n * 2 + 2, 2); ctx.fillRect(x, y - n - 1, 2, n * 2 + 2);
+        } else {
+          ctx.globalAlpha = a; ctx.fillStyle = b.c;
+          const r = b.shard ? b.r : Math.round((b.r + (1 - a) * 6) / 2) * 2; // (dust spreads as it fades)
+          ctx.fillRect(x - r, y - r, r * 2, r * 2);
+          ctx.globalAlpha = 1;
+        }
+      }
+      for (const p of pops) {
+        edged(p.str, p.c, p.x, Math.round(p.y - p.t * 0.8));
+      }
+      if (banner) {
+        const u = banner.t < 8 ? banner.t / 8 : banner.t > 28 ? Math.max(0, (36 - banner.t) / 8) : 1, w = banner.str.length * 12 + 32, x = Math.round((W - w) / 2);
+        ctx.globalAlpha = u;
+        panel(x, 161, w, 28, '#f8d850');
+        ctx.drawImage(cardWord(banner.str, INK), x + 16, 168);
+        ctx.globalAlpha = 1;
+      }
+      // the cursor, what the keys do, and the card under it at the size you can read it
+      if (!anim && !queue.length && !doneLines && !menu) {
+        const s = stopNow();
+        if (aim && s) drawAim(s);
+        else if (s) {
+          const [x, y, w, h] = rectOf(s);
+          brackets(x, y, w, h, Math.floor(t / 14) % 2 ? '#f8d850' : '#fff4b0');
+        }
+        let hint = '', hint2 = '', hint3 = '';
+        if (aim) {
+          const name = !s ? '' : s.kind === 'face' ? (s.seat === me ? 'yourself' : foeShort) : CARDS.card(s.x.id).name;
+          hint = (aim.act.do === 'attack' ? 'Attack ' : 'Use on ') + name;
+          if (hint.length > 17) hint = name.slice(0, 17);
+          hint2 = 'A: go   B: cancel';
+          if (s && s.kind === 'unit' && s.seat !== me && aim.targets.includes(1 - me)) hint3 = 'Up: their Morale';
+        } else if (s && s.kind === 'move') {
+          hint = 'Up, Down: look';
+          hint2 = 'Right or B: back';
+        } else if (shown.turn === me && s) {
+          if (s.kind === 'end') hint = 'A: end your turn';
+          if (s.kind === 'hand') { hint = view.can && has(view.can.play, s.c.u) ? 'A: play it' : ''; hint2 = 'Down: end turn'; }
+          if (s.kind === 'unit' && s.seat === me) { hint = view.can && has(view.can.attack, s.u) ? 'A: attack' : ''; hint2 = 'Down: your hand'; }
+        }
+        if (!aim && s && s.kind !== 'move' && moves.length && Math.min(cur.i, rowStops(cur.row).length - 1) === 0) hint3 = 'Left: last moves';
+        [[hint, '#f4ecd8'], [hint2, '#c8c0d8'], [hint3, '#c8c0d8']].filter(([l]) => l).forEach(([l, c], i) => ctx.drawImage(cardWord(l, c), 432, 303 + i * 19));
+        // (it takes longer to come up while you're aiming, so that it isn't in the way)
+        if (s && s.kind === 'move') drawMoveCloseUp(s.m);
+        else if (s && rest > (aim ? 45 : 18) && (s.kind === 'hand' || s.kind === 'unit')) {
+          const [x, , w] = rectOf(s);
+          closeUp(s.kind === 'hand' ? s.c.id : s.x.id, x + w / 2 < W / 2 ? 372 : 8, 2, s.kind === 'unit' ? s.x : null, s.kind === 'unit' ? s.x.seat : me);
+        }
+      }
+      if (noteT > 0) {
+        const w = note.length * 12 + 24, x = Math.max(4, Math.round((W - w) / 2));
+        panel(x, 161, Math.min(w, W - 8), 28);
+        ctx.drawImage(cardWord(note, INK), x + 12, 168);
+      }
+      if (doneLines) drawDone();
+    }
+    function drawDone() {
+      ctx.fillStyle = 'rgba(10,8,18,0.6)'; ctx.fillRect(0, 0, W, H);
+      const big2 = doneLines[0], x = Math.round((W - big2.length * 24) / 2);
+      for (const [a, b] of [[-4, 0], [4, 0], [0, -4], [0, 4]]) ctx.drawImage(cardWord(big2, INK, 2), x + a, 180 + b);
+      ctx.drawImage(cardWord(big2, won ? '#f8d850' : '#f4ecd8', 2), x, 180);
+      const line = doneLines[1];
+      ctx.drawImage(cardWord(line, '#f4ecd8'), Math.max(8, Math.round((W - line.length * 12) / 2)), 224);
+    }
+    // waiting for the server to deal
+    function drawDealing() {
+      ctx.drawImage(cardTable(), 0, 0);
+      ctx.fillStyle = 'rgba(16,12,24,0.6)'; ctx.fillRect(0, 0, W, H);
+      if (doneLines) { drawDone(); return; }
+      const str = 'Dealing' + '.'.repeat(1 + (Math.floor(t / 20) % 3));
+      ctx.drawImage(cardWord(str, '#fff4c0'), Math.round((W - 10 * 12) / 2), 220);
+      ctx.drawImage(cardWord('Against ' + foeShort, '#c8c0d8'), Math.round((W - (8 + foeShort.length) * 12) / 2), 246);
+    }
+
+    cardsNow = { g, pull, me, busy: () => !!anim || queue.length > 0, get done() { return !!doneLines; }, get cursor() { return stopNow(); }, get aiming() { return !!aim; }, get moves() { return moves; }, get view() { return view; }, get seat() { return me; } };
+    const self = {
+      music: 'battle', doing: 'cards',
+      update() {
+        t++;
+        if (noteT > 0) noteT--;
+        rest++;
+        // everything that's moving
+        for (const b of bits) { b.x += b.vx; b.y += b.vy; if (!b.star && !b.heart) b.vy += 0.05; b.life--; }
+        bits = bits.filter((b) => b.life > 0);
+        for (const m of moves) m.t++;
+        for (const w of gone) w.t++;
+        gone = gone.filter((w) => w.t < 70);
+        for (const p of pops) p.t++;
+        pops = pops.filter((p) => p.t < 44);
+        for (const [u, n] of blink) { if (n <= 1) blink.delete(u); else blink.set(u, n - 1); }
+        for (const [u, n] of bounce) { if (n <= 1) bounce.delete(u); else bounce.set(u, n - 1); }
+        if (shake > 0) shake--;
+        if (jolt > 0) jolt--;
+        if (alarm > 0) alarm--;
+        for (const r of rings) r.t++;
+        rings = rings.filter((r) => r.t <= 26);
+        if (flare) { flare.a -= flare.fade; if (flare.a <= 0) flare = null; }
+        if (legend) legend.t++;
+        if (glint) { glint.t += 6; if (glint.t > 240) glint = null; }
+        if (banner && ++banner.t > 36) banner = null;
+        if (mover && !mover.pos && ++mover.t > 16) mover = null;
+
+        if (doneLines) {
+          if (t - doneT > 60 && (pressed.has('a') || pressed.has('b'))) leave(parting);
+          return;
+        }
+        if (vs) {
+          if (vs.view !== heard) { heard = vs.view; heardT = t; hear(heard); if (doneLines) return; }
+          if (!view) {
+            // Nothing from the server at all: it isn't running this game (the site and the server
+            // update separately, so it can be a few minutes behind). Better to say so than to leave
+            // you both waiting for each other.
+            if (vs.result !== undefined || (vs.gone && ++goneT > 60)) finishedLive();
+            else if (!heard && t > NO_WORD) ended({ why: 'noserver' });
+            else if (pressed.has('b')) leave();
+            else if (t % 30 === 1) vs.input({ deck: myDeck, gold: items.goldbacks === 1 }); // (again, in case the first got lost)
+            return;
+          }
+          // The server's word on how it ended comes straight after anything else that says it's over.
+          // If it doesn't, the server has lost the game.
+          if (vs.gone && vs.result === undefined && ++goneT > 60) { serverLost(); return; }
+        }
+        if (menu) { menu.update(); return; }
+        // A hurries it all along
+        if ((anim || queue.length) && pressed.has('a') && shown.ph !== 'swap') {
+          if (anim) { if (anim.end) anim.end(); anim = null; }
+          while (queue.length) {
+            const a = nextAnim();
+            if (a.start) a.start();
+            if (a.end) a.end();
+          }
+          mover = null; fly = null; big = null; dim = 0; halo = null; drawn = null; legend = null;
+          return; // (that press was for hurrying, so it doesn't also pick whatever's under the cursor)
+        }
+        // whatever's next to show
+        if (anim) {
+          if (anim.step) anim.step(anim.t);
+          if (++anim.t >= anim.len) { const a = anim; anim = null; if (a.end) a.end(); }
+          return;
+        }
+        if (queue.length) {
+          anim = Object.assign({ t: 0 }, nextAnim());
+          if (anim.start) anim.start();
+          return;
+        }
+        // caught up: what the rules say is what's on the table
+        // ...and when it's just become your turn, or you've just done something, the cursor moves on
+        // to the next thing you can do: another worker who can attack, a card, or END TURN.
+        if (vs && vs.result !== undefined) { finishedLive(); return; }
+        if (!vs && view.r) { ended(view.r); return; }
+        // (you've done something, and the server hasn't said yet. If it doesn't, it didn't take it.)
+        if (sentT >= 0) { if (t - sentT < 90) return; sentT = -1; }
+        const was = shown.turn, wasCan = !!shown.can;
+        shown = copy(view);
+        if (shown.ph !== 'swap' && (was !== shown.turn || !wasCan || again) && shown.turn === me) homeCursor();
+        again = false;
+        if (vs && view.ph === 'play' && view.turn === me) { // the last few seconds tick
+          const left = Math.ceil(view.clock / 60);
+          if (left <= 10 && left > 0 && left !== lastBeep) { lastBeep = left; sfx('tap'); }
+        }
+        if (view.ph === 'swap') {
+          updateSwap();
+          if (g) {
+            g.step();
+            pull();
+            if (view.ph !== 'swap') firstTurn();
+          }
+          return;
+        }
+        const looking = cur.row === HISTORY;
+        steer();
+        if (looking) { if (cur.row === HISTORY && (pressed.has('a') || pressed.has('b'))) stopLooking(); } else if (shown.turn === me) {
+          if (pressed.has('a')) pressA();
+          else if (pressed.has('b')) {
+            if (aim) { aim = null; cur = cur.was || { row: 2, i: 0 }; rest = 0; sfx('select'); } else { sfx('select'); backMenu(); }
+          }
+        } else if (pressed.has('a')) { sfx('bump'); flash('It\'s ' + foeShort + '\'s turn.'); } else if (pressed.has('b')) { sfx('select'); backMenu(); }
+        if (g && shown.turn !== me) { g.step(); pull(); }
+      },
+      draw() {
+        ctx.save();
+        ctx.scale(0.5, 0.5);
+        if (!shown) drawDealing(); else if (shown.ph === 'swap') { drawSwap(); if (doneLines) drawDone(); } else drawTable();
+        ctx.restore();
+        if (menu) menu.draw();
+      },
+    };
+    return self;
+  }
+
+  // ---------- your cards ----------
+  // Everybody has the starter cards. Anything else you've won goes where the special items are, in the
+  // database at items/<world>/<name>/c_<id> and in this browser (see itemsCheck). Those rules only let
+  // a 1 be added, so you can't lose a card. Your deck is only kept in this browser: on a new computer
+  // you get the best one your cards can make, until you build another.
+  //
+  // To give out a card some other way, from a quest or anything else, call cardEarned(id).
+  let cardsOwned = new Set(), cardsFor = null;
+  const cardsWho = () => playerName || 'New Hire';
+  const cardKey = (name, what) => (BOARD_POSTS ? '' : 'test.') + what + '.' + boardKey(name);
+  // the cards you can win, which is everything but the starters and the ones other cards bring in
+  const WINNABLE = CARDS.LIST.filter((c) => c.rarity !== 'T' && !c.own && !CARDS.STARTER.includes(c.id));
+  // what this browser remembers (and &havecards=all, or =32 for the first 32 you can win, or =markv,steve,
+  // as if those were yours)
+  function cardsRead(name) {
+    cardsOwned = new Set(); cardsFor = name;
+    let test = (/[#&]havecards=([a-z0-9,]+)/.exec(location.hash) || ['', ''])[1].split(',');
+    if (/^\d+$/.test(test[0])) test = WINNABLE.slice(0, +test[0]).map((c) => c.id);
+    for (const c of CARDS.LIST) if (c.rarity !== 'T' && !c.own && (store.get(itemKey(name, 'c_' + c.id)) === '1' || test[0] === 'all' || test.includes(c.id))) cardsOwned.add(c.id);
+  }
+  // what the database says. One here with nothing there is a save that didn't get through, so it goes
+  // again. A 0 there means it's been taken away by hand.
+  function cardsHeard(name, all) {
+    for (const c of CARDS.LIST) {
+      const key = 'c_' + c.id, v = all[key];
+      if (+v === 1) { cardsOwned.add(c.id); store.set(itemKey(name, key), '1'); }
+      else if (v !== undefined) { cardsOwned.delete(c.id); store.set(itemKey(name, key), ''); }
+      else if (store.get(itemKey(name, key)) === '1') itemFetch(name, '/' + key, { method: 'PUT', body: '1' }).catch(() => {});
+    }
+  }
+  const cardsMine = () => { if (cardsFor !== cardsWho()) cardsRead(cardsWho()); return cardsOwned; };
+  const cardHave = (id) => CARDS.STARTER.includes(id) || ((CARDS.card(id) || {}).own ? items.owncard === 1 : cardsMine().has(id));
+  const cardsCount = () => CARDS.LIST.filter((c) => c.rarity !== 'T' && !c.own && cardHave(c.id)).length;
+  // Your deck: the one you built if you still can, or else the best your cards can make.
+  function cardDeck() {
+    const saved = (store.get(cardKey(cardsWho(), 'carddeck')) || '').split(',');
+    if (!CARDS.deckProblem(saved) && saved.every(cardHave)) return saved;
+    return CARDS.buildDeck([...cardsMine()], { seed: 1 });
+  }
+  // It's yours now, and you get to see it. Says whether it's new to you.
+  function cardEarned(id) {
+    if (!CARDS.card(id) || cardHave(id)) return false;
+    const name = cardsWho(), key = 'c_' + id;
+    cardsOwned.add(id);
+    store.set(itemKey(name, key), '1');
+    itemFetch(name, '/' + key, { method: 'PUT', body: '1' }).catch(() => {});
+    ui.push(CardReveal(id));
+    saveBest('cards', cardsCount());
+    return true;
+  }
+  // What winning cards earns you, at a share of the cards you can win. They're special items, so once
+  // you have one it's yours for good, even if adding cards later moves where it comes.
+  const cardsWon = () => WINNABLE.filter((c) => cardsMine().has(c.id)).length;
+  const prizeNeeds = (p) => Math.ceil(p.at * WINNABLE.length);
+  const CARD_PRIZES = [
+    { at: 1 / 4, item: 'goldbacks', what: 'Gold backs', name: 'gold backs',
+      tell() {
+        sfx('cup');
+        itemToldMark('goldbacks');
+        ui.push(Dialog('You\'ve won a quarter of the cards in Morale Madness, so yours have gold backs now, and they sparkle! Everybody you play will see them.', { above: goldPanel() }));
+      } },
+    { at: 1 / 2, item: 'cardcrown', what: 'Card crown (HEAD)', name: 'a card crown',
+      tell() {
+        sfx('cup');
+        itemOffer(['cardcrown'], 'You\'ve won half of the cards in Morale Madness, and that earns you the card crown! It\'s with your head things, under Edit character in the Start menu.', 'You put the card crown on. Long may you deal.');
+      } },
+    { at: 3 / 4, item: 'cardstorm', what: 'Card storm (FLAIR)', name: 'a card storm',
+      tell() {
+        sfx('cup');
+        itemOffer(['cardstorm'], 'You\'ve won three quarters of the cards in Morale Madness, and that earns you the card storm! It\'s under FLAIR, in Edit character in the Start menu.', 'Your cards lift off and start going round you. You feel very collected.');
+      } },
+    { at: 1, item: 'owncard', what: 'Your own card', name: 'your own card',
+      tell() {
+        sfx('cup');
+        itemToldMark('owncard');
+        ask('You\'ve won every card in Morale Madness. Now you\'re playing with a full deck! So here\'s one more, all your own: a legendary with you on it. Pick what it does under YOU in MY CARDS, and change it whenever you like.', ['PICK NOW', 'LATER'], (i) => {
+          if (i === 0) { sfx('menu'); ui.push(DeckApp('you')); }
+        }, { above: ownPanel() });
+      } },
+  ];
+  // which of them you've just earned and still need telling about (see itemEarned)
+  const cardPrizesDue = (name) => CARD_PRIZES.filter((p) => cardsWon() >= prizeNeeds(p) && itemEarned(name, p.item));
+  // how far off the next one is, or nothing once you have them all
+  function cardsNext() {
+    const won = cardsWon(), p = CARD_PRIZES.find((x) => won < prizeNeeds(x));
+    return p ? 'Win ' + (prizeNeeds(p) - won) + ' more for ' + p.name + '.' : '';
+  }
+  // The picture above the message about gold backs: one of them, sparkling.
+  function goldPanel() {
+    const w = 120, h = 100, x = (SW - w) >> 1, y = 16;
+    return () => {
+      box(x, y, w, h);
+      ctext('NEW!', y + 9, GOLD);
+      ctext('Gold backs', y + 21);
+      ctx.save();
+      ctx.scale(0.5, 0.5);
+      ctx.drawImage(backOfCard(true), SW - 44, (y + 33) * 2);
+      CARD_ART.sparkle(ctx, SW - 44, (y + 33) * 2, 88, 116, tick, 1);
+      ctx.restore();
+    };
+  }
+  // The picture above the message about your own legendary: you, on it.
+  function ownPanel() {
+    const w = 120, h = 100, x = (SW - w) >> 1, y = 16, face = faceOf('youbruiser', { name: cardsWho(), look: wornLook(myLook) }), from = tick;
+    return () => {
+      box(x, y, w, h);
+      ctext('NEW!', y + 9, GOLD);
+      ctext('Your own card', y + 21);
+      ctx.save();
+      ctx.scale(0.5, 0.5);
+      ctx.drawImage(smallCard(face), SW - 44, (y + 33) * 2);
+      const [cx, cy] = CARD_ART.cropOf(face);
+      ctx.drawImage(CARD_ART.canvasOf(CARD_ART.artFrame(face, tick - from)), cx, cy, 72, 72, SW - 36, (y + 33) * 2 + 8, 72, 72);
+      CARD_ART.shine(ctx, SW - 44, (y + 33) * 2, 88, 116, tick - from, 'L', 6);
+      ctx.restore();
+    };
+  }
+  // Told once as you come in, unless you've found MY CARDS already.
+  function cardNewsTell() {
+    store.set(cardKey(cardsWho(), 'cardnews'), '1');
+    sfx('ding');
+    say('New in the office: Morale Madness, a card game starring your coworkers! Open MY CARDS in the Start menu to get your first 20 cards. Beat coworkers around the office to unlock more, and earn rewards as your collection grows. You can also challenge other live players and track your wins on the leaderboard.');
+  }
+  // A new card, turning over from its back and held up for you to look at.
+  function CardReveal(id) {
+    const A = CARD_ART, c = CARDS.card(id), legend = c.rarity === 'L', rare = legend || c.rarity === 'R';
+    const X = 190, Y = 62, FLIP = 26;
+    let t = 0;
+    sfx(legend ? 'cup' : 'ding');
+    const self = {
+      update() {
+        t++;
+        if (t > FLIP + 12 && (pressed.has('a') || pressed.has('b'))) {
+          sfx('select');
+          remove(self);
+          for (const p of cardPrizesDue(cardsWho())) questQueue.push(p.tell);
+        }
+      },
+      draw() {
+        ctx.save();
+        ctx.scale(0.5, 0.5);
+        ctx.fillStyle = 'rgba(10,8,18,0.8)'; ctx.fillRect(0, 0, 640, 480);
+        if (rare) {
+          ctx.fillStyle = legend ? 'rgba(248,216,80,0.2)' : 'rgba(216,224,248,0.14)';
+          for (let i = 0; i < 12; i++) {
+            const a = i * Math.PI / 6 + t / 90;
+            ctx.beginPath(); ctx.moveTo(320, 244);
+            ctx.lineTo(320 + Math.cos(a) * 420, 244 + Math.sin(a) * 420);
+            ctx.lineTo(320 + Math.cos(a + 0.2) * 420, 244 + Math.sin(a + 0.2) * 420);
+            ctx.fill();
+          }
+        }
+        const u = Math.min(1, t / FLIP), w = Math.max(2, Math.round(Math.abs(Math.cos(u * Math.PI)) * 260)), x = 320 - (w >> 1);
+        ctx.drawImage(u < 0.5 ? backOfCard() : bigCard(id), x, Y, w, 364);
+        if (u >= 1) {
+          if (legend) ctx.drawImage(A.canvasOf(A.artFrame(id, t)), X + 12, Y + 44, 236, 150);
+          A.shine(ctx, X, Y, 260, 364, t, c.rarity);
+          const top = cardWord('NEW CARD!', '#f8d850', 2);
+          ctx.drawImage(top, Math.round(320 - top.width / 2), 16);
+          const low = cardWord('It\'s yours to keep. ' + (cardsNext() || 'Find it in MY CARDS.'), '#f4ecd8');
+          ctx.drawImage(low, Math.round(320 - low.width / 2), 438);
+        }
+        ctx.restore();
+      },
+    };
+    return self;
+  }
+  // Who to beat for a card and where they are, for MY CARDS. It has 3 lines of 21 letters to fit in.
+  function cardWhere(id) {
+    if (CARDS.card(id).own) return 'Win every other card to make this yours.';
+    const who = CARDS.wonFrom(id);
+    if (!who) return '';
+    const first = CARDS.prizes(who)[0], beat = 'Beat ' + who + (id === first ? '' : cardHave(first) ? ' again' : ' twice');
+    const crew = Object.values(window.PLANT_CREW || {}).some((c) => c.name === who);
+    // (the visitors take turns, so there mightn't be anybody of that name there right now)
+    if (visit && !crew && (window.VISITORS || []).some((v) => v.name === who)) return beat + ' when they visit office ' + parseInt(visit.room.name, 10) + ', ' + MAPS.floors[visit.npc.floor].name + '.';
+    const n = npcs.find((k) => k.name === who), room = n && roomAt(n.floor, n.x, n.y);
+    if (!n) return beat + ' to win this.';
+    const num = room ? parseInt(room.name, 10) : NaN, here = !room ? '' : num ? 'office ' + num + ', ' : room.name + ', ';
+    return beat + ' in ' + here + MAPS.floors[n.floor].name + '.';
+  }
+  // MY CARDS in the Start menu: everything you've won, and the 20 you play with.
+  function DeckApp(open) {
+    const A = CARD_ART, COLS = 4, ROWS = 3, GX = 276, GY = 42, SIZE = CARDS.RULES.DECK;
+    const dept = (d) => (c) => c.dept === d;
+    const TABS = [['MY DECK'], ['PLANT', dept('plant')], ['SALES', dept('sales')], ['OFFICE', dept('office')], ['ENGINEERING', dept('engineering')], ['OTHER', (c) => !c.dept && !c.own], ['YOU', (c) => c.own], ['FILL']];
+    const FILL = TABS.length - 1, YOU = FILL - 1;
+    const F = (id) => faceOf(id, { name: cardsWho(), look: wornLook(myLook) });
+    const byCost = (a, b) => a.cost - b.cost || a.name.localeCompare(b.name);
+    const start = cardDeck();
+    let draft = start.slice(), tab = open === 'you' ? YOU : 0, at = 0, scroll = 0, onTabs = false, t = 0, note = cardsNext(), noteT = note ? 170 : 0;
+    const list = () => (TABS[tab][1]
+      ? CARDS.LIST.filter((c) => c.rarity !== 'T' && TABS[tab][1](c)).sort(byCost).map((c) => c.id)
+      : draft.map(CARDS.card).sort(byCost).map((c) => c.id));
+    const flash = (str) => { note = str; noteT = 170; };
+    const legal = () => !CARDS.deckProblem(draft);
+    function toggle(id) {
+      const c = CARDS.card(id);
+      if (!cardHave(id)) { sfx('bump'); flash(cardWhere(id)); return; }
+      if (draft.includes(id)) { draft = draft.filter((x) => x !== id); sfx('select'); return; }
+      // (your own legendary takes the place of whichever legendary you had, so swapping is one press)
+      if (c.own) {
+        const was = draft.find((x) => CARDS.card(x).rarity === 'L');
+        if (was) { draft = draft.filter((x) => x !== was).concat(id); sfx('blip'); if (!CARDS.card(was).own) flash('It took the place of ' + CARDS.card(was).name + '.'); return; }
+      }
+      if (draft.length >= SIZE) { sfx('bump'); flash('Your deck is full. Take one out first.'); return; }
+      if (c.rarity === 'L' && draft.some((x) => CARDS.card(x).rarity === 'L')) { sfx('bump'); flash('A deck can only have one legendary.'); return; }
+      draft.push(id);
+      sfx('blip');
+    }
+    function fill() {
+      if (draft.length >= SIZE) { sfx('bump'); flash('Your deck is full already.'); return; }
+      draft = CARDS.buildDeck([...cardsMine()], { must: draft, seed: t + 1 });
+      sfx('menu');
+      flash('Filled up with the best of what you have.');
+    }
+    function goBack() {
+      if (legal()) {
+        // (only if you changed something: until then it's still the best your cards can make)
+        if (draft.slice().sort().join() !== start.slice().sort().join()) store.set(cardKey(cardsWho(), 'carddeck'), draft.join(','));
+        sfx('select');
+        remove(self);
+        return;
+      }
+      ask('Your deck has ' + draft.length + ' of ' + SIZE + ' cards. If you go now, you keep the last deck you finished.', ['KEEP BUILDING', 'GO ANYWAY'], (i) => { if (i === 1) remove(self); });
+    }
+    const self = {
+      doing: 'deck',
+      update() {
+        t++;
+        if (noteT > 0) noteT--;
+        if (pressed.has('b')) { goBack(); return; }
+        if (onTabs) {
+          const was = tab;
+          if (pressed.has('left')) tab = (tab + TABS.length - 1) % TABS.length;
+          if (pressed.has('right')) tab = (tab + 1) % TABS.length;
+          if (tab !== was) { sfx('blip'); at = 0; scroll = 0; }
+          if (pressed.has('a') && tab === FILL) { fill(); return; }
+          if ((pressed.has('down') || pressed.has('a')) && list().length) { onTabs = false; sfx('blip'); }
+          return;
+        }
+        const ids = list(), n = ids.length;
+        if (!n) { onTabs = true; return; }
+        if (at >= n) at = n - 1;
+        const was = at;
+        if (pressed.has('left') && at > 0) at--;
+        if (pressed.has('right') && at < n - 1) at++;
+        if (pressed.has('down')) { if (at + COLS < n) at += COLS; else if (Math.floor(at / COLS) < Math.floor((n - 1) / COLS)) at = n - 1; }
+        if (pressed.has('up')) { if (at >= COLS) at -= COLS; else { onTabs = true; sfx('blip'); return; } }
+        if (at !== was) sfx('blip');
+        const row = Math.floor(at / COLS);
+        if (row < scroll) scroll = row;
+        if (row >= scroll + ROWS) scroll = row - ROWS + 1;
+        if (pressed.has('a')) toggle(ids[at]);
+      },
+      draw() {
+        ctx.save();
+        ctx.scale(0.5, 0.5);
+        const fr = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+        const say2 = (str, x, y, c = '#f4ecd8', n = 1) => ctx.drawImage(cardWord(str, c, n), x, y);
+        fr(0, 0, 640, 480, '#2a2230');
+        // the tabs
+        let tx = 6;
+        TABS.forEach(([label], i) => {
+          const w = label.length * 12 + 8, on = i === tab;
+          fr(tx, 6, w, 28, on ? (onTabs ? '#f8d850' : '#c8a030') : '#4c4058');
+          say2(label, tx + 4, 11, on ? '#1a1622' : '#d8d0e0');
+          tx += w + 2;
+        });
+        // what's picked, full size
+        const ids = list(), id = ids[Math.min(at, ids.length - 1)];
+        const c = id && CARDS.card(id), yours = id && cardHave(id);
+        if (id) {
+          ctx.drawImage(yours ? bigCard(F(id)) : backOfCard(), 6, 40, 260, 364);
+          if (yours && c.rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(F(id), t)), 18, 84, 236, 150);
+          if (yours) A.shine(ctx, 6, 40, 260, 364, t, c.rarity);
+          else {
+            const nm = cardWord(c.style || c.name, '#f8d850');
+            fr(14, 196, 244, 28, '#1a1622');
+            ctx.drawImage(nm, Math.round(136 - nm.width / 2), 201);
+          }
+        }
+        // the page of cards
+        ids.slice(scroll * COLS, (scroll + ROWS) * COLS).forEach((cid, i) => {
+          const x = GX + (i % COLS) * 92, y = GY + Math.floor(i / COLS) * 120, k = CARDS.card(cid), have = cardHave(cid), sel = !onTabs && scroll * COLS + i === at;
+          if (have) {
+            ctx.drawImage(smallCard(F(cid), { cost: true }), x, y);
+            if (k.rarity === 'L') { const [cx, cy] = A.cropOf(F(cid)); ctx.drawImage(A.canvasOf(A.artFrame(F(cid), t)), cx, cy, 72, 72, x + 8, y + 8, 72, 72); }
+            A.shine(ctx, x, y, 88, 116, t, k.rarity, 8);
+          } else ctx.drawImage(backOfCard(), x, y);
+          if (TABS[tab][1] && draft.includes(cid)) { fr(x + 60, y + 2, 26, 22, '#1a1622'); fr(x + 62, y + 4, 22, 18, '#48a048'); say2('IN', x + 62, y + 5, '#ffffff'); }
+          if (sel) { fr(x - 3, y - 3, 94, 3, '#f8d850'); fr(x - 3, y + 116, 94, 3, '#f8d850'); fr(x - 3, y, 3, 116, '#f8d850'); fr(x + 88, y, 3, 116, '#f8d850'); }
+        });
+        const rows = Math.ceil(ids.length / COLS);
+        if (scroll > 0) say2('^', 626, 42, '#f8d850');
+        if (scroll + ROWS < rows) say2('v', 626, 378, '#f8d850');
+        if (!ids.length) say2('Nothing in your deck yet.', GX + 20, 180);
+        // what A does, or how to get it
+        const wrapped = [];
+        const line = noteT > 0 ? note : onTabs ? (tab === FILL ? 'A: fill up your deck with the best of what you have.' : 'Left and Right: another page. Down: its cards.')
+          : !id ? '' : !yours ? cardWhere(id) : draft.includes(id) ? 'In your deck. A: take it out.' : c.own ? 'A: use this one in your deck.' : 'A: put it in your deck.';
+        let cur = '';
+        for (const word of line.split(' ')) { if ((cur + ' ' + word).trim().length > 21) { wrapped.push(cur); cur = word; } else cur = (cur + ' ' + word).trim(); }
+        wrapped.push(cur);
+        wrapped.slice(0, 3).forEach((str, i) => say2(str, 8, 410 + i * 20, noteT > 0 ? '#f8d850' : '#f4ecd8'));
+        // the coffee curve, and how you're doing
+        const count = Array(9).fill(0);
+        for (const d of draft) count[Math.min(8, CARDS.card(d).cost)]++;
+        const most = Math.max(4, ...count);
+        count.forEach((n, i) => {
+          const x = GX + i * 26, h = Math.round(n / most * 40);
+          fr(x, 454 - h, 20, h, '#c88840');
+          fr(x, 454, 20, 2, '#685848');
+          say2(i === 8 ? '+' : String(i), x + 4, 458, '#a89cb8');
+        });
+        const size = draft.length + '/' + SIZE;
+        say2(size, 636 - size.length * 24, 408, legal() ? '#58d868' : '#f8d850', 2);
+        const coll = (cardsWon() < 100 ? 'Won ' : '') + cardsWon() + '/' + WINNABLE.length; // (at 100 it would run into the coffee)
+        say2(coll, 636 - coll.length * 12, 458, '#a89cb8');
+        ctx.restore();
+      },
+    };
+    return self;
+  }
+  // Opening MY CARDS for the first time says what it's all about, and from then on coworkers offer you
+  // a game when you talk to them. Nobody who hasn't opened it gets asked.
+  const cardsOpened = () => !!store.get(cardKey(cardsWho(), 'cardsopen')) || cardsMine().size > 0;
+  function openMyCards() {
+    const first = !cardsOpened();
+    ui.push(DeckApp());
+    if (!first) return;
+    store.set(cardKey(cardsWho(), 'cardsopen'), '1');
+    const LINES = [
+      'These are your cards, for playing Morale Madness. Everybody starts with the same 20.',
+      'Now when you talk to a coworker, they\'ll offer you a game. Beat them and their card is yours.',
+      'Some of them are holding on to something rarer, and you\'ll see it played against you. Beat them again and you win that too.',
+      'You can\'t lose a card. Pick any 20 here, one of each and at most one legendary, and that\'s your deck against coworkers and other players.',
+      'The cards you haven\'t won yet are face down, and picking one says who to beat for it and where. For the Kingston plant, answer the phone in Eugene\'s office.',
+      'Winning cards earns you rewards: ' + CARD_PRIZES.map((p) => p.name + ' at ' + prizeNeeds(p)).join(', ') + '.',
+      'In a game, B opens a menu with HOW TO PLAY.',
+    ];
+    const next = (k) => { if (k < LINES.length) say(LINES[k], () => next(k + 1)); };
+    next(0);
+  }
+  // Talking to a coworker: how good they are and what they're playing for, then the game.
+  function cardOffer(npc) {
+    const foe = npc.name, level = tableLevel(foe), all = CARDS.prizes(foe), next = all.find((id) => !cardHave(id));
+    const str = foe + ' at cards: ' + TABLE_SKILL[level] + '. ' + (!next ? 'You have everything they play for, so this one\'s just for fun.'
+      : next === all[0] && CARDS.card(next).name === foe ? 'Beat them and their card is yours.' : 'Beat them and you win ' + CARDS.card(next).name + '.');
+    ask(str, ['DEAL ME IN', 'NOT NOW'], (i) => {
+      if (i !== 0) return;
+      sfx('menu');
+      ui.push(CardsGame(null, { npc, foe, level, mine: cardDeck(), foeDeck: CARDS.foeDeck(foe, level), after(won) { if (won && next) cardEarned(next); } }));
+    });
+  }
+
   // ---------- Pong on the big TV ----------
   // Against the TV, or another player (VERSUS.pong). Against a player the game server runs
   // the game (server/games/pong.js, with the same sizes and speeds as here): it moves the
@@ -5588,7 +7310,7 @@
           const a = mine + ' to ' + theirs, b = theirs + ' to ' + mine;
           say(outcome === 'win' ? 'You beat ' + foe + ' at Pong, ' + a + '!'
             : outcome === 'lose' ? foe + ' beat you at Pong, ' + b + '.'
-              : outcome === 'gone' ? foe + ' has gone. Nobody wins this one.'
+              : outcome === 'gone' ? whoLeft(vs, foe, ' has gone.') + ' Nobody wins this one.'
                 : 'The TV lost the signal. Nobody wins this one.');
         }
         return;
@@ -5669,7 +7391,7 @@
         if (vs && !view && state !== 'done') { box(60, 92, 200, 48); ctext('Waiting for ' + foe + '...', 104); ctext('Esc: give up', 120); }
         else if (state === 'ready') readyBox(t, 'Up/Down: move paddle');
         else if (state === 'done' && vs) {
-          doneBox(outcome === 'gone' ? [foe + ' left.', 'Nobody wins this one.', '']
+          doneBox(outcome === 'gone' ? [whoLeft(vs, foe), 'Nobody wins this one.', '']
             : outcome === 'stopped' ? ['The TV lost the signal.', 'Nobody wins this one.', '']
               : [outcome === 'win' ? 'You beat ' + foe + '!' : foe + ' wins!', mine + ' - ' + theirs, ''], t);
         } else if (state === 'done') doneBox([mine > theirs ? 'You win!' : 'The TV wins.', mine + ' - ' + theirs, ''], t);
@@ -6806,6 +8528,7 @@
   // each of you picks a move, and the round plays out once both are in.
   function BattleGame(vs) {
     const MAX_HP = 3;
+    let again = 0;
     const RX = 230, RY = 38, RS = 64;      // Richard, top right
     const PX = 26, PY = 100, PS = 76;      // you, seen from behind, bottom left
     const ECX = RX + RS / 2, ECY = RY + RS / 2, PCX = PX + PS / 2, PCY = PY + PS / 3;
@@ -6877,7 +8600,7 @@
           if (state === 'wait' && theirs[rounds]) { play(mine, theirs[rounds]); return; }
           if (vs.gone && !result) {
             result = 'left'; queue = [];
-            push(foe + ' has left the duel.');
+            push(whoLeft(vs, foe, ' has left the duel.'));
             state = 'msg'; nextMsg();
           }
         }
@@ -6895,7 +8618,11 @@
           if (pressed.has('b')) giveUp();
           return;
         }
-        if (state === 'wait') { if (pressed.has('b')) giveUp(); return; }
+        if (state === 'wait') {
+          if (pressed.has('b')) giveUp();
+          else if (vs && ++again % 90 === 0) vs.send({ r: rounds, mv: mine.key }); // (in case it went astray)
+          return;
+        }
         const len = lines.join('').length;
         if (chars < len) { chars += held.a || held.b ? 3 : 1; return; }
         if (draining || fx) return;
@@ -9355,10 +11082,11 @@
         if (vs) {
           for (let m; (m = vs.take());) hear(m);
           if (vs.gone && state !== 'done' && state !== 'gone') { state = 'gone'; t = 0; }
+          if (state === 'done' && you.dead && t % 90 === 89) vs.send({ e: 'x' }); // (in case it went astray)
           if (state === 'gone' || state === 'done') {
             if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
               remove(self); vs.end();
-              say(state === 'gone' ? foe + ' has gone. Nobody wins this one.'
+              say(state === 'gone' ? whoLeft(vs, foe, ' has gone.') + ' Nobody wins this one.'
                 : won ? 'You beat ' + foe + ' at the brick battle!' : foe + ' beat you at the brick battle.');
             }
             return;
@@ -9465,7 +11193,7 @@
           ctext('Esc: give up', 200);
         }
         if (state === 'ready') readyBox(t, 'Clear 2+ rows to send bricks');
-        else if (state === 'gone') doneBox([foe + ' has gone.', 'Nobody wins this one.'], t);
+        else if (state === 'gone') doneBox([whoLeft(vs, foe, ' has gone.'), 'Nobody wins this one.'], t);
         else if (state === 'done' && vs) doneBox([won ? 'You buried ' + foe + ' in bricks!' : foe + ' out-built you!',
           'Lines: ' + you.lines + ' - ' + them.lines], t);
         else if (state === 'done') doneBox([won ? 'You buried Joe in bricks!' : 'Joe out-built you!',
@@ -9853,10 +11581,11 @@
           if (++sendT >= 10 && pct() !== sentPct && state === 'play') { vs.send({ e: 's', p: pct() }); sentPct = pct(); sendT = 0; }
           if (vs.gone && !theirsDone && state !== 'gone') { state = 'gone'; t = 0; }
           if (state === 'wait' && theirsDone) { state = 'done'; t = 0; sfx(pct() > PATRICK ? 'cup' : 'bump'); }
+          if (state === 'wait' && t % 90 === 89) vs.send({ e: 'f', p: pct() }); // (in case it went astray)
           if (state === 'done' || state === 'gone') {
             if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
               remove(self); vs.end();
-              say(state === 'gone' ? foe + ' left the dance floor. Nobody wins this one.'
+              say(state === 'gone' ? whoLeft(vs, foe, ' left the dance floor.') + ' Nobody wins this one.'
                 : pct() > PATRICK ? 'You out-danced ' + foe + ', ' + pct() + '% to ' + PATRICK + '%!'
                   : pct() < PATRICK ? foe + ' out-danced you, ' + PATRICK + '% to ' + pct() + '%.'
                     : 'A dead heat: ' + pct() + '% each.');
@@ -9964,7 +11693,7 @@
           ctext('Arrows on the beat', 148);
         }
         if (state === 'wait') { box(60, 100, 200, 40); ctext('Waiting for ' + foe + '...', 108); ctext('to finish the song', 122); }
-        else if (state === 'gone') doneBox([foe + ' left the floor.', 'Nobody wins this one.'], t);
+        else if (state === 'gone') doneBox([whoLeft(vs, foe, ' left the floor.'), 'Nobody wins this one.'], t);
         else if (state === 'done' && vs) doneBox([pct() > PATRICK ? 'You out-danced ' + foe + '!' : pct() < PATRICK ? foe + ' wins!' : 'A dead heat!',
           'You ' + pct() + '%  ' + foe + ' ' + PATRICK + '%', 'Your best combo ' + maxCombo], t);
         else if (state === 'done') doneBox([pct() > PATRICK ? 'You out-danced Patrick!' : 'Patrick wins!',
@@ -10102,8 +11831,9 @@
         if (vs) {
           for (let m; (m = vs.take());) if (m.r >= 0 && m.g >= 1) theirs[m.r] = Math.round(m.g);
           if (vs.gone && state !== 'done' && state !== 'gone') { state = 'gone'; t = 0; }
+          if (state === 'wait' && t % 90 === 0) vs.send({ r: round, g: guess }); // (in case it went astray)
           if (state === 'gone') {
-            if (t > 30 && (pressed.has('a') || pressed.has('b'))) { remove(self); vs.end(); say(foe + ' has gone. The jar is all yours.'); }
+            if (t > 30 && (pressed.has('a') || pressed.has('b'))) { remove(self); vs.end(); say(whoLeft(vs, foe, ' has gone.') + ' The jar is all yours.'); }
             return;
           }
           if (state === 'done') {
@@ -10194,7 +11924,7 @@
           text(mine < them ? 'You take the round!' : mine > them ? foe + ' takes the round!' : 'Tied! Nobody scores.', 40, 218, 1,
             mine < them ? '#2c6a34' : mine > them ? '#b83028' : '#3050a8');
         }
-        if (state === 'gone') doneBox([foe + ' has gone.', 'The jar is all yours.'], t);
+        if (state === 'gone') doneBox([whoLeft(vs, foe, ' has gone.'), 'The jar is all yours.'], t);
         else if (state === 'done' && vs) {
           doneBox([!decided() ? 'Dead even!' : score[0] > score[1] ? 'You win the jar!' : foe + ' wins the jar.',
             'Rounds: ' + score[0] + ' - ' + score[1]], t);
@@ -11770,7 +13500,7 @@
       if (state === 'done' || state === 'gone') {
         if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
           remove(self); vs.end();
-          say(state === 'gone' ? foe + ' has parked up and gone. Nobody wins this one.'
+          say(state === 'gone' ? whoLeft(vs, foe, ' has parked up and gone.') + ' Nobody wins this one.'
             : outcome === 'win' ? 'You out-loaded ' + foe + ', ' + loaded + ' pallets to ' + theirs + '!'
               : outcome === 'lose' ? foe + ' out-loaded you, ' + theirs + ' pallets to ' + loaded + '.'
                 : 'Dead even: ' + loaded + ' pallets each.');
@@ -12019,7 +13749,7 @@
         }
         if (vs && !view && state !== 'gone') { box(60, 100, 200, 40); ctext('Waiting for ' + foe + '...', 108); ctext('Esc: give up', 122); }
         else if (state === 'ready') readyBox(t, vs ? 'Same truck. Swipe their pallets!' : 'Space: drop pallet, straighten');
-        else if (state === 'gone') doneBox([foe + ' has gone.', 'Nobody wins this one.'], t);
+        else if (state === 'gone') doneBox([whoLeft(vs, foe, ' has gone.'), 'Nobody wins this one.'], t);
         else if (state === 'done' && vs) doneBox([outcome === 'win' ? 'You out-loaded ' + foe + '!' : outcome === 'lose' ? foe + ' wins!' : 'Dead even!',
           'You ' + loaded + '  ' + foe + ' ' + theirs], t);
         else if (state === 'done') doneBox(['Time\'s up! The truck has to go.', 'Pallets loaded: ' + loaded,
@@ -12363,6 +14093,7 @@
       .concat(quest ? [['LINDA\'S LIST', () => ui.push(LindaList())]] : [])
       .concat(kikiList ? [['KIKI\'S LIST', () => ui.push(KikiList())]] : [])
       .concat([
+        ['MY CARDS', () => openMyCards()],
         ['EDIT CHARACTER', (self) => { remove(self); editAgain(); }],
         [ZOOMS[zoomPick][0], (self) => { zoomPick = (zoomPick + 1) % ZOOMS.length; store.set('zoom', zoomPick); self.options = items().map((o) => o[0]); sfx('select'); }],
         [soundOn ? 'SOUND ON' : 'SOUND OFF', (self) => { soundOn = !soundOn; store.set('sound', soundOn ? 'on' : 'off'); self.options = items().map((o) => o[0]); sfx('select'); }],
@@ -13558,6 +15289,8 @@
   const MP_VER = window.GAME_VERSION ? +window.GAME_VERSION : 0;
   const MP_LIVE = 12000; // ms without word from a player before they count as gone
   const MP_ASK = 30000; // ms a challenge waits for an answer
+  const MP_HOLD = 40; // moves a match keeps for when your connection's back
+  const MP_BACK = 2000; // ms a game holds on once everyone's back, so nobody's caught out
   // ms you then get to answer one that waited for you to come out of a menu (with MP_ASK,
   // this has to stay under the game server's ASK_MS or a game it runs won't start)
   const MP_ANSWER = 20000;
@@ -13592,6 +15325,8 @@
     coffee: 'Playing Coffee Machine', catch: 'Playing Frisbee Catch', punch: 'Playing Punching Bag', run: 'Playing Treadmill',
     pong: 'Playing Pong', toss: 'Playing Paper Toss', stack: 'Playing Photocopier', simon: 'Playing Control Panel',
     lunch: 'Playing Find My Lunch', candy: 'Playing Candy Table', squat: 'Playing Squat Rack', golf: 'Playing mini golf',
+    cards: 'Playing Morale Madness',
+    deck: 'Sorting their cards',
     dark: 'Playing Damir\'s Lights', duel: 'Playing Air Duel', fan: 'Playing Fan Balancing', coil: 'Playing Cooling Coil',
     damper: 'Playing Dampers', filter: 'Playing Filter Change', snake: 'Playing Snake', parts: 'Playing Parts Sorting',
     cable: 'Playing Cable Tidy', cpr: 'Playing CPR', engrave: 'Playing Engraver', pulldown: 'Playing Lat Pulldown',
@@ -13620,7 +15355,9 @@
   // `input(d)` sends the server what you did, and `result` is set once it's over. Those
   // can only be picked when there's a game server. A game with `christmas: true` is only
   // in the list once Christmas has first come round (SEASON_FROM), and from then on for
-  // good; &christmas=1 puts it there early for testing. Anybody can still accept one.
+  // good; &christmas=1 puts it there early for testing. Anybody can still accept one. Every match
+  // stands still while a connection's down, and gives it a while to come back (see mpUpdate and
+  // mpWaiting).
   const VERSUS = {
     duel: { label: 'AIR DUEL', title: 'an air handling duel', Game: (m) => BattleGame(m) },
     jar: { label: 'CANDY JAR', title: 'a candy jar guess-off', Game: (m) => CandyJarGame(m) },
@@ -13636,10 +15373,16 @@
     snowball: { label: 'SNOWBALL FIGHT', title: 'a snowball fight', server: true, christmas: true, Game: (m) => SnowballGame(m) },
     chess: { label: 'CHESS', title: 'a game of chess', server: true, Game: (m) => ChessGame(m) },
     checkers: { label: 'CHECKERS', title: 'a game of checkers', server: true, Game: (m) => CheckersGame(m) },
+    cards: { label: 'MORALE MADNESS', title: 'a game of Morale Madness', server: true, Game: (m) => CardsGame(m) },
   };
   // The little picture beside each game in the challenge list, with the same keys as VERSUS
   // (see listIcon).
   const VS_ICONS = {
+    cards: (r) => { // a hand of cards
+      r(2, 6, 10, 15, '#1a1622'); r(3, 7, 8, 13, '#2c3468'); r(4, 8, 6, 11, '#3c4888');
+      r(7, 4, 10, 15, '#1a1622'); r(8, 5, 8, 13, '#2c3468'); r(9, 6, 6, 11, '#3c4888');
+      r(12, 2, 10, 15, '#1a1622'); r(13, 3, 8, 13, '#f4ecd8'); r(14, 4, 6, 6, '#e8a030'); r(14, 11, 6, 1, '#685848'); r(14, 13, 4, 1, '#685848');
+    },
     duel: (r, o) => { // an air handler's fan
       r(2, 2, 20, 20, '#9098a8'); r(2, 2, 20, 2, '#c8ccd8'); r(2, 2, 2, 20, '#c8ccd8'); r(4, 20, 18, 2, '#5c6474'); r(20, 4, 2, 18, '#5c6474');
       o(12, 12, 8, '#283040');
@@ -13733,6 +15476,8 @@
     };
   }
   const mpLive = (o) => !!o && Date.now() - o.seen < MP_LIVE;
+  // what a game says when it's over early: they left, or it was you who was gone too long
+  const whoLeft = (vs, foe, str = ' left.') => (vs.lost ? 'You dropped out.' : foe + str);
   const mpHere = () => Object.values(mp.others).filter(mpLive);
   // where someone is, in pixels: exactly (from a copy that says), or the tile they're on
   const mpTarget = (o) => (typeof o.fx === 'number' && typeof o.fy === 'number' ? [o.fx, o.fy] : [o.x * 16, o.y * 16]);
@@ -13829,7 +15574,9 @@
       mpPlayers(ws.tree);
       // a server-run game the server no longer has (it restarted, or you were gone too
       // long) is over
-      if (m && m.server && !m.gone && !(d.rooms || []).includes(m.id)) m.gone = true;
+      if (m && m.server && !m.gone && !(d.rooms || []).includes(m.id)) { m.gone = true; m.lost = true; }
+      // and you're back: what you did while you were away can go now
+      if (m && !m.gone) for (const msg of m.out.splice(0)) mpSend(m.opp, msg);
       // the same for a table: lost, or if you hadn't got a seat yet, ask again
       const tb = mp.table;
       if (tb && !tb.out && !(d.tables || []).includes(tb.t)) { if (tb.view) tb.out = 'gone'; else tb.asked = false; }
@@ -13850,8 +15597,7 @@
     } else if (d.k === 'm' && d.m && typeof d.m === 'object') {
       mp.mail.push(d.m);
     } else if (m && m.server && d.m === m.id) {
-      if (d.k === 'st') m.view = d.s;
-      else if (d.k === 'end') m.result = d.r === undefined ? null : d.r;
+      if (d.k === 'st') { m.view = d.s; m.stAt = Date.now(); m.held = +d.w || 0; } else if (d.k === 'end') m.result = d.r === undefined ? null : d.r;
     }
   }
 
@@ -13987,13 +15733,44 @@
   // you is on a touch screen, so a game that goes easier on touch does for both of you.
   // In a game the server runs (`server`), view, input() and result take the place of
   // take() and send() (see VERSUS).
+  // What a match is standing still for: 'you' (your connection), 'them' (theirs), 'back' (everyone's
+  // back, and it carries on in a moment) or '' if it's on. While it isn't '', the game doesn't
+  // update (see update) and the music stops, in every head-to-head game. In a game the server runs
+  // it's the server that has stopped, and says so; a game the browsers run works it out for itself.
+  function mpWaiting() {
+    const m = mp.match;
+    if (!m || m.gone || m.result !== undefined) return '';
+    const now = Date.now(), o = mp.others[m.opp];
+    if (m.off || (m.server && (m.held === 2 || (m.stAt && now - m.stAt > 2000)))) { m.waitAt = now; return 'you'; }
+    if (m.server ? m.held === 1 : !o || now - o.seen > 6000) { m.waitAt = now; return 'them'; }
+    return (m.server ? m.held === 3 : now - m.waitAt < MP_BACK) ? 'back' : '';
+  }
+  // A word over the top of the game while it's standing still, since otherwise it just looks stuck.
+  function mpDropNote() {
+    const why = mpWaiting();
+    if (!why) return;
+    const str = why === 'you' ? 'Trying to get back to the game...' : why === 'them' ? mp.match.name + ' dropped out. Waiting for them...' : 'Everyone\'s back. Get ready...';
+    ctx.fillStyle = 'rgba(10,8,18,0.45)'; ctx.fillRect(0, 0, SW, SH);
+    const w = Math.max(str.length * 6 + 16, 80);
+    box(Math.round((SW - w) / 2), 6, w, 36);
+    ctext('PAUSED', 13, '#b83028');
+    ctext(str, 27);
+  }
   function mpMatch(id, opp, name, seed, soft, server) {
     const o = mp.others[opp];
     const m = {
       id, opp, name, gone: false, rng: seeded(seed), soft: !!soft, moves: [],
       sprites: o ? mpSprites(o) : charSprites.male[0], look: o ? o.look : null, code: o ? o.a : '', xs: o ? o.xs : '',
       server: !!server, view: null, result: undefined,
-      send(data) { mpSend(opp, Object.assign({}, data, { k: 'mv', m: id })); },
+      // off, missing: when your connection and theirs dropped, if they're down now. lost: it ended
+      // because of you, not them. out: moves waiting for your connection. stAt: when the server last
+      // spoke, and held what it said about waiting (w in server/rooms.js). waitAt: when it last waited.
+      off: 0, missing: 0, lost: false, out: [], stAt: 0, held: 0, waitAt: 0,
+      send(data) {
+        const msg = Object.assign({}, data, { k: 'mv', m: id });
+        if (!MP_WS || (ws.sock && ws.sock.readyState === 1)) mpSend(opp, msg);
+        else if (m.out.push(msg) > MP_HOLD) m.out.shift();
+      },
       take() { return m.moves.shift(); },
       input(d) { wsSend({ k: 'in', m: id, d }); },
       end() {
@@ -14089,6 +15866,12 @@
     if (!MP_ON || (mode !== 'play' && !edit.back)) return;
     if (!mp.on) mpConnect();
     mpPut();
+    // This copy was frozen too long (a phone put away), so they'll have given up on you. That goes
+    // first, since if they've left since then, it was still you who went missing.
+    if (mp.match && !mp.match.gone && Date.now() - mp.tickAt > MP_LIVE) {
+      mpSend(mp.match.opp, { k: 'quit', m: mp.match.id });
+      mp.match.gone = true; mp.match.lost = true;
+    }
     while (mp.mail.length) mpMail(mp.mail.shift());
     // A challenge waiting for you: it comes up once you're out of your menu. If you've gone
     // into a game instead, you're busy after all.
@@ -14102,13 +15885,25 @@
       mp.invite.els.forEach(remove); mp.invite = null;
       say('The challenge ran out of time.');
     }
-    // They've gone quiet (a closed tab, or a phone that's been put away): tell them it's
-    // over too, so if they come back they aren't left waiting on you. And if this copy is
-    // the one that was frozen that long, they'll have given up on you already.
-    const now = Date.now();
-    if (mp.match && !mp.match.gone && (!mpLive(mp.others[mp.match.opp]) || now - mp.tickAt > MP_LIVE)) {
-      mpSend(mp.match.opp, { k: 'quit', m: mp.match.id });
-      mp.match.gone = true;
+    // Is the match still on? A dropped connection might well come back (a phone changing networks,
+    // a flaky signal), so yours or theirs gets MP_LIVE to, with the game standing still (mpWaiting)
+    // and whatever you send meanwhile waiting for it (see mpMatch). In a game the server runs, the
+    // server decides when they're gone for good, and tells you both (GRACE in server/rooms.js, the
+    // same length).
+    const now = Date.now(), m = mp.match;
+    if (m && !m.gone) {
+      const o = mp.others[m.opp], here = !MP_WS || mp.heard;
+      m.off = here ? 0 : m.off || now;
+      m.missing = !here || o ? 0 : m.missing || now;
+      // you've had no connection for that long, or nothing from the server that's running it
+      const meGone = (m.off && now - m.off > MP_LIVE) || (m.server && m.stAt && now - m.stAt > MP_LIVE);
+      // they're connected but have stopped sending (a closed laptop), or their connection's been
+      // gone that long
+      const themGone = !m.server && ((here && o && !mpLive(o)) || (m.missing && now - m.missing > MP_LIVE));
+      if (meGone || themGone) {
+        mpSend(m.opp, { k: 'quit', m: m.id }); // (so if they come back they aren't left waiting on you)
+        m.gone = true; m.lost = !!meGone;
+      }
     }
     mp.tickAt = now;
     if (mp.newer && !mp.nudged && mode === 'play' && !ui.length && !fade) {
@@ -16611,7 +18406,7 @@
           say(outcome === 'win' ? 'You won the snowball fight against ' + foe + ', ' + score(hits, theirHits) + '! They have snow down their collar.'
             : outcome === 'lose' ? foe + ' won the snowball fight, ' + score(theirHits, hits) + '. You have snow down your collar.'
               : outcome === 'draw' ? 'A draw, ' + score(hits, theirHits) + '. Everyone has snow down their collar.'
-                : outcome === 'gone' ? foe + ' has gone. Nobody wins this one.' : 'The snowball fight fizzled out. Nobody wins this one.');
+                : outcome === 'gone' ? whoLeft(vs, foe, ' has gone.') + ' Nobody wins this one.' : 'The snowball fight fizzled out. Nobody wins this one.');
         }
         return;
       }
@@ -16784,7 +18579,7 @@
         if (state === 'wait') { box(60, 92, 200, 48); ctext('Waiting for ' + foe + '...', 104); ctext('Esc: give up', 120); }
         else if (state === 'ready') readyBox(t, 'Space: throw  Down: duck');
         else if (state === 'done' && vs) {
-          doneBox(outcome === 'gone' ? [foe + ' left.', 'Nobody wins this one.', '']
+          doneBox(outcome === 'gone' ? [whoLeft(vs, foe), 'Nobody wins this one.', '']
             : outcome === 'stopped' ? ['The snowball fight fizzled out.', 'Nobody wins this one.', '']
               : [msg, outcome === 'win' ? 'You win!' : outcome === 'lose' ? foe + ' wins!' : 'A draw!', 'Hits: you ' + hits + ', ' + foe + ' ' + theirHits], t);
         } else if (state === 'done') doneBox([msg, 'Hits: ' + hits, record ? 'New record!' : 'Best ' + getBest('snowball')], t);
@@ -16812,7 +18607,9 @@
   // HockeyGame's), with places in tiles from the map's corner.
   let hockey = null;
   function hockeyTalk(npc, says) {
-    ask(says('Fancy a game? One on one, three minutes, most goals wins. I\'ve got a spare stick.'), ['LET\'S PLAY', 'NOT NOW'], (i) => {
+    const cards = cardsOpened() && CARDS.prizes(npc.name).length > 0;
+    ask(says('Fancy a game? One on one, three minutes, most goals wins. I\'ve got a spare stick.'), ['LET\'S PLAY'].concat(cards ? ['MORALE MADNESS'] : [], ['NOT NOW']), (i) => {
+      if (cards && i === 1) { cardOffer(npc); return; }
       if (i !== 0) { say(says('The ice isn\'t going anywhere.')); return; }
       sfx('menu');
       startFade(() => ui.push(HockeyGame(npc)), '#f8f8f8');
@@ -17911,7 +19708,9 @@
     if (npc.guest) { guestTalk(npc, says); return; }
     if (npc === gateKeeper) { hockeyTalk(npc, says); return; }
     if (npc.name === 'Damir') {
-      say(says('Do you feel safe in the dark?'), () => ui.push(DarkGame()));
+      const game = cardsOpened() && CARDS.prizes(npc.name).length > 0;
+      if (game) ask(says('Do you feel safe in the dark?'), ['I DO', 'MORALE MADNESS', 'NOT NOW'], (i) => { if (i === 0) ui.push(DarkGame()); else if (i === 1) cardOffer(npc); });
+      else say(says('Do you feel safe in the dark?'), () => ui.push(DarkGame()));
       return;
     }
     if (npc.name === 'Kiki' && !eotm && helped.size === COWORKERS.length) {
@@ -17944,20 +19743,24 @@
       Dmitriy: ['Nik says he taught me to cook? I ran the line, not him. Let\'s see your knife skills.', 'PICK UP THE KNIFE', CarrotGame, 'Keep your fingers, then.', 'NOT NOW'],
       Joe: ['Lego brick battle! Winner is the office master builder. You in?', 'CHALLENGE ACCEPTED', LegoGame, 'Scared of a few bricks? My baseplate is always open.', 'NOT TODAY'],
     };
+    // (once you've opened MY CARDS, anyone with a card to play for will give you a game of that too)
+    const cards = cardsOpened() && CARDS.prizes(npc.name).length > 0;
     if (OFFERS[npc.name]) {
       const [msg, yes, Game, no, noLabel] = OFFERS[npc.name];
       const lines = [].concat(msg);
       const offer = (k) => {
         if (k < lines.length - 1) { say(says(lines[k]), () => offer(k + 1)); return; }
-        ask(says(lines[k]), [yes, noLabel || 'NO THANKS'], (i) => {
-          if (i === 0) { sfx('menu'); ui.push(Game()); } else say(says(no));
+        ask(says(lines[k]), [yes].concat(cards ? ['MORALE MADNESS'] : [], [noLabel || 'NO THANKS']), (i) => {
+          if (i === 0) { sfx('menu'); ui.push(Game()); } else if (cards && i === 1) cardOffer(npc); else say(says(no));
         });
       };
       offer(0);
       return;
     }
     if (npc.ghost) { lindaTalk(npc, says); return; } // Linda, her list and her stapler
-    say(says(npc.lines[Math.floor(Math.random() * npc.lines.length)]));
+    const line = says(npc.lines[Math.floor(Math.random() * npc.lines.length)]);
+    if (cards) ask(line, ['MORALE MADNESS', 'BYE'], (i) => { if (i === 0) cardOffer(npc); });
+    else say(line);
   }
 
   // Using what's on the tile at tx, ty, or false if there's nothing there to use.
@@ -18236,8 +20039,11 @@
   }
 
   function update() {
-    tick++;
+    // (a head-to-head game standing still stands right still, down to anything that blinks)
+    const waiting = !!mpWaiting();
+    if (!waiting) tick++;
     pollControllers();
+    musicHold(waiting);
     if (fade) {
       fade.t++;
       if (fade.t === 16) fade.cb();
@@ -18258,7 +20064,7 @@
     } else if (mode === 'sweater') {
       updateSweater();
     } else if (ui.length) {
-      layerUpdate(top());
+      if (!waiting) layerUpdate(top());
     } else if (questQueue.length) {
       const next = questQueue.shift();
       if (typeof next === 'function') next(); else say(next);
@@ -18336,7 +20142,8 @@
   // To add one, mark it in js/art.js with `item`. Anything that isn't for everyone has to be: that's
   // what gives it its number. Where it's earned, call itemEarned, then itemOffer if that says to tell
   // them. Never decide to tell somebody by looking at their number. See "To add one" in the README.
-  const ITEMS = Art.LOOK_ITEMS, TOLD = 'Told';
+  // (gold backs and your own legendary aren't worn, so they're not in any list of looks, and have no part)
+  const ITEMS = Object.assign({ goldbacks: {}, owncard: {} }, Art.LOOK_ITEMS), TOLD = 'Told';
   const ITEM_URL = LOOK_URL.replace('/looks/', '/items/');
   let items = {}; // your name's numbers, like { santa: 1, antlers: 0 } (no entry: no number)
   let itemsTold = {}; // the items your name has had its message about, like { santa: true }
@@ -18356,6 +20163,7 @@
   function itemsCheck(name, comingIn) {
     const ask = itemsAsk = {};
     items = {}; itemsTold = {}; itemsHeard = false;
+    cardsRead(name || 'New Hire');
     for (const item in ITEMS) {
       const v = store.get(itemKey(name, item));
       if (v) items[item] = +v;
@@ -18369,6 +20177,7 @@
       itemsAsk = null;
       if (heard) {
         itemsHeard = true;
+        cardsHeard(name || 'New Hire', heard.all);
         for (const item in ITEMS) {
           const v = heard.all[item];
           if (v !== undefined) { items[item] = +v === 1 ? 1 : 0; store.set(itemKey(name, item), String(items[item])); }
@@ -18381,6 +20190,9 @@
       if (/[#&]santahat=1/.test(location.hash)) items.santa = 1;
       cupAward(name);
       if (comingIn) santaAward(name);
+      // (left before the message, or given the cards by hand: you're told as you walk in)
+      for (const p of cardPrizesDue(name)) questEarned.push({ what: p.what, told: p.tell });
+      if (comingIn && !cardsOpened() && !store.get(cardKey(cardsWho(), 'cardnews'))) questEarned.push({ what: 'Morale Madness', told: cardNewsTell });
       questAward(name, quests);
       // (&have=ghostmask,ribbon: as if these were yours, for testing)
       for (const item of (/[#&]have=([a-z,]+)/.exec(location.hash) || ['', ''])[1].split(',')) if (inTable(ITEMS, item)) items[item] = 1;
@@ -18472,7 +20284,7 @@
   function itemsOff(look) {
     for (const item in ITEMS) {
       const { part, i } = ITEMS[item];
-      if (look[part] === i && (itemsHeard ? items[item] !== 1 : items[item] === 0)) look[part] = 0;
+      if (part && look[part] === i && (itemsHeard ? items[item] !== 1 : items[item] === 0)) look[part] = 0;
     }
   }
 
@@ -18659,6 +20471,7 @@
     if (r && r.key === 'flair' && editChoices(r).length < 2) return 'Be the Office Champion to earn a star trail here!';
     if (r && r.key === 'flair' && worn.flair === Art.STAR_TRAIL) return crowned ? 'Stars follow you while you stay on top!' : 'Stars follow you wherever you go!';
     if (r && r.key === 'flair' && worn.flair === Art.SWEEPER) return 'A beaten humbug sweeps up after you!';
+    if (r && r.key === 'flair' && worn.flair === Art.CARD_STORM) return 'Your cards go wherever you go!';
     if (r && r.key === 'hat' && worn.hat === Art.SANTA) return 'It jingles and shakes off snow as you walk!';
     if (r && r.key === 'hat' && worn.hat === Art.HAUNTED_MASK) return 'You\'ve set Linda free the most: it\'s haunted!';
     if (r && r.key === 'extra' && worn.extra === Art.CANDY_CANE) return 'It makes a fine walking stick, and a better snack!';
@@ -18669,7 +20482,7 @@
   // they've got on: the character editor, and the picture with a new item (itemPanel). sheet is
   // their sprites, and they're smaller in a big head thing, so it fits under the title.
   function showOff(worn, sheet, dir, x, y) {
-    const k = bigHat(worn) ? 3 : 5, S = 16 * k, bx = x - S / 2, by = y + 2 - S;
+    const k = bigHat(worn) ? 3 : worn.flair === Art.CARD_STORM ? 4 : 5, S = 16 * k, bx = x - S / 2, by = y + 2 - S;
     const big = (paint) => { ctx.save(); ctx.translate(bx, by); ctx.scale(k, k); paint(); ctx.restore(); };
     floorShadow(x, y, 4 * k, 4);
     if (worn.flair === Art.STAR_TRAIL) trailPreview(x, y);
@@ -19074,6 +20887,7 @@
       drawBanner();
       drawCupFlag();
       ui.forEach(layerDraw);
+      try { mpDropNote(); } catch (e) { console.error(e); }
     }
     drawHeld();
     if (fade) {
@@ -19193,6 +21007,8 @@
       pokertable: () => PokerApp(null, true), pokerlive: LivePoker, bjtable: () => BlackjackApp(null, true),
       hockey: () => HockeyGame(gateKeeper || npcs.find((n) => !n.ghost && !n.extra)), hockey1: () => LiveHockey(2), hockey2: () => LiveHockey(4), hockey3: () => LiveHockey(6), signhockey: () => SignUp('hockey'), signpoker: () => SignUp('poker'),
       chess: () => ChessGame(null, null, q.get('fen')), checkers: () => CheckersGame(null, null, q.get('fen')),
+      deck: () => DeckApp(),
+      cards: () => CardsGame(null, { deck: q.get('deck'), foe: q.get('foe'), level: +q.get('level') || 0, seed: +q.get('seed') || 0, first: q.has('first') ? +q.get('first') : undefined }),
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       chop: ChopGame, mallow: MallowGame, spruce: SpruceGame, snowman: SnowmanGame, cocoa: CocoaGame, snowball: SnowballGame, humbug: HumbugGame,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
@@ -19317,5 +21133,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; } };
+  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get cards() { return cardsNow; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, cardWhere, get myCards() { return [...cardsMine()]; } };
 })();

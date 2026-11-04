@@ -127,6 +127,58 @@ Walk up to these and press A:
   sheet. Paint that's on too thick goes darker (cream, for white) before it runs.
   Afterwards the unit in the booth stays in the colour you painted it
 
+## Morale Madness
+
+The office's card game. You each start with 20 Morale and try to get the other player's down to 0, with
+a deck of 20 coworkers and office things. **How to play** is in the menu B opens during a game. Each
+card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its picture is in `js/cardart.js`.
+
+- **Your cards:** everybody starts with the same 20. Open **MY CARDS** in the Start menu to see them.
+  The first time, it explains the game, and from then on coworkers offer you a game when you talk to
+  them. Until you've opened it you're told about the game once as you come in (`cardNewsTell`), once per
+  name in each browser, and coworkers don't ask you anything new.
+- **Winning more:** talk to a coworker and pick MORALE MADNESS. It says how good they are and what
+  they're playing for. Beat them and their card is yours. Some are holding something rarer as well, which
+  you'll see played against you, and it's yours if you beat them again (`heldBy` in `js/cardlist.js`).
+  You can't lose a card. To give one out some other way, call `cardEarned(id)`.
+- **Your deck:** any 20 of your cards, one of each and at most one legendary. In MY CARDS the D-pad moves
+  round the page and Up reaches the tabs, A puts a card in or takes it out, and FILL IT tops your deck up
+  with the best of what you have. Along the bottom is the coffee curve: what your deck costs. Until you
+  build one yourself, you play the best deck your cards can make, so it gets better as you win more.
+- **Classes:** where people really work, which is also how their cards tend to play. Plant is everybody
+  at a plant, whatever their job (big and tough). Sales is sales (fast, and straight at the other player).
+  Office is the front office, accounting, purchasing and IT (clever). Engineering is designers, programmers
+  and R&D (keeps everything running). Team-up cards reward sticking to one or two, and things that belong
+  to everyone, like Pizza Friday, go in any deck.
+- **The cards:** everyone who works in the game has one, plus the things they're known for, 155 in all, and 6
+  versions of your own legendary. 7 of the 155 are legendaries, which keep moving and land in their own way (`LANDS` in `CardsGame`). Max, Jack and
+  the visitor Jill don't have one yet, so they don't offer a game.
+- **Where to find them:** most people are at their desks in Richmond. Plant people are at the Kingston plant
+  (see "Eugene's phone and the Kingston plant"). Ali, Garrett and Ryan are only ever in the visitor office
+  (182), where people take turns of about 45 seconds. In MY CARDS a card you haven't won is face down, and
+  picking it says who to beat for it and where.
+- **Rewards:** winning cards earns you these, out of the 131 you can win (`CARD_PRIZES`). A quarter, 33, gives
+  your cards sparkling gold backs, for you and whoever you play (`goldOf`, `sparkle`). Half, 66, gives you the card
+  crown. Three quarters, 99, gives you the card storm, a flair of five cards going round you that other players
+  see too (`deckOrbit`). All 131 gives you your own legendary. MY CARDS and each new card say how far off the next one is.
+  They're special items (see "Special items"), so adding cards later moves where they come but doesn't take any away.
+- **Your own legendary:** it has your name on it and your character in it, as you look now, big head things and all
+  (`faceOf`, `ownFrames`), and other players see it that way too. There are six versions, cards like any other
+  in `js/cardlist.js` (`own`, `style`): pick one under YOU in MY CARDS, and pick another whenever you like. Which you
+  play is just which is in your deck, so it's kept with your deck, in the browser. It counts as your one legendary and
+  takes the place of any other. Nobody can win it, and coworkers and decks built for you never use it. Everywhere the
+  game draws a card it goes through a face id (`faceOf`), because two players can have the same version. Adding a
+  version is a line in `js/cardlist.js` and a room in `OWN_ROOMS` in `js/cardart.js`.
+- **Leaderboards:** the Hall of Fame has CARDS COLLECTED and MORALE MADNESS WINS, under Board and Card Games. A
+  win counts when you beat another player, including when they resign or run out of time. It doesn't count
+  if they just leave the game, and games against coworkers don't count.
+- **Against a player:** see **Playing together**. Your deck goes with you. The server checks that it's
+  legal, not that you own the cards, the same honour system as scores and items.
+- **Saved:** your cards go in the database with your special items, at `items/<world>/<name>/c_<id>`, so
+  there's nothing to set up (see "Special items"), and in the browser. Your deck is only kept in the
+  browser. On a new computer you get the best one your cards can make until you build another.
+- **Leaderboards:** cards collected, and wins against other players.
+
 ## Cody's casino
 
 From the hallway Cody's cubicle (142, upstairs) looks like any other, but it's bigger on
@@ -434,12 +486,13 @@ items/live/warren/antlers: 0
 ```
 
 `santa` is the Santa hat, `candycane` the candy cane, `antlers` the humbug antlers, `sweeper` the Sweeper, `crown` the crown,
-`startrail` the star trail, `ghostmask` the ghost mask and `ribbon` the ribbon. 1 means it's theirs, so it's one of their choices in the character editor. 0 means it
+`startrail` the star trail, `ghostmask` the ghost mask, `ribbon` the ribbon, `goldbacks` the gold card backs, `cardcrown` the card crown, `cardstorm` the card storm and `owncard` your own legendary. 1 means it's theirs, so it's one of their choices in the character editor (gold backs and your own legendary aren't worn: the backs are simply on, and the card goes in your deck). 0 means it
 isn't, and the game won't offer it to them, even at Christmas, from the present, the cup or a quest. No number
 means they've never been given it.
 
 In the game the Santa hat comes from coming in over Christmas, the candy cane from opening the
-present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, and the mask and the ribbon from the quests (see
+present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, the gold backs, card crown, card storm and your own legendary from winning cards in
+Morale Madness, and the mask and the ribbon from the quests (see
 **Linda's list** and **Employee of the Month**), which add a 1 where there's no number. The game
 never sets a number for the crown or the star trail: the Office Champion wears them with no
 number, for as long as they're on top, so a number is only for giving them to somebody for good.
@@ -514,7 +567,8 @@ the humbug antlers, is drawn as a picture of its own, behind them. To add one:
    Don't add it to `HAT32`: the part inside the tile is cut out of your rows for you.
 
 That's all it needs. `wornBehind` draws it, so their head and hair cover the bottom of it and
-it never clashes with a hairstyle. Other players see it with their look, names and speech bubbles
+it never clashes with a hairstyle. To have part of it go over the hair, like the card crown's band, add
+`over` with `down`, `left` and `up`: 32-wide rows from the top of the picture, as in `HAT32`. Other players see it with their look, names and speech bubbles
 move up to clear it (`tagLift`), and the character editor draws you smaller in it so it fits
 under the title (`drawEdit`). A costume hides it. A mini-game only draws the 32 x 32 picture, so
 all it shows there is the part inside the tile.
@@ -652,6 +706,22 @@ which tile they're on (and has them walking from tile to tile).
     being accepted (it deploys separately from the site, so it can be a few minutes behind just
     after an update), you're both told so and go back to the office, rather than waiting on each other.
 
+  - **Morale Madness**: the card game, against each other. A coin decides who goes first, and you
+    each see only your own hand. You get 75 seconds a turn, shown on END TURN, and if you run out
+    three turns in a row you lose. B opens the menu, which is where you resign. The game server
+    runs this one (`server/games/cards.js`), so it's only in the list when there is one, and it's
+    the server that shuffles and says who won.
+
+  **If a connection drops**, yours or theirs, the game pauses for up to 12 seconds in case it comes
+  back, in every one of these games: nothing moves, clocks stop, the music stops, and a note across
+  the top of the screen says who it's waiting for. Nobody can move in the meantime. Once everyone's
+  back it holds on for 2 more seconds so nobody's caught out, then carries on, and in a game the
+  browsers run, a move that was on its way as the connection dropped gets sent again. If it doesn't come back, the one still there is told the other player left, and
+  the one who dropped out is told it was them. A tab left in the background or a laptop closed
+  counts too: the game pauses after about 6 seconds with nothing from them, and it's over at 12.
+  Closing the tab on purpose ends it straight away. It's `mpWaiting` and `mpUpdate` in
+  `js/game.js`, `mpDropNote` for the note, and `step` in `server/rooms.js` for a game the server runs.
+
   The treadmill, Snake, the control panel and mini golf carry on until you're both done.
 
   They get 30 seconds to accept. Someone who's in a game has what they're playing
@@ -782,7 +852,7 @@ starting state, what to do with a player's input, one tick of the game, and what
 player gets sent. Then add an entry with the same key and `server: true` to `VERSUS` in
 `js/game.js`. Its `Game(m)` draws `m.view` (the latest state from the server), sends
 what the player does with `m.input(...)`, and finishes when `m.result` is set (or
-`m.gone`, if the other player left). Challenging somebody works just like the other
+`m.gone`, if the other player left, or `m.lost` as well if it was you who was gone too long). Challenging somebody works just like the other
 head-to-head games, and these games only show up in the list when there's a game server.
 
 Chess and checkers (`server/games/chess.js` and `server/games/checkers.js`) are two of these. They're
@@ -799,6 +869,24 @@ if it ever disagrees, the board goes back to what the server says. On Render a c
 `js/chess.js` or `js/checkers.js` doesn't redeploy the server, so deploy it by hand then (or change
 something in `server/` too). To try one, open `tools/test.html#play&server=ws://localhost:8080` in two
 windows, walk up to each other and pick CHESS or CHECKERS from CHALLENGE.
+
+Morale Madness (`server/games/cards.js`) is another, with its own module rather than `table.js`
+because a card game has things to hide. Its rules and cards are `js/cards.js` and `js/cardlist.js`,
+the same ones the browser plays a coworker with, and `CardsGame` in `js/game.js` is the screen for
+both. Each player is only sent `g.view(their seat)`: the other hand and both decks are just counts.
+The shuffle comes from a seed of the server's own, because the room's `rng` comes from the
+challenger's browser. A browser first sends `{ deck: ids }`: the server checks that it's legal, and
+if it isn't, or doesn't come, that player gets the starter deck. It can't check that you own the
+cards, which is the same honour system as the scores. With nothing happening it sends just the clock,
+with the whole view every couple of seconds in case one went missing.
+
+A change to `js/cards.js` or `js/cardlist.js` has to touch `server/` as well, because Render only
+redeploys the server when something in there changes. `VERSION` in `server/games/cards.js` is what
+does that: `tools/check_games.mjs` stops the site deploying until it's the same as the rules say, and
+tells you what to set it to. The browser checks it too, so a browser whose rules aren't the same as
+the server's (while the server's still updating, say) says so instead of starting. To try it, open
+`tools/test.html#play&server=ws://localhost:8080&deck=sales` in two windows, side by side so that
+neither is in the background: `&deck=` is `plant`, `sales`, `office`, `engineering` or `starter`.
 Give the entry `christmas: true` as well (as the snowball fight has) and it's only in the
 list from the day Christmas first starts (`SEASON_FROM`), then for good.
 
@@ -1417,6 +1505,7 @@ pants and their colours.
 | TVs and computers | `pong`, `snake`, `poker`, `blackjack` |
 | Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf`, `build` (Joe's Lego shelf) |
 | Coworkers | `dark` (Damir), `battle` (Richard), `dance` (Patrick), `nathan`, `wade`, `jar` (Kiki), `forms` (Jhonna), `wok` (Nik), `carrot` (Dmitriy), `lego` (Joe) |
+| Morale Madness | `deck` (MY CARDS), and `cards` (a game). `&deck=` is your deck (`plant`, `sales`, `office`, `engineering` or `starter`, the usual), `&foe=` who you play, `&level=` how good they are (1 to 4), `&first=0` or `1` who goes first, `&seed=` the same deal every time |
 | Dogs | `catch`, `dogs` (the dogs' leaderboard) |
 | Kingston plant | `forklift`, `paint` (Even Coat) |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`), `fame` (the Hall of Fame) |
@@ -1456,7 +1545,7 @@ or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
 and `&stapler=near` puts it right in front of you. `&helped=5` counts the
 first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gives you Kiki's list, and
 `game=kiki` opens it.
-`&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
+`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=32` makes the first 32 you can win yours, so that winning one more earns the gold backs (65 for the card crown, 98 for the card storm, 130 for your own legendary). `&have=owncard&game=deck` makes your own legendary yours, under YOU. `&have=cardcrown&look=m100e0000000` wears the card crown, `&have=cardstorm&look=m10000000030` wears the card storm, and with `&have=goldbacks&game=cards` your cards have gold backs. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
 the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
 `&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
 `&crown=1` makes you the Office Champion, in the crown and the star trail.
@@ -1508,7 +1597,7 @@ press A (E / Space) to talk. Their appearance and what they say live in
 add your own `lines`. The starting appearances are random placeholders.
 
 Office 182 on the 2nd floor is the visitor office. The visitors from out of town
-take turns in it: about every 30 seconds the one who's there walks into the
+take turns in it: about every 45 seconds the one who's there walks into the
 portal in the corner and the next one steps out, so you can meet all of them in
 one sitting. They come in a different order every time the game is launched, and
 nobody leaves while you're talking to them. Their names and lines live in

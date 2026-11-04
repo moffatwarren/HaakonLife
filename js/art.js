@@ -108,6 +108,9 @@ window.Art = (function () {
     // the same mask on whoever has set her free the most, with ghosts going round it. Like the
     // crown it's never picked or saved: it's only ever worn, in place of the Ghost mask.
     { name: 'Haunted mask', hd: 'ghostmask' },
+    // a fan of Morale Madness cards, too big for the picture (see BIG32), for a name that's won half
+    // of them (see CARD_PRIZES in js/game.js)
+    { name: 'Card crown', hd: 'cardcrown', item: 'cardcrown' },
   ];
   // where the crown, the Santa hat, the humbug antlers and the masks are in HATS
   const CROWN = HATS.findIndex((h) => h.hd === 'crown'), SANTA = HATS.findIndex((h) => h.hd === 'santa'), ANTLERS = HATS.findIndex((h) => h.hd === 'antlers');
@@ -151,8 +154,11 @@ window.Art = (function () {
     // a beaten humbug who follows you about with a broom (followTick in js/game.js): the
     // Christmas Cup's champion's, along with the antlers
     { name: 'Sweeper', item: 'sweeper' },
+    // Morale Madness cards going round you (deckOrbit in js/game.js), for a name that's won three
+    // quarters of them (see CARD_PRIZES there)
+    { name: 'Card storm', item: 'cardstorm' },
   ];
-  const STAR_TRAIL = FLAIRS.findIndex((f) => f.name === 'Star trail'), SWEEPER = FLAIRS.findIndex((f) => f.item === 'sweeper');
+  const STAR_TRAIL = FLAIRS.findIndex((f) => f.name === 'Star trail'), SWEEPER = FLAIRS.findIndex((f) => f.item === 'sweeper'), CARD_STORM = FLAIRS.findIndex((f) => f.item === 'cardstorm');
   // Not a part you pick from a list: which of the Office Champion's things they've chosen not
   // to wear, 1 for the crown plus 2 for the star trail (see champLook in js/game.js).
   const CHAMP_OFF = [0, 1, 2, 3];
@@ -1380,6 +1386,109 @@ window.Art = (function () {
   const { h: _h, s: _s, w: _w, u: _u, K: _K, ...FIXED_COLORS } = COLORS;
   const BIG_COLS = Object.assign(FIXED_COLORS, { O: '#f8e070', Y: '#a87018', I: '#fcfcff', J: '#2f62d8', z: '#1c3a94' });
   const BIG32 = {
+    // the card crown: 3 cards standing up behind a gold band, blue, gold and green. From behind you see
+    // their backs. `over` goes over the hair: the band.
+    cardcrown: {
+      x: -8, y: -9,
+      down: [
+        '...................kkkkkkkkkk...................',
+        '.................kkkkkkkkkkkkkk.................',
+        '..............kkkkkkkkkkkkkkkkkkkk..............',
+        '............kkkkkkkkkkkkkkkkkkkkkkkk............',
+        '...........kkkkkkkIIkoOOOOOkEIkkkkkkk...........',
+        '...........kkkkUIIIIkoOOOOOkEIIIIkkkk...........',
+        '...........kkkkUIIIJkOoooYOkEIIIIkkkk...........',
+        '...........kkkkUUUUJkOoooYOkEEeeIkkkk...........',
+        '............kkkIUUUJkOoooYOkEEeeIkkk............',
+        '............kkkkIUUUkOoooYOkEEeIkkkk............',
+        '............kkkkIUUUkOoooYOkEeeIkkkk............',
+        '.............kkkIIUUkOYYYYOkEeIIkkk.............',
+        '.............kkkkIUJkOYYYYOkeeIkkkk.............',
+        '..............kkkIJJkOOOOOOkeeIkkk..............',
+        '..............kkkIIIkOOOOOOkIIIkkk..............',
+        '..............kkkkIIkOOOOOOkIIkkkk..............',
+        '...............kkkIIkOOOOOOkIIkkk...............',
+        '...............kkkkIkOOOOOOkIkkkk...............',
+      ],
+      left: [
+        '....................kkkkkkkk....................',
+        '...................kkkkkkkkkk...................',
+        '.................kkkkkkkkkkkkkk.................',
+        '................kkkkkkkkkkkkkkkk................',
+        '...............kkkkkIkoOOOkIkkkkk...............',
+        '...............kkkkIIkoOOOkIIkkkk...............',
+        '...............kkkUIIkOoYOkIIIkkk...............',
+        '...............kkkUUUkOoYOkEeIkkk...............',
+        '................kkkUUkOoYOkEekkk................',
+        '................kkkIUkOoYOkEIkkk................',
+        '................kkkIUkOoYOkeIkkk................',
+        '................kkkIUkOYYOkeIkkk................',
+        '.................kkIUkOYYOkeIkk.................',
+        '.................kkkJkOOOOkekkk.................',
+        '.................kkkIkOOOOkIkkk.................',
+        '.................kkkIkOOOOkIkkk.................',
+        '.................kkkIkOOOOkIkkk.................',
+        '..................kkkkOOOOkkkk..................',
+      ],
+      up: [
+        '...................kkkkkkkkkk...................',
+        '.................kkkkkkkkkkkkkk.................',
+        '..............kkkkkkkkkkkkkkkkkkkk..............',
+        '............kkkkkkkkkkkkkkkkkkkkkkkk............',
+        '...........kkkkkkkOOkOOOOOOkOOkkkkkkk...........',
+        '...........kkkkOOOzzkOzzzzOkzzOOOkkkk...........',
+        '...........kkkkOzzzzkOzzzzOkzzzzOkkkk...........',
+        '...........kkkkOzzzzkOzoozOkzzzzOkkkk...........',
+        '............kkkOzoookOzoozOkooozOkkk............',
+        '............kkkkOzookOzoozOkoozOkkkk............',
+        '............kkkkOzookOzoozOkoozOkkkk............',
+        '.............kkkOzzokOzoozOkozzOkkk.............',
+        '.............kkkkOzokOzzzzOkozOkkkk.............',
+        '..............kkkOzzkOzzzzOkzzOkkk..............',
+        '..............kkkOzzkOzzzzOkzzOkkk..............',
+        '..............kkkkOzkOzzzzOkzOkkkk..............',
+        '...............kkkOzkOzzzzOkzOkkk...............',
+        '...............kkkkOkOzzzzOkOkkkk...............',
+      ],
+      over: {
+        down: [
+          '',
+          '',
+          '',
+          '',
+          '',
+          '......kkOOOOOOOOOOOOOOOOkk',
+          '......kkooUoooorrooooUookk',
+          '......kkooUoooorrooooUookk',
+          '......kkYYYYYYYYYYYYYYYYkk',
+          '.......k................k',
+        ],
+        left: [
+          '',
+          '',
+          '',
+          '',
+          '',
+          '......kkOOOOOOOOOOOOOOOOkk',
+          '......kkoorrooooooooooookk',
+          '......kkoorrooooooooooookk',
+          '......kkYYYYYYYYYYYYYYYYkk',
+          '.......k................k',
+        ],
+        up: [
+          '',
+          '',
+          '',
+          '',
+          '',
+          '......kkOOOOOOOOOOOOOOOOkk',
+          '......kkoooooooooooooooook',
+          '......kkoooooooooooooooook',
+          '......kkYYYYYYYYYYYYYYYYkk',
+          '.......k................k',
+        ],
+      },
+    },
     // the humbug antlers: seen side on, the far one is a shade darker
     antlers: {
       x: -6, y: -16,
@@ -2529,6 +2638,7 @@ window.Art = (function () {
     if (!noHat && hat.big) lay32(b, hat.hi[dir], 0); // (a big head thing goes behind the head)
     lay32(b, HEAD32[dir], 0);
     lay32(b, hair.hi[dir], 0);
+    if (!noHat && hat.big && hat.big.over) lay32(b, hat.big.over[dir], 0); // (a part of it that goes over the hair)
     if (!noHat && hat.hi && !hat.big) { // (the first head thing is nothing at all)
       const head = HEAD32[dir], rows = (loose && hat.hi.loose) || hat.hi;
       (rows[dir] || rows.down).forEach((row, j) => [...row].forEach((ch, i) => {
@@ -5897,7 +6007,7 @@ window.Art = (function () {
   return {
     LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS, extras: EXTRAS, flairs: FLAIRS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, CANDY_CANE, STAR_TRAIL, SWEEPER, BIG_COLS, BAUBLE32, SANTA_END32, SWEEPER32, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, CANDY_CANE, STAR_TRAIL, SWEEPER, CARD_STORM, BIG_COLS, BAUBLE32, SANTA_END32, SWEEPER32, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
     SWEATERS,
   };
 })();

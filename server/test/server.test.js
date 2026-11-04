@@ -6,6 +6,8 @@ import WebSocket from 'ws';
 import { start } from '../index.js';
 import { World } from '../world.js';
 import { statusDesk } from '../status.js';
+import * as cards from '../games/cards.js';
+import { Room } from '../rooms.js';
 
 // first to 3 presses wins; ticks fast so the tests don't wait
 const count = {
@@ -16,9 +18,11 @@ const count = {
   view: (s, seat) => ({ mine: s.n[seat], theirs: s.n[1 - seat] }),
 };
 const broken = { create: () => ({}), tick() { throw new Error('oops'); } };
+// nothing to it but a clock, to see when it's running
+const ticker = { hz: 50, create: () => ({ n: 0 }), tick(s) { s.n++; }, view: (s) => ({ n: s.n }) };
 
 const PORT = 18080 + Math.floor(Math.random() * 1000);
-const srv = start({ port: PORT, games: { count, broken }, statusPassword: 'letmein' });
+const srv = start({ port: PORT, games: { count, broken, cards, ticker }, statusPassword: 'letmein' });
 after(() => srv.close());
 
 let n = 0;
@@ -178,6 +182,26 @@ async function match(game) {
   return { a, b, m };
 }
 
+test('a card game, over real connections: decks, a turn, and resigning', async () => {
+  const { a, b, m } = await match('cards');
+  a.send({ k: 'in', m, d: { deck: 'not a deck' } });
+  b.send({ k: 'in', m, d: { deck: [] } });
+  const deal = await a.for((d) => d.k === 'st' && d.m === m && d.s.you, 4000);
+  assert.equal(typeof deal.s.them.hand, 'number');
+  assert.equal(deal.s.ph, 'swap');
+  a.send({ k: 'in', m, d: { do: 'swap', cards: [] } });
+  b.send({ k: 'in', m, d: { do: 'swap', cards: [] } });
+  const play = await a.for((d) => d.k === 'st' && d.m === m && d.s.ph === 'play', 4000);
+  const mine = play.s.turn === play.s.me;
+  (mine ? a : b).send({ k: 'in', m, d: { do: 'end' } });
+  await a.for((d) => d.k === 'st' && d.m === m && d.s.ph === 'play' && d.s.turn !== play.s.turn, 4000);
+  b.send({ k: 'in', m, d: { do: 'resign' } });
+  const [ea, eb] = await Promise.all([a.for((d) => d.k === 'end'), b.for((d) => d.k === 'end')]);
+  assert.deepEqual(ea.r, { w: 0, why: 'resign' });
+  assert.deepEqual(eb.r, { w: 0, why: 'resign' });
+  a.ws.close(); b.ws.close();
+});
+
 test('an accepted challenge for a server game starts it, and it plays to the end', async () => {
   const { a, b, m } = await match('count');
   const st = await a.for((d) => d.k === 'st' && d.m === m);
@@ -215,6 +239,23 @@ test('a challenge that waited for a menu to close says so, and its server game s
   a.ws.close(); b.ws.close();
 });
 
+test('a dropped player gets the newest messages when there are too many to keep', async () => {
+  const a = client(), b = client();
+  await a.open(); await b.open();
+  await a.for((d) => d.k === 'all'); await b.for((d) => d.k === 'all');
+  b.ws.close();
+  await pause(50);
+  for (let i = 0; i < 60; i++) a.send({ k: 'to', to: b.id, m: { k: 'mv', m: 'x', i } });
+  await pause(100);
+  const b2 = client('test', b.id, 'k' + b.id);
+  await b2.open();
+  await b2.for((d) => d.k === 'all');
+  // (the last one is the one that would be somebody's final score)
+  await b2.for((d) => d.k === 'm' && d.m.i === 59);
+  assert.equal(b2.got.some((d) => d.k === 'm' && d.m.i === 0), false);
+  a.ws.close(); b2.ws.close();
+});
+
 test('giving up ends a server game for both', async () => {
   const { a, b, m } = await match('count');
   await a.for((d) => d.k === 'st');
@@ -235,6 +276,45 @@ test('a player dropping out and coming back carries on the game', async () => {
   a.send({ k: 'to', to: b.id, m: { k: 'quit', m } });
   await b2.for((d) => d.k === 'end');
   a.ws.close(); b2.ws.close();
+});
+
+test('a game stands still while someone has dropped out, and carries on after they come back', async () => {
+  const { a, b, m } = await match('ticker');
+  await a.for((d) => d.k === 'st' && d.s.n > 2);
+  b.ws.close();
+  const first = await a.for((d) => d.k === 'st' && d.w === 1);
+  a.got.length = 0;
+  await pause(250);
+  assert.ok(a.got.length > 3, 'it still says how things stand');
+  assert.ok(a.got.every((d) => d.k !== 'st' || (d.w === 1 && d.s.n === first.s.n)), 'nothing has moved');
+  // they're back: everyone gets a moment, then it goes on from where it was
+  const b2 = client('test', b.id, 'k' + b.id);
+  await b2.open();
+  a.got.length = 0;
+  const ready = await a.for((d) => d.k === 'st' && d.w === 3);
+  assert.equal(ready.s.n, first.s.n);
+  const on = await a.for((d) => d.k === 'st' && !d.w, 3500);
+  assert.equal(on.s.n, first.s.n + 1);
+  a.send({ k: 'to', to: b.id, m: { k: 'quit', m } });
+  await b2.for((d) => d.k === 'end');
+  a.ws.close(); b2.ws.close();
+});
+
+test('someone who has stopped sending anything stops the game, then loses it', async () => {
+  const quiet = { a: 0, b: 7000 }, got = { a: [], b: [] };
+  let done = 0;
+  const room = new Room({ id: 'r', game: ticker, seats: ['a', 'b'], seed: 1, send: (pid, msg) => got[pid].push(msg), done: () => { done++; }, quiet: (pid) => quiet[pid] });
+  await pause(80);
+  // (it's waiting for b, and b's told it's waiting for them)
+  const st = (pid) => got[pid].filter((d) => d.k === 'st');
+  assert.ok(st('a').length > 1);
+  assert.ok(st('a').every((d) => d.w === 1 && d.s.n === 0));
+  assert.ok(st('b').every((d) => d.w === 2 && d.s.n === 0));
+  quiet.b = 13000;
+  await pause(60);
+  assert.deepEqual(got.a.at(-1), { k: 'end', m: 'r', r: { quit: 1 } });
+  assert.equal(done, 1);
+  assert.equal(room.over, true);
 });
 
 test('a game that crashes ends with an error, and the server carries on', async () => {
