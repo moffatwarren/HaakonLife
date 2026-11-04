@@ -2,7 +2,7 @@
 // on the table and the back of a card. A legendary's art keeps moving (see LIVE).
 //
 // It's all plain pixels, with no document, keys or game in it, so the same pictures can be made in
-// the game, on a page of samples, or in Node. Only toCanvas, canvasOf and shine touch a canvas.
+// the game, on a page of samples, or in Node. Only toCanvas, canvasOf, shine and sparkle touch a canvas.
 //
 // Art is painted at 118 x 75 and shown at double size, so one of its pixels is two on the screen
 // (the game's 2-pixel outline is one pixel here). A big card is 260 x 364 on the screen and a small
@@ -3832,6 +3832,23 @@ window.CARD_ART = (function () {
       }
     }
   }
+  // A gold back sparkles: stars come and go, somewhere new each time, with a glint across it now and then
+  // if it's big enough to show one. x, y, w, h: where it's lying on the screen. t counts frames. seed
+  // keeps cards lying side by side out of step with each other.
+  function sparkle(ctx, x, y, w, h, t, seed = 0) {
+    const big = w >= 60, spots = w < 20 ? 1 : big ? 4 : 2, unit = w >= 200 ? 4 : big ? 2 : 1, reach = w < 20 ? 2 : 3, LIFE = 18;
+    for (let i = 0; i < spots; i++) {
+      const go = t + seed * 29 + i * 41, period = 67 + i * 9, at = go % period;
+      if (at >= LIFE) continue;
+      const n = Math.floor(go / period) * 7 + i * 13 + seed * 5;
+      const px = x + Math.round((0.16 + ((n * 37) % 101) / 101 * 0.68) * w), py = y + Math.round((0.12 + ((n * 61) % 97) / 97 * 0.76) * h);
+      const r = Math.max(1, Math.round(Math.sin(at / LIFE * Math.PI) * reach)) * unit;
+      ctx.fillStyle = '#fffbe0';
+      ctx.fillRect(px - r, py, r * 2 + unit, unit);
+      ctx.fillRect(px, py - r, unit, r * 2 + unit);
+    }
+    if (big) shine(ctx, x, y, w, h, t + seed * 50, 'R', w >= 200 ? 14 : 8);
+  }
   const CAN = new WeakMap();
   const canvasOf = (pic) => { let c = CAN.get(pic); if (!c) { c = toCanvas(pic); CAN.set(pic, c); } return c; };
   // A legendary is alive: its art keeps moving, wherever you see it. frames: how many pictures in
@@ -3863,5 +3880,5 @@ window.CARD_ART = (function () {
   }
 
   // (painted: whether a card has a picture of its own, rather than the stand-in)
-  return { ART_W, ART_H, LIVE, Pic, big, small, back, artPic, artFrame, cropOf, label, toCanvas, canvasOf, shine, RARITY, DEPTS, painted: (id) => Object.prototype.hasOwnProperty.call(ART, id) };
+  return { ART_W, ART_H, LIVE, Pic, big, small, back, artPic, artFrame, cropOf, label, toCanvas, canvasOf, shine, sparkle, RARITY, DEPTS, painted: (id) => Object.prototype.hasOwnProperty.call(ART, id) };
 })();

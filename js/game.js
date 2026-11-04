@@ -6284,10 +6284,14 @@
         ctx.drawImage(bigCard(you.hand[swapAt].id), 28, 72);
         drawMeanings(meaningsOf(you.hand[swapAt].id), 312, 316, 300); // (there's no room under it here)
       }
-      else if (n) ctx.drawImage(backOfCard(goldOf(me)), 0, 0, 88, 116, 28, 72, 260, 364);
+      else if (n) {
+        ctx.drawImage(backOfCard(goldOf(me)), 0, 0, 88, 116, 28, 72, 260, 364);
+        if (goldOf(me)) A.sparkle(ctx, 28, 72, 260, 364, t, 9);
+      }
       you.hand.forEach((c, i) => {
         const x = x0 + i * 100, y = 110 - (i === swapAt && !you.swapped ? 8 : 0);
         ctx.drawImage(swapping.has(c.u) ? backOfCard(goldOf(me)) : smallCard(c.id, { cost: true }), x, y);
+        if (swapping.has(c.u) && goldOf(me)) A.sparkle(ctx, x, y, 88, 116, t, i);
         if (swapping.has(c.u)) { panel(x + 12, y + 44, 64, 28, '#ff9878'); ctx.drawImage(cardWord('SWAP', INK), x + 20, y + 51); }
         if (i === swapAt && !you.swapped) { ctx.fillStyle = '#f8d850'; for (const [a, b, w, h] of [[x - 4, y - 4, 96, 4], [x - 4, y + 116, 96, 4], [x - 4, y, 4, 116], [x + 88, y, 4, 116]]) ctx.fillRect(a, b, w, h); }
       });
@@ -6336,6 +6340,7 @@
     }
     function deckLeft(seat, x, y) {
       ctx.drawImage(backOfCard(goldOf(seat)), 0, 0, 88, 116, x, y, 14, 18);
+      if (goldOf(seat)) A.sparkle(ctx, x, y, 14, 18, t, seat + 20);
       ctx.drawImage(cardWord(sideOf(seat).deck + ' in deck', '#f4ecd8'), x + 20, y + 1);
     }
     function cups(seat, x, y) {
@@ -6563,7 +6568,10 @@
       cups(1 - me, 6, 7);
       deckLeft(1 - me, 6, 30);
       const backs = Math.min(them.hand, 7);
-      for (let i = 0; i < backs; i++) ctx.drawImage(backOfCard(goldOf(1 - me)), 0, 0, 88, 116, 432 + i * 22, 9, 30, 36);
+      for (let i = 0; i < backs; i++) {
+        ctx.drawImage(backOfCard(goldOf(1 - me)), 0, 0, 88, 116, 432 + i * 22, 9, 30, 36);
+        if (goldOf(1 - me)) A.sparkle(ctx, 432 + i * 22, 9, 30, 36, t, i);
+      }
       them.table.forEach((x, i) => { if (!mover || mover.who !== x) worker(x, slotX(i), rowY(1 - me) - jumpOf(x)); });
       // your side
       faceBox(me, playerName || 'You');
@@ -6592,7 +6600,10 @@
         ctx.drawImage(smallCard(c.id, { cost: true }), x, HAND_Y - (on ? 10 : 0));
         if (shown.turn === me && !can && !anim && !queue.length) { ctx.fillStyle = 'rgba(20,16,30,0.45)'; ctx.fillRect(x, HAND_Y - (on ? 10 : 0), 88, 116); }
       });
-      if (drawn) ctx.drawImage(backOfCard(drawn.gold), Math.round(drawn[0]), Math.round(drawn[1]));
+      if (drawn) {
+        ctx.drawImage(backOfCard(drawn.gold), Math.round(drawn[0]), Math.round(drawn[1]));
+        if (drawn.gold) A.sparkle(ctx, Math.round(drawn[0]), Math.round(drawn[1]), 88, 116, t, 3);
+      }
       if (mover) {
         const p = mover.pos || (() => { const u = easeOut(Math.min(1, mover.t / 16)); return [mover.from[0] + (mover.to[0] - mover.from[0]) * u, mover.from[1] + (mover.to[1] - mover.from[1]) * u]; })();
         worker(mover.who, p[0], p[1]);
@@ -6624,6 +6635,7 @@
         if (b.glow) for (const [r, a] of [[30, 0.1], [22, 0.14], [14, 0.2], [8, 0.3]]) { ctx.fillStyle = 'rgba(255,224,120,' + a + ')'; ctx.fillRect(b.x - r, b.y - r, b.w + r * 2, b.h + r * 2); } // (a glow round it)
         if (b.alpha !== undefined) ctx.globalAlpha = b.alpha;
         ctx.drawImage(b.back ? backOfCard(b.gold) : bigCard(b.id), x, b.y, w, b.h);
+        if (b.back && b.gold) A.sparkle(ctx, x, b.y, w, b.h, t, 5);
         ctx.globalAlpha = 1;
         if (b.live) ctx.drawImage(A.canvasOf(A.artFrame(b.id, t)), b.x + Math.round(12 * sc), b.y + Math.round(44 * sc), Math.round(236 * sc), Math.round(150 * sc));
         if (b.shine >= 0) A.shine(ctx, x, b.y, w, b.h, Math.min(CARDS.card(b.id).rarity === 'L' ? 149 : 209, b.shine), CARDS.card(b.id).rarity);
