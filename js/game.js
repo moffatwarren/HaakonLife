@@ -4102,7 +4102,7 @@
   const meWorn = () => (hw.worn ? null : wornLook(myLook)), mpWorn = (o) => (o.c ? null : o.look);
   // their picture with any part of the head thing that's drawn on its own left off, to go with these
   const freed = (img, worn) => (worn && img.loose) || img;
-  // The Full deck, for winning every card in Morale Madness: five cards going round you, turning
+  // The card storm, for winning three quarters of the cards in Morale Madness: five cards going round you, turning
   // over as they go, one in each class's colour and one gold with a twinkle on it. Those on the far
   // side go behind you (wornBehind) and the near ones in front (wornOver). They stay off the ice, as
   // the rest of the flair does. Each picture is 12 x 16 real pixels.
@@ -4111,7 +4111,7 @@
   const DECK_COLS = { k: '#1a1622', W: '#f4ecd8', g: '#8a7c68', O: '#c89828', Y: '#f8d850', n: '#20264c', N: '#343c74' };
   const DECK_CARDS = [['#f0a060', '#d87830', '#a85820'], ['#e87068', '#c84038', '#982c28'], ['#6890e8', '#3868c8', '#284c98'], ['#78c878', '#48a048', '#347a34'], ['#fff0a0', '#f0c030', '#c89020']];
   const deckFace = (i) => rowsPic('deckFace' + i, DECK_FACE, Object.assign({ L: DECK_CARDS[i][0], C: DECK_CARDS[i][1], D: DECK_CARDS[i][2] }, DECK_COLS));
-  const deckOn = (worn) => worn.flair === Art.FULL_DECK && !(hockey && hockey.scene() && P.floor === YARD);
+  const deckOn = (worn) => worn.flair === Art.CARD_STORM && !(hockey && hockey.scene() && P.floor === YARD);
   function deckOrbit(x, y, front, rx) {
     DECK_CARDS.forEach((_, i) => {
       const a = tick / 44 + i * Math.PI * 2 / DECK_CARDS.length;
@@ -5653,8 +5653,8 @@
     let landed = -1; // the worker that's just landed, who doesn't jump at their own shockwave
 
     const sideOf = (seat) => (seat === me ? shown.you : shown.them);
-    // Whoever has won every card has gold backs on theirs, and the server says if the other player does.
-    const goldOf = (seat) => (seat === me ? items.fulldeck === 1 : !!(view && view.gold));
+    // Winning a quarter of the cards puts gold backs on yours, and the server says if the other player has them.
+    const goldOf = (seat) => (seat === me ? items.goldbacks === 1 : !!(view && view.gold));
     const flash = (str) => { note = str; noteT = 110; };
     const foeShort = foe.length > 10 ? foe.slice(0, 10) : foe;
     const has = (table, key) => table && Object.prototype.hasOwnProperty.call(table, key);
@@ -6779,7 +6779,7 @@
             if (vs.result !== undefined || (vs.gone && ++goneT > 60)) finishedLive();
             else if (!heard && t > NO_WORD) ended({ why: 'noserver' });
             else if (pressed.has('b')) leave();
-            else if (t % 30 === 1) vs.input({ deck: myDeck, gold: items.fulldeck === 1 }); // (again, in case the first got lost)
+            else if (t % 30 === 1) vs.input({ deck: myDeck, gold: items.goldbacks === 1 }); // (again, in case the first got lost)
             return;
           }
           // The server's word on how it ended comes straight after anything else that says it's over.
@@ -6864,12 +6864,15 @@
   let cardsOwned = new Set(), cardsFor = null;
   const cardsWho = () => playerName || 'New Hire';
   const cardKey = (name, what) => (BOARD_POSTS ? '' : 'test.') + what + '.' + boardKey(name);
-  // what this browser remembers (and &havecards=all, or =almost for all but the Forklift, or =markv,steve,
+  // the cards you can win, which is everything but the starters and the ones other cards bring in
+  const WINNABLE = CARDS.LIST.filter((c) => c.rarity !== 'T' && !CARDS.STARTER.includes(c.id));
+  // what this browser remembers (and &havecards=all, or =32 for the first 32 you can win, or =markv,steve,
   // as if those were yours)
   function cardsRead(name) {
     cardsOwned = new Set(); cardsFor = name;
-    const test = (/[#&]havecards=([a-z0-9,]+)/.exec(location.hash) || ['', ''])[1].split(',');
-    for (const c of CARDS.LIST) if (c.rarity !== 'T' && (store.get(itemKey(name, 'c_' + c.id)) === '1' || test[0] === 'all' || (test[0] === 'almost' && c.id !== 'forklift') || test.includes(c.id))) cardsOwned.add(c.id);
+    let test = (/[#&]havecards=([a-z0-9,]+)/.exec(location.hash) || ['', ''])[1].split(',');
+    if (/^\d+$/.test(test[0])) test = WINNABLE.slice(0, +test[0]).map((c) => c.id);
+    for (const c of CARDS.LIST) if (c.rarity !== 'T' && (store.get(itemKey(name, 'c_' + c.id)) === '1' || test[0] === 'all' || test.includes(c.id))) cardsOwned.add(c.id);
   }
   // what the database says. One here with nothing there is a save that didn't get through, so it goes
   // again. A 0 there means it's been taken away by hand.
@@ -6901,14 +6904,54 @@
     saveBest('cards', cardsCount());
     return true;
   }
-  // Every card in the game is yours: the Full deck, under FLAIR in the character editor, and gold backs
-  // on your cards (goldOf in CardsGame), which go by your number for the Full deck. It's yours for
-  // good, so a card added later doesn't take it away, though anybody still collecting needs that one too.
-  const cardsAll = () => CARDS.LIST.every((c) => c.rarity === 'T' || CARDS.STARTER.includes(c.id) || cardsOwned.has(c.id));
-  function cardPrizeTell() {
-    sfx('cup');
-    itemOffer(['fulldeck'], 'You\'ve won every card in Morale Madness, so now you\'re playing with a full deck, and it\'s yours to keep! It\'s under FLAIR, in Edit character in the Start menu. Your cards have gold backs now too, for everybody you play to see.',
-      'Your cards lift off and start going round you. You feel very collected.');
+  // What winning cards earns you, at a share of the cards you can win. They're special items, so once
+  // you have one it's yours for good, even if adding cards later moves where it comes.
+  const cardsWon = () => WINNABLE.filter((c) => cardsMine().has(c.id)).length;
+  const prizeNeeds = (p) => Math.ceil(p.at * WINNABLE.length);
+  const CARD_PRIZES = [
+    { at: 1 / 4, item: 'goldbacks', what: 'Gold backs', name: 'gold backs',
+      tell() {
+        sfx('cup');
+        itemToldMark('goldbacks');
+        ui.push(Dialog('You\'ve won a quarter of the cards in Morale Madness, so yours have gold backs now, and they sparkle! Everybody you play will see them.', { above: goldPanel() }));
+      } },
+    { at: 1 / 2, item: 'cardcrown', what: 'Card crown (HEAD)', name: 'a card crown',
+      tell() {
+        sfx('cup');
+        itemOffer(['cardcrown'], 'You\'ve won half of the cards in Morale Madness, and that earns you the card crown! It\'s with your head things, under Edit character in the Start menu.', 'You put the card crown on. Long may you deal.');
+      } },
+    { at: 3 / 4, item: 'cardstorm', what: 'Card storm (FLAIR)', name: 'a card storm',
+      tell() {
+        sfx('cup');
+        itemOffer(['cardstorm'], 'You\'ve won three quarters of the cards in Morale Madness, and that earns you the card storm! It\'s under FLAIR, in Edit character in the Start menu.', 'Your cards lift off and start going round you. You feel very collected.');
+      } },
+  ];
+  // which of them you've just earned and still need telling about (see itemEarned)
+  const cardPrizesDue = (name) => CARD_PRIZES.filter((p) => cardsWon() >= prizeNeeds(p) && itemEarned(name, p.item));
+  // how far off the next one is, or nothing once you have them all
+  function cardsNext() {
+    const won = cardsWon(), p = CARD_PRIZES.find((x) => won < prizeNeeds(x));
+    return p ? 'Win ' + (prizeNeeds(p) - won) + ' more for ' + p.name + '.' : '';
+  }
+  // The picture above the message about gold backs: one of them, sparkling.
+  function goldPanel() {
+    const w = 120, h = 100, x = (SW - w) >> 1, y = 16;
+    return () => {
+      box(x, y, w, h);
+      ctext('NEW!', y + 9, GOLD);
+      ctext('Gold backs', y + 21);
+      ctx.save();
+      ctx.scale(0.5, 0.5);
+      ctx.drawImage(backOfCard(true), SW - 44, (y + 33) * 2);
+      CARD_ART.sparkle(ctx, SW - 44, (y + 33) * 2, 88, 116, tick, 1);
+      ctx.restore();
+    };
+  }
+  // Told once as you come in, unless you've found MY CARDS already.
+  function cardNewsTell() {
+    store.set(cardKey(cardsWho(), 'cardnews'), '1');
+    sfx('ding');
+    say('New in the office: Morale Madness, a card game starring your coworkers! Open MY CARDS in the Start menu to get your first 20 cards. Beat coworkers around the office to unlock more, and earn rewards as your collection grows. You can also challenge other live players and track your wins on the leaderboard.');
   }
   // A new card, turning over from its back and held up for you to look at.
   function CardReveal(id) {
@@ -6922,7 +6965,7 @@
         if (t > FLIP + 12 && (pressed.has('a') || pressed.has('b'))) {
           sfx('select');
           remove(self);
-          if (cardsAll() && itemEarned(cardsWho(), 'fulldeck')) cardPrizeTell();
+          for (const p of cardPrizesDue(cardsWho())) questQueue.push(p.tell);
         }
       },
       draw() {
@@ -6946,7 +6989,7 @@
           A.shine(ctx, X, Y, 260, 364, t, c.rarity);
           const top = cardWord('NEW CARD!', '#f8d850', 2);
           ctx.drawImage(top, Math.round(320 - top.width / 2), 16);
-          const low = cardWord('It\'s yours to keep. Find it in MY CARDS.', '#f4ecd8');
+          const low = cardWord('It\'s yours to keep. ' + (cardsNext() || 'Find it in MY CARDS.'), '#f4ecd8');
           ctx.drawImage(low, Math.round(320 - low.width / 2), 438);
         }
         ctx.restore();
@@ -6975,7 +7018,7 @@
     const FILL = TABS.length - 1;
     const byCost = (a, b) => a.cost - b.cost || a.name.localeCompare(b.name);
     const start = cardDeck();
-    let draft = start.slice(), tab = 0, at = 0, scroll = 0, onTabs = false, t = 0, note = '', noteT = 0;
+    let draft = start.slice(), tab = 0, at = 0, scroll = 0, onTabs = false, t = 0, note = cardsNext(), noteT = note ? 170 : 0;
     const list = () => (TABS[tab][1]
       ? CARDS.LIST.filter((c) => c.rarity !== 'T' && TABS[tab][1](c)).sort(byCost).map((c) => c.id)
       : draft.map(CARDS.card).sort(byCost).map((c) => c.id));
@@ -7097,7 +7140,7 @@
         });
         const size = draft.length + '/' + SIZE;
         say2(size, 636 - size.length * 24, 408, legal() ? '#58d868' : '#f8d850', 2);
-        const coll = cardsCount() + ' of ' + CARDS.LIST.filter((k) => k.rarity !== 'T').length;
+        const coll = 'Won ' + cardsWon() + '/' + WINNABLE.length;
         say2(coll, 636 - coll.length * 12, 458, '#a89cb8');
         ctx.restore();
       },
@@ -7118,7 +7161,7 @@
       'Some of them are holding on to something rarer, and you\'ll see it played against you. Beat them again and you win that too.',
       'You can\'t lose a card. Pick any 20 here, one of each and at most one legendary, and that\'s your deck against coworkers and other players.',
       'The cards you haven\'t won yet are face down, and picking one says who to beat for it and where. For the Kingston plant, answer the phone in Eugene\'s office.',
-      'Win every last card and there\'s something special in it for you.',
+      'Winning cards earns you rewards: ' + CARD_PRIZES.map((p) => p.name + ' at ' + prizeNeeds(p)).join(', ') + '.',
       'In a game, B opens a menu with HOW TO PLAY.',
     ];
     const next = (k) => { if (k < LINES.length) say(LINES[k], () => next(k + 1)); };
@@ -20031,7 +20074,8 @@
   // To add one, mark it in js/art.js with `item`. Anything that isn't for everyone has to be: that's
   // what gives it its number. Where it's earned, call itemEarned, then itemOffer if that says to tell
   // them. Never decide to tell somebody by looking at their number. See "To add one" in the README.
-  const ITEMS = Art.LOOK_ITEMS, TOLD = 'Told';
+  // (gold backs aren't worn, so they're not in any list of looks, and have no part)
+  const ITEMS = Object.assign({ goldbacks: {} }, Art.LOOK_ITEMS), TOLD = 'Told';
   const ITEM_URL = LOOK_URL.replace('/looks/', '/items/');
   let items = {}; // your name's numbers, like { santa: 1, antlers: 0 } (no entry: no number)
   let itemsTold = {}; // the items your name has had its message about, like { santa: true }
@@ -20078,8 +20122,9 @@
       if (/[#&]santahat=1/.test(location.hash)) items.santa = 1;
       cupAward(name);
       if (comingIn) santaAward(name);
-      // (won the last card and left before the message, or given them by hand: you're told as you walk in)
-      if (cardsAll() && itemEarned(name, 'fulldeck')) questEarned.push({ what: 'Full deck (FLAIR)', told: cardPrizeTell });
+      // (left before the message, or given the cards by hand: you're told as you walk in)
+      for (const p of cardPrizesDue(name)) questEarned.push({ what: p.what, told: p.tell });
+      if (comingIn && !cardsOpened() && !store.get(cardKey(cardsWho(), 'cardnews'))) questEarned.push({ what: 'Morale Madness', told: cardNewsTell });
       questAward(name, quests);
       // (&have=ghostmask,ribbon: as if these were yours, for testing)
       for (const item of (/[#&]have=([a-z,]+)/.exec(location.hash) || ['', ''])[1].split(',')) if (inTable(ITEMS, item)) items[item] = 1;
@@ -20171,7 +20216,7 @@
   function itemsOff(look) {
     for (const item in ITEMS) {
       const { part, i } = ITEMS[item];
-      if (look[part] === i && (itemsHeard ? items[item] !== 1 : items[item] === 0)) look[part] = 0;
+      if (part && look[part] === i && (itemsHeard ? items[item] !== 1 : items[item] === 0)) look[part] = 0;
     }
   }
 
@@ -20358,7 +20403,7 @@
     if (r && r.key === 'flair' && editChoices(r).length < 2) return 'Be the Office Champion to earn a star trail here!';
     if (r && r.key === 'flair' && worn.flair === Art.STAR_TRAIL) return crowned ? 'Stars follow you while you stay on top!' : 'Stars follow you wherever you go!';
     if (r && r.key === 'flair' && worn.flair === Art.SWEEPER) return 'A beaten humbug sweeps up after you!';
-    if (r && r.key === 'flair' && worn.flair === Art.FULL_DECK) return 'Every card in the game, and they go where you go!';
+    if (r && r.key === 'flair' && worn.flair === Art.CARD_STORM) return 'Your cards go wherever you go!';
     if (r && r.key === 'hat' && worn.hat === Art.SANTA) return 'It jingles and shakes off snow as you walk!';
     if (r && r.key === 'hat' && worn.hat === Art.HAUNTED_MASK) return 'You\'ve set Linda free the most: it\'s haunted!';
     if (r && r.key === 'extra' && worn.extra === Art.CANDY_CANE) return 'It makes a fine walking stick, and a better snack!';
@@ -20369,7 +20414,7 @@
   // they've got on: the character editor, and the picture with a new item (itemPanel). sheet is
   // their sprites, and they're smaller in a big head thing, so it fits under the title.
   function showOff(worn, sheet, dir, x, y) {
-    const k = bigHat(worn) ? 3 : worn.flair === Art.FULL_DECK ? 4 : 5, S = 16 * k, bx = x - S / 2, by = y + 2 - S;
+    const k = bigHat(worn) ? 3 : worn.flair === Art.CARD_STORM ? 4 : 5, S = 16 * k, bx = x - S / 2, by = y + 2 - S;
     const big = (paint) => { ctx.save(); ctx.translate(bx, by); ctx.scale(k, k); paint(); ctx.restore(); };
     floorShadow(x, y, 4 * k, 4);
     if (worn.flair === Art.STAR_TRAIL) trailPreview(x, y);

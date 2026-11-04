@@ -135,7 +135,8 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
 
 - **Your cards:** everybody starts with the same 20. Open **MY CARDS** in the Start menu to see them.
   The first time, it explains the game, and from then on coworkers offer you a game when you talk to
-  them. Nobody who hasn't opened it gets asked anything new.
+  them. Until you've opened it you're told about the game once as you come in (`cardNewsTell`), once per
+  name in each browser, and coworkers don't ask you anything new.
 - **Winning more:** talk to a coworker and pick MORALE MADNESS. It says how good they are and what
   they're playing for. Beat them and their card is yours. Some are holding something rarer as well, which
   you'll see played against you, and it's yours if you beat them again (`heldBy` in `js/cardlist.js`).
@@ -156,9 +157,11 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   (see "Eugene's phone and the Kingston plant"). Ali, Garrett and Ryan are only ever in the visitor office
   (182), where people take turns of about 45 seconds. In MY CARDS a card you haven't won is face down, and
   picking it says who to beat for it and where.
-- **Winning them all:** the Full deck is a flair for whoever has every card: five cards going round you, which
-  other players see too (`deckOrbit`). It also puts sparkling gold backs on your cards, for you and whoever you play
-  (`goldOf`, `sparkle`). It's a special item (see "Special items"), and a card added later doesn't take it away.
+- **Rewards:** winning cards earns you these, out of the 131 you can win (`CARD_PRIZES`). A quarter, 33, gives
+  your cards sparkling gold backs, for you and whoever you play (`goldOf`, `sparkle`). Half, 66, gives you the card
+  crown. Three quarters, 99, gives you the card storm, a flair of five cards going round you that other players
+  see too (`deckOrbit`). MY CARDS and each new card say how far off the next one is. They're special items
+  (see "Special items"), so adding cards later moves where they come but doesn't take any away.
 - **Leaderboards:** the Hall of Fame has CARDS COLLECTED and MORALE MADNESS WINS, under Board and Card Games. A
   win counts when you beat another player, including when they resign or run out of time. It doesn't count
   if they just leave the game, and games against coworkers don't count.
@@ -476,12 +479,12 @@ items/live/warren/antlers: 0
 ```
 
 `santa` is the Santa hat, `candycane` the candy cane, `antlers` the humbug antlers, `sweeper` the Sweeper, `crown` the crown,
-`startrail` the star trail, `ghostmask` the ghost mask, `ribbon` the ribbon, `fulldeck` the Full deck and `cardcrown` the card crown, which nothing earns yet. 1 means it's theirs, so it's one of their choices in the character editor. 0 means it
+`startrail` the star trail, `ghostmask` the ghost mask, `ribbon` the ribbon, `goldbacks` the gold card backs, `cardcrown` the card crown and `cardstorm` the card storm. 1 means it's theirs, so it's one of their choices in the character editor (gold backs aren't worn, so they're simply on). 0 means it
 isn't, and the game won't offer it to them, even at Christmas, from the present, the cup or a quest. No number
 means they've never been given it.
 
 In the game the Santa hat comes from coming in over Christmas, the candy cane from opening the
-present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, the Full deck from winning every card in
+present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, the gold backs, card crown and card storm from winning cards in
 Morale Madness, and the mask and the ribbon from the quests (see
 **Linda's list** and **Employee of the Month**), which add a 1 where there's no number. The game
 never sets a number for the crown or the star trail: the Office Champion wears them with no
@@ -1509,7 +1512,7 @@ or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
 and `&stapler=near` puts it right in front of you. `&helped=5` counts the
 first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gives you Kiki's list, and
 `game=kiki` opens it.
-`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=almost` makes everything yours but the Forklift, so that beating Mike D. (add `&plant=1`) wins your last card and the Full deck. `&have=cardcrown&look=m100e0000000` wears the card crown, `&have=fulldeck&look=m10000000030` wears the Full deck, and with `&have=fulldeck&game=cards` your cards have gold backs. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
+`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=32` makes the first 32 you can win yours, so that winning one more earns the gold backs (65 for the card crown, 98 for the card storm). `&have=cardcrown&look=m100e0000000` wears the card crown, `&have=cardstorm&look=m10000000030` wears the card storm, and with `&have=goldbacks&game=cards` your cards have gold backs. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
 the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
 `&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
 `&crown=1` makes you the Office Champion, in the crown and the star trail.
