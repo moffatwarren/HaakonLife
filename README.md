@@ -127,6 +127,32 @@ Walk up to these and press A:
   sheet. Paint that's on too thick goes darker (cream, for white) before it runs.
   Afterwards the unit in the booth stays in the colour you painted it
 
+## Morale Madness
+
+The office's card game. You each start with 20 Morale and try to get the other player's down to 0, with
+a deck of 20 coworkers and office things. **How to play** is in the menu B opens during a game. Each
+card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its picture is in `js/cardart.js`.
+
+- **Your cards:** everybody starts with the same 20. Open **MY CARDS** in the Start menu to see them.
+  The first time, it explains the game, and from then on coworkers offer you a game when you talk to
+  them. Nobody who hasn't opened it gets asked anything new.
+- **Winning more:** talk to a coworker and pick MORALE MADNESS. It says how good they are and what
+  they're playing for. Beat them and their card is yours. Some are holding something rarer as well, which
+  you'll see played against you, and it's yours if you beat them again (`heldBy` in `js/cardlist.js`).
+  You can't lose a card. To give one out some other way, call `cardEarned(id)`.
+- **Your deck:** any 20 of your cards, one of each and at most one legendary. In MY CARDS the D-pad moves
+  round the page and Up reaches the tabs, A puts a card in or takes it out, and FILL IT tops your deck up
+  with the best of what you have. Along the bottom is the coffee curve: what your deck costs. Until you
+  build one yourself, you play the best deck your cards can make, so it gets better as you win more.
+- **Classes:** Plant (big and tough), Sales (fast, and straight at the other player), Office (clever)
+  and Engineering (keeps everything running). Team-up cards reward sticking to one or two.
+- **Against a player:** see **Playing together**. Your deck goes with you. The server checks that it's
+  legal, not that you own the cards, the same honour system as scores and items.
+- **Saved:** your cards go in the database with your special items, at `items/<world>/<name>/c_<id>`, so
+  there's nothing to set up (see "Special items"), and in the browser. Your deck is only kept in the
+  browser. On a new computer you get the best one your cards can make until you build another.
+- **Leaderboards:** cards collected, and wins against other players.
+
 ## Cody's casino
 
 From the hallway Cody's cubicle (142, upstairs) looks like any other, but it's bigger on
@@ -1425,7 +1451,7 @@ pants and their colours.
 | TVs and computers | `pong`, `snake`, `poker`, `blackjack` |
 | Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf`, `build` (Joe's Lego shelf) |
 | Coworkers | `dark` (Damir), `battle` (Richard), `dance` (Patrick), `nathan`, `wade`, `jar` (Kiki), `forms` (Jhonna), `wok` (Nik), `carrot` (Dmitriy), `lego` (Joe) |
-| Morale Madness | `cards` (the card game, still being built: nothing in the office starts it yet). `&deck=` is your deck (`plant`, `sales`, `office`, `engineering` or `starter`, the usual), `&foe=` who you play, `&level=` how good they are (1 to 4), `&first=0` or `1` who goes first, `&seed=` the same deal every time |
+| Morale Madness | `deck` (MY CARDS), and `cards` (a game). `&deck=` is your deck (`plant`, `sales`, `office`, `engineering` or `starter`, the usual), `&foe=` who you play, `&level=` how good they are (1 to 4), `&first=0` or `1` who goes first, `&seed=` the same deal every time |
 | Dogs | `catch`, `dogs` (the dogs' leaderboard) |
 | Kingston plant | `forklift`, `paint` (Even Coat) |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`), `fame` (the Hall of Fame) |
@@ -1465,7 +1491,7 @@ or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
 and `&stapler=near` puts it right in front of you. `&helped=5` counts the
 first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gives you Kiki's list, and
 `game=kiki` opens it.
-`&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
+`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
 the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
 `&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
 `&crown=1` makes you the Office Champion, in the crown and the star trail.

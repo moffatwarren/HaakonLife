@@ -52,6 +52,8 @@ in a browser (see "Testing in a browser").
 
 - **Saved data:** a saved character is a list of places in the lists in `js/art.js`, so only ever add
   to the end of those lists. Never reorder or remove.
+- **Card ids:** saves point at the ids in `js/cardlist.js`, so never rename, remove or reuse one. Anything
+  else on a card can change. Each new card needs a picture in `js/cardart.js`, or a test fails.
 - **Unlockable items:** anything wearable that isn't for everyone gets `item: 'name'` in `js/art.js`,
   which gives it a number in the database (see "Special items" in the README). Where it's earned, call
   `itemEarned`, then `itemOffer` if that says to. Never decide to tell somebody by looking at their

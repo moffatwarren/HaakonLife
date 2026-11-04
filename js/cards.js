@@ -31,6 +31,9 @@
 //   CARDS.deckProblem(ids)     // why that's not a legal deck, or null if it is
 //   CARDS.buildDeck(owned, { dept, must, seed }) // a good deck from the cards you have
 //   CARDS.STARTER              // the ids everybody has
+//   CARDS.prizes(name)         // what that coworker plays for, in the order you win it
+//   CARDS.foeDeck(name, level) // the deck that coworker plays
+//   CARDS.wonFrom(id)          // who you win that card from, or null if nobody
 //   CARDS.check()              // anything wrong with js/cardlist.js, as a list of what
 //   CARDS.VERSION              // a fingerprint of the rules and the cards, so a browser can tell
 //                              // whether the server has the same ones
@@ -244,6 +247,30 @@ window.CARDS = (function engine() {
     for (const id of ranked) if (want[band(CARD.get(id))] > 0) take(id);
     for (const id of ranked) take(id);
     return deck;
+  }
+
+  // ---------- coworkers ----------
+  // What a coworker's playing for, in the order you win it: their own card, then whatever they're
+  // holding on to (heldBy in js/cardlist.js).
+  function prizes(name) {
+    const own = LIST.filter((c) => collectable(c) && c.rarity !== 'S' && c.name === name && !c.heldBy);
+    return own.concat(LIST.filter((c) => c.heldBy === name)).map((c) => c.id);
+  }
+  const wonFrom = (id) => {
+    const c = CARD.get(id);
+    return !collectable(c) || c.rarity === 'S' ? null : c.heldBy || c.name;
+  };
+  // The deck they play: the same one every time, leaning towards their department, with what they're
+  // playing for in it. How good they are says how far up the rarities the rest of it goes, and
+  // nobody has a legendary unless it's the one they hold.
+  const REACH = { 1: 'SC', 2: 'SCU', 3: 'SCUR', 4: 'SCUR' };
+  function foeDeck(name, level) {
+    const must = prizes(name), first = CARD.get(must[0]);
+    const reach = REACH[level] || REACH[4];
+    let seed = 7;
+    for (const ch of String(name)) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    const pool = LIST.filter((c) => collectable(c) && reach.includes(c.rarity)).map((c) => c.id);
+    return buildDeck(pool, { dept: first && first.dept, must, seed });
   }
 
   // ---------- a game ----------
@@ -735,7 +762,7 @@ window.CARDS = (function engine() {
   VERSION = (VERSION >>> 0).toString(36);
 
   return {
-    create, check, deckProblem, buildDeck, text, LIST, STARTER, VERSION, DEPTS, WORDS, MEANS, meanings,
+    create, check, deckProblem, buildDeck, prizes, foeDeck, wonFrom, text, LIST, STARTER, VERSION, DEPTS, WORDS, MEANS, meanings,
     card: (id) => CARD.get(id),
     RULES: { MORALE, DECK, CUPS, TABLE, HAND, OPENING, STRIKES },
   };

@@ -8,6 +8,9 @@
 //             another card (never in a deck)
 //   dept      plant (big and tough), sales (fast), office (clever) or engineering (keeps everything running). Leave it out
 //             for something that goes in any deck. It's a way of playing, not anybody's job.
+//   heldBy    who you win it from, if it isn't their own card: the coworker plays it against you, and
+//             beating them once they've given up their own card (if they have one) makes it yours.
+//             Without this, a card is won by beating the coworker with the same name.
 //   kind      'task' if it happens once and then it's gone. Otherwise it's a worker.
 //   cost      coffee to play it
 //   power, patience   a worker's two numbers
@@ -63,9 +66,9 @@ window.CARD_LIST = [
   { id: 'jillian', name: 'Jillian', dept: 'plant', rarity: 'C', cost: 5, power: 5, patience: 6, said: 'The coil disagrees.' },
   { id: 'kylebullock', name: 'Kyle B.', dept: 'plant', rarity: 'U', cost: 5, power: 2, patience: 8, words: ['gate'], said: 'My walls don\'t sag.' },
   { id: 'miked', name: 'Mike D.', dept: 'plant', rarity: 'C', cost: 6, power: 6, patience: 7, said: 'Normal Tuesday.' },
-  { id: 'bigcoil', name: 'The Big Coil', dept: 'plant', rarity: 'R', cost: 5, power: 1, patience: 9, words: ['gate'] },
-  { id: 'crane', name: 'Overhead Crane', dept: 'plant', rarity: 'R', cost: 7, power: 5, patience: 7, does: [{ do: 'hit', n: 3, who: 'enemy' }] },
-  { id: 'forklift', name: 'Forklift', dept: 'plant', rarity: 'L', cost: 7, power: 6, patience: 6, words: ['keen'], does: [{ do: 'back', who: 'enemy' }] },
+  { id: 'bigcoil', name: 'The Big Coil', dept: 'plant', rarity: 'R', heldBy: 'Jillian', cost: 5, power: 1, patience: 9, words: ['gate'] },
+  { id: 'crane', name: 'Overhead Crane', dept: 'plant', rarity: 'R', heldBy: 'Graham', cost: 7, power: 5, patience: 7, does: [{ do: 'hit', n: 3, who: 'enemy' }] },
+  { id: 'forklift', name: 'Forklift', dept: 'plant', rarity: 'L', heldBy: 'Mike D.', cost: 7, power: 6, patience: 6, words: ['keen'], does: [{ do: 'back', who: 'enemy' }] },
 
   // ---------- Sales: fast, and straight at the other player ----------
   { id: 'mauro', name: 'Mauro', dept: 'sales', rarity: 'C', cost: 1, power: 2, patience: 1, said: 'I\'m young and Italian!' },
@@ -76,21 +79,21 @@ window.CARD_LIST = [
   { id: 'ryan', name: 'Ryan', dept: 'sales', rarity: 'U', cost: 4, power: 3, patience: 2, words: ['keen'], does: [{ do: 'hit', n: 1, who: 'them' }] },
   { id: 'garrett', name: 'Garrett', dept: 'sales', rarity: 'C', cost: 4, power: 3, patience: 3, words: ['keen'], said: 'Do you want to move to Asheville?' },
   { id: 'desirae', name: 'Desirae', dept: 'sales', rarity: 'U', cost: 5, power: 5, patience: 3, words: ['keen'] },
-  { id: 'roadtrip', name: 'Road Trip', dept: 'sales', rarity: 'R', kind: 'task', cost: 3, does: [{ do: 'hit', n: 3, who: 'them' }] },
-  { id: 'truck', name: 'Company Truck', dept: 'sales', rarity: 'L', cost: 6, power: 4, patience: 5, words: ['keen'], does: [{ do: 'hit', n: 3, who: 'them' }] },
+  { id: 'roadtrip', name: 'Road Trip', dept: 'sales', rarity: 'R', heldBy: 'Wade', kind: 'task', cost: 3, does: [{ do: 'hit', n: 3, who: 'them' }] },
+  { id: 'truck', name: 'Company Truck', dept: 'sales', rarity: 'L', heldBy: 'Mauro', cost: 6, power: 4, patience: 5, words: ['keen'], does: [{ do: 'hit', n: 3, who: 'them' }] },
 
   // ---------- Office: clever ----------
   { id: 'davisson', name: 'Davisson', dept: 'office', rarity: 'C', cost: 2, power: 1, patience: 1, does: [{ do: 'draw', n: 1 }], said: 'Everything perfectly organised.' },
   { id: 'leo', name: 'Leo', dept: 'office', rarity: 'C', cost: 2, power: 2, patience: 2, words: ['skin'], said: 'Don\'t click on any links.' },
   { id: 'jhonna', name: 'Jhonna', dept: 'office', rarity: 'C', cost: 3, power: 2, patience: 4, words: ['gate'] },
-  { id: 'stephen', name: 'Stephen', dept: 'office', rarity: 'U', cost: 3, power: 3, patience: 3, does: [{ do: 'freeze', who: 'enemy' }], said: 'EMAILS ARE MUCH EASIER TO READ' },
+  { id: 'stephen', name: 'STEPHEN', dept: 'office', rarity: 'U', cost: 3, power: 3, patience: 3, does: [{ do: 'freeze', who: 'enemy' }], said: 'EMAILS ARE MUCH EASIER TO READ' },
   { id: 'tainah', name: 'Tainah', dept: 'office', rarity: 'C', cost: 3, power: 3, patience: 3, does: [{ team: 'office', do: 'draw', n: 1 }] },
   { id: 'richard', name: 'Richard', dept: 'office', rarity: 'U', cost: 4, power: 3, patience: 4, does: [{ do: 'draw', n: 1 }], said: 'Test your air handling knowledge?' },
   { id: 'nathan', name: 'Nathan', dept: 'office', rarity: 'U', cost: 5, power: 5, patience: 5, words: ['skin'], said: 'Have you seen all of my trophies?' },
-  { id: 'paperjam', name: 'Paper Jam', dept: 'office', rarity: 'U', kind: 'task', cost: 2, does: [{ do: 'back', who: 'enemy' }] },
-  { id: 'budget', name: 'Budget Meeting', dept: 'office', rarity: 'R', kind: 'task', cost: 3, does: [{ do: 'freeze', who: 'enemies' }] },
-  { id: 'reorg', name: 'Reorg', dept: 'office', rarity: 'R', kind: 'task', cost: 4, does: [{ do: 'home', who: 'enemy' }] },
-  { id: 'printer', name: 'The Printer', dept: 'office', rarity: 'L', cost: 4, power: 2, patience: 6, does: [{ when: 'morning', do: 'freeze', who: 'random' }] },
+  { id: 'paperjam', name: 'Paper Jam', dept: 'office', rarity: 'U', heldBy: 'Tainah', kind: 'task', cost: 2, does: [{ do: 'back', who: 'enemy' }] },
+  { id: 'budget', name: 'Budget Meeting', dept: 'office', rarity: 'R', heldBy: 'Jhonna', kind: 'task', cost: 3, does: [{ do: 'freeze', who: 'enemies' }] },
+  { id: 'reorg', name: 'Reorg', dept: 'office', rarity: 'R', heldBy: 'STEPHEN', kind: 'task', cost: 4, does: [{ do: 'home', who: 'enemy' }] },
+  { id: 'printer', name: 'The Printer', dept: 'office', rarity: 'L', heldBy: 'Leo', cost: 4, power: 2, patience: 6, does: [{ when: 'morning', do: 'freeze', who: 'random' }] },
 
   // ---------- Engineering: keeps everything running ----------
   { id: 'matthew', name: 'Matthew', dept: 'engineering', rarity: 'C', cost: 1, power: 1, patience: 1, does: [{ do: 'coffee', n: 1 }], said: 'This is my third coffee.' },
@@ -101,14 +104,14 @@ window.CARD_LIST = [
   { id: 'chris', name: 'Chris', dept: 'engineering', rarity: 'C', cost: 4, power: 4, patience: 4, does: [{ team: 'engineering', do: 'boost', h: 1, who: 'others' }] },
   { id: 'lam', name: 'Lam', dept: 'engineering', rarity: 'U', cost: 4, power: 3, patience: 4, does: [{ do: 'boost', p: 1, who: 'others' }] },
   { id: 'nik', name: 'Nik', dept: 'engineering', rarity: 'U', cost: 4, power: 3, patience: 5, does: [{ when: 'morning', do: 'heal', n: 1, who: 'you' }], said: 'I taught him all he knows.' },
-  { id: 'potluck', name: 'Potluck', dept: 'engineering', rarity: 'U', kind: 'task', cost: 3, does: [{ do: 'summon', id: 'leftovers', n: 2 }] },
-  { id: 'pizza', name: 'Pizza Friday', dept: 'engineering', rarity: 'R', kind: 'task', cost: 4, does: [{ do: 'heal', n: 2, who: 'allies' }, { do: 'boost', p: 1, who: 'allies' }] },
-  { id: 'felix', name: 'Felix', dept: 'engineering', rarity: 'R', cost: 3, power: 0, patience: 7, words: ['gate'], said: 'Meow... yawn... zzzz' },
-  { id: 'officedog', name: 'Office Dog', dept: 'engineering', rarity: 'L', cost: 5, power: 3, patience: 6, words: ['skin'], does: [{ when: 'morning', do: 'draw', n: 1 }] },
+  { id: 'potluck', name: 'Potluck', dept: 'engineering', rarity: 'U', heldBy: 'Jenn', kind: 'task', cost: 3, does: [{ do: 'summon', id: 'leftovers', n: 2 }] },
+  { id: 'pizza', name: 'Pizza Friday', dept: 'engineering', rarity: 'R', heldBy: 'Chris', kind: 'task', cost: 4, does: [{ do: 'heal', n: 2, who: 'allies' }, { do: 'boost', p: 1, who: 'allies' }] },
+  { id: 'felix', name: 'Felix', dept: 'engineering', rarity: 'R', heldBy: 'Kim', cost: 3, power: 0, patience: 7, words: ['gate'], said: 'Meow... yawn... zzzz' },
+  { id: 'officedog', name: 'Office Dog', dept: 'engineering', rarity: 'L', heldBy: 'Dmitriy', cost: 5, power: 3, patience: 6, words: ['skin'], does: [{ when: 'morning', do: 'draw', n: 1 }] },
 
   // ---------- for any deck ----------
-  { id: 'coffeemachine', name: 'Coffee Machine', rarity: 'R', cost: 2, power: 0, patience: 4, does: [{ when: 'morning', do: 'coffee', n: 1 }] },
-  { id: 'firedrill', name: 'Fire Drill', rarity: 'R', kind: 'task', cost: 5, does: [{ do: 'home', who: 'all' }], said: 'Leave your coffee.' },
-  { id: 'humbug', name: 'Humbug', rarity: 'L', cost: 6, power: 4, patience: 4, does: [{ do: 'boost', p: -2, who: 'enemies' }] },
-  { id: 'linda', name: 'Linda', rarity: 'L', cost: 5, power: 4, patience: 5, words: ['skin'], does: [{ when: 'last', do: 'back', who: 'self' }], said: 'Boooooo...' },
+  { id: 'coffeemachine', name: 'Coffee Machine', rarity: 'R', heldBy: 'Matthew', cost: 2, power: 0, patience: 4, does: [{ when: 'morning', do: 'coffee', n: 1 }] },
+  { id: 'firedrill', name: 'Fire Drill', rarity: 'R', heldBy: 'Steve', kind: 'task', cost: 5, does: [{ do: 'home', who: 'all' }], said: 'Leave your coffee.' },
+  { id: 'humbug', name: 'Humbug', rarity: 'L', heldBy: 'Brian', cost: 6, power: 4, patience: 4, does: [{ do: 'boost', p: -2, who: 'enemies' }] },
+  { id: 'linda', name: 'Linda', rarity: 'L', heldBy: 'Davisson', cost: 5, power: 4, patience: 5, words: ['skin'], does: [{ when: 'last', do: 'back', who: 'self' }], said: 'Boooooo...' },
 ];

@@ -868,8 +868,8 @@ window.CARD_ART = (function () {
       for (let x = 0; x < ART_W; x += 29) { p.box(x, 0, 2, ART_H, '#88847c'); p.box(x + 2, 0, 1, ART_H, '#f4f0e4'); }
       p.box(0, 0, ART_W, 3, '#6c7884'); p.box(0, 70, ART_W, 5, '#6c7884');
       for (let x = 7; x < ART_W; x += 29) for (let y = 7; y < 70; y += 12) p.box(x + 11, y, 2, 2, '#a8a498');
-      const cx = 59, cy = 33, top = '#3868c8', skin = '#8a5838';
-      person(p, cx, cy, { skin, hair: '#d06030', top, hairdo: 'buzz', brow: 'angry', mouth: 'flat' });
+      const cx = 59, cy = 33, top = '#f0b030', skin = '#f8d8b8';
+      person(p, cx, cy, { skin, hair: '#e8c050', top, hairdo: 'buzz', brow: 'angry', mouth: 'flat' });
       // arms folded, and not going anywhere
       fig(p, M(p).rbox(cx - 31, 58, 44, 13, 5), top, { sh: [2, 2], hi: [1, 1] });
       fig(p, M(p).rbox(cx - 13, 62, 44, 13, 5), top, { sh: [2, 2], hi: [1, 1] });

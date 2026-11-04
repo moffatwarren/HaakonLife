@@ -3450,6 +3450,8 @@
     snowman: { title: 'SNOWMAN', unit: ' cm' }, cocoa: { title: 'HOT CHOCOLATE STAND', unit: ' stars' }, snowball: { title: 'SNOWBALL FIGHT', unit: ' hits' },
     // the most you've scored in one game of hockey against a coworker (played to the end)
     hockey: { title: 'HOCKEY GOALS', unit: goals },
+    // Morale Madness: how many cards you have, starter cards and all, and how many times you've beaten another player
+    cards: { title: 'CARDS COLLECTED', unit: ' cards' }, cardwins: { title: 'MORALE MADNESS WINS', unit: times, count: true },
     // the side quests: the "score" is how many times that name has done it (see questBoard), as it is for Pong (count)
     linda: { title: 'LINDA SET FREE', unit: times, quest: true, count: true }, eotm: { title: 'EMPLOYEE OF THE MONTH', unit: times, quest: true, count: true },
   };
@@ -3599,7 +3601,7 @@
     ['TVS AND CODY\'S CASINO', ['pong', 'snake', 'poker', 'pokerlive', 'blackjack', 'slots']],
     ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cpr', 'engrave', 'golf', 'legosolo']],
     ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catchrun']],
-    ['BOARD GAMES', ['chess', 'checkers']],
+    ['BOARD AND CARD GAMES', ['chess', 'checkers', 'cards', 'cardwins']],
     ['KINGSTON PLANT', ['forklift', 'paint']],
     ['HALLOWEEN', ['bob', 'mummy', 'carve', 'treat', 'ghosts', 'costume']],
     ['CHRISTMAS', ['chop', 'mallow', 'spruce', 'snowman', 'cocoa', 'snowball', 'hockey', 'humbug']],
@@ -5586,7 +5588,8 @@
     'The column on the left is the last 4 moves, newest at the top. Press Left from the start of a row to look through them.',
   ];
   let cardsNow = null; // the game going on, for trying things out (window.GAME.cards)
-  // o: { foe, npc, level, deck: a department or 'starter', mine: a deck, seed }
+  // o: { foe, npc, level, deck: a department or 'starter', mine: a deck, foeDeck: theirs, seed,
+  //      after(won): called once the game's over and everything's been said }
   function CardsGame(vs, o = {}) {
     const A = CARD_ART, W = 640, H = 480, INK = '#1a1622';
     let me = 0; // your seat (against a player the server says which, in its first view)
@@ -5600,10 +5603,10 @@
     const foeDept = deptOf(foe) || Object.keys(CARDS.DEPTS)[Math.abs(seed) % 4];
     // (on a test address, &deck= picks your deck in a game against a player too)
     const deckName = vs ? (/[#&]deck=(\w+)/.exec(location.hash) || [])[1] : o.deck;
-    const myDeck = o.mine || (deckName && deckName !== 'starter' ? CARDS.buildDeck(every, { dept: deckName, seed: seed + 1 }) : CARDS.STARTER);
+    const myDeck = o.mine || (deckName && deckName !== 'starter' ? CARDS.buildDeck(every, { dept: deckName, seed: seed + 1 }) : vs && !deckName ? cardDeck() : CARDS.STARTER);
     // Against a coworker the rules run here (g). Against a player they run on the game server
     // (server/games/cards.js), and all there is here is what it says you can see.
-    const g = vs ? null : CARDS.create({ decks: [myDeck, CARDS.buildDeck(every, { dept: foeDept, seed: seed + 2 })], seed, names: [playerName || 'You', foe], ai: [0, level], first: o.first });
+    const g = vs ? null : CARDS.create({ decks: [myDeck, o.foeDeck || CARDS.buildDeck(every, { dept: foeDept, seed: seed + 2 })], seed, names: [playerName || 'You', foe], ai: [0, level], first: o.first });
 
     // ---------- what's showing ----------
     // view: what the rules say now. shown: what the table looks like at the moment, catching up with
@@ -6131,7 +6134,9 @@
     function leave(words) {
       remove(self);
       if (vs) vs.end();
-      if (words) say(words);
+      if (wonLive) questBoard('cardwins');
+      const after = doneLines && o.after ? () => o.after(won) : undefined;
+      if (words) say(words, after); else if (after) after();
     }
     function backMenu() {
       menu = Choice(['KEEP PLAYING', 'HOW TO PLAY', vs ? 'RESIGN' : 'LEAVE GAME'], 110, 96, (i) => {
@@ -6185,9 +6190,11 @@
     // the server doesn't have the game any more: because you've been away too long, or it restarted
     const serverLost = () => ended({ why: vs.lost || t - heardT > 180 ? 'lost' : 'stopped' });
     // how it ended: r.w is who won (-1 for a draw). With no r.w, nobody did.
+    let wonLive = false; // (beating another player counts on the board. Them leaving doesn't.)
     function ended(r) {
       if (doneLines) return;
       won = r.w === me || r.why === 'gone';
+      wonLive = !!vs && r.w === me;
       const drew = r.w < 0, nobody = r.w === undefined && !won;
       doneT = t; menu = null; aim = null; noteT = 0;
       sfx(won ? 'cup' : drew || nobody ? 'ding' : 'bump');
@@ -6791,6 +6798,267 @@
       },
     };
     return self;
+  }
+
+  // ---------- your cards ----------
+  // Everybody has the starter cards. Anything else you've won goes where the special items are, in the
+  // database at items/<world>/<name>/c_<id> and in this browser (see itemsCheck). Those rules only let
+  // a 1 be added, so you can't lose a card. Your deck is only kept in this browser: on a new computer
+  // you get the best one your cards can make, until you build another.
+  //
+  // To give out a card some other way, from a quest or anything else, call cardEarned(id).
+  let cardsOwned = new Set(), cardsFor = null;
+  const cardsWho = () => playerName || 'New Hire';
+  const cardKey = (name, what) => (BOARD_POSTS ? '' : 'test.') + what + '.' + boardKey(name);
+  // what this browser remembers (and &havecards=all or &havecards=markv,steve, as if those were yours)
+  function cardsRead(name) {
+    cardsOwned = new Set(); cardsFor = name;
+    const test = (/[#&]havecards=([a-z0-9,]+)/.exec(location.hash) || ['', ''])[1].split(',');
+    for (const c of CARDS.LIST) if (c.rarity !== 'T' && (store.get(itemKey(name, 'c_' + c.id)) === '1' || test[0] === 'all' || test.includes(c.id))) cardsOwned.add(c.id);
+  }
+  // what the database says. One here with nothing there is a save that didn't get through, so it goes
+  // again. A 0 there means it's been taken away by hand.
+  function cardsHeard(name, all) {
+    for (const c of CARDS.LIST) {
+      const key = 'c_' + c.id, v = all[key];
+      if (+v === 1) { cardsOwned.add(c.id); store.set(itemKey(name, key), '1'); }
+      else if (v !== undefined) { cardsOwned.delete(c.id); store.set(itemKey(name, key), ''); }
+      else if (store.get(itemKey(name, key)) === '1') itemFetch(name, '/' + key, { method: 'PUT', body: '1' }).catch(() => {});
+    }
+  }
+  const cardsMine = () => { if (cardsFor !== cardsWho()) cardsRead(cardsWho()); return cardsOwned; };
+  const cardHave = (id) => CARDS.STARTER.includes(id) || cardsMine().has(id);
+  const cardsCount = () => CARDS.LIST.filter((c) => c.rarity !== 'T' && cardHave(c.id)).length;
+  // Your deck: the one you built if you still can, or else the best your cards can make.
+  function cardDeck() {
+    const saved = (store.get(cardKey(cardsWho(), 'carddeck')) || '').split(',');
+    if (!CARDS.deckProblem(saved) && saved.every(cardHave)) return saved;
+    return CARDS.buildDeck([...cardsMine()], { seed: 1 });
+  }
+  // It's yours now, and you get to see it. Says whether it's new to you.
+  function cardEarned(id) {
+    if (!CARDS.card(id) || cardHave(id)) return false;
+    const name = cardsWho(), key = 'c_' + id;
+    cardsOwned.add(id);
+    store.set(itemKey(name, key), '1');
+    itemFetch(name, '/' + key, { method: 'PUT', body: '1' }).catch(() => {});
+    ui.push(CardReveal(id));
+    saveBest('cards', cardsCount());
+    return true;
+  }
+  // A new card, turning over from its back and held up for you to look at.
+  function CardReveal(id) {
+    const A = CARD_ART, c = CARDS.card(id), legend = c.rarity === 'L', rare = legend || c.rarity === 'R';
+    const X = 190, Y = 62, FLIP = 26;
+    let t = 0;
+    sfx(legend ? 'cup' : 'ding');
+    const self = {
+      update() {
+        t++;
+        if (t > FLIP + 12 && (pressed.has('a') || pressed.has('b'))) { sfx('select'); remove(self); }
+      },
+      draw() {
+        ctx.save();
+        ctx.scale(0.5, 0.5);
+        ctx.fillStyle = 'rgba(10,8,18,0.8)'; ctx.fillRect(0, 0, 640, 480);
+        if (rare) {
+          ctx.fillStyle = legend ? 'rgba(248,216,80,0.2)' : 'rgba(216,224,248,0.14)';
+          for (let i = 0; i < 12; i++) {
+            const a = i * Math.PI / 6 + t / 90;
+            ctx.beginPath(); ctx.moveTo(320, 244);
+            ctx.lineTo(320 + Math.cos(a) * 420, 244 + Math.sin(a) * 420);
+            ctx.lineTo(320 + Math.cos(a + 0.2) * 420, 244 + Math.sin(a + 0.2) * 420);
+            ctx.fill();
+          }
+        }
+        const u = Math.min(1, t / FLIP), w = Math.max(2, Math.round(Math.abs(Math.cos(u * Math.PI)) * 260)), x = 320 - (w >> 1);
+        ctx.drawImage(u < 0.5 ? backOfCard() : bigCard(id), x, Y, w, 364);
+        if (u >= 1) {
+          if (legend) ctx.drawImage(A.canvasOf(A.artFrame(id, t)), X + 12, Y + 44, 236, 150);
+          A.shine(ctx, X, Y, 260, 364, t, c.rarity);
+          const top = cardWord('NEW CARD!', '#f8d850', 2);
+          ctx.drawImage(top, Math.round(320 - top.width / 2), 16);
+          const low = cardWord('It\'s yours to keep. Find it in MY CARDS.', '#f4ecd8');
+          ctx.drawImage(low, Math.round(320 - low.width / 2), 438);
+        }
+        ctx.restore();
+      },
+    };
+    return self;
+  }
+  // MY CARDS in the Start menu: everything you've won, and the 20 you play with.
+  function DeckApp() {
+    const A = CARD_ART, COLS = 4, ROWS = 3, GX = 276, GY = 42, SIZE = CARDS.RULES.DECK;
+    const dept = (d) => (c) => c.dept === d;
+    const TABS = [['MY DECK'], ['PLANT', dept('plant')], ['SALES', dept('sales')], ['OFFICE', dept('office')], ['ENGINEERING', dept('engineering')], ['OTHER', (c) => !c.dept], ['FILL IT']];
+    const FILL = TABS.length - 1;
+    const byCost = (a, b) => a.cost - b.cost || a.name.localeCompare(b.name);
+    const start = cardDeck();
+    let draft = start.slice(), tab = 0, at = 0, scroll = 0, onTabs = false, t = 0, note = '', noteT = 0;
+    const list = () => (TABS[tab][1]
+      ? CARDS.LIST.filter((c) => c.rarity !== 'T' && TABS[tab][1](c)).sort(byCost).map((c) => c.id)
+      : draft.map(CARDS.card).sort(byCost).map((c) => c.id));
+    const flash = (str) => { note = str; noteT = 170; };
+    const legal = () => !CARDS.deckProblem(draft);
+    const winFrom = (id) => {
+      const who = CARDS.wonFrom(id);
+      return !who ? '' : 'Beat ' + who + (CARDS.prizes(who).indexOf(id) > 0 ? ' twice' : '') + ' to win this.';
+    };
+    function toggle(id) {
+      const c = CARDS.card(id);
+      if (!cardHave(id)) { sfx('bump'); flash('Not yours yet. ' + winFrom(id)); return; }
+      if (draft.includes(id)) { draft = draft.filter((x) => x !== id); sfx('select'); return; }
+      if (draft.length >= SIZE) { sfx('bump'); flash('Your deck is full. Take one out first.'); return; }
+      if (c.rarity === 'L' && draft.some((x) => CARDS.card(x).rarity === 'L')) { sfx('bump'); flash('A deck can only have one legendary.'); return; }
+      draft.push(id);
+      sfx('blip');
+    }
+    function fill() {
+      if (draft.length >= SIZE) { sfx('bump'); flash('Your deck is full already.'); return; }
+      draft = CARDS.buildDeck([...cardsMine()], { must: draft, seed: t + 1 });
+      sfx('menu');
+      flash('Filled up with the best of what you have.');
+    }
+    function goBack() {
+      if (legal()) {
+        // (only if you changed something: until then it's still the best your cards can make)
+        if (draft.slice().sort().join() !== start.slice().sort().join()) store.set(cardKey(cardsWho(), 'carddeck'), draft.join(','));
+        sfx('select');
+        remove(self);
+        return;
+      }
+      ask('Your deck has ' + draft.length + ' of ' + SIZE + ' cards. If you go now, you keep the last deck you finished.', ['KEEP BUILDING', 'GO ANYWAY'], (i) => { if (i === 1) remove(self); });
+    }
+    const self = {
+      doing: 'deck',
+      update() {
+        t++;
+        if (noteT > 0) noteT--;
+        if (pressed.has('b')) { goBack(); return; }
+        if (onTabs) {
+          const was = tab;
+          if (pressed.has('left')) tab = (tab + TABS.length - 1) % TABS.length;
+          if (pressed.has('right')) tab = (tab + 1) % TABS.length;
+          if (tab !== was) { sfx('blip'); at = 0; scroll = 0; }
+          if (pressed.has('a') && tab === FILL) { fill(); return; }
+          if ((pressed.has('down') || pressed.has('a')) && list().length) { onTabs = false; sfx('blip'); }
+          return;
+        }
+        const ids = list(), n = ids.length;
+        if (!n) { onTabs = true; return; }
+        if (at >= n) at = n - 1;
+        const was = at;
+        if (pressed.has('left') && at > 0) at--;
+        if (pressed.has('right') && at < n - 1) at++;
+        if (pressed.has('down')) { if (at + COLS < n) at += COLS; else if (Math.floor(at / COLS) < Math.floor((n - 1) / COLS)) at = n - 1; }
+        if (pressed.has('up')) { if (at >= COLS) at -= COLS; else { onTabs = true; sfx('blip'); return; } }
+        if (at !== was) sfx('blip');
+        const row = Math.floor(at / COLS);
+        if (row < scroll) scroll = row;
+        if (row >= scroll + ROWS) scroll = row - ROWS + 1;
+        if (pressed.has('a')) toggle(ids[at]);
+      },
+      draw() {
+        ctx.save();
+        ctx.scale(0.5, 0.5);
+        const fr = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+        const say2 = (str, x, y, c = '#f4ecd8', n = 1) => ctx.drawImage(cardWord(str, c, n), x, y);
+        fr(0, 0, 640, 480, '#2a2230');
+        // the tabs
+        let tx = 6;
+        TABS.forEach(([label], i) => {
+          const w = label.length * 12 + 8, on = i === tab;
+          fr(tx, 6, w, 28, on ? (onTabs ? '#f8d850' : '#c8a030') : '#4c4058');
+          say2(label, tx + 4, 11, on ? '#1a1622' : '#d8d0e0');
+          tx += w + 2;
+        });
+        // what's picked, full size
+        const ids = list(), id = ids[Math.min(at, ids.length - 1)];
+        const c = id && CARDS.card(id), yours = id && cardHave(id);
+        if (id) {
+          ctx.drawImage(yours ? bigCard(id) : backOfCard(), 6, 40, 260, 364);
+          if (yours && c.rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(id, t)), 18, 84, 236, 150);
+          if (yours) A.shine(ctx, 6, 40, 260, 364, t, c.rarity);
+          else {
+            const nm = cardWord(c.name, '#f8d850');
+            fr(14, 196, 244, 28, '#1a1622');
+            ctx.drawImage(nm, Math.round(136 - nm.width / 2), 201);
+          }
+        }
+        // the page of cards
+        ids.slice(scroll * COLS, (scroll + ROWS) * COLS).forEach((cid, i) => {
+          const x = GX + (i % COLS) * 92, y = GY + Math.floor(i / COLS) * 120, k = CARDS.card(cid), have = cardHave(cid), sel = !onTabs && scroll * COLS + i === at;
+          if (have) {
+            ctx.drawImage(smallCard(cid, { cost: true }), x, y);
+            if (k.rarity === 'L') { const [cx, cy] = A.cropOf(cid); ctx.drawImage(A.canvasOf(A.artFrame(cid, t)), cx, cy, 72, 72, x + 8, y + 8, 72, 72); }
+            A.shine(ctx, x, y, 88, 116, t, k.rarity, 8);
+          } else {
+            ctx.drawImage(backOfCard(), x, y);
+            fr(x, y, 88, 116, 'rgba(20,16,28,0.55)');
+            say2('?', x + 38, y + 49, '#d8d0e0');
+          }
+          if (TABS[tab][1] && draft.includes(cid)) { fr(x + 60, y + 2, 26, 22, '#1a1622'); fr(x + 62, y + 4, 22, 18, '#48a048'); say2('IN', x + 62, y + 5, '#ffffff'); }
+          if (sel) { fr(x - 3, y - 3, 94, 3, '#f8d850'); fr(x - 3, y + 116, 94, 3, '#f8d850'); fr(x - 3, y, 3, 116, '#f8d850'); fr(x + 88, y, 3, 116, '#f8d850'); }
+        });
+        const rows = Math.ceil(ids.length / COLS);
+        if (scroll > 0) say2('^', 626, 42, '#f8d850');
+        if (scroll + ROWS < rows) say2('v', 626, 378, '#f8d850');
+        if (!ids.length) say2('Nothing in your deck yet.', GX + 20, 180);
+        // what A does, or how to get it
+        const wrapped = [];
+        const line = noteT > 0 ? note : onTabs ? (tab === FILL ? 'A: fill up your deck with the best of what you have.' : 'Left and Right: another page. Down: its cards.')
+          : !id ? '' : !yours ? winFrom(id) : draft.includes(id) ? 'In your deck. A: take it out.' : 'A: put it in your deck.';
+        let cur = '';
+        for (const word of line.split(' ')) { if ((cur + ' ' + word).trim().length > 21) { wrapped.push(cur); cur = word; } else cur = (cur + ' ' + word).trim(); }
+        wrapped.push(cur);
+        wrapped.slice(0, 3).forEach((str, i) => say2(str, 8, 410 + i * 20, noteT > 0 ? '#f8d850' : '#f4ecd8'));
+        // the coffee curve, and how you're doing
+        const count = Array(9).fill(0);
+        for (const d of draft) count[Math.min(8, CARDS.card(d).cost)]++;
+        const most = Math.max(4, ...count);
+        count.forEach((n, i) => {
+          const x = GX + i * 26, h = Math.round(n / most * 40);
+          fr(x, 454 - h, 20, h, '#c88840');
+          fr(x, 454, 20, 2, '#685848');
+          say2(i === 8 ? '+' : String(i), x + 4, 458, '#a89cb8');
+        });
+        const size = draft.length + '/' + SIZE;
+        say2(size, 636 - size.length * 24, 408, legal() ? '#58d868' : '#f8d850', 2);
+        const coll = cardsCount() + ' of ' + CARDS.LIST.filter((k) => k.rarity !== 'T').length;
+        say2(coll, 636 - coll.length * 12, 458, '#a89cb8');
+        ctx.restore();
+      },
+    };
+    return self;
+  }
+  // Opening MY CARDS for the first time says what it's all about, and from then on coworkers offer you
+  // a game when you talk to them. Nobody who hasn't opened it gets asked.
+  const cardsOpened = () => !!store.get(cardKey(cardsWho(), 'cardsopen')) || cardsMine().size > 0;
+  function openMyCards() {
+    const first = !cardsOpened();
+    ui.push(DeckApp());
+    if (!first) return;
+    store.set(cardKey(cardsWho(), 'cardsopen'), '1');
+    const LINES = [
+      'These are your cards, for playing Morale Madness. Everybody starts with the same 20.',
+      'Now when you talk to a coworker, they\'ll offer you a game. Beat them and their card is yours.',
+      'Some of them are holding on to something rarer, and you\'ll see it played against you. Beat them again and you win that too.',
+      'You can\'t lose a card. Pick any 20 here, one of each and at most one legendary, and that\'s your deck against coworkers and other players.',
+      'In a game, B opens a menu with HOW TO PLAY.',
+    ];
+    const next = (k) => { if (k < LINES.length) say(LINES[k], () => next(k + 1)); };
+    next(0);
+  }
+  // Talking to a coworker: how good they are and what they're playing for, then the game.
+  function cardOffer(npc) {
+    const foe = npc.name, level = tableLevel(foe), all = CARDS.prizes(foe), next = all.find((id) => !cardHave(id));
+    const str = foe + ' at cards: ' + TABLE_SKILL[level] + '. ' + (!next ? 'You have everything they play for, so this one\'s just for fun.'
+      : next === all[0] && CARDS.card(next).name === foe ? 'Beat them and their card is yours.' : 'Beat them and you win ' + CARDS.card(next).name + '.');
+    ask(str, ['DEAL ME IN', 'NOT NOW'], (i) => {
+      if (i !== 0) return;
+      sfx('menu');
+      ui.push(CardsGame(null, { npc, foe, level, mine: cardDeck(), foeDeck: CARDS.foeDeck(foe, level), after(won) { if (won && next) cardEarned(next); } }));
+    });
   }
 
   // ---------- Pong on the big TV ----------
@@ -13639,6 +13907,7 @@
       .concat(quest ? [['LINDA\'S LIST', () => ui.push(LindaList())]] : [])
       .concat(kikiList ? [['KIKI\'S LIST', () => ui.push(KikiList())]] : [])
       .concat([
+        ['MY CARDS', () => openMyCards()],
         ['EDIT CHARACTER', (self) => { remove(self); editAgain(); }],
         [ZOOMS[zoomPick][0], (self) => { zoomPick = (zoomPick + 1) % ZOOMS.length; store.set('zoom', zoomPick); self.options = items().map((o) => o[0]); sfx('select'); }],
         [soundOn ? 'SOUND ON' : 'SOUND OFF', (self) => { soundOn = !soundOn; store.set('sound', soundOn ? 'on' : 'off'); self.options = items().map((o) => o[0]); sfx('select'); }],
@@ -14871,6 +15140,7 @@
     pong: 'Playing Pong', toss: 'Playing Paper Toss', stack: 'Playing Photocopier', simon: 'Playing Control Panel',
     lunch: 'Playing Find My Lunch', candy: 'Playing Candy Table', squat: 'Playing Squat Rack', golf: 'Playing mini golf',
     cards: 'Playing Morale Madness',
+    deck: 'Sorting their cards',
     dark: 'Playing Damir\'s Lights', duel: 'Playing Air Duel', fan: 'Playing Fan Balancing', coil: 'Playing Cooling Coil',
     damper: 'Playing Dampers', filter: 'Playing Filter Change', snake: 'Playing Snake', parts: 'Playing Parts Sorting',
     cable: 'Playing Cable Tidy', cpr: 'Playing CPR', engrave: 'Playing Engraver', pulldown: 'Playing Lat Pulldown',
@@ -19283,20 +19553,24 @@
       Dmitriy: ['Nik says he taught me to cook? I ran the line, not him. Let\'s see your knife skills.', 'PICK UP THE KNIFE', CarrotGame, 'Keep your fingers, then.', 'NOT NOW'],
       Joe: ['Lego brick battle! Winner is the office master builder. You in?', 'CHALLENGE ACCEPTED', LegoGame, 'Scared of a few bricks? My baseplate is always open.', 'NOT TODAY'],
     };
+    // (once you've opened MY CARDS, anyone with a card to play for will give you a game of that too)
+    const cards = cardsOpened() && CARDS.prizes(npc.name).length > 0;
     if (OFFERS[npc.name]) {
       const [msg, yes, Game, no, noLabel] = OFFERS[npc.name];
       const lines = [].concat(msg);
       const offer = (k) => {
         if (k < lines.length - 1) { say(says(lines[k]), () => offer(k + 1)); return; }
-        ask(says(lines[k]), [yes, noLabel || 'NO THANKS'], (i) => {
-          if (i === 0) { sfx('menu'); ui.push(Game()); } else say(says(no));
+        ask(says(lines[k]), [yes].concat(cards ? ['MORALE MADNESS'] : [], [noLabel || 'NO THANKS']), (i) => {
+          if (i === 0) { sfx('menu'); ui.push(Game()); } else if (cards && i === 1) cardOffer(npc); else say(says(no));
         });
       };
       offer(0);
       return;
     }
     if (npc.ghost) { lindaTalk(npc, says); return; } // Linda, her list and her stapler
-    say(says(npc.lines[Math.floor(Math.random() * npc.lines.length)]));
+    const line = says(npc.lines[Math.floor(Math.random() * npc.lines.length)]);
+    if (cards) ask(line, ['MORALE MADNESS', 'BYE'], (i) => { if (i === 0) cardOffer(npc); });
+    else say(line);
   }
 
   // Using what's on the tile at tx, ty, or false if there's nothing there to use.
@@ -19698,6 +19972,7 @@
   function itemsCheck(name, comingIn) {
     const ask = itemsAsk = {};
     items = {}; itemsTold = {}; itemsHeard = false;
+    cardsRead(name || 'New Hire');
     for (const item in ITEMS) {
       const v = store.get(itemKey(name, item));
       if (v) items[item] = +v;
@@ -19711,6 +19986,7 @@
       itemsAsk = null;
       if (heard) {
         itemsHeard = true;
+        cardsHeard(name || 'New Hire', heard.all);
         for (const item in ITEMS) {
           const v = heard.all[item];
           if (v !== undefined) { items[item] = +v === 1 ? 1 : 0; store.set(itemKey(name, item), String(items[item])); }
@@ -20536,6 +20812,7 @@
       pokertable: () => PokerApp(null, true), pokerlive: LivePoker, bjtable: () => BlackjackApp(null, true),
       hockey: () => HockeyGame(gateKeeper || npcs.find((n) => !n.ghost && !n.extra)), hockey1: () => LiveHockey(2), hockey2: () => LiveHockey(4), hockey3: () => LiveHockey(6), signhockey: () => SignUp('hockey'), signpoker: () => SignUp('poker'),
       chess: () => ChessGame(null, null, q.get('fen')), checkers: () => CheckersGame(null, null, q.get('fen')),
+      deck: () => DeckApp(),
       cards: () => CardsGame(null, { deck: q.get('deck'), foe: q.get('foe'), level: +q.get('level') || 0, seed: +q.get('seed') || 0, first: q.has('first') ? +q.get('first') : undefined }),
       forklift: ForkliftGame, paint: PaintGame, contest: CostumeContest, hsplash: HalloweenSplash, bob: BobGame, mummy: MummyGame, carve: CarveGame, treat: TreatGame, ghosts: GhostGame, locker: LockerScreen, list: LindaList, kiki: KikiList, eotm: EmployeeOfMonth,
       chop: ChopGame, mallow: MallowGame, spruce: SpruceGame, snowman: SnowmanGame, cocoa: CocoaGame, snowball: SnowballGame, humbug: HumbugGame,
@@ -20661,5 +20938,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get cards() { return cardsNow; } };
+  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get cards() { return cardsNow; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, get myCards() { return [...cardsMine()]; } };
 })();

@@ -809,6 +809,56 @@ test('a view isn\'t huge, even late in a long game', () => {
   assert.ok(JSON.stringify(fresh(s, 0)).length < 6000, JSON.stringify(fresh(s, 0)).length + ' characters');
 });
 
+// ---------- winning cards from coworkers ----------
+const staffCtx = vm.createContext({ window: {} });
+vm.runInContext(readFileSync(new URL('../../js/people.js', import.meta.url), 'utf8'), staffCtx, { filename: 'js/people.js' });
+const staff = new Set();
+for (const [key, who] of Object.entries(staffCtx.window.PEOPLE || {})) staff.add(who.name || key);
+for (const who of Object.values(staffCtx.window.PLANT_CREW || {})) staff.add(who.name);
+for (const who of Object.values(staffCtx.window.VISITORS || {})) staff.add(who.name);
+const opponents = [...new Set(CARDS.LIST.map((c) => CARDS.wonFrom(c.id)).filter(Boolean))];
+
+test('every card can be won from somebody who works there, or is yours from the start', () => {
+  for (const c of CARDS.LIST.filter((x) => x.rarity !== 'T')) {
+    const who = CARDS.wonFrom(c.id);
+    if (c.rarity === 'S') { assert.equal(who, null, c.id); continue; }
+    assert.ok(staff.has(who), c.id + ' is won from ' + who + ', who is nobody in js/people.js');
+    assert.ok(plain(CARDS.prizes(who)).includes(c.id), c.id);
+  }
+  assert.equal(CARDS.wonFrom('legobrick'), null); // (brought in by other cards, never won)
+});
+
+test('you win a coworker\'s own card first, then what they\'re holding', () => {
+  assert.deepEqual(plain(CARDS.prizes('Jillian')), ['jillian', 'bigcoil']);
+  assert.deepEqual(plain(CARDS.prizes('Kim')), ['felix']); // (no card of her own yet)
+  assert.deepEqual(plain(CARDS.prizes('Patrick')), ['patrick']);
+  assert.deepEqual(plain(CARDS.prizes('Nobody At All')), []);
+});
+
+test('nobody holds more than one thing, so they can play it all', () => {
+  for (const who of opponents) {
+    const held = CARDS.prizes(who).filter((id) => CARDS.card(id).name !== who);
+    assert.ok(held.length <= 1, who + ' is holding ' + held.join(', '));
+  }
+});
+
+test('a coworker plays a legal deck with what they\'re playing for in it, the same one every time', () => {
+  for (const who of opponents) for (const level of [1, 2, 3, 4]) {
+    const deck = plain(CARDS.foeDeck(who, level));
+    assert.equal(CARDS.deckProblem(deck), null, who + ' at level ' + level);
+    for (const id of CARDS.prizes(who)) assert.ok(deck.includes(id), who + ' should have ' + id);
+    assert.deepEqual(plain(CARDS.foeDeck(who, level)), deck);
+    // (the only legendary they ever have is the one they hold)
+    for (const id of deck) if (CARDS.card(id).rarity === 'L') assert.equal(CARDS.card(id).heldBy, who);
+  }
+});
+
+test('a beginner has plainer cards than a shark, apart from what they\'re playing for', () => {
+  const others = (level) => plain(CARDS.foeDeck('Patrick', level)).filter((id) => id !== 'patrick').map((id) => CARDS.card(id).rarity);
+  assert.ok(others(1).every((r) => r === 'S' || r === 'C'));
+  assert.ok(others(4).some((r) => r === 'U' || r === 'R'));
+});
+
 // ---------- the pictures ----------
 const artCtx = vm.createContext({ window: {} });
 for (const f of ['font.js', 'cardlist.js', 'cardart.js']) {
