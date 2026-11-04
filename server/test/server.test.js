@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import WebSocket from 'ws';
 import { start } from '../index.js';
 import * as cards from '../games/cards.js';
+import { Room } from '../rooms.js';
 
 // first to 3 presses wins; ticks fast so the tests don't wait
 const count = {
@@ -15,9 +16,11 @@ const count = {
   view: (s, seat) => ({ mine: s.n[seat], theirs: s.n[1 - seat] }),
 };
 const broken = { create: () => ({}), tick() { throw new Error('oops'); } };
+// nothing to it but a clock, to see when it's running
+const ticker = { hz: 50, create: () => ({ n: 0 }), tick(s) { s.n++; }, view: (s) => ({ n: s.n }) };
 
 const PORT = 18080 + Math.floor(Math.random() * 1000);
-const srv = start({ port: PORT, games: { count, broken, cards } });
+const srv = start({ port: PORT, games: { count, broken, cards, ticker } });
 after(() => srv.close());
 
 let n = 0;
@@ -271,6 +274,45 @@ test('a player dropping out and coming back carries on the game', async () => {
   a.send({ k: 'to', to: b.id, m: { k: 'quit', m } });
   await b2.for((d) => d.k === 'end');
   a.ws.close(); b2.ws.close();
+});
+
+test('a game stands still while someone has dropped out, and carries on after they come back', async () => {
+  const { a, b, m } = await match('ticker');
+  await a.for((d) => d.k === 'st' && d.s.n > 2);
+  b.ws.close();
+  const first = await a.for((d) => d.k === 'st' && d.w === 1);
+  a.got.length = 0;
+  await pause(250);
+  assert.ok(a.got.length > 3, 'it still says how things stand');
+  assert.ok(a.got.every((d) => d.k !== 'st' || (d.w === 1 && d.s.n === first.s.n)), 'nothing has moved');
+  // they're back: everyone gets a moment, then it goes on from where it was
+  const b2 = client('test', b.id, 'k' + b.id);
+  await b2.open();
+  a.got.length = 0;
+  const ready = await a.for((d) => d.k === 'st' && d.w === 3);
+  assert.equal(ready.s.n, first.s.n);
+  const on = await a.for((d) => d.k === 'st' && !d.w, 3500);
+  assert.equal(on.s.n, first.s.n + 1);
+  a.send({ k: 'to', to: b.id, m: { k: 'quit', m } });
+  await b2.for((d) => d.k === 'end');
+  a.ws.close(); b2.ws.close();
+});
+
+test('someone who has stopped sending anything stops the game, then loses it', async () => {
+  const quiet = { a: 0, b: 7000 }, got = { a: [], b: [] };
+  let done = 0;
+  const room = new Room({ id: 'r', game: ticker, seats: ['a', 'b'], seed: 1, send: (pid, msg) => got[pid].push(msg), done: () => { done++; }, quiet: (pid) => quiet[pid] });
+  await pause(80);
+  // (it's waiting for b, and b's told it's waiting for them)
+  const st = (pid) => got[pid].filter((d) => d.k === 'st');
+  assert.ok(st('a').length > 1);
+  assert.ok(st('a').every((d) => d.w === 1 && d.s.n === 0));
+  assert.ok(st('b').every((d) => d.w === 2 && d.s.n === 0));
+  quiet.b = 13000;
+  await pause(60);
+  assert.deepEqual(got.a.at(-1), { k: 'end', m: 'r', r: { quit: 1 } });
+  assert.equal(done, 1);
+  assert.equal(room.over, true);
 });
 
 test('a game that crashes ends with an error, and the server carries on', async () => {

@@ -658,15 +658,15 @@ which tile they're on (and has them walking from tile to tile).
     runs this one (`server/games/cards.js`), so it's only in the list when there is one, and it's
     the server that shuffles and says who won.
 
-  **If a connection drops**, yours or theirs, the game waits 12 seconds in case it comes back,
-  with a note across the top of the screen saying who it's waiting for, and carries on if it does.
-  A game the browsers run holds on to your moves and sends them when you're back. A game the server
-  runs keeps going while it waits, so in Pong, Forklift Rush and the snowball fight you can lose
-  points while you're away, and in chess, checkers and Office Politics your clock keeps running. If
-  it doesn't come back, the one still there is told the other player left, and the one who dropped
-  out is told it was them. A tab left in the background or a laptop closed for that long counts too.
-  Closing the tab on purpose ends it straight away. It's `mpUpdate` in `js/game.js`, with the note
-  in `mpDropNote`.
+  **If a connection drops**, yours or theirs, the game pauses for up to 12 seconds in case it comes
+  back, in every one of these games: nothing moves, clocks stop, the music stops, and a note across
+  the top of the screen says who it's waiting for. Nobody can move in the meantime. Once everyone's
+  back it holds on for 2 more seconds so nobody's caught out, then carries on, and in a game the
+  browsers run, a move that was on its way as the connection dropped gets sent again. If it doesn't come back, the one still there is told the other player left, and
+  the one who dropped out is told it was them. A tab left in the background or a laptop closed
+  counts too: the game pauses after about 6 seconds with nothing from them, and it's over at 12.
+  Closing the tab on purpose ends it straight away. It's `mpWaiting` and `mpUpdate` in
+  `js/game.js`, `mpDropNote` for the note, and `step` in `server/rooms.js` for a game the server runs.
 
   The treadmill, Snake, the control panel and mini golf carry on until you're both done.
 

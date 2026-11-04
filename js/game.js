@@ -667,7 +667,7 @@
     music = { name, song: SONGS[name], step: 0, next: actx.currentTime + 0.05, out };
   }
   setInterval(() => {
-    if (!music || !actx) return;
+    if (!music || !actx || music.held) return;
     const step = 60 / music.song.bpm / 2;
     if (music.next < actx.currentTime - 0.5) music.next = actx.currentTime + 0.02; // came back from a background tab
     while (music.next < actx.currentTime + 0.12) {
@@ -680,6 +680,12 @@
       music.step++; music.next += step;
     }
   }, 30);
+  // A head-to-head game standing still (mpWaiting): the song stops where it is, and picks up from there.
+  function musicHold(on) {
+    if (!music || !actx || !!music.held === on) return;
+    music.held = on;
+    if (!on) music.next = actx.currentTime + 0.02;
+  }
   // Where the song is right now, in eighth-note steps (fractional), or null if it isn't playing.
   // Notes are scheduled a little ahead, so this backs up from the next step to what's audible.
   function musicPos(name) {
@@ -6177,7 +6183,7 @@
       else serverLost();
     }
     // the server doesn't have the game any more: because you've been away too long, or it restarted
-    const serverLost = () => ended({ why: t - heardT > 180 ? 'lost' : 'stopped' });
+    const serverLost = () => ended({ why: vs.lost || t - heardT > 180 ? 'lost' : 'stopped' });
     // how it ended: r.w is who won (-1 for a draw). With no r.w, nobody did.
     function ended(r) {
       if (doneLines) return;
@@ -14829,6 +14835,7 @@
   const MP_LIVE = 12000; // ms without word from a player before they count as gone
   const MP_ASK = 30000; // ms a challenge waits for an answer
   const MP_HOLD = 40; // moves a match keeps for when your connection's back
+  const MP_BACK = 2000; // ms a game holds on once everyone's back, so nobody's caught out
   // ms you then get to answer one that waited for you to come out of a menu (with MP_ASK,
   // this has to stay under the game server's ASK_MS or a game it runs won't start)
   const MP_ANSWER = 20000;
@@ -14893,8 +14900,8 @@
   // can only be picked when there's a game server. A game with `christmas: true` is only
   // in the list once Christmas has first come round (SEASON_FROM), and from then on for
   // good; &christmas=1 puts it there early for testing. Anybody can still accept one. Every match
-  // gives a dropped connection a while to come back (see mpUpdate). A game with `waits: true` has
-  // its own clock for someone who's stopped playing, so it doesn't give up on a silent player.
+  // stands still while a connection's down, and gives it a while to come back (see mpUpdate and
+  // mpWaiting).
   const VERSUS = {
     duel: { label: 'AIR DUEL', title: 'an air handling duel', Game: (m) => BattleGame(m) },
     jar: { label: 'CANDY JAR', title: 'a candy jar guess-off', Game: (m) => CandyJarGame(m) },
@@ -14910,7 +14917,7 @@
     snowball: { label: 'SNOWBALL FIGHT', title: 'a snowball fight', server: true, christmas: true, Game: (m) => SnowballGame(m) },
     chess: { label: 'CHESS', title: 'a game of chess', server: true, Game: (m) => ChessGame(m) },
     checkers: { label: 'CHECKERS', title: 'a game of checkers', server: true, Game: (m) => CheckersGame(m) },
-    cards: { label: 'OFFICE POLITICS', title: 'a game of Office Politics', server: true, waits: true, Game: (m) => CardsGame(m) },
+    cards: { label: 'OFFICE POLITICS', title: 'a game of Office Politics', server: true, Game: (m) => CardsGame(m) },
   };
   // The little picture beside each game in the challenge list, with the same keys as VERSUS
   // (see listIcon).
@@ -15134,7 +15141,7 @@
     } else if (d.k === 'm' && d.m && typeof d.m === 'object') {
       mp.mail.push(d.m);
     } else if (m && m.server && d.m === m.id) {
-      if (d.k === 'st') { m.view = d.s; m.stAt = Date.now(); } else if (d.k === 'end') m.result = d.r === undefined ? null : d.r;
+      if (d.k === 'st') { m.view = d.s; m.stAt = Date.now(); m.held = +d.w || 0; } else if (d.k === 'end') m.result = d.r === undefined ? null : d.r;
     }
   }
 
@@ -15270,18 +15277,28 @@
   // you is on a touch screen, so a game that goes easier on touch does for both of you.
   // In a game the server runs (`server`), view, input() and result take the place of
   // take() and send() (see VERSUS).
-  // A word over the top of any head-to-head game while a connection's down, yours or theirs, since
-  // otherwise it just looks stuck.
-  function mpDropNote() {
+  // What a match is standing still for: 'you' (your connection), 'them' (theirs), 'back' (everyone's
+  // back, and it carries on in a moment) or '' if it's on. While it isn't '', the game doesn't
+  // update (see update) and the music stops, in every head-to-head game. In a game the server runs
+  // it's the server that has stopped, and says so; a game the browsers run works it out for itself.
+  function mpWaiting() {
     const m = mp.match;
-    if (!m || m.gone || m.result !== undefined) return;
+    if (!m || m.gone || m.result !== undefined) return '';
     const now = Date.now(), o = mp.others[m.opp];
-    const str = m.off || (m.server && m.stAt && now - m.stAt > 4000) ? 'Trying to get back to the game...'
-      : !o || now - o.seen > 6000 ? m.name + ' dropped out. Waiting for them...' : '';
-    if (!str) return;
-    const w = str.length * 6 + 16;
-    box(Math.round((SW - w) / 2), 6, w, 22);
-    ctext(str, 13);
+    if (m.off || (m.server && (m.held === 2 || (m.stAt && now - m.stAt > 2000)))) { m.waitAt = now; return 'you'; }
+    if (m.server ? m.held === 1 : !o || now - o.seen > 6000) { m.waitAt = now; return 'them'; }
+    return (m.server ? m.held === 3 : now - m.waitAt < MP_BACK) ? 'back' : '';
+  }
+  // A word over the top of the game while it's standing still, since otherwise it just looks stuck.
+  function mpDropNote() {
+    const why = mpWaiting();
+    if (!why) return;
+    const str = why === 'you' ? 'Trying to get back to the game...' : why === 'them' ? mp.match.name + ' dropped out. Waiting for them...' : 'Everyone\'s back. Get ready...';
+    ctx.fillStyle = 'rgba(10,8,18,0.45)'; ctx.fillRect(0, 0, SW, SH);
+    const w = Math.max(str.length * 6 + 16, 80);
+    box(Math.round((SW - w) / 2), 6, w, 36);
+    ctext('PAUSED', 13, '#b83028');
+    ctext(str, 27);
   }
   function mpMatch(id, opp, name, seed, soft, server) {
     const o = mp.others[opp];
@@ -15290,8 +15307,9 @@
       sprites: o ? mpSprites(o) : charSprites.male[0], look: o ? o.look : null, code: o ? o.a : '', xs: o ? o.xs : '',
       server: !!server, view: null, result: undefined,
       // off, missing: when your connection and theirs dropped, if they're down now. lost: it ended
-      // because of you, not them. out: moves waiting for your connection. stAt: when the server last spoke.
-      off: 0, missing: 0, lost: false, out: [], stAt: 0,
+      // because of you, not them. out: moves waiting for your connection. stAt: when the server last
+      // spoke, and held what it said about waiting (w in server/rooms.js). waitAt: when it last waited.
+      off: 0, missing: 0, lost: false, out: [], stAt: 0, held: 0, waitAt: 0,
       send(data) {
         const msg = Object.assign({}, data, { k: 'mv', m: id });
         if (!MP_WS || (ws.sock && ws.sock.readyState === 1)) mpSend(opp, msg);
@@ -15310,7 +15328,6 @@
   function mpStart(id, opp, name, seed, game, soft) {
     sfx('menu');
     mp.match = mpMatch(id, opp, name, seed, soft, VERSUS[game].server);
-    mp.match.waits = !!VERSUS[game].waits;
     ui.push(VERSUS[game].Game(mp.match));
   }
   // Waiting for the other player to answer your challenge.
@@ -15393,6 +15410,12 @@
     if (!MP_ON || (mode !== 'play' && !edit.back)) return;
     if (!mp.on) mpConnect();
     mpPut();
+    // This copy was frozen too long (a phone put away), so they'll have given up on you. That goes
+    // first, since if they've left since then, it was still you who went missing.
+    if (mp.match && !mp.match.gone && Date.now() - mp.tickAt > MP_LIVE) {
+      mpSend(mp.match.opp, { k: 'quit', m: mp.match.id });
+      mp.match.gone = true; mp.match.lost = true;
+    }
     while (mp.mail.length) mpMail(mp.mail.shift());
     // A challenge waiting for you: it comes up once you're out of your menu. If you've gone
     // into a game instead, you're busy after all.
@@ -15407,20 +15430,20 @@
       say('The challenge ran out of time.');
     }
     // Is the match still on? A dropped connection might well come back (a phone changing networks,
-    // a flaky signal), so yours or theirs gets MP_LIVE to, and whatever you send meanwhile waits for
-    // it (see mpMatch). In a game the server runs, the server decides when they're gone for good: it
-    // knows when they dropped, gives them GRACE (the same length, in server/rooms.js) and tells you both.
+    // a flaky signal), so yours or theirs gets MP_LIVE to, with the game standing still (mpWaiting)
+    // and whatever you send meanwhile waiting for it (see mpMatch). In a game the server runs, the
+    // server decides when they're gone for good, and tells you both (GRACE in server/rooms.js, the
+    // same length).
     const now = Date.now(), m = mp.match;
     if (m && !m.gone) {
       const o = mp.others[m.opp], here = !MP_WS || mp.heard;
       m.off = here ? 0 : m.off || now;
       m.missing = !here || o ? 0 : m.missing || now;
-      // this copy was frozen that long (a phone put away), so they'll have given up on you, or you've
-      // had no connection for that long
-      const meGone = now - mp.tickAt > MP_LIVE || (m.off && now - m.off > MP_LIVE);
+      // you've had no connection for that long, or nothing from the server that's running it
+      const meGone = (m.off && now - m.off > MP_LIVE) || (m.server && m.stAt && now - m.stAt > MP_LIVE);
       // they're connected but have stopped sending (a closed laptop), or their connection's been
       // gone that long
-      const themGone = (here && o && !m.waits && !mpLive(o)) || (!m.server && m.missing && now - m.missing > MP_LIVE);
+      const themGone = !m.server && ((here && o && !mpLive(o)) || (m.missing && now - m.missing > MP_LIVE));
       if (meGone || themGone) {
         mpSend(m.opp, { k: 'quit', m: m.id }); // (so if they come back they aren't left waiting on you)
         m.gone = true; m.lost = !!meGone;
@@ -19552,8 +19575,11 @@
   }
 
   function update() {
-    tick++;
+    // (a head-to-head game standing still stands right still, down to anything that blinks)
+    const waiting = !!mpWaiting();
+    if (!waiting) tick++;
     pollControllers();
+    musicHold(waiting);
     if (fade) {
       fade.t++;
       if (fade.t === 16) fade.cb();
@@ -19574,7 +19600,7 @@
     } else if (mode === 'sweater') {
       updateSweater();
     } else if (ui.length) {
-      layerUpdate(top());
+      if (!waiting) layerUpdate(top());
     } else if (questQueue.length) {
       const next = questQueue.shift();
       if (typeof next === 'function') next(); else say(next);
