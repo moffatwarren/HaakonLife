@@ -144,8 +144,14 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   round the page and Up reaches the tabs, A puts a card in or takes it out, and FILL IT tops your deck up
   with the best of what you have. Along the bottom is the coffee curve: what your deck costs. Until you
   build one yourself, you play the best deck your cards can make, so it gets better as you win more.
-- **Classes:** Plant (big and tough), Sales (fast, and straight at the other player), Office (clever)
-  and Engineering (keeps everything running). Team-up cards reward sticking to one or two.
+- **Classes:** where people really work, which is also how their cards tend to play. Plant is everybody
+  at a plant, whatever their job (big and tough). Sales is sales (fast, and straight at the other player).
+  Office is the front office, accounting, purchasing and IT (clever). Engineering is designers, programmers
+  and R&D (keeps everything running). Team-up cards reward sticking to one or two, and things that belong
+  to everyone, like Pizza Friday, go in any deck.
+- **The cards:** everyone who works in the game has one, plus the things they're known for, 155 in all. 7
+  are legendaries, which keep moving and land in their own way (`LANDS` in `CardsGame`). Max, Jack and
+  the visitor Jill don't have one yet, so they don't offer a game.
 - **Against a player:** see **Playing together**. Your deck goes with you. The server checks that it's
   legal, not that you own the cards, the same honour system as scores and items.
 - **Saved:** your cards go in the database with your special items, at `items/<world>/<name>/c_<id>`, so

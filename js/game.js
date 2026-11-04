@@ -5724,14 +5724,28 @@
       return { u, id, pw: c.power, pa: c.patience, max: c.patience, gate: words.includes('gate'), skin: words.includes('skin'), frozen: 0, stuck: false, left: 0, ready: false };
     }
     // How a card lands on the table, when it's its turn to. A legendary can land its own way.
-    const LANDS = {
-      officedog(x, y, u) { shake = 6; flare = { c: '255,190,170', a: 0.35, fade: 0.04 }; bounce.set(u, 44); hearts(x + 44, y + 50, 20); stars(x + 44, y + 50, 16, 5); sfx('bark'); },
-    };
+    // (scraps: square bits that keep their size, thrown out from x, y)
+    const scraps = (x, y, n, c, spread, up, life, r = 3) => { for (let i = 0; i < n; i++) { const a = i * 2.4; const k = 0.35 + (i * 7 % 10) / 10; bits.push({ x: x + Math.cos(a) * 34 * k, y: y + Math.sin(a) * 44 * k, vx: Math.cos(a) * spread * k, vy: Math.sin(a) * spread * 0.6 * k - up, life: life + (i % 7) * 2, max: life + 12, r, c: Array.isArray(c) ? c[i % c.length] : c, shard: true }); } };
     function landHard(x, y) {
       shake = 16; jolt = 14; flare = { c: '255,216,96', a: 0.45, fade: 0.05 };
       rings.push({ x: x + 44, y: y + 58, t: 0 }, { x: x + 44, y: y + 58, t: -7 });
       stars(x + 44, y + 58, 30, 6.5); dust(x + 44, y + 112, 22); sfx('thump');
     }
+    const LANDS = {
+      officedog(x, y, u) { shake = 6; flare = { c: '255,190,170', a: 0.35, fade: 0.04 }; bounce.set(u, 44); hearts(x + 44, y + 50, 20); stars(x + 44, y + 50, 16, 5); sfx('bark'); },
+      // the heaviest thing in the building, setting its forks down
+      forklift(x, y) { landHard(x, y); shake = 22; dust(x + 44, y + 112, 30); scraps(x + 44, y + 100, 14, '#e8b820', 4.5, 2, 24); sfx('beep'); },
+      // in from the road, in a cloud of its own
+      truck(x, y) { shake = 14; jolt = 12; flare = { c: '255,170,90', a: 0.4, fade: 0.05 }; for (let i = 0; i < 26; i++) bits.push({ x: x + 44 - i * 7, y: y + 96 + (i % 5) * 5, vx: -3 - (i % 4), vy: -0.5, life: 26 + i % 9, max: 34, r: 5, c: i % 3 ? 'rgba(200,190,180,0.9)' : 'rgba(120,112,108,0.9)' }); stars(x + 44, y + 58, 16, 6); sfx('dash'); sfx('thump'); },
+      // paper everywhere, and that noise it makes
+      printer(x, y) { shake = 9; flare = { c: '255,255,255', a: 0.5, fade: 0.05 }; scraps(x + 44, y + 40, 34, ['#f8f8f0', '#ffffff', '#e8e8e0'], 5, 3.4, 44, 5); sfx('buzz'); },
+      // the lights go green, and everyone feels a bit worse
+      humbug(x, y) { shake = 12; jolt = 8; flare = { c: '110,210,90', a: 0.5, fade: 0.025 }; scraps(x + 44, y + 58, 34, ['#58c848', '#2c7838', '#a8e850'], 6, 0.6, 34); stars(x + 44, y + 58, 14, 7); sfx('buzz'); sfx('thump'); },
+      // nothing lands: the room just goes cold
+      linda(x, y) { shake = 3; flare = { c: '170,210,255', a: 0.55, fade: 0.012 }; scraps(x + 44, y + 58, 30, ['#d8ecff', '#a8d0f8', '#ffffff'], 1.1, 1.9, 40); sfx('wind'); },
+      // somebody's turned it on, and everything that isn't bolted down goes with it
+      airhandler(x, y) { landHard(x, y); shake = 12; flare = { c: '150,230,255', a: 0.45, fade: 0.04 }; for (let i = 0; i < 36; i++) bits.push({ x: x - 40 + (i * 37) % 180, y: y + (i * 53) % 120, vx: 8 + i % 6, vy: -0.8, life: 22 + i % 12, max: 30, r: i % 4 ? 2 : 4, c: i % 4 ? '#c8f0ff' : '#f8f8f0', shard: true }); sfx('wind'); },
+    };
     function put(e) { // a worker arriving on the table
       const side = sideOf(e.s), i = side.table.length, x = slotX(i), y = rowY(e.s), c = CARDS.card(e.id);
       side.table.push(newUnit(e.id, e.u));

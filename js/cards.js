@@ -194,6 +194,7 @@ window.CARDS = (function engine() {
     return bad;
   }
   const collectable = (c) => c && c.rarity !== 'T';
+  const MOST_TASKS = 6; // how many a deck that's built for you will have
   const STARTER = LIST.filter((c) => c.rarity === 'S').map((c) => c.id);
   function deckProblem(ids) {
     if (!Array.isArray(ids) || ids.length !== DECK) return 'A deck is exactly ' + DECK + ' cards.';
@@ -233,7 +234,7 @@ window.CARDS = (function engine() {
     };
     const ranked = pool.map((id) => [score(id), id]).sort((a, b) => b[0] - a[0]).map((x) => x[1]);
     const deck = [], want = { low: 8, mid: 8, high: 4 };
-    let legend = false;
+    let legend = false, tasks = 0; // (a task only happens once, so a deck wants mostly workers)
     const band = (c) => (c.cost <= 2 ? 'low' : c.cost <= 4 ? 'mid' : 'high');
     const take = (id) => {
       const c = CARD.get(id);
@@ -241,10 +242,13 @@ window.CARDS = (function engine() {
       deck.push(id);
       want[band(c)]--;
       if (c.rarity === 'L') legend = true;
+      if (c.kind === 'task') tasks++;
       return true;
     };
+    const room = (id) => CARD.get(id).kind !== 'task' || tasks < MOST_TASKS;
     for (const id of o.must || []) if (collectable(CARD.get(id))) take(id);
-    for (const id of ranked) if (want[band(CARD.get(id))] > 0) take(id);
+    for (const id of ranked) if (want[band(CARD.get(id))] > 0 && room(id)) take(id);
+    for (const id of ranked) if (room(id)) take(id);
     for (const id of ranked) take(id);
     return deck;
   }
@@ -264,13 +268,18 @@ window.CARDS = (function engine() {
   // playing for in it. How good they are says how far up the rarities the rest of it goes, and
   // nobody has a legendary unless it's the one they hold.
   const REACH = { 1: 'SC', 2: 'SCU', 3: 'SCUR', 4: 'SCUR' };
+  // ...and how many cards past the starters they've got to choose from, so that somebody just starting
+  // out has a fair chance against a beginner however many cards there are in the game
+  const COLLECTED = { 1: 6, 2: 16 };
   function foeDeck(name, level) {
     const must = prizes(name), first = CARD.get(must[0]);
-    const reach = REACH[level] || REACH[4];
+    const reach = REACH[level] || REACH[4], most = COLLECTED[level] || Infinity;
     let seed = 7;
     for (const ch of String(name)) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
-    const pool = LIST.filter((c) => collectable(c) && reach.includes(c.rarity)).map((c) => c.id);
-    return buildDeck(pool, { dept: first && first.dept, must, seed });
+    const order = seededRand({ s: seed });
+    const earned = LIST.filter((c) => collectable(c) && c.rarity !== 'S' && reach.includes(c.rarity) && (!first || !c.dept || c.dept === first.dept))
+      .map((c) => [order(), c.id]).sort((x, y) => x[0] - y[0]).slice(0, most).map((x) => x[1]);
+    return buildDeck(earned, { dept: first && first.dept, must, seed });
   }
 
   // ---------- a game ----------

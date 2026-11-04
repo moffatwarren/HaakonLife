@@ -830,7 +830,7 @@ test('every card can be won from somebody who works there, or is yours from the 
 
 test('you win a coworker\'s own card first, then what they\'re holding', () => {
   assert.deepEqual(plain(CARDS.prizes('Jillian')), ['jillian', 'bigcoil']);
-  assert.deepEqual(plain(CARDS.prizes('Kim')), ['felix']); // (no card of her own yet)
+  assert.deepEqual(plain(CARDS.prizes('Jhonna')), ['jhonna', 'officedog']);
   assert.deepEqual(plain(CARDS.prizes('Patrick')), ['patrick']);
   assert.deepEqual(plain(CARDS.prizes('Nobody At All')), []);
 });
@@ -850,6 +850,22 @@ test('a coworker plays a legal deck with what they\'re playing for in it, the sa
     assert.deepEqual(plain(CARDS.foeDeck(who, level)), deck);
     // (the only legendary they ever have is the one they hold)
     for (const id of deck) if (CARDS.card(id).rarity === 'L') assert.equal(CARDS.card(id).heldBy, who);
+  }
+});
+
+test('a beginner has a fair chance of being beaten with nothing but the starters', () => {
+  // (however many cards get added, they've only got a few of them)
+  for (const who of opponents) {
+    const earned = plain(CARDS.foeDeck(who, 1)).filter((id) => CARDS.card(id).rarity !== 'S' && !CARDS.prizes(who).includes(id));
+    assert.ok(earned.length <= 6, who + ' has ' + earned.length);
+  }
+});
+
+test('a deck that\'s built for you is mostly workers', () => {
+  const every = CARDS.LIST.filter((c) => c.rarity !== 'T').map((c) => c.id);
+  for (const dept of [undefined, ...Object.keys(CARDS.DEPTS)]) for (const seed of [1, 2, 3]) {
+    const tasks = plain(CARDS.buildDeck(every, { dept, seed })).filter((id) => CARDS.card(id).kind === 'task');
+    assert.ok(tasks.length <= 6, (dept || 'any') + ' has ' + tasks.length + ' tasks');
   }
 });
 
