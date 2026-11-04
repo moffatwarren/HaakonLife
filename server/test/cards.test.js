@@ -808,3 +808,34 @@ test('a view isn\'t huge, even late in a long game', () => {
   assert.ok(fresh(s, 0).ev.length <= 30);
   assert.ok(JSON.stringify(fresh(s, 0)).length < 6000, JSON.stringify(fresh(s, 0)).length + ' characters');
 });
+
+// ---------- the pictures ----------
+const artCtx = vm.createContext({ window: {} });
+for (const f of ['font.js', 'cardlist.js', 'cardart.js']) {
+  vm.runInContext(readFileSync(new URL('../../js/' + f, import.meta.url), 'utf8'), artCtx, { filename: 'js/' + f });
+}
+const ART = artCtx.window.CARD_ART;
+const looks = (id) => Buffer.from(ART.artPic(id).px.buffer).toString('base64');
+
+test('every card has a picture of its own, not the stand-in', () => {
+  assert.deepEqual(plain(CARDS.LIST.filter((c) => !ART.painted(c.id)).map((c) => c.id)), []);
+});
+
+test('no two cards look the same', () => {
+  const seen = new Map();
+  for (const c of CARDS.LIST) {
+    const key = looks(c.id);
+    assert.equal(seen.get(key), undefined, c.id + ' looks exactly like ' + seen.get(key));
+    seen.set(key, c.id);
+  }
+});
+
+test('a legendary keeps moving, all the way round its loop', () => {
+  for (const c of CARDS.LIST.filter((x) => x.rarity === 'L')) {
+    const live = ART.LIVE[c.id];
+    assert.ok(live, c.id + ' needs an entry in LIVE');
+    const frames = new Set();
+    for (let t = 0; t < live.frames * live.every; t += live.every) frames.add(Buffer.from(ART.artFrame(c.id, t).px.buffer).toString('base64'));
+    assert.ok(frames.size > live.frames / 2, c.id + ' only has ' + frames.size + ' different pictures');
+  }
+});
