@@ -4,7 +4,7 @@
   // only whatever uses that script would break, much later on. Stop here instead: with no
   // window.GAME, index.html reloads the page, and a reload always asks for the newest index.html.
   // (tools/check_games.mjs makes sure every script has a name in this list.)
-  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'CHESS', 'CHECKERS', 'SWEEPER'].some((name) => !window[name])) return;
+  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'CHESS', 'CHECKERS', 'SWEEPER', 'CARD_ART'].some((name) => !window[name])) return;
 
   // View: 20 x 15 tiles of 16px.
   const SW = 320, SH = 240;
