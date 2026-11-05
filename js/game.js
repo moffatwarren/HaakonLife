@@ -7229,7 +7229,8 @@
   // Everybody has the starter cards. Anything else you've won goes where the special items are, in the
   // database at items/<world>/<name>/c_<id> and in this browser (see itemsCheck). Those rules only let
   // a 1 be added, so you can't lose a card. Your deck goes with your name too (see "your deck on every
-  // device" below). Until you build one, you get the best one your cards can make.
+  // device" below). Until you build one, you get the best one your cards can make, but a card you win
+  // never goes in by itself (see deckSettle).
   //
   // To give out a card some other way, from a quest or anything else, call cardEarned(id).
   let cardsOwned = new Set(), cardsFor = null;
@@ -7259,10 +7260,20 @@
   const cardsMine = () => { if (cardsFor !== cardsWho()) cardsRead(cardsWho()); return cardsOwned; };
   const cardHave = (id) => CARDS.STARTER.includes(id) || ((CARDS.card(id) || {}).own ? items.owncard === 1 : cardsMine().has(id));
   // Your deck: the one you built if you still can, or else the best your cards can make.
-  function cardDeck() {
+  function deckSaved() {
     const saved = (store.get(cardKey(cardsWho(), 'carddeck')) || '').split(',');
-    if (!CARDS.deckProblem(saved) && saved.every(cardHave)) return saved;
-    return CARDS.buildDeck([...cardsMine()], { seed: 1 });
+    return !CARDS.deckProblem(saved) && saved.every(cardHave) ? saved : null;
+  }
+  const cardDeck = () => deckSaved() || CARDS.buildDeck([...cardsMine()], { seed: 1 });
+  // Just before you win a card: if you've never built a deck, the one you've had is kept as yours, so
+  // the new card isn't in it until you put it there. It's kept as if it were built before anything
+  // else (an at of 0), so a deck you built on another device still beats it.
+  function deckSettle() {
+    if (deckSaved()) return;
+    const name = cardsWho();
+    store.set(cardKey(name, 'carddeck'), cardDeck().join(','));
+    store.set(cardKey(name, 'carddeckat'), String(deckAt(name)));
+    deckPush(name);
   }
   // Your deck on every device: the one you built last, wherever you built it. It's kept in the database
   // at decks/<world>/<name> as { d: its cards with commas between, at: when you built it, by that
@@ -7305,6 +7316,7 @@
   function cardEarned(id) {
     if (!CARDS.card(id) || cardHave(id)) return false;
     const name = cardsWho(), key = 'c_' + id;
+    deckSettle();
     cardsOwned.add(id);
     store.set(itemKey(name, key), '1');
     itemFetch(name, '/' + key, { method: 'PUT', body: '1' }).catch(() => {});
@@ -7448,8 +7460,11 @@
   function DeckApp(open) {
     const A = CARD_ART, COLS = 4, ROWS = 3, GX = 276, GY = 42, SIZE = CARDS.RULES.DECK;
     const dept = (d) => (c) => c.dept === d;
-    const TABS = [['MY DECK'], ['PLANT', dept('plant')], ['SALES', dept('sales')], ['OFFICE', dept('office')], ['ENGINEERING', dept('engineering')], ['OTHER', (c) => !c.dept && !c.own], ['YOU', (c) => c.own], ['FILL']];
-    const FILL = TABS.length - 1, YOU = FILL - 1;
+    const TABS = [['MY DECK'], ['PLANT', dept('plant')], ['SALES', dept('sales')], ['OFFICE', dept('office')], ['ENGINEERING', dept('engineering')], ['OTHER', (c) => !c.dept && !c.own], ['YOU', (c) => c.own]];
+    const YOU = TABS.length - 1;
+    // The FILL button: the first thing on the MY DECK page while your deck isn't full, the size of a card.
+    // In the list of what's on a page it's this, which isn't a card.
+    const FILL = '+fill';
     const F = (id) => faceOf(id, { name: cardsWho(), look: wornLook(myLook) });
     const byCost = (a, b) => a.cost - b.cost || a.name.localeCompare(b.name);
     const same = (a, b) => a.slice().sort().join() === b.slice().sort().join();
@@ -7457,14 +7472,23 @@
     let draft = start.slice(), tab = open === 'you' ? YOU : 0, at = 0, scroll = 0, onTabs = false, t = 0, note = cardsNext(), noteT = note ? 170 : 0;
     const list = () => (TABS[tab][1]
       ? CARDS.LIST.filter((c) => c.rarity !== 'T' && TABS[tab][1](c)).sort(byCost).map((c) => c.id)
-      : draft.map(CARDS.card).sort(byCost).map((c) => c.id));
+      : (draft.length < SIZE ? [FILL] : []).concat(draft.map(CARDS.card).sort(byCost).map((c) => c.id)));
     const flash = (str) => { note = str; noteT = 170; };
     const step = heldRepeat(); // (hold a direction and the cursor keeps going)
     const legal = () => !CARDS.deckProblem(draft);
+    const topUp = () => CARDS.buildDeck([...cardsMine()], { must: draft, seed: t + 1 });
     function toggle(id) {
+      if (id === FILL) { fill(); return; }
       const c = CARDS.card(id);
       if (!cardHave(id)) { sfx('bump'); flash(cardWhere(id)); return; }
-      if (draft.includes(id)) { draft = draft.filter((x) => x !== id); sfx('select'); return; }
+      if (draft.includes(id)) {
+        // (taking one out of a full deck brings in the FILL button at the front, so the cursor moves
+        // along one to stay on the card after it, as it does when the deck isn't full)
+        if (!TABS[tab][1] && draft.length === SIZE) at++;
+        draft = draft.filter((x) => x !== id);
+        sfx('select');
+        return;
+      }
       // (your own legendary takes the place of whichever legendary you had, so swapping is one press)
       if (c.own) {
         const was = draft.find((x) => CARDS.card(x).rarity === 'L');
@@ -7477,19 +7501,23 @@
     }
     function fill() {
       if (draft.length >= SIZE) { sfx('bump'); flash('Your deck is full already.'); return; }
-      draft = CARDS.buildDeck([...cardsMine()], { must: draft, seed: t + 1 });
+      draft = topUp();
       sfx('menu');
       flash('Filled up with the best of what you have.');
     }
+    function leave() {
+      // (only if you changed something: until then it's still the deck you had)
+      if (!same(draft, start)) deckKeep(draft);
+      remove(self);
+    }
+    // Going with a deck that isn't full asks whether you'll finish it or have it filled for you.
     function goBack() {
-      if (legal()) {
-        // (only if you changed something: until then it's still the best your cards can make)
-        if (!same(draft, start)) deckKeep(draft);
-        sfx('select');
-        remove(self);
-        return;
-      }
-      ask('Your deck has ' + draft.length + ' of ' + SIZE + ' cards. If you go now, you keep the last deck you finished.', ['KEEP BUILDING', 'GO ANYWAY'], (i) => { if (i === 1) remove(self); });
+      if (legal()) { sfx('select'); leave(); return; }
+      const short = SIZE - draft.length;
+      ask('Your deck has ' + draft.length + ' of ' + SIZE + ' cards. Do you want to finish it yourself, or have it filled for you?', ['FINISH IT', 'AUTO FILL'], (i) => {
+        if (i === 1) { draft = topUp(); sfx('menu'); leave(); return; }
+        flash('Pick ' + short + ' more card' + (short === 1 ? '' : 's') + ' for your deck.');
+      });
     }
     const self = {
       doing: 'deck',
@@ -7505,7 +7533,6 @@
           if (d === 'left') tab = (tab + TABS.length - 1) % TABS.length;
           if (d === 'right') tab = (tab + 1) % TABS.length;
           if (tab !== was) { sfx('blip'); at = 0; scroll = 0; }
-          if (pressed.has('a') && tab === FILL) { fill(); return; }
           if ((d === 'down' || pressed.has('a')) && list().length) { onTabs = false; sfx('blip'); }
           return;
         }
@@ -7525,8 +7552,8 @@
         if (pressed.has('a')) toggle(ids[at]);
       },
       // The mouse: point at a card to see it big (quietly: the user didn't want the keys' blip for that),
-      // and click it to put it in your deck or take it out.
-      // Click a tab for its page (or FILL to fill your deck). The wheel scrolls the page.
+      // and click it to put it in your deck or take it out (or the FILL button to fill your deck).
+      // Click a tab for its page. The wheel scrolls the page.
       point(px, py, button) {
         const x = px * 2, y = py * 2; // (laid out at 640 x 480)
         if (button === 'b') return 'b';
@@ -7553,6 +7580,21 @@
         ctx.scale(0.5, 0.5);
         const fr = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
         const say2 = (str, x, y, c = '#f4ecd8', n = 1) => ctx.drawImage(cardWord(str, c, n), x, y);
+        // the FILL button, at a card's size (n: 1 on the page, 3 for the big one on the left): a raised
+        // panel with a plus on it, lit from the top left
+        const fillButton = (x, y, w, h, n) => {
+          fr(x + 2, y, w - 4, h, '#1a1622'); fr(x, y + 2, w, h - 4, '#1a1622');
+          fr(x + 2, y + 2, w - 4, h - 4, '#4c4058');
+          fr(x + 2, y + 2, w - 4, 2 * n, '#6c5c80'); fr(x + 2, y + 2, 2 * n, h - 4, '#6c5c80');
+          fr(x + 2, y + h - 2 - 2 * n, w - 4, 2 * n, '#382e44'); fr(x + w - 2 - 2 * n, y + 2, 2 * n, h - 4, '#382e44');
+          const cx = Math.round(x + w / 2), cy = Math.round(y + h * 0.4), arm = 14 * n, th = 6 * n;
+          for (const [o, c] of [[2 * n, '#1a1622'], [0, '#f8d850']]) {
+            fr(cx - arm + o, cy - th / 2 + o, arm * 2, th, c);
+            fr(cx - th / 2 + o, cy - arm + o, th, arm * 2, c);
+          }
+          const word = cardWord('FILL', '#f4ecd8', n);
+          ctx.drawImage(word, Math.round(cx - word.width / 2), Math.round(y + h * 0.68));
+        };
         fr(0, 0, 640, 480, '#2a2230');
         // the tabs
         let tx = 6;
@@ -7565,7 +7607,8 @@
         // what's picked, full size
         const ids = list(), id = ids[Math.min(at, ids.length - 1)];
         const c = id && CARDS.card(id), yours = id && cardHave(id);
-        if (id) {
+        if (id === FILL) fillButton(6, 40, 260, 364, 3);
+        else if (id) {
           ctx.drawImage(yours ? bigCard(F(id)) : backOfCard(), 6, 40, 260, 364);
           if (yours && c.rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(F(id), t)), 18, 84, 236, 150);
           if (yours) A.shine(ctx, 6, 40, 260, 364, t, c.rarity);
@@ -7578,7 +7621,8 @@
         // the page of cards
         ids.slice(scroll * COLS, (scroll + ROWS) * COLS).forEach((cid, i) => {
           const x = GX + (i % COLS) * 92, y = GY + Math.floor(i / COLS) * 120, k = CARDS.card(cid), have = cardHave(cid), sel = !onTabs && scroll * COLS + i === at;
-          if (have) {
+          if (cid === FILL) fillButton(x, y, 88, 116, 1);
+          else if (have) {
             ctx.drawImage(smallCard(F(cid), { cost: true }), x, y);
             if (k.rarity === 'L') { const [cx, cy] = A.cropOf(F(cid)); ctx.drawImage(A.canvasOf(A.artFrame(F(cid), t)), cx, cy, 72, 72, x + 8, y + 8, 72, 72); }
             A.shine(ctx, x, y, 88, 116, t, k.rarity, 8);
@@ -7589,11 +7633,11 @@
         const rows = Math.ceil(ids.length / COLS);
         if (scroll > 0) say2('^', 626, 42, '#f8d850');
         if (scroll + ROWS < rows) say2('v', 626, 378, '#f8d850');
-        if (!ids.length) say2('Nothing in your deck yet.', GX + 20, 180);
+        if (!TABS[tab][1] && !draft.length) say2('Nothing in your deck yet.', GX + 20, 180);
         // what A does, or how to get it
         const wrapped = [];
-        const line = noteT > 0 ? note : onTabs ? (tab === FILL ? 'A: fill up your deck with the best of what you have.' : 'Left and Right: another page. Down: its cards.')
-          : !id ? '' : !yours ? cardWhere(id) : draft.includes(id) ? 'In your deck. A: take it out.' : c.own ? 'A: use this one in your deck.' : 'A: put it in your deck.';
+        const line = noteT > 0 ? note : onTabs ? 'Left and Right: another page. Down: its cards.'
+          : !id ? '' : id === FILL ? 'A: fill up your deck with the best of what you have.' : !yours ? cardWhere(id) : draft.includes(id) ? 'In your deck. A: take it out.' : c.own ? 'A: use this one in your deck.' : 'A: put it in your deck.';
         let cur = '';
         for (const word of line.split(' ')) { if ((cur + ' ' + word).trim().length > 21) { wrapped.push(cur); cur = word; } else cur = (cur + ' ' + word).trim(); }
         wrapped.push(cur);

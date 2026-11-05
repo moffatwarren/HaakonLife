@@ -182,10 +182,14 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   You can't lose a card. To give one out some other way, call `cardEarned(id)`.
 - **Your deck:** any 20 of your cards, one of each and at most one legendary. In MY CARDS the D-pad moves
   round the page (hold a direction and it keeps going, though going up to the tabs takes a press of its
-  own) and Up reaches the tabs, A puts a card in or takes it out, and FILL IT tops your deck up
-  with the best of what you have. With the mouse, point at a card to see it big, click it to put it in or
-  take it out, click a tab for its page, and scroll the page with the wheel. Along the bottom is the coffee curve: what your deck costs. Until you
-  build one yourself, you play the best deck your cards can make, so it gets better as you win more.
+  own) and Up reaches the tabs, and A puts a card in or takes it out. While your deck isn't full, the
+  first thing on the MY DECK page is a FILL button, which tops it up with the best of what you have. Go
+  with a deck that isn't full and you're asked whether to finish it yourself or fill it. With the mouse,
+  point at a card to see it big, click it (or FILL) to put it in or take it out, click a tab for its page,
+  and scroll the page with the wheel. Along the bottom is the coffee curve: what your deck costs. A card
+  you win never goes in your deck by itself: it's only there once you put it there. Until you build a
+  deck yourself, you play the best one the cards you had could make, and winning a card keeps that one
+  as yours (`deckSettle`).
 - **Classes:** where people really work, which is also how their cards tend to play. Plant is everybody
   at a plant, whatever their job (big and tough). Sales is sales (fast, and straight at the other player).
   Office is the front office, accounting, purchasing and IT (clever). Engineering is designers, programmers
@@ -668,7 +672,9 @@ by the clock of the device that built it. The rules only let a deck replace one 
 and not one that says it's more than 10 minutes in the future. So a device that was offline when you
 built a deck sends it the next time it can, and it only counts if you haven't built a newer one since.
 A deck saved before this has an `at` of 0, so any deck built since beats it, and if two devices both
-have one, the first to send it wins.
+have one, the first to send it wins. So does the deck kept for you when you win a card before you've
+built one (see "Your deck"), so a deck you built on another device that this one hasn't heard about yet
+still wins.
 
 The game asks for your deck as you come in, when you come back to the page, and just before it's
 needed: opening MY CARDS, a coworker's offer of a game, and challenging or being challenged. If MY
