@@ -976,7 +976,9 @@
     if (c) {
       const k = el.point(c.x, c.y, c.button);
       if (k === 'a' || k === 'b') pressed.add(k);
-      return; // (a move since then is for the next update)
+      // (and next update, whatever's under the pointer then: the click may have changed what's there)
+      mouse.moved = true;
+      return;
     }
     if (!mouse.moved) return;
     mouse.moved = false;
@@ -5889,7 +5891,9 @@
     let heard = null, heardT = 0, sentT = -1, goneT = 0, won = false, lastBeep = 0;
     const queue = [];
     let anim = null, t = 0, doneLines = null, parting = '', doneT = 0;
-    let cur = { row: 2, i: 0 }, rest = 0, aim = null, menu = null, note = '', noteT = 0, again = false;
+    // (rest: how long the cursor's been where it is. off: the mouse is over nothing with a close-up, and
+    // pointed what it was last over, so that arriving on something brings its close-up up)
+    let cur = { row: 2, i: 0 }, rest = 0, off = false, pointed = null, aim = null, menu = null, note = '', noteT = 0, again = false;
     let swapAt = 0, announced = false;
     const swapping = new Set();
     let bits = [], pops = [], gone = [];
@@ -5918,6 +5922,7 @@
     sitAt(0);
     const END_BOX = [524, HAND_Y, 108, 116];
     const HISTORY = 3, MOVES = 4; // (the cursor's "row" while you look through the last moves, and how many)
+    const CLOSE_FOR = 180; // (how long a card's close-up stays up, in updates: 3 seconds)
     const moveRect = (k) => [11, 58 + k * 48, 50, 44];
     // where a number floats up from: a plate's is over the table, where you can see it
     const popSpot = (u) => {
@@ -6342,14 +6347,14 @@
             if (gap < far) { far = gap; i = k; }
           });
         }
-        if (i !== cur.i) { sfx('blip'); rest = 0; cur.i = i; }
+        if (i !== cur.i) { sfx('blip'); rest = 0; off = false; cur.i = i; }
         return;
       }
       if (cur.row === HISTORY) {
         let k = Math.min(cur.i, moves.length - 1);
         if (pressed.has('up')) k = Math.max(0, k - 1);
         if (pressed.has('down')) k = Math.min(moves.length - 1, k + 1);
-        if (k !== cur.i) { sfx('blip'); rest = 0; cur.i = k; }
+        if (k !== cur.i) { sfx('blip'); rest = 0; off = false; cur.i = k; }
         if (pressed.has('right')) stopLooking();
         return;
       }
@@ -6358,7 +6363,7 @@
       const size = () => rowStops(row).length;
       i = Math.min(i, size() - 1);
       // left from the start of a row is the last moves, once there are some
-      if (pressed.has('left') && i === 0 && moves.length) { sfx('blip'); rest = 0; cur = { row: HISTORY, i: 0, back: cur }; return; }
+      if (pressed.has('left') && i === 0 && moves.length) { sfx('blip'); rest = 0; off = false; cur = { row: HISTORY, i: 0, back: cur }; return; }
       if (pressed.has('left')) i = (i + size() - 1) % size();
       if (pressed.has('right')) i = (i + 1) % size();
       const go = (d) => {
@@ -6374,12 +6379,12 @@
       if (pressed.has('up')) go(-1);
       // nothing's below your hand, so down from there is END TURN: from anywhere, keep pressing down
       if (pressed.has('down')) { if (row === 2) i = size() - 1; else go(1); }
-      if (row !== cur.row || i !== cur.i) { sfx('blip'); rest = 0; cur = { row, i }; }
+      if (row !== cur.row || i !== cur.i) { sfx('blip'); rest = 0; off = false; cur = { row, i }; }
     }
     function stopLooking() {
       const b = cur.back || { row: 2, i: 0 };
       cur = rowStops(b.row).length ? b : { row: 2, i: 0 };
-      rest = 0;
+      rest = 0; off = false;
       sfx('blip');
     }
     function send(a) {
@@ -6977,9 +6982,12 @@
         }
         if (!aim && s && s.kind !== 'move' && moves.length && Math.min(cur.i, rowStops(cur.row).length - 1) === 0) hint3 = 'Left: last moves';
         [[hint, '#f4ecd8'], [hint2, '#c8c0d8'], [hint3, '#c8c0d8']].filter(([l]) => l).forEach(([l, c], i) => ctx.drawImage(cardWord(l, c), 432, 303 + i * 19));
-        // (it takes longer to come up while you're aiming, so that it isn't in the way)
-        if (s && s.kind === 'move') drawMoveCloseUp(s.m);
-        else if (s && rest > (aim ? 45 : 18) && (s.kind === 'hand' || s.kind === 'unit')) {
+        // It comes up once the cursor's been on something a moment (a last move straight away, and longer
+        // while you're aiming, so that it isn't in the way). It goes again after a few seconds (CLOSE_FOR), and
+        // as soon as the mouse is over nothing (off). Moving onto something, by key or mouse, brings it back.
+        const after = s && s.kind === 'move' ? 0 : aim ? 45 : 18, closing = s && !off && rest >= after && rest < after + CLOSE_FOR;
+        if (closing && s.kind === 'move') drawMoveCloseUp(s.m);
+        else if (closing && (s.kind === 'hand' || s.kind === 'unit')) {
           const [x, , w] = rectOf(s);
           closeUp(s.kind === 'hand' ? s.c.id : s.x.id, x + w / 2 < W / 2 ? 372 : 8, 2, s.kind === 'unit' ? s.x : null, s.kind === 'unit' ? s.x.seat : me);
         }
@@ -7114,7 +7122,7 @@
         if (looking) { if (cur.row === HISTORY && (pressed.has('a') || pressed.has('b'))) stopLooking(); } else if (shown.turn === me) {
           if (pressed.has('a')) pressA();
           else if (pressed.has('b')) {
-            if (aim) { aim = null; cur = cur.was || { row: 2, i: 0 }; rest = 0; sfx('select'); } else { sfx('select'); backMenu(); }
+            if (aim) { aim = null; cur = cur.was || { row: 2, i: 0 }; rest = 0; off = false; sfx('select'); } else { sfx('select'); backMenu(); }
           }
         } else if (pressed.has('a')) { sfx('bump'); flash('It\'s ' + foeShort + '\'s turn.'); } else if (pressed.has('b')) { sfx('select'); backMenu(); }
         if (g && shown.turn !== me) { g.step(); pull(); }
@@ -7139,14 +7147,19 @@
         }
         if (aim) {
           const k = aimStops().findIndex((s) => inBox(x, y, ...rectOf(s)));
-          if (k >= 0 && k !== cur.i) { cur.i = k; rest = 0; }
+          const was = pointed;
+          pointed = k >= 0 ? 'aim ' + k : null;
+          if (k >= 0 && (pointed !== was || k !== cur.i)) { cur.i = k; rest = 0; }
+          off = k < 0;
           return k >= 0 ? 'a' : button && 'b';
         }
-        const hit = stopAt(x, y);
-        if (hit && (hit.row !== cur.row || hit.i !== cur.i)) {
+        const hit = stopAt(x, y), was = pointed;
+        pointed = hit ? hit.row + ' ' + hit.i : null;
+        if (hit && (pointed !== was || hit.row !== cur.row || hit.i !== cur.i)) {
           cur = hit.row !== HISTORY ? hit : { row: HISTORY, i: hit.i, back: cur.row === HISTORY ? cur.back : cur };
           rest = 0;
         }
+        off = !hit;
         return hit && hit.row !== HISTORY ? 'a' : null; // (a last move is only for looking at)
       },
       draw() {

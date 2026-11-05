@@ -145,11 +145,15 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
 
 - **Starting:** who goes first comes up big in the middle as the game begins (YOU START, or KIKI STARTS),
   over the cards you can swap. Then each turn says whose it is, smaller (`banner`, `drawBanner`).
+- **Close-ups:** leave the cursor on a card or a worker for a moment and it comes up big on the other half of
+  the table, with its special words explained, then goes again after 3 seconds (`CLOSE_FOR`), so it isn't
+  always in the way. Move onto something, by key or mouse, and it comes up again. One of the last moves
+  down the left shows straight away, for the same 3 seconds.
 - **With the mouse:** point at a card, a worker, END TURN or one of the last moves down the left and the
-  cursor goes there, with the close-up coming up as it does with the keys. Click to play a card, start an
-  attack or pick who it's aimed at; while aiming, a click on anything you can't aim at puts it back. A
-  click while a card's being played hurries it along, and the right button is B (the menu, or putting an
-  aim back).
+  cursor goes there, with the close-up coming up as it does with the keys. With the pointer over nothing
+  that has one, no close-up shows. Click to play a card, start an attack or pick who it's aimed at; while
+  aiming, a click on anything you can't aim at puts it back. A click while a card's being played hurries
+  it along, and the right button is B (the menu, or putting an aim back).
 
 - **Your cards:** everybody starts with the same 20. Open **MY CARDS** in the Start menu to see them.
   The first time, it explains the game, and from then on coworkers offer you a game when you talk to
