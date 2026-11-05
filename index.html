@@ -41,6 +41,8 @@
   }
   #keys { grid-area: keys; color: var(--label); font-size: 13px; text-align: center; line-height: 1.6; padding: 0 16px; }
   #keys b { color: #c8c8d8; font-weight: 600; }
+  /* (a short window has no room for this line under the screen) */
+  @media (max-height: 600px) { #keys .mouse { display: none; } }
   #dpad, #meta, #ab { display: none; }
 
   /* ---------- touch controls ---------- */
@@ -125,7 +127,8 @@
 
   <div id="keys">
     <b>Arrows / WASD</b> move &nbsp;·&nbsp; <b>E / Space</b> A (talk, confirm) &nbsp;·&nbsp;
-    <b>Esc</b> back, cancel &nbsp;·&nbsp; <b>X / Shift</b> B &nbsp;·&nbsp; <b>Enter</b> Start menu &nbsp;·&nbsp; <b>M</b> Map
+    <b>Esc</b> back, cancel &nbsp;·&nbsp; <b>X / Shift</b> B &nbsp;·&nbsp; <b>Enter</b> Start menu &nbsp;·&nbsp; <b>M</b> Map<span class="mouse"><br>
+    <b>Mouse</b> in Morale Madness and SDG</span>
   </div>
 </div>
 <div id="problem" role="alert"></div>

@@ -28,6 +28,14 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
 | Start menu (map, edit your character, zoom, sound, music) | Enter (or Esc while walking) | START | Menu / Options |
 | Map | M | (Start → Map) | Y or View / △ or Share (Create on a PS5) |
 
+- **The mouse:** Morale Madness (a game, MY CARDS and a new card turning over) and the office
+  computers' desktop and SDG can be played with a mouse too. Point at something and the cursor
+  goes there; the left button is A and the right one is B. A menu or dialog over one of those
+  works the same way, and a click off a menu closes it. Nothing else takes the mouse, and tapping
+  a phone's screen still does nothing anywhere: it keeps to its on-screen buttons. Humbug Sweeper
+  stays on the keys on purpose: its times go on a leaderboard and the Christmas Cup, and a mouse
+  would beat the D-pad on a phone. In the code, a layer that takes the mouse has `point(x, y, button)` and maybe
+  `wheel(steps)`: see "the mouse" in `js/game.js`.
 - Controllers: pair an Xbox or PlayStation controller with your phone or computer over
   Bluetooth (or plug it in), then press a button on it: browsers keep a controller hidden
   from a page until then (and from any page that isn't https). While you play with one,
@@ -71,7 +79,9 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
 
 Walk up to these and press A:
 
-- **Office computers**: SDG, lay out an air handling unit
+- **Office computers**: SDG, lay out an air handling unit. It works with the mouse too, like any
+  program: click a component (in the list or the drawing) to pick it and a button to press it,
+  with Move a click puts the component where you clicked, and the wheel goes up and down the list
 - **Zin's computer** (office 126): Spring Roll Hold'em, no-limit Texas Hold'em against Cody and Dmitriy, played for spring rolls
 - **Cody's casino** (cubicle 142): see below
 - **Coffee machine** (lunch room): catch the coffee in your cup. It pours 150 drops, and the nozzle gets quicker and twitchier as it goes; you're scored on how many you catch
@@ -133,6 +143,14 @@ The office's card game. You each start with 20 Morale and try to get the other p
 a deck of 20 coworkers and office things. **How to play** is in the menu B opens during a game. Each
 card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its picture is in `js/cardart.js`.
 
+- **Starting:** who goes first comes up big in the middle as the game begins (YOU START, or KIKI STARTS),
+  over the cards you can swap. Then each turn says whose it is, smaller (`banner`, `drawBanner`).
+- **With the mouse:** point at a card, a worker, END TURN or one of the last moves down the left and the
+  cursor goes there, with the close-up coming up as it does with the keys. Click to play a card, start an
+  attack or pick who it's aimed at; while aiming, a click on anything you can't aim at puts it back. A
+  click while a card's being played hurries it along, and the right button is B (the menu, or putting an
+  aim back).
+
 - **Your cards:** everybody starts with the same 20. Open **MY CARDS** in the Start menu to see them.
   The first time, it explains the game, and from then on coworkers offer you a game when you talk to
   them. Until you've opened it you're told about the game once as you come in (`cardNewsTell`), once per
@@ -142,8 +160,10 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   you'll see played against you, and it's yours if you beat them again (`heldBy` in `js/cardlist.js`).
   You can't lose a card. To give one out some other way, call `cardEarned(id)`.
 - **Your deck:** any 20 of your cards, one of each and at most one legendary. In MY CARDS the D-pad moves
-  round the page and Up reaches the tabs, A puts a card in or takes it out, and FILL IT tops your deck up
-  with the best of what you have. Along the bottom is the coffee curve: what your deck costs. Until you
+  round the page (hold a direction and it keeps going, though going up to the tabs takes a press of its
+  own) and Up reaches the tabs, A puts a card in or takes it out, and FILL IT tops your deck up
+  with the best of what you have. With the mouse, point at a card to see it big, click it to put it in or
+  take it out, click a tab for its page, and scroll the page with the wheel. Along the bottom is the coffee curve: what your deck costs. Until you
   build one yourself, you play the best deck your cards can make, so it gets better as you win more.
 - **Classes:** where people really work, which is also how their cards tend to play. Plant is everybody
   at a plant, whatever their job (big and tough). Sales is sales (fast, and straight at the other player).
@@ -1339,8 +1359,9 @@ From November 27 to December 31 (by your device's date) the office does Christma
   of the squares round it open in one go. The first square you open never has a humbug in
   it or next to it. Open every square without a humbug and Christmas is saved; open one
   with a humbug and it's spoiled. It's all played with the arrows, the D-pad or a
-  controller's D-pad (no mouse or tapping): they move the cursor, the square with the
-  blinking border (hold one and it keeps going), A opens and B plants or picks up a cane.
+  controller's D-pad (no mouse or tapping, so the times are fair between a computer and a phone):
+  they move the cursor, the square with the blinking border (hold one and it keeps going), A opens
+  and B plants or picks up a cane.
   Pick NEW BOARD from the Enter / START menu for a fresh field. The clock runs
   from the first square you open to the last, by the real clock, and doesn't stop for the
   menu. Only **Full** counts: your quickest time there, to the tenth of a second, goes on the

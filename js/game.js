@@ -726,6 +726,20 @@
     if (DIRS[k]) dirStack = dirStack.filter((d) => d !== k);
   }
   const heldDir = () => dirStack[dirStack.length - 1] || null;
+  // For a cursor that keeps going while you hold a direction: make one, and call it every update for
+  // the way to move this time, if any. A press moves it once; held, it carries on after a moment
+  // (delay updates), then once every few (every).
+  function heldRepeat(delay = 15, every = 5) {
+    let n = 0;
+    return () => {
+      const tap = ['up', 'down', 'left', 'right'].find((k) => pressed.has(k));
+      if (tap) { n = 0; return tap; }
+      const d = heldDir();
+      if (!d) return null;
+      n++;
+      return n >= delay && (n - delay) % every === 0 ? d : null;
+    };
+  }
 
   const KEYS = {
     ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
@@ -904,6 +918,73 @@
   document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
   for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault());
 
+  // ---------- the mouse ----------
+  // Morale Madness (the game, MY CARDS and a new card turning over) and the office computers' desktop
+  // and SDG can be played with a mouse as well as the keys. Nothing else takes it, and a tap on a
+  // phone's screen still does nothing: everywhere else it's the arrows plus A and B. Humbug Sweeper
+  // keeps to the keys on purpose, so its times on the leaderboard and the Christmas Cup are fair
+  // between players on a computer and on a phone. A layer on the ui stack that takes the mouse has point(x, y, button): x and y are where
+  // the pointer is, in the view's 320 x 240, and button is 'a' for the left button, 'b' for the right
+  // one, or null when it has only moved. It moves its own cursor to whatever's there, and returns
+  // the key that click stands for, which counts as pressed this update: 'a', 'b' or nothing. When it
+  // has only moved, anything it returns turns the pointer into a hand, to show there's something to
+  // click. wheel(steps), if it has one, is the scroll wheel: 1 a notch down, -1 a notch up. A dialog
+  // or a menu over one of those games takes the mouse too (takesMouse).
+  // Clicks wait their turn, one an update, each where it was made: a key only counts once an update,
+  // and on a slow computer the pointer can have moved on before the game gets to the click. What the
+  // mouse does while nothing is taking it is forgotten (seen).
+  const mouse = { x: 0, y: 0, moved: false, clicks: [], wheel: 0, seen: false };
+  let wheelSum = 0;
+  const mouseAt = (e) => {
+    const r = canvas.getBoundingClientRect();
+    mouse.x = (e.clientX - r.left) * SW / r.width;
+    mouse.y = (e.clientY - r.top) * SH / r.height;
+  };
+  canvas.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    mouseAt(e); mouse.moved = true;
+  });
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || (e.button !== 0 && e.button !== 2)) return;
+    e.preventDefault();
+    mouseAt(e);
+    if (mouse.clicks.length < 16) mouse.clicks.push({ x: mouse.x, y: mouse.y, button: e.button === 0 ? 'a' : 'b' });
+  });
+  canvas.addEventListener('pointerleave', () => { canvas.style.cursor = ''; });
+  // (a notch of a wheel is one step; a trackpad's little nudges add up to one)
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const d = e.deltaY * (e.deltaMode ? 40 : 1);
+    if (Math.sign(d) !== Math.sign(wheelSum)) wheelSum = 0;
+    wheelSum += d;
+    if (Math.abs(wheelSum) >= 50) { mouse.wheel += Math.sign(wheelSum); wheelSum = 0; }
+  }, { passive: false });
+  // whether a layer takes the mouse: it has point, and so does everything down to the game it's over
+  function takesMouse(el) {
+    for (let i = ui.indexOf(el); i >= 0; i--) {
+      if (!ui[i].point) return false;
+      if (!ui[i].overlay) return true;
+    }
+    return false;
+  }
+  // what the mouse has done since the last update, handed to the layer on top (see layerUpdate)
+  function mouseTo(el) {
+    mouse.seen = true;
+    // (after a scroll, something else is under the pointer)
+    if (mouse.wheel && el.wheel) { el.wheel(mouse.wheel); mouse.moved = true; }
+    const c = mouse.clicks.shift();
+    if (c) {
+      const k = el.point(c.x, c.y, c.button);
+      if (k === 'a' || k === 'b') pressed.add(k);
+      return; // (a move since then is for the next update)
+    }
+    if (!mouse.moved) return;
+    mouse.moved = false;
+    canvas.style.cursor = el.point(mouse.x, mouse.y, null) ? 'pointer' : '';
+  }
+  // (whether x, y is in the box at bx, by, w across and h down)
+  const inBox = (x, y, bx, by, w, h) => x >= bx && x < bx + w && y >= by && y < by + h;
+
   // ---------- drawing helpers ----------
   // Keyboard hints -> touch button hints ("Space: punch" -> "A: punch", "Esc: give up" ->
   // "B: give up", "Arrows: steer" -> "D-pad: steer", or "Stick: steer" where the thumbstick
@@ -1072,6 +1153,8 @@
       },
       close() { remove(self); },
       overlay: true,
+      // (over a game that takes the mouse: either button anywhere is a press)
+      point: (x, y, button) => button,
     };
     return self;
   }
@@ -1097,6 +1180,16 @@
         first = Math.max(cur - rows + 1, Math.min(first, cur));
         if (pressed.has('a')) { sfx('select'); if (!opts.keepOpen) remove(self); cb(cur, self); }
         else if (pressed.has('b') || (opts.startCloses && pressed.has('start'))) { remove(self); cb(-1, self); }
+      },
+      // (over a game that takes the mouse: pointing at an option picks it, and a click off the menu closes it, like B)
+      point(px, py, button) {
+        if (button === 'b') return 'b';
+        const i = first + Math.floor((py - y - 4) / 16);
+        if (inBox(px, py, x, y + 4, w, rows * 16) && i < options.length) {
+          if (i !== cur) { cur = i; sfx('select'); }
+          return 'a';
+        }
+        return button && !inBox(px, py, x, y, w, h) ? 'b' : null;
       },
       draw() {
         box(x, y, w, h);
@@ -1243,6 +1336,16 @@
           if (sel === EXIT) remove(self);
           else { state = 'loading'; t = 0; }
         }
+      },
+      // the mouse: click a program's icon, or an option along the bottom
+      point(x, y, button) {
+        if (state === 'loading') return null;
+        if (button === 'b') return 'b';
+        let at = progs.findIndex((p, i) => inBox(x, y, ICON_X[i] - 3, 51, 68, 82));
+        if (at < 0) at = OPTIONS.findIndex((o, i) => inBox(x, y, OPT_X[i] - 10, SH - 24, o.length * 6 + 14, 20));
+        if (at < 0) return null;
+        if (at !== sel) { sel = at; sfx('select'); }
+        return 'a';
       },
       draw() {
         ctx.fillStyle = col.dark; ctx.fillRect(0, 0, SW, SH);
@@ -1682,6 +1785,40 @@
       ctx.fillStyle = WIN; ctx.fillRect(x + 1, y + 1, w - 3, h - 3);
       if (!pressedIn) { fine(x + 1, y + 1, w - 3, 0.5, '#e4e6ee'); fine(x + 1, y + 1.5, 0.5, h - 3.5, '#e4e6ee'); fine(x + 1.5, y + h - 2.5, w - 3.5, 0.5, '#a8acb8'); fine(x + w - 2.5, y + 1.5, 0.5, h - 3.5, '#a8acb8'); }
     }
+    // Where things are: the first of the list's rows, scrolled to keep the selection in view, and
+    // the drawing of the unit (its left edge, top, and k for drawn at double size while it fits).
+    const LIST_ROWS = Math.floor((LIST.h - 20) / 11);
+    const listFirst = () => Math.max(0, Math.min(sel - Math.floor(LIST_ROWS / 2), sdgComps.length - LIST_ROWS));
+    const UNIT_H = 80;
+    function unitAt() {
+      const V = VIEW, total = sdgComps.reduce((n, c) => n + COMP_W[c], 0);
+      const pad = 8, room = V.w - pad * 2;
+      const k = total * 2 <= room ? 2 : 1;
+      const w = total * k;
+      // offset of the selected component, so it can be kept in view
+      let selX = 0;
+      for (let i = 0; i < sel; i++) selX += COMP_W[sdgComps[i]];
+      let x0 = V.x + pad + (w <= room ? Math.floor((room - w) / 2) : 0);
+      if (w > room) x0 -= Math.max(0, Math.min(w - room, (selX + COMP_W[sdgComps[sel]] / 2) * k - room / 2));
+      return { k, x0, y0: V.y + Math.floor((V.h - 12 - UNIT_H * k) / 2) };
+    }
+    // the component at x, y, in the list or the drawing (or -1)
+    function compAt(x, y) {
+      const L = LIST, V = VIEW;
+      if (inBox(x, y, L.x + 3, L.y + 18, L.w - 6, LIST_ROWS * 11)) {
+        const i = listFirst() + Math.floor((y - L.y - 18) / 11);
+        return i < sdgComps.length ? i : -1;
+      }
+      if (!sdgComps.length || !inBox(x, y, V.x + 1, V.y + 1, V.w - 2, V.h - 2)) return -1;
+      const { k, x0, y0 } = unitAt();
+      if (y < y0 - 4 * k || y >= y0 + (UNIT_H + 4) * k) return -1;
+      let cx = x0;
+      for (let i = 0; i < sdgComps.length; i++) {
+        cx += COMP_W[sdgComps[i]] * k;
+        if (x >= x0 && x < cx) return i;
+      }
+      return -1;
+    }
     function moveSel(d) {
       if (!sdgComps.length) return;
       const n = Math.max(0, Math.min(sdgComps.length - 1, sel + d));
@@ -1723,6 +1860,36 @@
           } else remove(self);
         }
       },
+      // The mouse, as in any program: click a component (in the list or the drawing) to pick it, and a
+      // button to press it. Moving, a click puts the component where you clicked; in the ADD COMP box
+      // a click picks one, and a click outside closes it. The wheel goes up and down the list.
+      point(x, y, button) {
+        if (mode === 'add' || mode === 'insert') {
+          if (button === 'b') return 'b';
+          const i = Math.floor((y - 74) / 14);
+          if (inBox(x, y, 110, 74, 98, COMP_TYPES.length * 14)) {
+            if (i !== addSel) { addSel = i; sfx('select'); }
+            return 'a';
+          }
+          return button && !inBox(x, y, 104, 56, 112, 30 + COMP_TYPES.length * 14) ? 'b' : null;
+        }
+        if (button === 'b') return 'b';
+        const at = compAt(x, y);
+        if (mode === 'move') {
+          if (button && at >= 0 && at !== sel) { sdgComps.splice(at, 0, sdgComps.splice(sel, 1)[0]); sel = at; }
+          return button || at >= 0 ? 'a' : null;
+        }
+        if (at >= 0) {
+          if (button && at !== sel) { sel = at; sfx('select'); }
+          return button ? null : 'a';
+        }
+        let bx = 6;
+        const b = BUTTONS.findIndex((name) => { const bw = name.length * 6 + 14, on = inBox(x, y, bx, 214, bw, 18); bx += bw + 6; return on; });
+        if (b < 0) return null;
+        if (b !== btn) { btn = b; sfx('select'); }
+        return 'a';
+      },
+      wheel(d) { if (mode === 'main' || mode === 'move') moveSel(d); },
       draw() {
         // window + title bar
         ctx.fillStyle = WIN; ctx.fillRect(0, 0, SW, SH);
@@ -1745,9 +1912,8 @@
         text('Comps', L.x + 6, L.y + 4);
         ctx.fillStyle = INK; ctx.fillRect(L.x + 1, L.y + 15, L.w - 2, 0.5);
         fine(L.x + 1, L.y + 15.5, L.w - 2, 1, '#e0e2ea'); fine(L.x + 1, L.y + 16.5, 0.5, L.h - 17.5, '#d8dae2');
-        const rows = Math.floor((L.h - 20) / 11);
-        const first = Math.max(0, Math.min(sel - Math.floor(rows / 2), sdgComps.length - rows));
-        sdgComps.slice(first, first + rows).forEach((c, i) => {
+        const first = listFirst();
+        sdgComps.slice(first, first + LIST_ROWS).forEach((c, i) => {
           const idx = first + i, yy = L.y + 20 + i * 11;
           let ink = INK;
           if (idx !== sel && idx & 1) fine(L.x + 3, yy - 2, L.w - 6, 11, '#f0f1f6');
@@ -1773,16 +1939,7 @@
           text('Add a component', V.x + 65, V.y + 82, 1, WIN_DARK);
           text('to start your unit', V.x + 59, V.y + 94, 1, WIN_DARK);
         } else {
-          const total = sdgComps.reduce((n, c) => n + COMP_W[c], 0);
-          const pad = 8, room = V.w - pad * 2, H = 80;
-          const k = total * 2 <= room ? 2 : 1; // draw big while it fits
-          const w = total * k;
-          // offset of the selected component, so it can be kept in view
-          let selX = 0;
-          for (let i = 0; i < sel; i++) selX += COMP_W[sdgComps[i]];
-          let x0 = V.x + pad + (w <= room ? Math.floor((room - w) / 2) : 0);
-          if (w > room) x0 -= Math.max(0, Math.min(w - room, (selX + COMP_W[sdgComps[sel]] / 2) * k - room / 2));
-          const y0 = V.y + Math.floor((V.h - 12 - H * k) / 2);
+          const { k, x0, y0 } = unitAt(), H = UNIT_H;
           ctx.save();
           ctx.beginPath(); ctx.rect(V.x + 1, V.y + 1, V.w - 2, V.h - 2); ctx.clip();
           ctx.translate(x0, y0); ctx.scale(k, k);
@@ -5733,7 +5890,7 @@
     const queue = [];
     let anim = null, t = 0, doneLines = null, parting = '', doneT = 0;
     let cur = { row: 2, i: 0 }, rest = 0, aim = null, menu = null, note = '', noteT = 0, again = false;
-    let swapAt = 0;
+    let swapAt = 0, announced = false;
     const swapping = new Set();
     let bits = [], pops = [], gone = [];
     let fly = null, big = null, dim = 0, halo = null, rings = [], flare = null, legend = null, alarm = 0, shake = 0, jolt = 0, mover = null, banner = null, glint = null, drawn = null;
@@ -6137,6 +6294,15 @@
       if (s.kind === 'hand') return [handX(s.i, shown.you.hand.length), HAND_Y - 10, 88, 116];
       return [slotX(s.i), rowY(s.seat), 88, 116];
     }
+    // the mouse: where the cursor goes for x, y on the table, or null (cards in a full hand overlap,
+    // and the one on top is the later one)
+    function stopAt(x, y) {
+      for (const row of [0, 1, 2, HISTORY]) {
+        const stops = rowStops(row);
+        for (let i = stops.length - 1; i >= 0; i--) if (!(stops[i].m && stops[i].m.waiting) && inBox(x, y, ...rectOf(stops[i]))) return { row, i };
+      }
+      return null;
+    }
     // Nothing left to do: no worker can attack, and either you're out of coffee or you can't afford
     // anything. (A free card doesn't count once you're out: you can still go back and play it.)
     const nothingLeft = () => view.can && !Object.keys(view.can.attack).length && (view.you.coffee <= 0 || !Object.keys(view.can.play).length);
@@ -6403,9 +6569,21 @@
         const hint = swapAt < n ? (swapping.has(you.hand[swapAt].u) ? 'A: keep this card' : 'A: swap this card') + '   Down: ' + str.toLowerCase() : 'A: ' + str.toLowerCase() + '   Up: back to the cards';
         ctx.drawImage(cardWord(hint, '#c8c0d8'), 40, 444);
       }
+      if (banner) drawBanner();
     }
 
     // ---------- drawing ----------
+    // Words across the middle for a moment, fading in and out: whose turn it is, and at the very start,
+    // bigger and for longer, who goes first. (len: how long it stays, n: how big)
+    function drawBanner() {
+      const b = banner, len = b.len || 36, n = b.n || 1;
+      const u = b.t < 8 ? b.t / 8 : b.t > len - 8 ? Math.max(0, (len - b.t) / 8) : 1;
+      const w = (b.str.length * 12 + 32) * n, h = 28 * n, x = Math.round((W - w) / 2), y = n > 1 ? Math.round((H - h) / 2) : 161;
+      ctx.globalAlpha = u;
+      panel(x, y, w, h, '#f8d850');
+      ctx.drawImage(cardWord(b.str, INK, n), x + 16 * n, y + 7 * n);
+      ctx.globalAlpha = 1;
+    }
     function panel(x, y, w, h, c = '#f8f8f4') {
       ctx.fillStyle = INK; ctx.fillRect(x + 2, y, w - 4, h); ctx.fillRect(x, y + 2, w, h - 4);
       ctx.fillStyle = c; ctx.fillRect(x + 4, y + 2, w - 8, h - 4); ctx.fillRect(x + 2, y + 4, w - 4, h - 8);
@@ -6773,13 +6951,7 @@
       for (const p of pops) {
         edged(p.str, p.c, p.x, Math.round(p.y - p.t * 0.8));
       }
-      if (banner) {
-        const u = banner.t < 8 ? banner.t / 8 : banner.t > 28 ? Math.max(0, (36 - banner.t) / 8) : 1, w = banner.str.length * 12 + 32, x = Math.round((W - w) / 2);
-        ctx.globalAlpha = u;
-        panel(x, 161, w, 28, '#f8d850');
-        ctx.drawImage(cardWord(banner.str, INK), x + 16, 168);
-        ctx.globalAlpha = 1;
-      }
+      if (banner) drawBanner();
       // the cursor, what the keys do, and the card under it at the size you can read it
       if (!anim && !queue.length && !doneLines && !menu) {
         const s = stopNow();
@@ -6862,7 +7034,7 @@
         if (flare) { flare.a -= flare.fade; if (flare.a <= 0) flare = null; }
         if (legend) legend.t++;
         if (glint) { glint.t += 6; if (glint.t > 240) glint = null; }
-        if (banner && ++banner.t > 36) banner = null;
+        if (banner && ++banner.t > (banner.len || 36)) banner = null;
         if (mover && !mover.pos && ++mover.t > 16) mover = null;
 
         if (doneLines) {
@@ -6884,6 +7056,11 @@
           // The server's word on how it ended comes straight after anything else that says it's over.
           // If it doesn't, the server has lost the game.
           if (vs.gone && vs.result === undefined && ++goneT > 60) { serverLost(); return; }
+        }
+        // the very start: who goes first, big in the middle, over the cards to swap
+        if (!announced) {
+          announced = true;
+          if (view.ph === 'swap') banner = { str: view.first === me ? 'YOU START' : foeShort.toUpperCase() + ' STARTS', t: 0, len: 100, n: 2 };
         }
         if (menu) { menu.update(); return; }
         // A hurries it all along
@@ -6941,6 +7118,36 @@
           }
         } else if (pressed.has('a')) { sfx('bump'); flash('It\'s ' + foeShort + '\'s turn.'); } else if (pressed.has('b')) { sfx('select'); backMenu(); }
         if (g && shown.turn !== me) { g.step(); pull(); }
+      },
+      // The mouse: the cursor goes to whatever you point at, so its close-up comes up as it does with
+      // the keys, and the left button is A there, quietly (the user didn't want the blip the keys make).
+      // While a card's showing, a click hurries it along.
+      // Aiming, a click on anything you can't aim at puts it back, like B. The right button is B.
+      point(px, py, button) {
+        if (menu) return menu.point(px, py, button);
+        const x = px * 2, y = py * 2; // (the table is laid out at 640 x 480)
+        if (!shown || doneLines || anim || queue.length) return button;
+        if (button === 'b') return 'b';
+        if (shown.ph === 'swap') {
+          const you = shown.you, n = you.hand.length;
+          if (you.swapped) return null;
+          let at = you.hand.findIndex((c, i) => inBox(x, y, 312 + i * 100, 102, 88, 124));
+          if (at < 0 && inBox(x, y, 372, 270, 180, 34)) at = n;
+          if (at < 0) return null;
+          swapAt = at;
+          return 'a';
+        }
+        if (aim) {
+          const k = aimStops().findIndex((s) => inBox(x, y, ...rectOf(s)));
+          if (k >= 0 && k !== cur.i) { cur.i = k; rest = 0; }
+          return k >= 0 ? 'a' : button && 'b';
+        }
+        const hit = stopAt(x, y);
+        if (hit && (hit.row !== cur.row || hit.i !== cur.i)) {
+          cur = hit.row !== HISTORY ? hit : { row: HISTORY, i: hit.i, back: cur.row === HISTORY ? cur.back : cur };
+          rest = 0;
+        }
+        return hit && hit.row !== HISTORY ? 'a' : null; // (a last move is only for looking at)
       },
       draw() {
         ctx.save();
@@ -7128,6 +7335,7 @@
           for (const p of cardPrizesDue(cardsWho())) questQueue.push(p.tell);
         }
       },
+      point: (x, y, button) => button, // (a click puts it away, as A or B does)
       draw() {
         ctx.save();
         ctx.scale(0.5, 0.5);
@@ -7186,6 +7394,7 @@
       ? CARDS.LIST.filter((c) => c.rarity !== 'T' && TABS[tab][1](c)).sort(byCost).map((c) => c.id)
       : draft.map(CARDS.card).sort(byCost).map((c) => c.id));
     const flash = (str) => { note = str; noteT = 170; };
+    const step = heldRepeat(); // (hold a direction and the cursor keeps going)
     const legal = () => !CARDS.deckProblem(draft);
     function toggle(id) {
       const c = CARDS.card(id);
@@ -7224,29 +7433,55 @@
         if (noteT > 0) noteT--;
         // (a newer deck from another device, or more cards: if you haven't changed anything, it's that)
         if (news !== deckNews) { news = deckNews; if (same(draft, start)) { start = cardDeck(); draft = start.slice(); } }
+        const d = step();
         if (pressed.has('b')) { goBack(); return; }
         if (onTabs) {
           const was = tab;
-          if (pressed.has('left')) tab = (tab + TABS.length - 1) % TABS.length;
-          if (pressed.has('right')) tab = (tab + 1) % TABS.length;
+          if (d === 'left') tab = (tab + TABS.length - 1) % TABS.length;
+          if (d === 'right') tab = (tab + 1) % TABS.length;
           if (tab !== was) { sfx('blip'); at = 0; scroll = 0; }
           if (pressed.has('a') && tab === FILL) { fill(); return; }
-          if ((pressed.has('down') || pressed.has('a')) && list().length) { onTabs = false; sfx('blip'); }
+          if ((d === 'down' || pressed.has('a')) && list().length) { onTabs = false; sfx('blip'); }
           return;
         }
         const ids = list(), n = ids.length;
         if (!n) { onTabs = true; return; }
         if (at >= n) at = n - 1;
         const was = at;
-        if (pressed.has('left') && at > 0) at--;
-        if (pressed.has('right') && at < n - 1) at++;
-        if (pressed.has('down')) { if (at + COLS < n) at += COLS; else if (Math.floor(at / COLS) < Math.floor((n - 1) / COLS)) at = n - 1; }
-        if (pressed.has('up')) { if (at >= COLS) at -= COLS; else { onTabs = true; sfx('blip'); return; } }
+        if (d === 'left' && at > 0) at--;
+        if (d === 'right' && at < n - 1) at++;
+        if (d === 'down') { if (at + COLS < n) at += COLS; else if (Math.floor(at / COLS) < Math.floor((n - 1) / COLS)) at = n - 1; }
+        // (holding Up stops at the top row: it takes a press of its own to go up to the tabs)
+        if (d === 'up') { if (at >= COLS) at -= COLS; else if (pressed.has('up')) { onTabs = true; sfx('blip'); return; } }
         if (at !== was) sfx('blip');
         const row = Math.floor(at / COLS);
         if (row < scroll) scroll = row;
         if (row >= scroll + ROWS) scroll = row - ROWS + 1;
         if (pressed.has('a')) toggle(ids[at]);
+      },
+      // The mouse: point at a card to see it big (quietly: the user didn't want the keys' blip for that),
+      // and click it to put it in your deck or take it out.
+      // Click a tab for its page (or FILL to fill your deck). The wheel scrolls the page.
+      point(px, py, button) {
+        const x = px * 2, y = py * 2; // (laid out at 640 x 480)
+        if (button === 'b') return 'b';
+        let tx = 6;
+        const k = TABS.findIndex(([label]) => { const w = label.length * 12 + 8, on = inBox(x, y, tx, 6, w, 28); tx += w + 2; return on; });
+        if (k >= 0) {
+          if (button) { if (k !== tab) { tab = k; at = 0; scroll = 0; } onTabs = true; }
+          return 'a';
+        }
+        const col = Math.floor((x - GX) / 92), row = Math.floor((y - GY) / 120), i = (scroll + row) * COLS + col;
+        if (col < 0 || col >= COLS || row < 0 || row >= ROWS || (x - GX) % 92 >= 88 || (y - GY) % 120 >= 116 || i >= list().length) return null;
+        onTabs = false; at = i;
+        return 'a';
+      },
+      wheel(d) {
+        const n = list().length, to = Math.max(0, Math.min(Math.ceil(n / COLS) - ROWS, scroll + d));
+        if (to === scroll) return;
+        scroll = to;
+        at = Math.max(scroll * COLS, Math.min(at, (scroll + ROWS) * COLS - 1, n - 1)); // (staying on the page)
+        sfx('blip');
       },
       draw() {
         ctx.save();
@@ -20349,6 +20584,9 @@
     if (cupFlag && ++cupFlag.t > CUP_FLAG) cupFlag = null;
     playMusic(pickMusic());
     pressed.clear();
+    if (!mouse.seen) { mouse.clicks.length = 0; mouse.moved = false; }
+    mouse.seen = false; mouse.wheel = 0;
+    if (canvas.style.cursor && !(ui.length && takesMouse(top()))) canvas.style.cursor = '';
   }
 
   // ---------- saved looks ----------
@@ -21350,7 +21588,7 @@
     }
     sorry();
   }
-  function layerUpdate(el) { try { el.update(); } catch (e) { layerBroke(el, e); } }
+  function layerUpdate(el) { try { if (takesMouse(el)) mouseTo(el); el.update(); } catch (e) { layerBroke(el, e); } }
   function layerDraw(el) { try { el.draw(); } catch (e) { layerBroke(el, e); } }
   // Something outside the stack threw. Returns whether to carry on.
   function frameBroke(e) {
