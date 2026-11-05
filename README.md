@@ -169,9 +169,10 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   takes the place of any other. Nobody can win it, and coworkers and decks built for you never use it. Everywhere the
   game draws a card it goes through a face id (`faceOf`), because two players can have the same version. Adding a
   version is a line in `js/cardlist.js` and a room in `OWN_ROOMS` in `js/cardart.js`.
-- **Leaderboards:** the Hall of Fame has CARDS COLLECTED and MORALE MADNESS WINS, under Board and Card Games. A
-  win counts when you beat another player, including when they resign or run out of time. It doesn't count
-  if they just leave the game, and games against coworkers don't count.
+- **Leaderboards:** the Hall of Fame has CARDS COLLECTED and MORALE MADNESS WINS, under Board and Card Games.
+  CARDS COLLECTED counts the cards you've won, out of the same total MY CARDS shows, and not the 20 everyone starts
+  with. A win counts when you beat another player, including when they resign or run out of time. It doesn't
+  count if they just leave the game, and games against coworkers don't count.
 - **Against a player:** see **Playing together**. Your deck goes with you. The server checks that it's
   legal, not that you own the cards, the same honour system as scores and items.
 - **Saved:** your cards go in the database with your special items, at `items/<world>/<name>/c_<id>`, so

@@ -3451,7 +3451,7 @@
     // the most you've scored in one game of hockey against a coworker (played to the end)
     hockey: { title: 'HOCKEY GOALS', unit: goals },
     // Morale Madness: how many cards you have, starter cards and all, and how many times you've beaten another player
-    cards: { title: 'CARDS COLLECTED', unit: ' cards' }, cardwins: { title: 'MORALE MADNESS WINS', unit: times, count: true },
+    cards: { title: 'CARDS COLLECTED', unit: (n) => n + (n === 1 ? ' card' : ' cards') }, cardwins: { title: 'MORALE MADNESS WINS', unit: times, count: true },
     // the side quests: the "score" is how many times that name has done it (see questBoard), as it is for Pong (count)
     linda: { title: 'LINDA SET FREE', unit: times, quest: true, count: true }, eotm: { title: 'EMPLOYEE OF THE MONTH', unit: times, quest: true, count: true },
   };
@@ -6923,7 +6923,6 @@
   }
   const cardsMine = () => { if (cardsFor !== cardsWho()) cardsRead(cardsWho()); return cardsOwned; };
   const cardHave = (id) => CARDS.STARTER.includes(id) || ((CARDS.card(id) || {}).own ? items.owncard === 1 : cardsMine().has(id));
-  const cardsCount = () => CARDS.LIST.filter((c) => c.rarity !== 'T' && !c.own && cardHave(c.id)).length;
   // Your deck: the one you built if you still can, or else the best your cards can make.
   function cardDeck() {
     const saved = (store.get(cardKey(cardsWho(), 'carddeck')) || '').split(',');
@@ -6938,7 +6937,7 @@
     store.set(itemKey(name, key), '1');
     itemFetch(name, '/' + key, { method: 'PUT', body: '1' }).catch(() => {});
     ui.push(CardReveal(id));
-    saveBest('cards', cardsCount());
+    saveBest('cards', cardsWon());
     return true;
   }
   // What winning cards earns you, at a share of the cards you can win. They're special items, so once
