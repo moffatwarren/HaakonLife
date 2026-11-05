@@ -66,12 +66,15 @@ in a browser (see "Testing in a browser").
   the README too.
 - **A bug ends that game, not everything:** the browser (`layerBroke`) and the server (`crash`, `safely`)
   both work this way. Don't add code that runs outside them with no catch.
-- **Controls:** keep to the D-pad or arrows plus A and B on every platform. The user has turned down
-  click-to-move, camera rotation and mouse or tap controls in games. The one exception, at the
-  user's request: Morale Madness (the game, MY CARDS, a new card) and the office computers' desktop
-  and SDG also take a mouse, through `point` on their layer (see "the mouse" in `js/game.js`).
-  Don't add it anywhere else unless asked, and taps still do nothing. The user took it back out
-  of Humbug Sweeper as unfair: it's a race on a leaderboard, and phone players only have a D-pad.
+- **Controls:** everything works with the D-pad or arrows plus A and B on every platform. On a computer
+  the mouse is extra, at the user's request: left click to walk somewhere, right click to go up to
+  someone or something and press A, and every menu and screen outside the mini-games (`point` on a
+  layer, or `MODE_MOUSE`: see "the mouse" in `js/game.js`). Mini-games keep to the keys, their own
+  menus too, except Morale Madness and the office computers' desktop and SDG. Don't add the mouse to
+  another mini-game unless asked: the user took it out of Humbug Sweeper as unfair, since it's a race
+  on a leaderboard and phone players only have a D-pad. Taps still do nothing, and the user has
+  turned down camera rotation. A new menu or screen outside a mini-game needs a `point` (see
+  `anyClick` for one that just waits for a press), or the mouse stops working there.
 - **Art:** everything is drawn at 32 x 32 on a 640 x 480 screen, laid out in a 320 x 240 view. Use a
   2-pixel outer outline with the light from the top left, and flat colours with a shade and a
   highlight. People keep short legs and fit within one tile. The one exception is a special head thing

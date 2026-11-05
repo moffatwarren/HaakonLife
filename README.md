@@ -20,22 +20,39 @@ or `assets/` uploads those files to the Namecheap hosting by FTP
 upload again without a push. It checks first that every game is hooked up everywhere it
 needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you.
 
-| Action | Keyboard | Touch | Controller (Xbox / PlayStation) |
-| --- | --- | --- | --- |
-| Move | Arrows / WASD | Thumbstick (a D-pad in menus and most mini-games) | Left stick or D-pad |
-| A: interact, confirm | E / Space | A | A / ✕ |
-| B: back, cancel (out in the parking lot at Christmas, throw a snowball) | Esc / X / Shift | B | B or X / ○ or □ |
-| Start menu (map, edit your character, zoom, sound, music) | Enter (or Esc while walking) | START | Menu / Options |
-| Map | M | (Start → Map) | Y or View / △ or Share (Create on a PS5) |
+| Action | Keyboard | Mouse (on a computer) | Touch | Controller (Xbox / PlayStation) |
+| --- | --- | --- | --- | --- |
+| Move | Arrows / WASD | Left click where to go | Thumbstick (a D-pad in menus and most mini-games) | Left stick or D-pad |
+| A: interact, confirm | E / Space | Right click someone or something (you walk up to it first); in a menu, left click | A | A / ✕ |
+| B: back, cancel (out in the parking lot at Christmas, throw a snowball) | Esc / X / Shift | Right click, in a menu | B | B or X / ○ or □ |
+| Start menu (map, edit your character, zoom, sound, music) | Enter (or Esc while walking) | Click yourself | START | Menu / Options |
+| Map | M | (Start → Map) | (Start → Map) | Y or View / △ or Share (Create on a PS5) |
 
-- **The mouse:** Morale Madness (a game, MY CARDS and a new card turning over) and the office
-  computers' desktop and SDG can be played with a mouse too. Point at something and the cursor
-  goes there; the left button is A and the right one is B. A menu or dialog over one of those
-  works the same way, and a click off a menu closes it. Nothing else takes the mouse, and tapping
-  a phone's screen still does nothing anywhere: it keeps to its on-screen buttons. Humbug Sweeper
-  stays on the keys on purpose: its times go on a leaderboard and the Christmas Cup, and a mouse
-  would beat the D-pad on a phone. In the code, a layer that takes the mouse has `point(x, y, button)` and maybe
-  `wheel(steps)`: see "the mouse" in `js/game.js`.
+- **The mouse:** on a computer you can play most of the game with a mouse as well as the keys.
+  - **Walking round:** left click somewhere and you walk there, finding your own way round desks
+    and walls; somewhere you can't stand, and you go as near as you can. Little corners mark where
+    you're going. Right click a coworker, another player or a thing and you walk up to it, turn to
+    face it and press A at it: a coworker you're going to talk to is followed if they walk off. Click
+    the stairs or the doors outside to go through them; otherwise a walk keeps off them, off the
+    other bathroom, and off the rink if there's another way. Somebody standing in the way is walked
+    round, and after a few goes you give up. Any key, or the stick, takes over at once. The pointer
+    turns into a hand over somebody you can talk to, and over you: click yourself for the Start menu. This is "walking with the mouse" in `js/game.js`
+    (`walkPlan`, `walkStep`, `worldPoint`), going by where the world was last drawn (`viewAt`, zoom
+    and all).
+  - **Menus:** every menu and dialog, and the screens along the way (the title, your name, the
+    character editor, the costume and sweater pickers, the map, the leaderboards and the Hall of
+    Fame, Linda's and Kiki's lists, the live sign-up sheets, and saying something to other players).
+    Point at something and it's picked; the left button is A and the right one is B. A click
+    anywhere puts a dialog away. A click off a menu closes it, but not off the answers to a
+    question (it might only be a click on what's being asked). The wheel scrolls where there's
+    something to scroll. Pointing never makes a sound: only clicking does.
+  - **Mini-games keep to the keys,** their own menus too, except Morale Madness (a game, MY CARDS and
+    a new card turning over) and the office computers' desktop and SDG, which take the mouse as
+    their menus do. Humbug Sweeper stays on the keys on purpose: its times go on a leaderboard and
+    the Christmas Cup, and a mouse would beat the D-pad on a phone.
+  - Tapping a phone's screen still does nothing anywhere: it keeps to its on-screen buttons. In
+    the code, a layer that takes the mouse has `point(x, y, button)` and maybe `wheel(steps)`, and
+    the screens that aren't layers have theirs in `MODE_MOUSE`: see "the mouse" in `js/game.js`.
 - Controllers: pair an Xbox or PlayStation controller with your phone or computer over
   Bluetooth (or plug it in), then press a button on it: browsers keep a controller hidden
   from a page until then (and from any page that isn't https). While you play with one,

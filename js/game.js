@@ -919,17 +919,24 @@
   for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault());
 
   // ---------- the mouse ----------
-  // Morale Madness (the game, MY CARDS and a new card turning over) and the office computers' desktop
-  // and SDG can be played with a mouse as well as the keys. Nothing else takes it, and a tap on a
-  // phone's screen still does nothing: everywhere else it's the arrows plus A and B. Humbug Sweeper
-  // keeps to the keys on purpose, so its times on the leaderboard and the Christmas Cup are fair
-  // between players on a computer and on a phone. A layer on the ui stack that takes the mouse has point(x, y, button): x and y are where
+  // On a computer the mouse works nearly everywhere outside the mini-games: walking round (left click
+  // somewhere to go there, right click someone or something to go up to it and press A: see "walking
+  // with the mouse"), every menu and dialog, the screens before you come in (the title, your name, the
+  // character editor and the costume and sweater pickers), and the screens that come up along the way,
+  // like the map and the Hall of Fame. Of the mini-games, only Morale Madness (the game, MY CARDS and a
+  // new card turning over) and the office computers' desktop and SDG take it. The rest keep to the
+  // keys, menus over them included, and Humbug Sweeper on purpose, so its times on the leaderboard and
+  // the Christmas Cup are fair between players on a computer and on a phone. A tap on a phone's screen
+  // still does nothing anywhere: there it's the on-screen buttons.
+  //
+  // A layer on the ui stack that takes the mouse has point(x, y, button): x and y are where
   // the pointer is, in the view's 320 x 240, and button is 'a' for the left button, 'b' for the right
   // one, or null when it has only moved. It moves its own cursor to whatever's there, and returns
   // the key that click stands for, which counts as pressed this update: 'a', 'b' or nothing. When it
   // has only moved, anything it returns turns the pointer into a hand, to show there's something to
   // click. wheel(steps), if it has one, is the scroll wheel: 1 a notch down, -1 a notch up. A dialog
-  // or a menu over one of those games takes the mouse too (takesMouse).
+  // or a menu takes the mouse when what it's over does, or it's over the office (takesMouse). The
+  // screens before you come in, and walking round, have the same kind of point in MODE_MOUSE.
   // Clicks wait their turn, one an update, each where it was made: a key only counts once an update,
   // and on a slow computer the pointer can have moved on before the game gets to the click. What the
   // mouse does while nothing is taking it is forgotten (seen).
@@ -959,14 +966,17 @@
     wheelSum += d;
     if (Math.abs(wheelSum) >= 50) { mouse.wheel += Math.sign(wheelSum); wheelSum = 0; }
   }, { passive: false });
-  // whether a layer takes the mouse: it has point, and so does everything down to the game it's over
+  // whether a layer takes the mouse: it has point, and so does everything under it, down to the
+  // first thing that isn't a dialog or a menu, or the office itself
   function takesMouse(el) {
     for (let i = ui.indexOf(el); i >= 0; i--) {
       if (!ui[i].point) return false;
       if (!ui[i].overlay) return true;
     }
-    return false;
+    return true;
   }
+  // (for a screen where any click is a press, as any key is: a click with either button, to carry on)
+  const anyClick = (x, y, button) => button;
   // what the mouse has done since the last update, handed to the layer on top (see layerUpdate)
   function mouseTo(el) {
     mouse.seen = true;
@@ -1188,10 +1198,11 @@
         if (button === 'b') return 'b';
         const i = first + Math.floor((py - y - 4) / 16);
         if (inBox(px, py, x, y + 4, w, rows * 16) && i < options.length) {
-          if (i !== cur) { cur = i; sfx('select'); }
+          cur = i; // (quietly: no sound for pointing at something, anywhere)
           return 'a';
         }
-        return button && !inBox(px, py, x, y, w, h) ? 'b' : null;
+        // (but not off the answers to a question: that might only be a click on what's being asked)
+        return button && !opts.question && !inBox(px, py, x, y, w, h) ? 'b' : null;
       },
       draw() {
         box(x, y, w, h);
@@ -1212,7 +1223,7 @@
     ui.push(Dialog(str, {
       above: opts && opts.above,
       then(dlg) {
-        ui.push(Choice(options, -1, SH - 48 - options.length * 16 - 8, (i) => { dlg.close(); cb(i); }, opts));
+        ui.push(Choice(options, -1, SH - 48 - options.length * 16 - 8, (i) => { dlg.close(); cb(i); }, Object.assign({ question: true }, opts)));
       },
     }));
   }
@@ -1245,6 +1256,8 @@
     const own = (i) => (i === PLANT || i === YARD ? i : -1);
     const floors = MAPS.floors.map((f, i) => i).filter((i) => i !== CASINO && own(i) === own(here));
     const self = {
+      point: anyClick,
+      wheel(d) { if (floors.length > 1) { fi = floors[(floors.indexOf(fi) + d + floors.length * 4) % floors.length]; sfx('select'); } }, // (the wheel goes through the floors)
       update() {
         if (floors.length > 1 && (pressed.has('left') || pressed.has('right') || pressed.has('up') || pressed.has('down'))) {
           fi = floors[(floors.indexOf(fi) + 1) % floors.length]; sfx('select');
@@ -1346,7 +1359,7 @@
         let at = progs.findIndex((p, i) => inBox(x, y, ICON_X[i] - 3, 51, 68, 82));
         if (at < 0) at = OPTIONS.findIndex((o, i) => inBox(x, y, OPT_X[i] - 10, SH - 24, o.length * 6 + 14, 20));
         if (at < 0) return null;
-        if (at !== sel) { sel = at; sfx('select'); }
+        sel = at;
         return 'a';
       },
       draw() {
@@ -1870,7 +1883,7 @@
           if (button === 'b') return 'b';
           const i = Math.floor((y - 74) / 14);
           if (inBox(x, y, 110, 74, 98, COMP_TYPES.length * 14)) {
-            if (i !== addSel) { addSel = i; sfx('select'); }
+            addSel = i;
             return 'a';
           }
           return button && !inBox(x, y, 104, 56, 112, 30 + COMP_TYPES.length * 14) ? 'b' : null;
@@ -1888,7 +1901,7 @@
         let bx = 6;
         const b = BUTTONS.findIndex((name) => { const bw = name.length * 6 + 14, on = inBox(x, y, bx, 214, bw, 18); bx += bw + 6; return on; });
         if (b < 0) return null;
-        if (b !== btn) { btn = b; sfx('select'); }
+        btn = b;
         return 'a';
       },
       wheel(d) { if (mode === 'main' || mode === 'move') moveSel(d); },
@@ -2602,6 +2615,25 @@
           else go(() => (hk ? LiveHockey(x.size, x.t, true) : LivePoker(x.t, true)));
         } else if (pressed.has('b')) { sfx('select'); close(); }
       },
+      // the mouse: point at a size, a game or START A NEW one to pick it, and click to go
+      point(x, y, button) {
+        if (button === 'b') return 'b';
+        if (!sheet.list || !begun || x < 12 || x >= SW - 12) return null;
+        if (sizes) {
+          const i = Math.floor((y - 53) / 32);
+          if (i < 0 || i >= SIZES.length || y - 53 - i * 32 >= 25) return null;
+          size = i;
+          return 'a';
+        }
+        const games = open(), showing = Math.min(SHOWN, games.length - first), i = Math.floor((y - 41) / 28);
+        let to;
+        if (i >= 0 && i < showing && y - 41 - i * 28 < 25) to = games[first + i].t;
+        else if (inBox(x, y, 12, 43 + Math.min(SHOWN, games.length) * 28, SW - 24, 14)) to = null;
+        else return null;
+        pick = to;
+        return 'a';
+      },
+      wheel(d) { pressed.add(d > 0 ? 'down' : 'up'); },
       draw() {
         box(0, 0, SW, SH);
         const title = hk ? 'LIVE HOCKEY SIGN-UP' : 'LIVE HOLD\'EM TABLES';
@@ -3727,6 +3759,7 @@
       right(fmt(r.score), SW - 24, y, c);
     };
     const self = {
+      point: anyClick,
       update() {
         t++;
         if (t > 20 && (pressed.has('a') || pressed.has('b'))) { sfx('menu'); remove(self); }
@@ -4521,6 +4554,24 @@
           if (pressed.has('a') && t > 10) { sfx('menu'); ui.push(Leaderboard({ key: list[sel], score: 0 })); }
         } else if (pressed.has('a') && t > 10) { sfx('menu'); remove(self); }
       },
+      // The mouse: either side of the page's name goes to the page before or after. On a page of
+      // boards, pointing at one picks it and a click opens it in full; anywhere else a click is A,
+      // as it is on a page with nothing to open. The wheel scrolls, or goes up and down the boards.
+      point(x, y, button) {
+        if (button === 'b') return 'b';
+        const p = pages(), page = p[Math.min(tab, p.length - 1)], list = typeof page === 'string' ? null : page[1];
+        const half = (typeof page === 'string' ? page : page[0]).length * 3;
+        if (y >= 20 && y < 38 && (x < SW / 2 - half || x >= SW / 2 + half)) {
+          if (button) { tab = (tab + (x < SW / 2 ? p.length - 1 : 1)) % p.length; sel = 0; scroll = 0; sfx('select'); }
+          return button ? null : 'a';
+        }
+        if (!list) return button;
+        const i = Math.floor((y - 46) / 15);
+        if (!boards || x < 14 || x >= SW - 14 || i < 0 || i >= list.length) return null;
+        sel = i;
+        return 'a';
+      },
+      wheel(d) { pressed.add(d > 0 ? 'down' : 'up'); },
       draw() {
         box(0, 0, SW, SH);
         drawCrown(76, 12); drawCrown(237, 12);
@@ -4882,6 +4933,7 @@
       (dogBest(b) === null ? -1 : dogBest(b)) - (dogBest(a) === null ? -1 : dogBest(a)) || a.localeCompare(b));
     const sprite = (name) => { const dg = dogs.find((x) => x.name === name); return dg && dg.sprites.down[0]; };
     const self = {
+      point: anyClick,
       update() {
         if (pressed.has('a') || pressed.has('b')) {
           remove(self);
@@ -12112,6 +12164,7 @@
     sfx('cup');
     const self = {
       music: 'rave',
+      point: (x, y, button) => button && 'b', // (a click skips it, as B does)
       update() {
         t++;
         if (bits.length < 90) for (let k = 0; k < 3; k++)
@@ -13322,6 +13375,7 @@
     sfx('cup');
     const self = {
       music: 'halloween',
+      point: anyClick,
       update() {
         t++;
         for (const b of bats) { b.x += b.v; if (b.x > SW + 10) b.x = -10; }
@@ -13519,6 +13573,7 @@
     const pops = [];
     const self = {
       music: 'none', shake: 0,
+      point: () => null,
       update() {
         t++;
         self.shake = Math.min(3, t / 60);
@@ -13549,6 +13604,7 @@
     let t = 0, shown = 0, after = 0, gone = false;
     const self = {
       music: 'none',
+      point: anyClick,
       update() {
         t++;
         if (shown < len) { if (t > 30) shown = Math.min(len, shown + (held.a || held.b ? 1 : 0.4)); return; }
@@ -14572,6 +14628,7 @@
     freeing = { npc, t: 0 };
     const self = {
       music: 'free',
+      point: () => null, // (nothing to click: it plays out, and any dialog over it takes the mouse)
       update() {
         if (++freeing.t < FREE_TICKS) return;
         remove(self);
@@ -14725,6 +14782,7 @@
   function LockerScreen() {
     let state = 'open', t = 0;
     const self = {
+      point: anyClick,
       update() {
         t++;
         if (state === 'open') { if (t > 30) { state = 'look'; t = 0; } return; }
@@ -14809,6 +14867,7 @@
   // and Kiki's Employee of the Month list. first: just handed over, with what to say then.
   function PaperList(title, items, sign, footer, first) {
     const self = {
+      point: anyClick,
       update() {
         if (pressed.has('a') || pressed.has('b') || pressed.has('start')) {
           sfx('select'); remove(self);
@@ -14877,6 +14936,7 @@
     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     const d = new Date(), month = MONTHS[d.getMonth()] + ' ' + d.getFullYear();
     const self = {
+      point: anyClick,
       update() { t++; if (t > 20 && (pressed.has('a') || pressed.has('b'))) { sfx('select'); remove(self); } },
       draw() {
         ctx.fillStyle = '#e8dcc0'; ctx.fillRect(0, 0, SW, SH);
@@ -14966,6 +15026,15 @@
     };
     // after the text has changed some other way (rubbing out, or a real keyboard)
     kb.fit = (str) => { kb.shift = !str || (eachWord && str.endsWith(' ')); };
+    // the mouse: the key at x, y (as drawn by draw(y0, rowH)) becomes the one picked, if there's one there
+    kb.at = (x, y, y0, rowH) => {
+      const r = Math.floor((y - y0 + 3) / rowH);
+      if (r < 0 || r >= rows.length) return false;
+      const c = rows[r].findIndex((t, i) => x >= kb.x(r, i) - 4 && x < kb.x(r, i) + kb.label(t).length * 6 + 3);
+      if (c < 0) return false;
+      kb.r = r; kb.c = c;
+      return true;
+    };
     kb.draw = (y0, rowH) => rows.forEach((row, r) => row.forEach((t, c) => {
       const x = kb.x(r, c), y = y0 + r * rowH, sel = kb.r === r && kb.c === c, label = kb.label(t);
       if (sel) pickBar(x - 4, y - 3, label.length * 6 + 7, rowH - 3, col.dark);
@@ -15016,6 +15085,12 @@
       return true;
     }
     return false;
+  }
+  // the mouse: click a letter to type it (or OK when you're done), and the right button rubs one out
+  function namePoint(x, y, button) {
+    if (bobNote) return button; // (any click, as any key, puts the Bob message away)
+    if (button === 'b') return 'b';
+    return nameKeys.at(x, y, 102, 18) ? 'a' : null;
   }
   function updateName() {
     if (bobNote) {
@@ -16143,6 +16218,7 @@
     c.until = Date.now() + MP_ASK;
     const self = {
       overlay: true,
+      point: (x, y, button) => (button === 'b' ? 'b' : null), // (the right button calls it off, as B does)
       update() {
         const timeUp = Date.now() > c.until;
         if (!pressed.has('b') && !timeUp) return;
@@ -16170,7 +16246,7 @@
         const ch = Choice(['ACCEPT', 'NO THANKS'], -1, SH - 48 - 40, (i) => {
           answer(i === 0 ? 'yes' : 'no');
           if (i === 0) mpStart(msg.m, msg.from, msg.n, msg.seed, msg.g, msg.soft);
-        }, { wait: late ? 30 : 0 });
+        }, { wait: late ? 30 : 0, question: true });
         inv.els.push(ch); ui.push(ch);
       },
     });
@@ -16374,6 +16450,14 @@
         if (pressed.has('a')) { sfx('select'); remove(self); mpSay(MP_EMOJI_AT + cur); }
         else if (pressed.has('b')) { remove(self); mpSayMenu(); } // back to the pages
       },
+      // the mouse: point at one and click to say it (a click off them goes back, as B does)
+      point(x, y, button) {
+        if (button === 'b') return 'b';
+        const c = Math.floor((x - x0 - 8) / PITCH), r = Math.floor((y - 7) / PITCH), i = r * COLS + c;
+        if (c < 0 || c >= COLS || r < 0 || i >= n) return button && !inBox(x, y, x0, 0, w, h) ? 'b' : null;
+        cur = i;
+        return 'a';
+      },
       draw() {
         box(x0, 0, w, h);
         MP_EMOJI.forEach((name, i) => {
@@ -16430,6 +16514,8 @@
         if (pressed.has('b')) type('DEL');
         if (pressed.has('start')) done();
       },
+      // the mouse: click a character to type it, the right button rubs one out
+      point: (x, y, button) => (button === 'b' ? 'b' : keys.at(x, y, Y + 42, 15) ? 'a' : null),
       draw() {
         box(0, Y, SW, SH - Y);
         text('Say something:', 10, Y + 8);
@@ -16810,12 +16896,15 @@
   // The fitness room's side doors and the parking lot's doors are the same two doors:
   // walk into one and you come out of the other (only at Christmas; the rest of the year
   // the fitness room's are just an exit).
-  function sideDoor(fi, x, y) {
+  function sideDoorTo(fi, x, y) {
     const Y = MAPS.yard;
-    if (!CHRISTMAS || !Y) return false;
-    let to = null;
-    if (fi === Y.office.floor && x === Y.office.x && y >= Y.office.y && y < Y.office.y + 2) to = [YARD, Y.x + y - Y.office.y, Y.y + 1, 'down'];
-    else if (fi === YARD && y === Y.y && x >= Y.x && x < Y.x + 2) to = [Y.office.floor, Y.office.x + 1, Y.office.y + x - Y.x, 'right'];
+    if (!CHRISTMAS || !Y) return null;
+    if (fi === Y.office.floor && x === Y.office.x && y >= Y.office.y && y < Y.office.y + 2) return [YARD, Y.x + y - Y.office.y, Y.y + 1, 'down'];
+    if (fi === YARD && y === Y.y && x >= Y.x && x < Y.x + 2) return [Y.office.floor, Y.office.x + 1, Y.office.y + x - Y.x, 'right'];
+    return null;
+  }
+  function sideDoor(fi, x, y) {
+    const to = sideDoorTo(fi, x, y);
     if (!to) return false;
     sfx('stairs');
     startFade(() => {
@@ -19917,10 +20006,12 @@
     const cx = realPx(clamp(fx - SW / 2, 0, lot.w - SW)), cy = realPx(clamp(fy - SH / 2, 0, lot.h - SH));
     // (not in a hockey game, even as it fades out, when it's no longer up in front of you)
     if (!sc) zoomOn(px - cx + 8, py - cy + 4);
+    viewAt = sc ? null : { floor: YARD, cx, cy, z: zoomed ? zoomed.z : 1, vx: zoomed ? zoomed.vx : 0, vy: zoomed ? zoomed.vy : 0 };
     ctx.drawImage(lot.ground, cx, cy, SW, SH, 0, 0, SW, SH);
     if (sc && lot.gate) ctx.drawImage(lot.gate.img, lot.gate.x - cx, lot.gate.y - cy);
     if (!sc) snowGround(cx, cy);
     drawGlowPix(cx, cy);
+    if (!sc) drawWalkMark(cx, cy);
 
     // everyone and everything standing up, back to front by where their feet are (z: as a
     // person's y, whose feet are 12 pixels down from it)
@@ -20110,6 +20201,7 @@
   function startFade(cb, color) { fade = { t: 0, cb, color }; }
   function placePlayer(fi, x, y, dir) {
     Object.assign(P, { floor: fi, x, y, dir, bump: 0, free: false });
+    walkTo = null;
     curRoom = roomAt(fi, x, y);
     roomName = curRoom ? curRoom.name : null;
   }
@@ -20492,6 +20584,185 @@
     }
     return 2;
   }
+  // ---------- walking with the mouse ----------
+  // Left click somewhere and you walk there, round whatever's in the way (somewhere you can't
+  // stand, and you go as near as you can get). Right click someone or something and you walk up
+  // to it, turn to face it and press A at it. Any key, or the stick, takes over at once. The way is
+  // worked out over the floor's tiles (walkMap) and then pulled straight wherever there's room for
+  // you (walkLine), so you don't zigzag. The stairs, the doors outside and the other bathroom are
+  // kept off it unless they're where you clicked, and the rink unless there's no other way. People
+  // move about, so if you're stuck for a moment it's worked out again round them, a few times, and
+  // someone you're going to talk to is followed if they walk off.
+  // walkTo: { floor, path: the spots to go through (tiles, the last one where you'll stop), mark: the
+  // tile clicked, use: { npc }, { other } or { tile: [x, y] } to press A at once you're there, or
+  // null, tries, still: updates you've been stuck for, at: where you were last update }
+  let walkTo = null;
+  let viewAt = null; // where the world was drawn last: { floor, cx, cy, z, vx, vy } (see drawWorld)
+  const STEPS8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+  // somewhere you can go on the way, on the floor you're on (the other bathroom, and its door, aren't)
+  function walkOK(x, y, ice) {
+    if (!walkable(P.floor, x, y) || tileAt(P.floor, x, y) === 'S' || sideDoorTo(P.floor, x, y)) return false;
+    if (!ice && tileAt(P.floor, x, y) === '~') return false;
+    if (genderBlock(x, y, 0, 0) || (tileAt(P.floor, x, y) === 'D' && Object.values(DIRS).some(([dx, dy]) => genderBlock(x, y, dx, dy)))) return false;
+    return !(P.floor === YARD && spruces.some(([tx, ty]) => Math.hypot(tx - x, ty - y) < SPRUCE_R + 0.05));
+  }
+  // Everywhere you can get to from where you are, and the way: from[k] is the tile you'd come from
+  // (k = y * w + x, -1 where you start, -2 nowhere you can get to), and order the tiles nearest first.
+  // end: a tile you can go onto though it's off the way (stairs, say: where you're going), but not
+  // past. avoid: tiles to keep off (somebody standing there). ice: whether the rink's all right.
+  function walkMap(end, avoid, ice) {
+    const f = MAPS.floors[P.floor], w = f.tiles[0].length, h = f.tiles.length, from = new Int32Array(w * h).fill(-2);
+    const ok = (x, y) => x >= 0 && y >= 0 && x < w && y < h && !(avoid && avoid.has(y * w + x))
+      && (walkOK(x, y, ice) || (!!end && x === end[0] && y === end[1] && (walkable(P.floor, x, y) || !!sideDoorTo(P.floor, x, y))));
+    const start = P.y * w + P.x, order = [start];
+    from[start] = -1;
+    for (let q = 0; q < order.length; q++) {
+      const k = order[q], x = k % w, y = (k - x) / w;
+      if (q && end && x === end[0] && y === end[1]) continue;
+      for (const [dx, dy] of STEPS8) {
+        const nx = x + dx, ny = y + dy;
+        if (!ok(nx, ny) || from[ny * w + nx] !== -2) continue;
+        if (dx && dy && (!ok(x + dx, y) || !ok(x, y + dy))) continue; // (no cutting corners)
+        from[ny * w + nx] = k; order.push(ny * w + nx);
+      }
+    }
+    return { w, from, order, ok };
+  }
+  // whether you'd fit all the way from a to b in a straight line, by the tiles ok says are all right
+  function walkLine(a, b, ok) {
+    const n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.1), R = FREE_R + 0.02;
+    for (let i = 1; i <= n; i++) {
+      const x = a[0] + (b[0] - a[0]) * i / n, y = a[1] + (b[1] - a[1]) * i / n;
+      for (const [cx, cy] of [[x - R, y - R], [x + R, y - R], [x - R, y + R], [x + R, y + R]]) if (!ok(Math.round(cx), Math.round(cy))) return false;
+    }
+    return true;
+  }
+  // where somebody is now, in tiles, or null if they've gone from this floor
+  function whereIs(who) {
+    if (who.npc) { const n = who.npc; return n.floor === P.floor ? [n.x + (n.moving ? n.mdx * n.prog / 16 : 0), n.y + (n.moving ? n.mdy * n.prog / 16 : 0)] : null; }
+    const o = mpHere().find((p) => p.id === who.other.id && p.f === P.floor);
+    return o ? [o.px / 16, o.py / 16] : null;
+  }
+  // Set off for tile [gx, gy], or to press A at `use`, keeping off `avoid`. Says whether you're going.
+  function walkPlan(use, [gx, gy], avoid, tries = 0) {
+    if (use && !use.tile) { const at = whereIs(use); if (!at) return false; gx = Math.round(at[0]); gy = Math.round(at[1]); }
+    walkTo = null;
+    // already near enough to talk to them, or right next to the thing: turn and press A
+    if (use && (use.tile ? Math.abs(gx - P.x) + Math.abs(gy - P.y) === 1 : Math.hypot(gx - P.fx, gy - P.fy) < 1.25)) {
+      walkTo = { floor: P.floor, use }; walkArrive(); return true;
+    }
+    const end = use ? null : [gx, gy];
+    // (off the rink if there's any other way, unless that's where you are or where you're going)
+    const iceToo = tileAt(P.floor, P.x, P.y) === '~' || tileAt(P.floor, gx, gy) === '~';
+    let m = walkMap(end, avoid, iceToo);
+    const best = (tiles) => tiles.map(([x, y]) => y * m.w + x).filter((k) => m.from[k] !== -2).sort((a, b) => m.order.indexOf(a) - m.order.indexOf(b))[0];
+    const around = (list) => list.map(([dx, dy]) => [gx + dx, gy + dy]);
+    const pick = () => (use ? best(around(STEPS8.slice(0, 4))) ?? best(around(STEPS8.slice(4))) : best([[gx, gy]]));
+    let goal = pick();
+    if (goal === undefined && !iceToo) { m = walkMap(end, avoid, true); goal = pick(); }
+    if (goal === undefined) {
+      // nowhere next to it you can get to: as near as you can get, and no A at the end
+      use = null;
+      let near = Infinity;
+      for (const k of m.order) { const x = k % m.w, d = Math.hypot(x - gx, (k - x) / m.w - gy); if (d < near - 1e-6) { near = d; goal = k; } }
+    }
+    if (goal === undefined || goal === P.y * m.w + P.x && !use) return false;
+    const tiles = [];
+    for (let k = goal; k >= 0; k = m.from[k]) tiles.unshift([k % m.w, Math.floor(k / m.w)]);
+    // pulled straight: from each spot, on to the furthest one you can go straight to
+    const pts = [[P.fx, P.fy]].concat(tiles.slice(1)), path = [];
+    const ok = (x, y) => m.ok(x, y) || (x === P.x && y === P.y);
+    for (let i = 0; i < pts.length - 1;) {
+      let j = pts.length - 1;
+      while (j > i + 1 && !walkLine(pts[i], pts[j], ok)) j--;
+      path.push(pts[j]); i = j;
+    }
+    walkTo = { floor: P.floor, path: path.length ? path : [[P.x, P.y]], mark: [gx, gy], use, tries, still: 0, at: [P.fx, P.fy] };
+    return true;
+  }
+  // Where to push this update to keep going, as steer gives it ({ x, y }, each -1 to 1).
+  function walkStep() {
+    const w = walkTo, none = { x: 0, y: 0 };
+    if (w.floor !== P.floor) { walkTo = null; return none; }
+    if (w.use && !w.use.tile) {
+      const at = whereIs(w.use);
+      if (!at) { walkTo = null; return none; }
+      if (Math.hypot(at[0] - P.fx, at[1] - P.fy) < 1.25) { walkArrive(); return none; }
+    }
+    let [tx, ty] = w.path[0], dx = tx - P.fx, dy = ty - P.fy, d = Math.hypot(dx, dy);
+    // (skating, you can't stop on the spot, so near enough is near enough)
+    const ice = tileAt(P.floor, P.x, P.y) === '~';
+    while (w.path.length > 1 && d < (ice ? 0.5 : 0.15)) { w.path.shift(); [tx, ty] = w.path[0]; dx = tx - P.fx; dy = ty - P.fy; d = Math.hypot(dx, dy); }
+    if (w.path.length === 1 && d < (ice ? 0.4 : 0.08)) { walkArrive(); return none; }
+    // stuck (somebody's in the way): find a way round them, or after a few goes give up
+    const moved = Math.hypot(P.fx - w.at[0], P.fy - w.at[1]);
+    w.at = [P.fx, P.fy];
+    if (moved > 0.01) w.still = 0;
+    else if (++w.still > 20) {
+      const avoid = new Set(), cols = MAPS.floors[P.floor].tiles[0].length;
+      for (const n of npcs.concat(dogs, critters)) if (n.floor === P.floor) { avoid.add(n.y * cols + n.x); if (n.moving) avoid.add((n.y + n.mdy) * cols + n.x + n.mdx); }
+      if (w.tries >= 3 || !walkPlan(w.use, w.mark, avoid, w.tries + 1)) { walkTo = null; sfx('bump'); }
+      return none;
+    }
+    // (easing off into the last spot, so you stop on it)
+    const k = w.path.length === 1 && !ice ? Math.min(1, d * 4) : 1;
+    return { x: dx / d * k, y: dy / d * k };
+  }
+  // There: turn to whatever you were going to, and press A at it. Somebody who's walked off since is
+  // followed, a few times.
+  function walkArrive() {
+    const w = walkTo, use = w.use;
+    walkTo = null;
+    P.vx = P.vy = 0;
+    if (!use) return;
+    const at = use.tile || whereIs(use);
+    if (!at) return;
+    const dx = at[0] - P.fx, dy = at[1] - P.fy;
+    if (!use.tile && Math.hypot(dx, dy) > 1.6) { if ((w.tries || 0) < 3) walkPlan(use, at.map(Math.round), null, (w.tries || 0) + 1); return; }
+    if (dx || dy) { P.face = Math.atan2(dx, dy); P.dir = wayOf(dx, dy); }
+    if (use.npc) talkTo(use.npc);
+    else if (use.other) mpTalk(use.other);
+    else useTile(...use.tile);
+  }
+  // whoever's at x, y in the world (in pixels), near enough to click on: a coworker, a dog, another player
+  function personAtPx(wx, wy) {
+    let best = null, least = 11;
+    const near = (who, x, y) => { const d = Math.hypot(wx - (x * 16 + 8), (wy - (y * 16 + 4)) * 0.8); if (d < least) { least = d; best = who; } };
+    for (const o of mpHere()) if (o.f === P.floor) near({ other: o }, o.px / 16, o.py / 16);
+    for (const n of npcs.concat(dogs, critters)) {
+      if (n.floor !== P.floor || (visit && n === visit.npc && visit.a < 1)) continue;
+      near({ npc: n }, ...whereIs({ npc: n }));
+    }
+    return best;
+  }
+  // The mouse, walking round: a click starts you off (see above), and a click on yourself opens the
+  // Start menu, as Enter does. The pointer's a hand over you, and over somebody you can talk to.
+  function worldPoint(x, y, button) {
+    const v = viewAt;
+    if (!v || v.floor !== P.floor) return null;
+    const wx = x / v.z + v.vx + v.cx, wy = y / v.z + v.vy + v.cy, [mx, my] = mePx();
+    if (Math.hypot(wx - (mx + 8), (wy - (my + 4)) * 0.8) < 9) {
+      if (button) { walkTo = null; P.vx = P.vy = 0; P.glide = false; openStartMenu(); }
+      return !button;
+    }
+    const who = personAtPx(wx, wy);
+    if (!button) return who;
+    const tile = [Math.floor(wx / 16), Math.floor(wy / 16)];
+    walkPlan(button === 'b' ? who || { tile } : null, tile);
+    return null;
+  }
+  // corners round the tile you're walking to, or round whoever you're going to talk to (cx, cy: the view's corner in the world)
+  function drawWalkMark(cx, cy) {
+    if (!walkTo || walkTo.floor !== P.floor || !walkTo.mark) return;
+    const at = walkTo.use && !walkTo.use.tile ? whereIs(walkTo.use) : walkTo.mark;
+    if (!at) return;
+    const x = realPx(at[0] * 16 + 8 - cx), y = realPx(at[1] * 16 + 8 - cy), r = 6 + ((tick >> 3) & 1);
+    for (const [kx, ky] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const ex = x + kx * r, ey = y + ky * r, hx = kx < 0 ? ex : ex - 3, vy = ky < 0 ? ey : ey - 3;
+      fine(hx - 0.5, ey - 1, 4, 2, col.dark); fine(ex - 1, vy - 0.5, 2, 4, col.dark);
+      fine(hx, ey - 0.5, 3, 1, '#f8f8f8'); fine(ex - 0.5, vy, 1, 3, '#f8f8f8');
+    }
+  }
   function updatePlayer() {
     // just been put somewhere new: from the middle of the tile, standing still
     if (!P.free || Math.round(P.fx) !== P.x || Math.round(P.fy) !== P.y) {
@@ -20504,10 +20775,12 @@
     }
     // stopping to do something
     const act = pressed.has('start') ? openStartMenu : pressed.has('map') ? () => { sfx('menu'); ui.push(MapView()); } : pressed.has('a') ? interact : null;
-    if (act) { P.vx = P.vy = 0; P.glide = false; act(); return; }
+    if (act) { P.vx = P.vy = 0; P.glide = false; walkTo = null; act(); return; }
     // B throws a snowball the way you're facing (snowTick lets it go)
     if (P.floor === YARD && pressed.has('b') && !P.throwing) P.throwing = { t: tick, a: P.face };
     let { x: ix, y: iy } = steer();
+    if (ix || iy) walkTo = null; // (a key, or the stick, takes over from the mouse)
+    else if (walkTo) ({ x: ix, y: iy } = walkStep());
     const push = Math.hypot(ix, iy);
     if (push > 1) { ix /= push; iy /= push; }
     const pushing = push > 0.05, ice = tileAt(P.floor, P.x, P.y) === '~', s = Math.hypot(P.vx, P.vy);
@@ -20547,6 +20820,15 @@
     if (tx !== P.x || ty !== P.y) { P.x = tx; P.y = ty; onArrive(); }
   }
 
+  // The mouse on the screens that aren't on the ui stack: the ones before you come in, and walking round.
+  const MODE_MOUSE = {
+    title: { point: (x, y, button) => (button === 'a' ? 'a' : null) },
+    name: { point: namePoint },
+    edit: { point: editPoint, wheel: editWheel },
+    costume: { point: costumePoint },
+    sweater: { point: sweaterPoint },
+    play: { point: worldPoint },
+  };
   function update() {
     // (a head-to-head game standing still stands right still, down to anything that blinks)
     const waiting = !!mpWaiting();
@@ -20558,6 +20840,7 @@
       if (fade.t === 16) fade.cb();
       if (fade.t >= 32) fade = null;
     } else if (mode === 'title') {
+      mouseTo(MODE_MOUSE.title);
       if (pressed.has('a') || pressed.has('start')) {
         sfx('menu');
         if (!playerName) playerName = store.get('name') || '';
@@ -20565,12 +20848,16 @@
         mode = 'name';
       }
     } else if (mode === 'edit') {
+      mouseTo(MODE_MOUSE.edit);
       updateEdit();
     } else if (mode === 'name') {
+      mouseTo(MODE_MOUSE.name);
       updateName();
     } else if (mode === 'costume') {
+      mouseTo(MODE_MOUSE.costume);
       updateCostume();
     } else if (mode === 'sweater') {
+      mouseTo(MODE_MOUSE.sweater);
       updateSweater();
     } else if (ui.length) {
       if (!waiting) layerUpdate(top());
@@ -20580,6 +20867,7 @@
     } else if (mode === 'play' && !fade && cupNews()) {
       // (the Christmas Cup's champion has just been told)
     } else {
+      if (mode === 'play') mouseTo(MODE_MOUSE.play);
       updatePlayer();
       updateNpcs();
       if (mode === 'play' && P.floor === YARD) snowTick();
@@ -20599,7 +20887,7 @@
     pressed.clear();
     if (!mouse.seen) { mouse.clicks.length = 0; mouse.moved = false; }
     mouse.seen = false; mouse.wheel = 0;
-    if (canvas.style.cursor && !(ui.length && takesMouse(top()))) canvas.style.cursor = '';
+    if (canvas.style.cursor && !(ui.length ? takesMouse(top()) : MODE_MOUSE[mode])) canvas.style.cursor = '';
   }
 
   // ---------- saved looks ----------
@@ -20980,6 +21268,23 @@
     else if (pressed.has('b') && edit.back) { sfx('select'); startFade(editBack); }
     else if (pressed.has('b')) { sfx('select'); nameKeys.fit(playerName); startFade(() => { mode = 'name'; }); }
   }
+  // The mouse: point at a part to pick it and click to change it (on the < it goes back one). RANDOM
+  // and DONE are buttons, the wheel steps through the part you're on, and the right button is B.
+  function editPoint(x, y, button) {
+    if (edit.wait > 0) return null;
+    if (button === 'b') return 'b';
+    const n = EDIT_ROWS.length, i = Math.floor((y - 35) / 14);
+    if (i >= 0 && i < n && x >= 112 && x < 310) {
+      edit.row = i;
+      if (button && x >= 192 && x < 210) { pressed.add('left'); return null; }
+      return 'a';
+    }
+    const b = [0, 1].find((k) => inBox(x, y, 146 + k * 76, editY(n), 60, 15));
+    if (b === undefined) return null;
+    edit.row = n; edit.btn = b;
+    return 'a';
+  }
+  function editWheel(d) { if (EDIT_ROWS[edit.row]) pressed.add(d > 0 ? 'right' : 'left'); }
   // the line at the bottom, for the row you're on
   function editHint(worn) {
     const r = EDIT_ROWS[edit.row];
@@ -21061,6 +21366,14 @@
     costumeCur = Math.max(0, COSTUME_KEYS.indexOf(hw.costume));
     mode = 'costume';
   }
+  // the mouse: point at a costume and click to wear it
+  function costumePoint(x, y, button) {
+    if (button === 'b') return 'b';
+    const i = COSTUME_KEYS.findIndex((k, j) => inBox(x, y, 24 + (j % 4) * 70, 44 + (j >> 2) * 78, 64, 72));
+    if (i < 0) return null;
+    costumeCur = i;
+    return 'a';
+  }
   function updateCostume() {
     const n = COSTUME_KEYS.length, row = costumeCur - (costumeCur % 4);
     if (pressed.has('left')) { costumeCur = row + ((costumeCur + 3) % 4); sfx('select'); }
@@ -21096,6 +21409,14 @@
     sweaterSheets = SWEATER_KEYS.map((k) => lookSprites(wornLook(myLook), Art.SWEATERS[k] ? k : ''));
     sweaterCur = Math.max(0, SWEATER_KEYS.indexOf(xmas.sweater));
     mode = 'sweater';
+  }
+  // the mouse: point at a sweater and click to wear it
+  function sweaterPoint(x, y, button) {
+    if (button === 'b') return 'b';
+    const i = SWEATER_KEYS.findIndex((k, j) => inBox(x, y, 17 + (j % 5) * 58, 38 + Math.floor(j / 5) * 66, 58, 60));
+    if (i < 0) return null;
+    sweaterCur = i;
+    return 'a';
   }
   function updateSweater() {
     const n = SWEATER_KEYS.length, row = sweaterCur - (sweaterCur % 5);
@@ -21192,6 +21513,7 @@
     const ox = (SW - 16) >> 1, oy = (SH - 16) >> 1;
     const cx = px - ox, cy = py - oy;
     zoomOn(px - cx + 8, py - cy + 4);
+    viewAt = { floor: P.floor, cx, cy, z: zoomed ? zoomed.z : 1, vx: zoomed ? zoomed.vx : 0, vy: zoomed ? zoomed.vy : 0 };
     const cv = floorCanvas[P.floor];
     let sx = cx, sy = cy, dx = 0, dy = 0, w = SW, h = SH;
     if (sx < 0) { dx = -sx; w += sx; sx = 0; }
@@ -21236,6 +21558,7 @@
     if (spooky) drawHalloween(cx, cy, 0);
     if (CHRISTMAS) drawChristmas(cx, cy);
     drawGlowPix(cx, cy);
+    drawWalkMark(cx, cy);
     // people, drawn back to front so nearer ones overlap farther ones
     const actors = [{ x: px, y: py, img: sprites[P.dir][frameIndex()], dir: P.dir }];
     if (party) {
