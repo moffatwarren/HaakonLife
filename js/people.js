@@ -181,6 +181,49 @@ window.DOGS = {
   "Felix": { breed: 'Siberian', owner: 'Kim', cat: true, coat: '#e88a30', ears: '#b85a18', chest: '#f8d8a8', collar: '#e88a30', sound: 'Meow... *yawn*... zzzz', speed: 0 },
 };
 
+// Christmas: the reindeer loose in the deep snow out in the parking lot. A few of them go out
+// each time the game loads (see "reindeer" in js/game.js). They aren't dogs: nobody plays catch
+// with them, so they aren't on the frisbee leaderboard.
+//   coat / dark / belly / collar: colours (dark is the far legs and the ears)
+window.REINDEER = {
+  "Dasher": { coat: '#8a5f3c', dark: '#54351f', belly: '#ecdcc0', collar: '#c0322c' },
+  "Dancer": { coat: '#a87a4c', dark: '#6a4426', belly: '#f2e6d0', collar: '#2e7a44' },
+  "Prancer": { coat: '#6a4630', dark: '#3a2418', belly: '#dccab0', collar: '#c0322c' },
+  "Vixen": { coat: '#b8986c', dark: '#7a5a38', belly: '#f6eedc', collar: '#2f5fb0' },
+  "Comet": { coat: '#94704a', dark: '#5c3e26', belly: '#eee0c6', collar: '#2e7a44' },
+  "Cupid": { coat: '#a06a48', dark: '#623a24', belly: '#f0dcc4', collar: '#d8487a' },
+  "Donner": { coat: '#5e4232', dark: '#34221a', belly: '#d4c4ac', collar: '#c0322c' },
+  "Blitzen": { coat: '#c4aa84', dark: '#866a48', belly: '#f8f2e4', collar: '#2f5fb0' },
+};
+// What you get when you walk up to one: each follows their name (one is picked at random).
+window.REINDEER_LINES = [
+  "stops chewing, gives you a long look, and starts chewing again.",
+  "sniffs your pockets for a carrot, finds a stapler, and looks let down.",
+  "has a HAAKON lanyard caught on one antler. Nobody knows how long it's been there.",
+  "leans into a scratch behind the ear so hard you nearly fall over. The bell jingles.",
+  "breathes a big cloud of steam at you. Good airflow, for something with no fan.",
+  "looks at the hot chocolate stand, then at you, then at the hot chocolate stand.",
+  "has found the only patch of lichen in the whole parking lot and isn't sharing.",
+  "stamps a hoof and shakes the snow off. The bell on the collar jingles.",
+];
+
+// Christmas: the elf who runs around the parking lot with a candy cane (see "the reindeer and
+// the elf" in js/game.js). One of these is picked at random.
+//   taunt: if you walk up to him while he's on his feet (and it's your hint about the snowballs)
+//   empty: once you've got the candy cane
+window.ELF_LINES = {
+  taunt: [
+    "Ha! You'll never catch me. It'd take a snowball to the head to slow me down, and you couldn't hit the broad side of a reindeer!",
+    "This candy cane? Mine! You want it, you'll have to knock me silly first. With a snowball, say. Not that you could.",
+    "Can't stop! Can't talk! Nice try, though. Have you thought about throwing something?",
+  ],
+  empty: [
+    "You again? You've already taken everything I have! All that's left is this hat, and you're not getting the hat.",
+    "Look, empty pockets. You took my candy cane, and that's everything I have. Go bother a reindeer.",
+    "What more do you want? You've already cleaned me out. I had one candy cane, and now you've got it.",
+  ],
+};
+
 // Halloween party: what somebody says about the costume they turned up in (one is
 // picked at random). 'ghost' is the bedsheet only coworkers wear.
 window.COSTUME_LINES = {
@@ -202,9 +245,11 @@ window.CHRISTMAS_LINES = {
     "Smells like woodsmoke and marshmallows. Don't tell anyone I brought marshmallows.", "This fire puts out more BTUs than half our heating coils.",
     "Golden brown on every side. Keep it turning and keep it out of the flames.", "We're nearly out of firewood. The axe is in the block if you're feeling strong."],
   cocoa: ["They have the little marshmallows. Not the big ones. The little ones.", "I'm on my third. Don't judge me.",
-    "Whipped cream AND marshmallows? It's the holidays.", "Whoever was pouring went on break. You could always hop behind the counter."],
+    "Whipped cream AND marshmallows? It's the holidays.", "Whoever was pouring went on break. You could always hop behind the counter.",
+    "That elf won't slow down for anybody. You'd have to hit him with a snowball."],
   watch: ["I'm just here to watch people fall over. Purely supportive.", "Someone needs to bring a puck. We could get a game going.",
-    "I'd skate, but these are my good shoes.", "Somebody flooded this on their lunch break. Respect."],
+    "I'd skate, but these are my good shoes.", "Somebody flooded this on their lunch break. Respect.",
+    "An elf just ran past me with a candy cane bigger than he is. I've stopped asking questions."],
   car: ["Found my car. I think. They all look the same under a foot of snow.", "I'm warming it up. Twenty more minutes and it might start.",
     "I left my scraper inside. I've been using my loyalty card.", "Watch yourself near the snowbanks. Somebody's building a fort."],
   snowman: ["Somebody gave him a lanyard. He has better building access than I do.", "I did the head. I'm very proud of the head.",

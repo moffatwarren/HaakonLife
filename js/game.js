@@ -225,6 +225,7 @@
   }
   const npcs = [];
   const dogs = []; // the office dogs, from js/people.js
+  const critters = []; // the reindeer and the elf, out in the parking lot at Christmas (see "reindeer and the elf")
   // Someone's body type and colours: from js/people.js, with a random-but-stable
   // look filling in anything they don't set.
   function lookOf(p, name) {
@@ -246,7 +247,7 @@
   }
   function npcAt(fi, x, y) {
     const at = (n) => n.floor === fi && ((n.x === x && n.y === y) || (n.moving && n.x + n.mdx === x && n.y + n.mdy === y));
-    return npcs.find(at) || dogs.find(at) || null;
+    return npcs.find(at) || dogs.find(at) || critters.find(at) || null;
   }
   function playerAt(x, y) {
     if (P.free) return Math.abs(P.fx - x) < 0.5 + FREE_R && Math.abs(P.fy - y) < 0.5 + FREE_R; // any tile you're partly on
@@ -448,6 +449,7 @@
       Object.assign(n, { moving: true, prog: 0, mdx: dx, mdy: dy });
       n.step ^= 1;
     }
+    if (P.floor === YARD) for (const n of critters) (n.elf ? updateElf : updateDeer)(n);
   }
 
   const area = (r) => (r.x2 - r.x1 + 1) * (r.y2 - r.y1 + 1);
@@ -4035,7 +4037,7 @@
   // lately, newest last, for the Sweeper to follow (at, walking; no at if it's not with them).
   // hat: the head thing they've got on, or -1 in a costume.
   const WALKS = { me: {} }, SWEEP_DUST = [];
-  function followOne(m, hat, sweeper, f, x, y, way) {
+  function followOne(m, hat, sweeper, f, x, y, way, lights) {
     const away = m.x === undefined || m.f !== f || Math.hypot(x - m.x, y - m.y) > 24; // (a floor change or a jump)
     const vx = away ? 0 : x - m.x, vy = away ? 0 : y - m.y, turned = m.way !== undefined && m.way !== way;
     m.x = x; m.y = y; m.f = f; m.way = way;
@@ -4046,6 +4048,7 @@
       m.th = clamp(m.th + m.tv, -1, 1);
       m.tv = (m.tv - 0.05 * m.th) * 0.965;
     } else if (hat === Art.SANTA) santaStep(m, vx, vy, turned, f, x, y, way);
+    if (lights) cordStep(m, x, y, way, away); else m.cord = null;
     if (!sweeper) { m.trail = null; m.at = null; return; }
     if (away || !m.trail) { m.trail = [{ x, y, dir: way }]; m.still = 0; m.at = null; m.walking = false; return; }
     const last = m.trail[m.trail.length - 1];
@@ -4071,8 +4074,8 @@
   function followTick() {
     const sc = hockey && hockey.scene(), out = (f) => f === YARD && sc;
     const worn = wornLook(myLook), [mx, my] = mePx();
-    followOne(WALKS.me, hw.worn ? -1 : worn.hat, worn.flair === Art.SWEEPER && !out(P.floor), P.floor, mx, my, P.dir);
-    for (const o of mpHere()) followOne(o.walks || (o.walks = {}), o.c ? -1 : o.look.hat, o.look.flair === Art.SWEEPER && !out(o.f), o.f, o.px, o.py, o.dir);
+    followOne(WALKS.me, hw.worn ? -1 : worn.hat, worn.flair === Art.SWEEPER && !out(P.floor), P.floor, mx, my, P.dir, !hw.worn && worn.shirt === Art.LIGHTS && !out(P.floor));
+    for (const o of mpHere()) followOne(o.walks || (o.walks = {}), o.c ? -1 : o.look.hat, o.look.flair === Art.SWEEPER && !out(o.f), o.f, o.px, o.py, o.dir, !o.c && o.look.shirt === Art.LIGHTS && !out(o.f));
     while (SWEEP_DUST.length && (tick - SWEEP_DUST[0].t >= SWEEP_DUST[0].life || SWEEP_DUST.length > 200)) SWEEP_DUST.shift();
   }
   // every Sweeper with somebody on this floor
@@ -4126,8 +4129,66 @@
       if (i === 4 && t < 14) twinkle(realPx(cx + 1.5), realPx(cy - 3), realPx(Math.sin(t / 14 * Math.PI) * 2.5));
     });
   }
+  // The tangled lights' cord lies on the floor from under your sweater, with another bulb on it and
+  // the plug on the end. It's a chain of links, each pulled along by the one in front and left
+  // wherever it stops, so it drags behind you and stays put when you do. Places are in pixels, as
+  // for the rest of WALKS. Like everything there, nothing more goes over the network for it. (It's
+  // short enough to be hidden behind you when you walk down the screen, plug and all.)
+  const CORD_LINKS = 6, CORD_LINK = 2.3, CORD_LAID = 1.4, CORD_WIRE = '#2c6a34', CORD_BULBS = { 3: '6' }, PLUG_PRONG = '#6a7080';
+  // (a bulb on the cord, the same as the ones on the sweater: b is its colour and h its glint)
+  const CORD_BULB = ['.kgk.', 'khbbk', 'kbbbk', 'kbbbk', '.kbk.', '..k..'];
+  function cordStep(m, x, y, way, away) {
+    const sx = x + 8, sy = y + 15;
+    if (away || !m.cord) {
+      const [dx, dy] = DIRS[faced(way)];
+      m.cord = Array.from({ length: CORD_LINKS }, (_, i) => ({ x: sx - dx * i * CORD_LINK, y: sy - dy * i * CORD_LINK }));
+      return;
+    }
+    m.cord[0].x = sx; m.cord[0].y = sy;
+    for (let i = 1; i < CORD_LINKS; i++) {
+      const a = m.cord[i - 1], b = m.cord[i], d = Math.hypot(b.x - a.x, b.y - a.y);
+      if (d > CORD_LINK) { b.x = a.x + (b.x - a.x) * CORD_LINK / d; b.y = a.y + (b.y - a.y) * CORD_LINK / d; }
+    }
+  }
+  // which of the bulbs is off just now: they take it in turns
+  const bulbOff = () => '678'[(tick >> 4) % 3];
+  function lightsCord(x, y, dir, walk) {
+    const way = faced(dir), [bx, by] = { down: [0.8, 0.2], up: [0.2, 1], left: [1, 0.1], right: [-1, 0.1] }[way];
+    // (nobody walking, in the character editor or out playing hockey: laid out behind them, and
+    // short enough to stay in the box round the picture when it's a new item, in itemPanel)
+    const laid = walk && walk.cord ? walk.cord.map((p) => [p.x - walk.x + x, p.y - walk.y + y])
+      : Array.from({ length: CORD_LINKS }, (_, i) => [x + 8 + bx * i * CORD_LAID, y + 15 + by * i * CORD_LAID]);
+    // (with a kink or two in it: nothing this tangled lies straight)
+    const pts = laid.map(([px, py], i) => {
+      if (i === 0 || i === laid.length - 1) return [px, py];
+      const dx = laid[i + 1][0] - laid[i - 1][0], dy = laid[i + 1][1] - laid[i - 1][1], d = Math.hypot(dx, dy) || 1, w = Math.sin(i * 1.9) * 1.1;
+      return [px - dy / d * w, py + dx / d * w];
+    });
+    const stamp = (px, py, r, c) => ctx.drawImage(santaDisc(r, c), Math.round(px * 2 - r) / 2, Math.round(py * 2 - r) / 2);
+    for (let i = 1; i < pts.length; i++) for (let j = 0; j < 5; j++) stamp(pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * j / 5, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * j / 5, 1, CORD_WIRE);
+    pts.forEach(([px, py], i) => {
+      const b = CORD_BULBS[i];
+      if (!b) return;
+      const c = Art.BULBS[b], off = b === bulbOff();
+      ctx.drawImage(rowsPic('cordBulb' + b + off, CORD_BULB, { k: col.dark, g: '#8890a0', b: off ? c.off : c.on, h: off ? c.off : c.glint }), (Math.round(px * 2) - 2) / 2, Math.round(py * 2) / 2);
+    });
+    // the plug, with its two prongs pointing the way the cord's going
+    const [ex, ey] = pts[pts.length - 1], [fx, fy] = pts[pts.length - 2], side = Math.abs(ex - fx) > Math.abs(ey - fy);
+    const px = realPx(ex), py = realPx(ey), s = (side ? ex - fx : ey - fy) < 0 ? -1 : 1, prong = s > 0 ? 1.5 : -2.5;
+    for (const off of [-1, 0.5]) {
+      if (side) fine(px + prong, py + off, 1, 0.5, PLUG_PRONG); else fine(px + off, py + prong, 0.5, 1, PLUG_PRONG);
+    }
+    fine(px - 1.5, py - 1.5, 3, 3, col.dark);
+    fine(px - 1, py - 1, 2, 2, '#5a6070');
+  }
+  // The bulbs on the sweater itself: a colour at a time goes off, wherever you can see one.
+  function lightsTwinkle(worn, x, y, dir) {
+    const off = bulbOff();
+    for (const [px, py, b] of Art.lightsShowing(worn, faced(dir))) if (b === off) fine(x + px / 2, y + py / 2, 0.5, 0.5, Art.BULBS[b].off);
+  }
   function wornBehind(worn, x, y, dir, walk, rx = 10.5) {
     if (!worn) return;
+    if (worn.shirt === Art.LIGHTS) lightsCord(x, y, dir, walk);
     if (deckOn(worn)) deckOrbit(x, y, false, rx);
     if (worn.hat === Art.HAUNTED_MASK) hauntGhosts(x, y, false, rx);
     const big = bigHat(worn);
@@ -4136,6 +4197,7 @@
   }
   function wornOver(worn, x, y, dir, walk, rx = 10.5) {
     if (!worn) return;
+    if (worn.shirt === Art.LIGHTS) lightsTwinkle(worn, x, y, dir);
     if (worn.hat === Art.CROWN) crownSparkle(x, y);
     if (worn.hat === Art.HAUNTED_MASK) hauntGhosts(x, y, true, rx);
     if (worn.hat === Art.ANTLERS) humbugBaubles(x, y, dir, walk);
@@ -14123,7 +14185,7 @@
     { key: 'squat', need: 175, text: 'Squat 175 lb' },
     { key: 'run', need: 150, text: 'Run 150m on the treadmill' },
     { key: 'pulldown', need: 10, text: 'Do 10 clean lat pulldowns' },
-    { key: 'jam', need: 8, text: 'Unjam 8 sheets from the printer' },
+    { key: 'jam', need: 6, text: 'Unjam 6 sheets from the printer' },
     { key: 'blackjack', need: 300, text: 'Win 100 spring rolls off Cody' }, // you start with 200
     { key: 'battle', need: 1, text: 'Beat Richard in his silly duel' },
     { key: 'dark', need: 1, text: 'Fix the lights in Damir\'s office' },
@@ -16420,7 +16482,7 @@
       'You tuck it under your arm. It\'s in the character editor whenever you want it.');
   }
   // From December 25 the rattling present under reception's tree has a tag with your name on
-  // it, and inside is a candy cane the size of a walking stick: from then on it's one of your extras
+  // it, and inside is a sweater knotted up in Christmas lights: from then on it's one of your shirts
   // in the character editor (for good, not just at Christmas). Opening it is how you earn it, so a
   // name that's already been given it by hand still has a present to open (see "special items"). It's
   // only there until December 31, so it's the one Christmas item you can miss.
@@ -16433,23 +16495,23 @@
   })();
   function openPresent() {
     const name = playerName || 'New Hire';
-    if (items.candycane === 0) { say('The presents are all open. There\'s nothing left under the tree with your name on it.'); return; }
-    if (itemsTold.candycane) {
-      say(wornLook(myLook).extra === Art.CANDY_CANE ? 'The presents are all open. Yours was the one that rattled: the candy cane in your hand. It\'s a little shorter than it was.'
-        : 'The presents are all open. Yours was the one that rattled: a candy cane the size of a walking stick. It\'s under EXTRAS in the character editor.');
+    if (items.lights === 0) { say('The presents are all open. There\'s nothing left under the tree with your name on it.'); return; }
+    if (itemsTold.lights) {
+      say(wornLook(myLook).shirt === Art.LIGHTS ? 'The presents are all open. Yours was the one that rattled, and you\'re wearing it. The plug is still dragging along behind you.'
+        : 'The presents are all open. Yours was the one that rattled: a sweater knotted up in Christmas lights. It\'s with your shirts in the character editor.');
       return;
     }
     ask('Merry Christmas! The present that rattles has a tag on it: "To ' + name + ', from everyone at Haakon. DO NOT OPEN UNTIL THE 25TH." It\'s the 25th.', ['OPEN IT', 'NOT YET'], (i) => {
       if (i !== 0) { say('You put it back under the tree. It rattles.'); return; }
-      itemEarned(name, 'candycane');
+      itemEarned(name, 'lights');
       presentTell();
     });
   }
   function presentTell() {
     sfx('ding');
-    itemOffer(['candycane'], 'That\'s what was rattling: a candy cane the size of a walking stick! You could lean on it, or finish it by New Year\'s. It\'s under EXTRAS in the character editor now.',
-      'You take the candy cane in one hand. It makes a fine walking stick, and a better snack.',
-      'You lean it against the tree for now. It\'s in the character editor whenever you want it.');
+    itemOffer(['lights'], 'That\'s what was rattling: a sweater with a whole string of Christmas lights knotted round it, and the plug still on the end. It\'s with your shirts in the character editor now.',
+      'You pull it on. The plug drags along behind you, and the lights are on anyway. Nobody can explain it.',
+      'You put it back in the box for now. It\'s in the character editor whenever you want it.');
   }
 
   // The fitness room's side doors and the parking lot's doors are the same two doors:
@@ -16506,6 +16568,140 @@
       if (k === 'gate') gateKeeper = n;
     });
   })();
+
+  // ---------- the reindeer and the elf ----------
+  // They're only on your screen, like the coworkers out here, so other players see them somewhere
+  // else. They're a list of their own rather than in `dogs`, so they stay out of catch and the
+  // frisbee leaderboard. A few reindeer are loose in the deep snow east of the lot, between the hot
+  // chocolate stand and the fire pit: which ones is picked afresh every time the game loads. They
+  // stroll a few tiles at a time, stop and look around, and leave hoofprints (see "out in the
+  // snow"). Hit one with a snowball and it bolts, away from whoever threw it.
+  //
+  // The elf runs around everywhere east of the rink, carrying a candy cane nearly as tall as he
+  // is. He runs a few tiles, stops for a moment, and runs off again, coming back toward you if he's
+  // got far away, and off the other way if you get close, so it's no good chasing him. Hit him with a
+  // snowball and he sits down dazed for a while, seeing stars. Talk to him then and the candy cane
+  // is yours (itemEarned: see "special items"), and from then on he's got nothing left for you.
+  const DEER_OUT = 4, DEER_RUN = 2; // how many go out, and how many times walking pace they bolt at
+  // pixels a tick (your own running pace), ticks sat in the snow, and how far you are (in tiles) when he runs from you, or back to you
+  const ELF_RUN = 2, ELF_DAZED = 420, ELF_SHY = 3.5, ELF_FAR = 12;
+  (function sendOutCritters() {
+    if (!CHRISTMAS) return;
+    const f = MAPS.floors[YARD], t = f.tiles, rows = (ch) => t.flatMap((r, y) => (r.includes(ch) ? [y] : []));
+    const rink = f.rooms.find((r) => r.name === 'Ice Rink'), treeY = rows('Y')[0], treeX = t[treeY].indexOf('Y');
+    // the tiles they can walk on, as 'x,y': anywhere that passes `test`, keeping out from under the spruce
+    const land = (test) => {
+      const ground = new Set();
+      t.forEach((r, y) => [...r].forEach((ch, x) => { if (test(ch, x, y) && Math.hypot(x - treeX, y - treeY) > 2.5) ground.add(x + ',' + y); }));
+      return ground;
+    };
+    // (clear of whoever's in line at the stand and whoever's round the fire)
+    const top = Math.max(...rows('h')) + 2, bottom = Math.min(...rows('f')) - 3;
+    const field = land((ch, x, y) => ch === '.' && y >= top && y <= bottom);
+    // (and clear of the doors)
+    const lot = land((ch, x, y) => (ch === '.' || ch === ',') && x > rink.x2 + 1 && y > MAPS.yard.y + 2);
+    const add = (ground, what) => {
+      const spot = shuffled([...ground]).find((s) => !npcAt(YARD, ...s.split(',').map(Number)));
+      if (!spot) return;
+      const [x, y] = spot.split(',').map(Number);
+      critters.push(Object.assign({ floor: YARD, x, y, ground, dir: anyWay(), moving: false, prog: 0, mdx: 0, mdy: 0, step: 0, left: 0, wait: 30 + Math.floor(Math.random() * 150) }, what));
+    };
+    const herd = window.REINDEER || {};
+    shuffled(Object.keys(herd)).slice(0, DEER_OUT).forEach((name) => {
+      const d = herd[name];
+      add(field, { name, deer: d, mark: 'hoof', bolt: false, sprites: Art.renderReindeer({ h: d.coat, D: d.dark, y: d.belly, u: d.collar }) });
+    });
+    add(lot, { name: 'Elf', elf: true, mark: 'tiny', dazed: 0, sprites: Art.renderElf(true), caneless: Art.renderElf(false) });
+  })();
+  function anyWay() { return ['up', 'down', 'left', 'right'][Math.floor(Math.random() * 4)]; }
+  // Partway across a tile, go on across it at this speed. Says whether they still are.
+  function critterStride(n, speed) {
+    if (!n.moving) return false;
+    n.prog += speed;
+    if (n.prog < 16) return true;
+    n.x += n.mdx; n.y += n.mdy; n.moving = false; n.prog = 0;
+    return false;
+  }
+  // Set off across the next tile the way they're facing, or to one side if they'll `swerve`.
+  // If there's nowhere to go, that's the end of this walk.
+  function critterStep(n, swerve) {
+    const sides = n.dir === 'up' || n.dir === 'down' ? ['left', 'right'] : ['up', 'down'];
+    if (Math.random() < 0.5) sides.reverse();
+    const way = [n.dir].concat(swerve ? sides : []).find((d) => {
+      const x = n.x + DIRS[d][0], y = n.y + DIRS[d][1];
+      return n.ground.has(x + ',' + y) && !npcAt(YARD, x, y) && !playerAt(x, y);
+    });
+    if (!way) { n.left = 0; return; }
+    n.left--;
+    n.dir = way;
+    Object.assign(n, { moving: true, prog: 0, mdx: DIRS[way][0], mdy: DIRS[way][1] });
+    n.step ^= 1;
+  }
+  function updateDeer(n) {
+    if (critterStride(n, n.bolt ? DEER_RUN : 1)) return;
+    if (n.left <= 0) {
+      if (n.bolt) { n.bolt = false; n.wait = 90 + Math.floor(Math.random() * 120); } // catches its breath
+      if (--n.wait > 0) return;
+      n.wait = 60 + Math.floor(Math.random() * 180);
+      n.dir = anyWay();
+      if (Math.random() < 0.3) return; // sometimes just looks around
+      n.left = 1 + Math.floor(Math.random() * 5);
+    }
+    critterStep(n, n.bolt); // (a bolting one swerves rather than stops)
+  }
+  function updateElf(n) {
+    if (critterStride(n, ELF_RUN)) return; // (even hit, he skids on to the end of the tile)
+    if (n.dazed > 0) { n.dazed--; return; }
+    if (n.left <= 0) {
+      const far = Math.hypot(n.x - P.fx, n.y - P.fy);
+      if (far < ELF_SHY) {
+        n.dir = wayOf(n.x - P.fx, n.y - P.fy);
+        n.left = 3 + Math.floor(Math.random() * 4);
+      } else {
+        if (--n.wait > 0) return;
+        n.wait = 40 + Math.floor(Math.random() * 80);
+        n.dir = far > ELF_FAR && Math.random() < 0.7 ? wayOf(P.fx - n.x, P.fy - n.y) : anyWay();
+        n.left = 2 + Math.floor(Math.random() * 5);
+      }
+    }
+    critterStep(n, true);
+  }
+  // Hit with a snowball, by whoever `from` is (if they're still around).
+  function critterHit(n, from) {
+    sfx('bell');
+    if (n.elf) { n.dazed = ELF_DAZED; n.left = 0; return; }
+    n.bolt = true;
+    n.left = 5 + Math.floor(Math.random() * 4);
+    if (from) n.dir = wayOf(n.x - from.x, n.y - from.y);
+  }
+  function deerTalk(n) {
+    const lines = window.REINDEER_LINES || ['looks up at you, and goes back to the snow.'];
+    // (it stands still for a moment afterwards, rather than walking off the second you're done)
+    n.left = 0;
+    n.wait = Math.max(n.wait, 90);
+    sfx('bell');
+    say(n.name + ' ' + lines[Math.floor(Math.random() * lines.length)]);
+  }
+  const elfLine = (k) => {
+    const lines = (window.ELF_LINES || {})[k] || ['Hee hee!'];
+    return 'Elf: ' + lines[Math.floor(Math.random() * lines.length)];
+  };
+  // whether he's got nothing left for you, going by whether you've had the message rather than
+  // your number, so a candy cane given to you by hand is still there to win (see "special items")
+  const elfEmpty = () => items.candycane === 0 || !!itemsTold.candycane;
+  function elfTalk(n) {
+    if (elfEmpty()) { say(elfLine('empty')); return; }
+    if (!n.dazed) { say(elfLine('taunt')); n.wait = 0; return; }
+    itemEarned(playerName || 'New Hire', 'candycane');
+    n.dazed = Math.min(n.dazed, 45); // (he's up again as soon as you've got it)
+    elfTell();
+  }
+  function elfTell() {
+    sfx('ding');
+    itemOffer(['candycane'], 'The elf blinks up at you, sees three of you, and holds out the candy cane. "All right, all right! You win!" It\'s the size of a walking stick, and it\'s under EXTRAS in the character editor now.',
+      'You take the candy cane in one hand. It makes a fine walking stick, and a better snack.',
+      'You tuck it under your arm for now. It\'s in the character editor whenever you want it.');
+  }
 
   // Things to look at outside.
   const YARD_INFO = {
@@ -16586,6 +16782,8 @@
     if (P.floor === YARD && P.free && !hockey) out.push({ key: 'me', x: P.fx, y: P.fy });
     for (const n of npcs) if (n.floor === YARD) out.push({ key: 'npc:' + n.name, n, x: n.x + (n.moving ? n.mdx * n.prog / 16 : 0), y: n.y + (n.moving ? n.mdy * n.prog / 16 : 0) });
     for (const o of mpHere()) if (o.f === YARD) out.push({ key: 'mp:' + o.id, o, x: o.px / 16, y: o.py / 16 });
+    // (`lot`, not `n`, so they don't throw back or start snowball fights of their own)
+    for (const n of critters) out.push({ key: 'lot:' + n.name, lot: n, x: n.x + (n.moving ? n.mdx * n.prog / 16 : 0), y: n.y + (n.moving ? n.mdy * n.prog / 16 : 0) });
     return out;
   }
   const snowWho = (key) => snowPeople().find((p) => p.key === key) || null;
@@ -16605,6 +16803,7 @@
   function snowHit(p, from) {
     if (near(p.x, p.y)) sfx('splat');
     if (p.key === 'me') { SNOW.hitMe = tick; return; }
+    if (p.lot) { critterHit(p.lot, snowWho(from)); return; }
     if (!p.n) return; // another player: their own screen sees to them
     const n = p.n, src = snowWho(from);
     if (src) n.dir = wayOf(src.x - p.x, src.y - p.y);
@@ -16700,10 +16899,11 @@
     for (const p of who) {
       const last = SNOW.steps.get(p.key), d = last ? Math.hypot(p.x - last.x, p.y - last.y) : Infinity;
       if (d > 1.5) { SNOW.steps.set(p.key, { x: p.x, y: p.y, side: 1 }); continue; }
-      if (d < 0.34) continue;
+      // (further apart for the reindeer and the elf: they go up and down the same ground all day)
+      if (d < (p.lot ? 0.7 : 0.34)) continue;
       const a = Math.atan2(p.y - last.y, p.x - last.x);
       last.side = -last.side;
-      if (deepSnow(p.x, p.y)) { SNOW.prints.push({ x: p.x - Math.sin(a) * last.side * 0.1, y: p.y + Math.cos(a) * last.side * 0.1, a, t: tick }); SNOW.ver++; }
+      if (deepSnow(p.x, p.y)) { SNOW.prints.push({ x: p.x - Math.sin(a) * last.side * 0.1, y: p.y + Math.cos(a) * last.side * 0.1, a, t: tick, mark: p.lot && p.lot.mark }); SNOW.ver++; }
       last.x = p.x; last.y = p.y;
     }
     // other players' snow angels, once they're back up
@@ -19326,6 +19526,14 @@
       fineDisc(x + hx, y + hy - Math.sin(k * Math.PI) * 5, 2, col.dark); fineDisc(x + hx, y + hy - Math.sin(k * Math.PI) * 5, 1.5, '#f6f8fc');
     }
   }
+  // three little gold stars going round the head of someone sat down at x, y, dazed
+  function seeingStars(x, y) {
+    for (let i = 0; i < 3; i++) {
+      const a = tick / 14 + i * Math.PI * 2 / 3, sx = realPx(x + 7.5 + Math.cos(a) * 6), sy = realPx(y + 0.5 + Math.sin(a) * 2);
+      fine(sx - 1, sy - 1.5, 2, 3, col.dark); fine(sx - 1.5, sy - 1, 3, 2, col.dark);
+      fine(sx - 0.5, sy - 1, 1, 2, '#f0c838'); fine(sx - 1, sy - 0.5, 2, 1, '#f0c838');
+    }
+  }
   // the angel someone standing at px, py lies down and makes, behind them and centred on them
   const angelPic = () => finePic('angel', 20, 20, (c) => c.drawImage(LotArt.angel(), 0, 0));
   const drawAngelPrint = (px, py, cx, cy) => ctx.drawImage(angelPic(), realPx(px - 2 - cx), realPx(py - 15 - cy), 20, 20);
@@ -19440,6 +19648,10 @@
       person({ sheet: n.sprites, x, y, dir: n.dir, frame: n.throwing ? 1 : n.moving && n.prog < 8 ? (n.step ? 1 : 2) : 0, skate: iceAt(x, y), throw: n.throwing ? throwPose(n.throwing.t) : 0 });
       if (n.bubble) said.push([n.bubble.str, x, y]);
     }
+    for (const n of critters) {
+      person({ sheet: n.elf && elfEmpty() ? n.caneless : n.sprites, x: n.x * 16 + (n.moving ? n.mdx * n.prog : 0), y: n.y * 16 + (n.moving ? n.mdy * n.prog : 0),
+        dir: n.dazed ? 'dazed' : n.dir, frame: n.dazed ? 0 : n.moving && n.prog < 8 ? (n.step ? 1 : 2) : 0, stars: n.dazed > 0 });
+    }
     const others = mpHere().filter((o) => o.f === YARD && !(sc && hockey.ids && hockey.ids.includes(o.id)));
     for (const o of others) {
       // (their throw went out as they let go, so their arm is already partway through it)
@@ -19456,7 +19668,7 @@
       if (it.sweeper) drawSweeper(it.sweeper, realPx(it.sweeper.at.x - cx), realPx(it.sweeper.at.y - cy - 4));
       else if (it.skater) drawSkater(it.skater, cx, cy);
       else if (it.puck) ctx.drawImage(puckPic(), realPx(sc.puck.x * 16 - cx - 3), realPx(sc.puck.y * 16 - cy - 2.5));
-      else if (it.sheet) drawOutside(it, cx, cy);
+      else if (it.sheet) { drawOutside(it, cx, cy); if (it.stars) seeingStars(it.x - cx, it.y - cy); }
       else ctx.drawImage(it.img || it.frames[Math.floor(tick / it.every) % it.frames.length], it.x - cx, it.y - cy);
     }
     drawSweepDust(cx, cy);
@@ -19543,8 +19755,11 @@
     }
     for (const p of SNOW.prints) {
       if (!seen(p.x, p.y, 8)) continue;
-      ctx.globalAlpha = 0.7 * fade(tick - p.t, PRINT_LIFE);
-      fine(realPx(p.x * 16 + 7 - cx), realPx(p.y * 16 + 10 - cy), 2, 1, '#8a9cc0');
+      // (theirs fill in twice as fast, for the same reason they're further apart)
+      ctx.globalAlpha = 0.7 * fade(tick - p.t, p.mark ? PRINT_LIFE / 2 : PRINT_LIFE);
+      const fx = realPx(p.x * 16 + 7 - cx), fy = realPx(p.y * 16 + 10 - cy);
+      if (p.mark === 'hoof') { fine(fx, fy, 1, 1, '#8a9cc0'); fine(fx + 1.5, fy, 1, 1, '#8a9cc0'); } // (a hoof's in two halves)
+      else fine(fx, fy, p.mark ? 1 : 2, 1, '#8a9cc0');
     }
     ctx.globalAlpha = 1;
   }
@@ -19661,7 +19876,7 @@
       best = { ...who, dx, dy }; least = d + side;
     };
     for (const o of mpHere()) if (o.f === P.floor) consider({ other: o }, o.px / 16, o.py / 16);
-    for (const n of npcs.concat(dogs)) {
+    for (const n of npcs.concat(dogs, critters)) {
       if (n.floor !== P.floor || (visit && n === visit.npc && visit.a < 1)) continue; // (halfway through the portal)
       consider({ npc: n }, n.x + (n.moving ? n.mdx * n.prog / 16 : 0), n.y + (n.moving ? n.mdy * n.prog / 16 : 0));
     }
@@ -19704,6 +19919,8 @@
     // they say when you turn them down, so you always know who is talking.
     const says = (line) => npc.name + ': ' + line;
     if (npc.dog) { dogTalk(npc); return; }
+    if (npc.deer) { deerTalk(npc); return; }
+    if (npc.elf) { elfTalk(npc); return; }
     if (npc.guest) { guestTalk(npc, says); return; }
     if (npc === gateKeeper) { hockeyTalk(npc, says); return; }
     if (npc.name === 'Damir') {
@@ -20119,8 +20336,8 @@
   // js/art.js) belong to a name, not a browser. Each has a number of its own in the database,
   // at items/<world>/<name>/<item> (the world and the name as for looks, above): 1 means it's
   // theirs, 0 means it isn't, and no number means it's never been given to them. The Santa
-  // hat comes from coming in over Christmas (santaAward), the candy cane from opening the present
-  // (openPresent), the antlers and the Sweeper from winning the Christmas Cup (cupAward), and the
+  // hat comes from coming in over Christmas (santaAward), the candy cane from the elf in the parking
+  // lot (elfTalk), the tangled lights from opening the present (openPresent), the antlers and the Sweeper from winning the Christmas Cup (cupAward), and the
   // ghost mask and ribbon from the quests (questAward and questPrize), and those only ever add a 1
   // where there's no number. The crown and the star
   // trail never come from the game this way: the champion wears them without a number (see
@@ -20443,7 +20660,8 @@
     store.set('avatar', Art.lookCode(myLook));
     lookSave(playerName, myLook);
     sfx('menu');
-    startFade(HALLOWEEN ? openCostumes : CHRISTMAS ? openSweaters : enterOffice);
+    // (nothing goes over the tangled lights, so there's no ugly sweater to pick in them)
+    startFade(HALLOWEEN ? openCostumes : CHRISTMAS && myLook.shirt !== Art.LIGHTS ? openSweaters : enterOffice);
   }
   function updateEdit() {
     if (edit.wait > 0) { edit.wait--; return; }
@@ -20473,6 +20691,7 @@
     if (r && r.key === 'flair' && worn.flair === Art.CARD_STORM) return 'Your cards go wherever you go!';
     if (r && r.key === 'hat' && worn.hat === Art.SANTA) return 'It jingles and shakes off snow as you walk!';
     if (r && r.key === 'hat' && worn.hat === Art.HAUNTED_MASK) return 'You\'ve set Linda free the most: it\'s haunted!';
+    if (r && r.key === 'shirt' && worn.shirt === Art.LIGHTS) return 'Plugged into nothing, and they\'re on anyway!';
     if (r && r.key === 'extra' && worn.extra === Art.CANDY_CANE) return 'It makes a fine walking stick, and a better snack!';
     if (r && r.key === 'extra' && worn.extra === Art.GOLD_RIBBON) return 'Most times Employee of the Month: it\'s gold!';
     return 'Arrows: choose   Space: change   Enter: done';
@@ -20964,9 +21183,9 @@
     if (q.has('call') && phone) answerPhone();
     // &name=Sam sets your name; &quest=1 hands you Linda's list, &quest=done finishes it
     if (q.has('name')) playerName = q.get('name');
-    // &unlock=santa,candycane,ghostmask,ribbon,cup,champion brings up the message you get when each of those
+    // &unlock=santa,candycane,lights,ghostmask,ribbon,cup,champion brings up the message you get when each of those
     // becomes yours, for this visit only
-    const unlocks = { santa: santaTell, candycane: presentTell, ghostmask: questTold('ghostmask'), ribbon: questTold('ribbon'), cup: () => cupPrize('You won the Christmas Cup!'), champion: champSay };
+    const unlocks = { santa: santaTell, candycane: elfTell, lights: presentTell, ghostmask: questTold('ghostmask'), ribbon: questTold('ribbon'), cup: () => cupPrize('You won the Christmas Cup!'), champion: champSay };
     for (const key of (q.get('unlock') || '').split(',')) if (inTable(unlocks, key)) questQueue.push(unlocks[key]);
     if (q.has('quest')) {
       startQuest();
@@ -21132,5 +21351,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo, npcs, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get cards() { return cardsNow; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, cardWhere, get myCards() { return [...cardsMine()]; } };
+  window.GAME = { P, MAPS, warpTo, npcs, critters, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get cards() { return cardsNow; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, cardWhere, get myCards() { return [...cardsMine()]; } };
 })();

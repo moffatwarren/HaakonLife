@@ -124,7 +124,13 @@ window.Art = (function () {
     { name: 'Suit', hd: 'suit' },
     { name: 'Sweater', hd: 'sweater' },
     { name: 'Hi-vis vest', hd: 'hivis' },
+    // only for a name that's opened its present under the tree on Christmas Day (see openPresent in
+    // js/game.js): a sweater knotted up in Christmas lights, in your shirt colour, with the plug
+    // dragging behind you (lightsCord there) and the bulbs going off and on (lightsTwinkle). `over`
+    // means nothing goes on top of it: not an ugly sweater, or the bib of a pair of overalls.
+    { name: 'Tangled lights', hd: 'lights', item: 'lights', over: true },
   ];
+  const LIGHTS = SHIRTS.findIndex((s) => s.item === 'lights');
   const PANTS = [
     { name: 'Trousers', hd: 'trousers' },
     { name: 'Shorts', hd: 'shorts' },
@@ -139,7 +145,7 @@ window.Art = (function () {
     // the same ribbon in gold on whoever has been it the most, sparkling. Like the crown it's
     // never picked or saved: it's only ever worn, in place of the Ribbon.
     { name: 'Gold ribbon', hd: 'goldribbon' },
-    // only for a name that's opened its present under the tree on Christmas Day (see openPresent in js/game.js)
+    // only for a name that's got it off the elf in the parking lot (see elfTalk in js/game.js)
     { name: 'Candy cane', hd: 'candycane', item: 'candycane' },
   ];
   const RIBBON = EXTRAS.findIndex((e) => e.hd === 'ribbon'), GOLD_RIBBON = EXTRAS.findIndex((e) => e.hd === 'goldribbon'), CANDY_CANE = EXTRAS.findIndex((e) => e.hd === 'candycane');
@@ -220,13 +226,16 @@ window.Art = (function () {
   }
 
   // the extra colours a 32 x 32 picture uses, from a look's colours (h, s, w, K)
-  const extras32 = (c) => ({ H: darker(c.h, 0.35), v: darker(c.w, 0.25), S: darker(c.s, 0.2), f: blend(c.s, '#e04848', 0.4), j: blend(c.h, '#ffffff', 0.3), O: '#f8e070', Y: '#a87018', L: darker(c.K, 0.3), b: '#383040', I: '#fcfcff', J: '#2f62d8', z: '#1c3a94', X: '#8a1c20' });
+  // (the bulbs on the tangled lights: each one's letter in a picture, lit, its glint, and switched off)
+  const BULBS = { 6: { on: '#e83040', glint: '#ffa8a8', off: '#742434' }, 7: { on: '#f8d030', glint: '#fff4b0', off: '#7c6c2c' }, 8: { on: '#4088f0', glint: '#b0d8ff', off: '#28487c' } };
+  const BULB_GLINTS = { x: 6, V: 7, B: 8 };
+  const extras32 = (c) => ({ 6: BULBS[6].on, 7: BULBS[7].on, 8: BULBS[8].on, x: BULBS[6].glint, V: BULBS[7].glint, B: BULBS[8].glint, H: darker(c.h, 0.35), v: darker(c.w, 0.25), S: darker(c.s, 0.2), f: blend(c.s, '#e04848', 0.4), j: blend(c.h, '#ffffff', 0.3), O: '#f8e070', Y: '#a87018', L: darker(c.K, 0.3), b: '#383040', I: '#fcfcff', J: '#2f62d8', z: '#1c3a94', X: '#8a1c20' });
   function lookPalette(look, over) {
     const c = lookColours(look);
     // (and for 32 x 32: S, skin in shadow, f, the cheeks, j, a shine on the hair, and O and
     // Y, light and dark gold, for the crown and the humbug antlers, L, the pants in shadow,
-    // b, shoes, I, a pure white for the ghost mask, J and z, the ribbon's blue and its shadow, and
-    // X, the candy cane's red in shadow)
+    // b, shoes, I, a pure white for the ghost mask, J and z, the ribbon's blue and its shadow,
+    // X, the candy cane's red in shadow, and 6 to 8 and their glints x, V and B, the tangled lights' bulbs)
     return palette(Object.assign({ H: darker(c.h, 0.35), v: darker(c.w, 0.25) }, extras32(c), c, over));
   }
   // ---------- 32 x 32 characters ----------
@@ -2005,6 +2014,54 @@ window.Art = (function () {
       ],
     },
   };
+  // The tangled lights: three bulbs (6 to 8, see BULBS) hanging off the wire (e), each with a metal
+  // socket (g), a glint, a pointed end and a dark outline, so they stand out on any colour of shirt.
+  // Going by colour, js/game.js finds them in the finished picture to make them twinkle (see
+  // lightsShowing), so they stay in the same places in left and leftWalk, and clear of the candy cane,
+  // which moves as you walk.
+  SHIRT32.lights = {
+    from: 18,
+    down: [
+      '...........kkkkkkkkkk',
+      '........kkkkkkkkkkkkkkkk',
+      '.......kkkkwgeeegeeegkkkk',
+      '......kkwwkx66kV77kB88kvkk',
+      '......kkewk666k777k888kekk',
+      '......kkwek666k777k888kvkk',
+      '......kksskk6kwk7kwk8kSSkk',
+      '......kksskukuuukuuukkSSkk',
+    ],
+    up: [
+      '...........kkkkkkkkkk',
+      '........kkkkkkkkkkkkkkkk',
+      '.......kkkkgeeegeeegwkkkk',
+      '......kkwkB88kV77kx66kvvkk',
+      '......kkek888k777k666kvekk',
+      '......kkwk888k777k666kevkk',
+      '......kkssk8kwk7kwk6kkSSkk',
+      '......kksskkuuukuuukukSSkk',
+    ],
+    left: [
+      '...........kkkkkkkkkk',
+      '..........kkkkkkkkkkkk',
+      '.........kkgeeegeeegvkk',
+      '........kkx66kV77kB88kkk',
+      '........kk666k777k888kkk',
+      '........kk666k777k888kkk',
+      '........kkk6kwk7kkk8kvkk',
+      '........kkukuuSkSkukuukk',
+    ],
+    leftWalk: [
+      '...........kkkkkkkkkk',
+      '..........kkkkkkkkkkkk',
+      '.........kkgeeegeeegvkk',
+      '........kkx66kV77kB88kkk',
+      '.......kkk666k777k888kkk',
+      '......kkkk666k777k888kkkk',
+      '.....kksssk6kwk7kwk8kwSSkk',
+      '.....kkSSSkkkkukuuukuuSSkk',
+    ],
+  };
   for (const s of SHIRTS) s.hi = SHIRT32[s.hd];
   // The pants, by their hd name: hips, legs and shoes, rows 26-31, looking down (up is the
   // same), down mid-stride (the other stride is the same mirrored), left and left
@@ -2606,6 +2663,31 @@ window.Art = (function () {
   // the top Employee of the Month's: the same one in gold
   EXTRA32.goldribbon = {};
   for (const view in EXTRA32.ribbon) EXTRA32.goldribbon[view] = EXTRA32.ribbon[view].map((r) => r.replace(/[UJzI]/g, (c) => ({ U: 'I', J: 'O', z: 'Y', I: 'o' }[c])));
+  // The candy cane swings as you walk, the way a walking stick does: planted out ahead on one stride,
+  // lifted off the ground on the other, and straight up in between. Each stride is a copy of the rows,
+  // leaned about your hand: `top` and `foot` are how far its two ends move, and `lift` how far it comes
+  // up, so it's all drawn CANE_LIFT rows higher, with that many empty rows to spare when it's down. The
+  // hook moves as one piece, and only a little, to stay off your face.
+  const CANE_LIFT = 2;
+  const CANE_STRIDES = {
+    down: { hook: 8, hand: 13, strides: [{ top: -1, foot: 2, lift: 0 }, { top: 0, foot: -1, lift: CANE_LIFT }] },
+    up: { hook: 8, hand: 13, strides: [{ top: 1, foot: -2, lift: 0 }, { top: 0, foot: 1, lift: CANE_LIFT }] },
+    left: { hook: 11, hand: 14, strides: [{ top: 0, foot: -3, lift: 0 }, { top: 0, foot: 1, lift: CANE_LIFT }] },
+  };
+  (function caneStrides() {
+    const cane = EXTRA32.candycane;
+    cane.from -= CANE_LIFT;
+    cane.stride = {};
+    for (const view in CANE_STRIDES) {
+      const rows = cane[view], { hook, hand, strides } = CANE_STRIDES[view];
+      const leaned = ({ top, foot, lift }) => new Array(CANE_LIFT - lift).fill('').concat(rows.map((row, j) => {
+        const dx = Math.round(j <= hook ? top : j < hand ? top * (hand - j) / (hand - hook) : foot * (j - hand) / (rows.length - 1 - hand));
+        return dx < 0 ? row.slice(-dx) : '.'.repeat(dx) + row;
+      }));
+      cane.stride[view] = strides.map(leaned);
+      cane[view] = leaned({ top: 0, foot: 0, lift: 0 });
+    }
+  })();
   for (const e of EXTRAS) e.hi = EXTRA32[e.hd];
   // lay rows over a 32 x 32 buffer from column x0, row y0 ('.' leaves what's there)
   function lay32Over(b, rows, x0, y0) {
@@ -2632,7 +2714,7 @@ window.Art = (function () {
     const sw = SWEATERS[sweater], top = sw ? sw.hi : shirt.hi;
     const view = dir === 'left' && step > 0 ? 'leftWalk' : dir;
     lay32(b, top[view], top.from || 20);
-    if (!sw && pants.hi.top) lay32(b, pants.hi.top[view], 20);
+    if (!sw && !shirt.over && pants.hi.top) lay32(b, pants.hi.top[view], 20);
     const side = dir === 'left', legs = pants.hi[side ? (step > 0 ? 'leftWalk' : 'left') : step > 0 ? 'downWalk' : 'down'];
     lay32(b, step === 2 && !side ? legs.map((r) => [...r.padEnd(32, '.')].reverse().join('')) : legs, 26);
     if (!noHat && hat.big) lay32(b, hat.hi[dir], 0); // (a big head thing goes behind the head)
@@ -2647,14 +2729,30 @@ window.Art = (function () {
     }
     // (and over everything, hair and all, whatever's worn on top of the clothes: not under a costume)
     const extra = EXTRAS[look.extra];
-    if (!noHat && extra && extra.hi) lay32(b, extra.hi[dir], extra.hi.from || 20);
+    if (!noHat && extra && extra.hi) {
+      const stride = step > 0 && extra.hi.stride && extra.hi.stride[dir]; // (the candy cane swings as you walk)
+      lay32(b, stride ? stride[step - 1] : extra.hi[dir], extra.hi.from || 20);
+    }
     return b;
   }
   // Returns {down:[stand,walkA,walkB], up, left, right} canvases for a look, marked hi: 2 so
   // they're drawn at the usual size (see js/game.js), in an ugly sweater if `sweater` names one.
   function renderLook(look, sweater) {
-    const sw = SWEATERS[sweater];
+    const sw = !SHIRTS[look.shirt].over && SWEATERS[sweater];
     return sheet32(look, sw && sweater, lookPalette(look, sw ? sweaterPal(sw) : null));
+  }
+  // The bulbs on someone's tangled lights that you can see (hair or a ribbon might be in the way):
+  // each pixel as [x, y, which bulb] from the top left of their picture, for making them twinkle.
+  const lightsSeen = {};
+  function lightsShowing(look, dir) {
+    const key = lookCode(look) + dir;
+    if (lightsSeen[key]) return lightsSeen[key];
+    const out = [];
+    lookBuf32(look, dir === 'right' ? 'left' : dir, 0).forEach((c, i) => {
+      const bulb = BULB_GLINTS[c] || c;
+      if (BULBS[bulb]) out.push([dir === 'right' ? 31 - (i % 32) : i % 32, Math.floor(i / 32), String(bulb)]);
+    });
+    return (lightsSeen[key] = out);
   }
   // The same for a coworker: their body is the character editor's parts (short hair, a shirt
   // and tie and trousers; long hair and a blouse for a woman) in their own colours (look: h,
@@ -2687,8 +2785,9 @@ window.Art = (function () {
     out.bare = make('down', 0, false, Object.assign({}, parts, { hair: BALD }));
     out.down = [make('down', 0), make('down', 1), make('down', 2)];
     out.up = [make('up', 0), make('up', 1), make('up', 2)];
-    out.left = [make('left', 0), make('left', 1), make('left', 1)];
-    out.right = [make('left', 0, true), make('left', 1, true), make('left', 1, true)];
+    // (from the side the legs are the same on both strides, but the candy cane isn't)
+    out.left = [make('left', 0), make('left', 1), make('left', 2)];
+    out.right = [make('left', 0, true), make('left', 1, true), make('left', 2, true)];
     return out;
   }
 
@@ -5018,6 +5117,272 @@ window.Art = (function () {
     return out;
   }
 
+  // ---------- reindeer at 32 x 32 ----------
+  // Out in the parking lot at Christmas. Each way one faces, from the top down, with the legs
+  // for standing and for mid-step apart so they can share a body. Their own colours (h = coat,
+  // D = the far legs and the ears, y = belly, ruff and muzzle, u = collar) plus H, the coat in
+  // shadow, j, a shine on it, Y, the belly in shadow, A and a, the antlers, R, the nose and
+  // hooves, and o and O, the bell. There's no outline in these rows: picture32 adds it.
+  const DEER_ANTLERS = [
+    '',
+    '',
+    '.....A..A............A..A',
+    '.....A..A............A..A',
+    '.....AA.AA..........AA.AA',
+    '......AAAa..........aAAA',
+    '.......AAa..........aAA',
+    '........AAa........aAA',
+    '.........AA.jjjhhh.AA',
+    '.....DDDD..jjhhhhhh..DDDD',
+    '.....DDDDDjjhhhhhhhhDDDDD',
+    '.......DDDjhhhhhhhhhHDDD',
+  ];
+  const DEER_FRONT = DEER_ANTLERS.concat([
+    '..........hhkWhhhhkWhH',
+    '..........hhkkhhhhkkHH',
+    '..........hhhhyyyyhhHH',
+    '...........hhyyyyyyHH',
+    '...........hyyRRRRyyH',
+    '............yyyRRyyy',
+    '...........uuuuuuuuuu',
+    '..........hhyyyooyyyHH',
+    '..........hhhyyOOyyHHH',
+    '..........hhhyyyyyyHHH',
+    '..........hhhyyyyyyHHH',
+    '..........hhHyyyyyyHHH',
+    '..........HHHHHyyHHHHH',
+  ]);
+  const DEER_BACK = DEER_ANTLERS.concat([
+    '..........hhhhhhhhhhhH',
+    '..........hhhhhhhhhhHH',
+    '..........hhhhhhhhhhHH',
+    '...........hhhhhhhhHH',
+    '...........hhhhhhhHHH',
+    '............hhhhhHHH',
+    '...........uuuuuuuuuu',
+    '..........jjjhhhhhhhHH',
+    '..........jhhhhhhhhHHH',
+    '..........hhhhyyyyhHHH',
+    '..........hhhyyyyyyHHH',
+    '..........hhHyyyyyyHHH',
+    '..........HHHHyyyyHHHH',
+  ]);
+  const DEER_SIDE = [
+    '',
+    '',
+    '....A.....A..A',
+    '....AA....A..A',
+    '.....AA...AAAA',
+    '......Aa..AA',
+    '.......AA.Aa',
+    '........AAa',
+    '......jjjAajhDD',
+    '.....jjhhhhhhhDD',
+    '....jhhhkWhhhhD',
+    '...jhhhhkkhhhhy',
+    '..RRyyhhhhhhhyyy',
+    '..RyyyyHHhhhhyyyj',
+    '...yyyyyHhhhyyyjjjjjjjjjjjjjyy',
+    '.....HHHHHhhuuhhhhhhhhhhhhhhyy',
+    '..........yuuuhhhhhhhhhhhhhhhy',
+    '..........yyoOhhhhhhhhhhhhhhH',
+    '..........yyOhhhhhhhhhhhhhhHH',
+    '..........yyyhhhhhhhhhhhhhHHH',
+    '..........yyyHhhhhhhhhhhhHHHH',
+    '...........yHHHyyyyyyyyyyHHHH',
+    '...........HHHHYyyyyyyyYHHHHH',
+  ];
+  const DEER_LEGS = {
+    // (both of these are for the front and the back: the mirror image is the other step)
+    ahead: [
+      '..........DDD......DDD',
+      '..........DDD......DDD',
+      '..........DDD......DDD',
+      '..........RRR......RRR',
+      '..........RRR......RRR',
+    ],
+    aheadStep: [
+      '..........DDD......DDD',
+      '..........DDD......DDD',
+      '..........RRR......DDD',
+      '..........RRR......RRR',
+      '...................RRR',
+    ],
+    side: [
+      '...........HHH.DDD....DDD.HHH',
+      '...........HHH.DDD....DDD.HHH',
+      '...........HHH.DDD....DDD.HHH',
+      '...........HHH.DDD....DDD.HHH',
+      '...........HHH.DDD....DDD.HHH',
+      '...........RRR.RRR....RRR.RRR',
+      '...........RRR.RRR....RRR.RRR',
+    ],
+    sideA: [
+      '..........HHH...DDD..DDD...HHH',
+      '..........HHH...DDD..DDD...HHH',
+      '.........HHH....DDD..DDD...HHH',
+      '.........HHH....DDD..DDD...HHH',
+      '........HHH.....DDD..DDD...HHH',
+      '........RRR.....RRR..RRR...RRR',
+      '........RRR.....RRR..RRR...RRR',
+    ],
+    sideB: [
+      '..........DDD.HHH....HHH...DDD',
+      '..........DDD.HHH....HHH...DDD',
+      '.........DDD..HHH....HHH...DDD',
+      '.........DDD..HHH....HHH...DDD',
+      '........DDD...HHH....HHH...DDD',
+      '........RRR...RRR....RRR...RRR',
+      '........RRR...RRR....RRR...RRR',
+    ],
+  };
+  // A 32 x 32 picture from rows with no outline, any number of layers one over the other, and
+  // the outline added round whatever's been filled in (so nothing's filled in on the outermost 2
+  // pixels all round, which is where it goes).
+  function picture32(layers, pal, flip) {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 32; cv.hi = 2;
+    const ctx = cv.getContext('2d'), img = ctx.createImageData(32, 32), b = new Array(1024).fill(null);
+    for (const rows of layers) lay32(b, rows, 0);
+    const rows = [];
+    for (let y = 2; y < 30; y++) rows.push(b.slice(y * 32 + 2, y * 32 + 30).map((c) => c || '.').join(''));
+    const done = new Array(1024).fill(null);
+    lay32(done, outlined32(rows), 0);
+    blit(img, done, 0, 0, pal, flip);
+    ctx.putImageData(img, 0, 0);
+    return cv;
+  }
+  function renderReindeer(look) {
+    const pal = palette(Object.assign({ H: darker(look.h, 0.25), j: blend(look.h, '#ffffff', 0.3), Y: blend(look.y, '#5a463c', 0.28),
+      A: '#e4d2a8', a: '#a88e62', R: '#2c1e1e', o: '#f0c838', O: '#b88a18', W: '#ffffff' }, look));
+    const make = (body, legs, flip) => picture32([body.concat(legs)], pal, flip);
+    const L = DEER_LEGS;
+    return {
+      down: [make(DEER_FRONT, L.ahead), make(DEER_FRONT, L.aheadStep), make(DEER_FRONT, L.aheadStep, true)],
+      up: [make(DEER_BACK, L.ahead), make(DEER_BACK, L.aheadStep), make(DEER_BACK, L.aheadStep, true)],
+      left: [make(DEER_SIDE, L.side), make(DEER_SIDE, L.sideA), make(DEER_SIDE, L.sideB)],
+      right: [make(DEER_SIDE, L.side, true), make(DEER_SIDE, L.sideA, true), make(DEER_SIDE, L.sideB, true)],
+    };
+  }
+
+  // ---------- the elf at 32 x 32 ----------
+  // Who runs around the parking lot at Christmas, a head or so shorter than anybody else. Each way
+  // he faces, the legs apart again, and the candy cane he carries as a layer of its own, since he
+  // hasn't got it any more once you have. `dazed` is him sat in the snow with crossed-out eyes,
+  // the cane dropped beside him. No outline in these rows either: picture32 adds it.
+  const ELF_FRONT = ['', '', '', '', '', '', '', '',
+    '.........oo',
+    '.........ooGg',
+    '...........gggg',
+    '............ggggg',
+    '............jgggggG',
+    '...........jjggggggGG',
+    '..........rrrrrrrrrrrr',
+    '........ss.ssssssssss.ss',
+    '.........sssssWkssssWksss',
+    '...........ssskkssssskkS',
+    '...........sssssssssssS',
+    '............ssskkksSS',
+    '...........rrrrrrrrrr',
+    '...........jggggggggG',
+    '..........sjggggggggGs',
+    '...........yyyyooyyyy',
+    '...........gggggggGGG',
+    '...........ggGggGggGG',
+  ];
+  const ELF_BACK = ['', '', '', '', '', '', '', '',
+    '.........oo',
+    '.........ooGg',
+    '...........gggg',
+    '............ggggg',
+    '............jgggggG',
+    '...........jjggggggGG',
+    '..........rrrrrrrrrrrr',
+    '........ss.hhhhhhhhHH.ss',
+    '.........sshhhhhhhhHHss',
+    '...........hhhhhhhHHH',
+    '...........hhhhhhHHHS',
+    '............ssssssSS',
+    '...........rrrrrrrrrr',
+    '...........jggggggggG',
+    '..........sjggggggggGs',
+    '...........yyyyyyyyyy',
+    '...........gggggggGGG',
+    '...........ggGggGggGG',
+  ];
+  const ELF_SIDE = ['', '', '', '', '', '', '', '',
+    '....................oo',
+    '.................ggGoo',
+    '...............ggggg',
+    '.............gggggg',
+    '............jggggggG',
+    '...........jjgggggGG',
+    '...........rrrrrrrrrr',
+    '..........sssssssss.ss',
+    '.........ssskWsssssss',
+    '.........ssskksssssS',
+    '........sssssssssssS',
+    '...........ssksssSS',
+    '............rrrrrr',
+    '............jggggG',
+    '...........sjgggGG',
+    '............yyoyyy',
+    '............gggGGG',
+    '............gGgGgG',
+  ];
+  const ELF_DAZED = ['', '', '', '', '', '', '', '', '', '', '', '', '',
+    '.......oo',
+    '.......ooGg',
+    '.........ggggg',
+    '..........ggggggG',
+    '.........jjggggggGG',
+    '........rrrrrrrrrrrr',
+    '......ss.sssssssssss.ss',
+    '.......ssskskssskskss',
+    '.........ssksssssksS',
+    '.........skskssskskS',
+    '..........ssskkkkSS',
+    '..........rrrrrrrrr',
+    '.........sjgggggggGs',
+    '.........sjgggggggGs',
+    '..........yyyyooyyy',
+    '.......GGrrgggggGrrGG',
+    '.......GGwwrr...rrwwGG',
+  ];
+  const below = (n, rows) => new Array(n).fill('').concat(rows);
+  const ELF_LEGS = {
+    ahead: below(26, ['............rr....rr', '............ww....ww', '...........GGGG..GGGG', '...........GGGG..GGGG']),
+    aheadA: below(26, ['............rr....rr', '...........GGGG...ww', '...........GGGG..GGGG', '.................GGGG']),
+    aheadB: below(26, ['............rr....rr', '............ww...GGGG', '...........GGGG..GGGG', '...........GGGG']),
+    side: below(26, ['.............rrr', '.............www', '...........GGGGG', '...........GGGGG']),
+    sideA: below(26, ['...........rr...rr', '..........ww.....ww', '........GGGG....GGG', '........GGG.....GGG']),
+    sideB: below(26, ['............rr.rr', '............ww.ww', '..........GGGGGGGG', '...............GGG']),
+  };
+  // a candy cane with its hook at column x, standing from row 9 to the snow
+  const elfCane = (x, hook) => {
+    const pad = '.'.repeat(x), rows = [pad + hook[0], pad + hook[1], pad + hook[2]];
+    for (let y = 12; y < 28; y++) rows.push('.'.repeat(x + hook[3]) + ((y >> 1) & 1 ? 'c' : 'w'));
+    return below(9, rows);
+  };
+  const ELF_CANE = {
+    down: elfCane(22, ['wwcc', 'c..w', 'c..c', 0]),
+    up: elfCane(6, ['ccww', 'w..c', 'c..c', 3]),
+    left: elfCane(3, ['wwcc', 'c..w', 'c..c', 3]),
+    dazed: below(26, ['.........................wwcc', '.........................c..w', '.......................wwc..c', '.......................ccwwcc']),
+  };
+  function renderElf(cane) {
+    const pal = palette({ g: '#3a9a4c', G: '#256b36', j: '#6cc47a', r: '#d0303a', s: '#f8d0a8', S: '#dca880', h: '#c86a2c', H: '#96501f',
+      o: '#f0c838', w: '#f4f1ea', c: '#d0283a', y: '#5a3a22', W: '#ffffff' });
+    const L = ELF_LEGS, make = (body, legs, way, flip) => picture32(cane ? [body, legs, ELF_CANE[way]] : [body, legs], pal, flip);
+    return {
+      down: [make(ELF_FRONT, L.ahead, 'down'), make(ELF_FRONT, L.aheadA, 'down'), make(ELF_FRONT, L.aheadB, 'down')],
+      up: [make(ELF_BACK, L.ahead, 'up'), make(ELF_BACK, L.aheadA, 'up'), make(ELF_BACK, L.aheadB, 'up')],
+      left: [make(ELF_SIDE, L.side, 'left'), make(ELF_SIDE, L.sideA, 'left'), make(ELF_SIDE, L.sideB, 'left')],
+      right: [make(ELF_SIDE, L.side, 'left', true), make(ELF_SIDE, L.sideA, 'left', true), make(ELF_SIDE, L.sideB, 'left', true)],
+      dazed: [make(ELF_DAZED, [], 'dazed')],
+    };
+  }
+
   // ---------- Halloween costumes at 32 x 32 ----------
   // Each is laid over the look (or the coworker) drawn bald, or with their own hair where
   // it says `own`, in the costume's colours (its `pal` in COSTUMES, then any more here). '.'
@@ -6005,7 +6370,7 @@ window.Art = (function () {
   }
 
   return {
-    LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderMini, renderTileAs,
+    LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderReindeer, renderElf, lightsShowing, BULBS, LIGHTS, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS, extras: EXTRAS, flairs: FLAIRS },
     LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, CANDY_CANE, STAR_TRAIL, SWEEPER, CARD_STORM, BIG_COLS, BAUBLE32, SANTA_END32, SWEEPER32, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
     SWEATERS,

@@ -47,8 +47,8 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
   the Christmas Cup: see **Christmas**, and a ghost mask once your name has set Linda
   free: see **Linda's list**), a shirt and pants, each in a colour, any extras worn
   over your clothes (a ribbon once your name has been Employee of the Month: see
-  **Employee of the Month**, and a giant candy cane once your name has opened its present on
-  Christmas Day: see **Christmas**), and flair (the Office Champion's star trail: see **The Hall of
+  **Employee of the Month**, and a giant candy cane once your name has got it off the elf in the
+  parking lot: see **Christmas**), and flair (the Office Champion's star trail: see **The Hall of
   Fame**, and the Sweeper if your name won the Christmas Cup). Up and down pick a part, left and right (or A) change it,
   RANDOM picks for you and DONE (or START) heads into the office. Your character is
   saved with your name (see **Saved characters** below), so typing the same name on
@@ -486,13 +486,13 @@ items/live/warren/santa: 1
 items/live/warren/antlers: 0
 ```
 
-`santa` is the Santa hat, `candycane` the candy cane, `antlers` the humbug antlers, `sweeper` the Sweeper, `crown` the crown,
+`santa` is the Santa hat, `candycane` the candy cane, `lights` the tangled lights, `antlers` the humbug antlers, `sweeper` the Sweeper, `crown` the crown,
 `startrail` the star trail, `ghostmask` the ghost mask, `ribbon` the ribbon, `goldbacks` the gold card backs, `cardcrown` the card crown, `cardstorm` the card storm and `owncard` your own legendary. 1 means it's theirs, so it's one of their choices in the character editor (gold backs and your own legendary aren't worn: the backs are simply on, and the card goes in your deck). 0 means it
-isn't, and the game won't offer it to them, even at Christmas, from the present, the cup or a quest. No number
+isn't, and the game won't offer it to them, even at Christmas, from the elf, the present, the cup or a quest. No number
 means they've never been given it.
 
-In the game the Santa hat comes from coming in over Christmas, the candy cane from opening the
-present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, the gold backs, card crown, card storm and your own legendary from winning cards in
+In the game the Santa hat comes from coming in over Christmas, the candy cane from the elf in the
+parking lot, the tangled lights from opening the present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, the gold backs, card crown, card storm and your own legendary from winning cards in
 Morale Madness, and the mask and the ribbon from the quests (see
 **Linda's list** and **Employee of the Month**), which add a 1 where there's no number. The game
 never sets a number for the crown or the star trail: the Office Champion wears them with no
@@ -519,8 +519,8 @@ items/live/warren/santaTold: 1
 ```
 
 So if you put a 1 on the Data tab for somebody, it's theirs straight away, and when they earn it
-in the game (by coming in over Christmas, opening the present, winning the cup or finishing the
-quest) they still get the message and the offer to wear it, once, on whichever device they're on.
+in the game (by coming in over Christmas, getting it off the elf, opening the present, winning the
+cup or finishing the quest) they still get the message and the offer to wear it, once, on whichever device they're on.
 The game never decides to tell somebody by looking at their number. You can leave the marks alone.
 The crown and the star trail work the same way from the other side: being told you're the Office
 Champion doesn't go by your number either, and you're told again each time you get back to the top.
@@ -544,7 +544,9 @@ ghost mask and the ribbon looking grander on whoever is top of that quest's boar
 
 An extra starts at row 20 of the picture, the chest. To draw one that goes higher, like something you
 hold, add `from: 9` (the row to start at) next to its `down` and `left`, as the candy cane does, and `up` if
-it shows from behind. Extras go over everything, hair and all, so keep them clear of the face, and keep the
+it shows from behind. To make one move as you walk, give it a `stride` for each view, with a set of rows
+for each of the two strides: the candy cane makes its own from its rows (see `CANE_STRIDES`). Extras go
+over everything, hair and all, so keep them clear of the face, and keep the
 whole thing inside the tile, outline included. Skates are painted on the bottom two rows of a person's
 picture, leaving anything dark alone, so end it there in its outline.
 
@@ -1147,12 +1149,18 @@ From November 27 to December 31 (by your device's date) the office does Christma
   players see all of that, but only you hear your own bell. It's `santaStep` and `santaTail`. In a
   mini-game, which only draws your 32 x 32 picture, it's a still hat with the bell on it.
 - **Christmas Day**: from December 25, the present under reception's tree that rattles has a
-  tag with your name on it. Press A on the tree to open it: it's a **candy cane** the size of a
-  walking stick, and it asks whether you want to take it now. From then on it's one of your extras in
-  the character editor, for good, held in one hand and in your picture, so it comes with you into
-  mini-games too. Having been given one by hand doesn't open your present for you: it's still there
-  until you do. Before the 25th the presents just say not to open them, and after the 31st the tree
-  is gone, so this is the one Christmas item you can miss. It's `openPresent` in `js/game.js`.
+  tag with your name on it. Press A on the tree to open it: it's the **tangled lights**, a sweater in
+  your shirt colour knotted up in Christmas lights, and it asks whether you want to put it on now. From
+  then on it's one of your shirts in the character editor, for good. Three big bulbs, red, yellow and
+  blue, hang across your chest and go off and on a colour at a time. The cord, a thin wire not quite a
+  tile long with one more bulb on it and a plug on the end, trails along the floor behind you,
+  stopping where you stop. Other players see all of that. In a mini-game, which only draws
+  your 32 x 32 picture, it's the sweater with the bulbs all on and no cord. Nothing goes over it: an
+  ugly sweater doesn't cover it, so you aren't asked to pick one while it's on, and it goes over the
+  bib of a pair of overalls. Having been given it by hand doesn't open your present for you: it's still
+  there until you do. Before the 25th the presents just say not to open them, and after the 31st the
+  tree is gone, so this is the one Christmas item you can miss. It's `openPresent`, `lightsCord` and
+  `lightsTwinkle` in `js/game.js`, and `SHIRT32.lights` in `js/art.js`.
 - The music changes too: indoors the office tune gives way to Deck the Halls, outside
   it's Jingle Bells, and out on the ice a slow skating waltz.
 - The fitness room's side doors (on its left wall) open onto the **parking lot**, a map
@@ -1177,6 +1185,25 @@ From November 27 to December 31 (by your device's date) the office does Christma
   miss can look different to the person it missed). It's "out in the snow" in
   `js/game.js`, drawn by `drawYard`, the arms and legs you sweep are lifted off your own
   picture (`limbsOf`), and the snow angel's shape is `ANGEL` in `js/lot.js`.
+- **Reindeer**: four of the eight (`REINDEER` in `js/people.js`), picked at random each time
+  the game loads, are loose in the deep snow between the hot chocolate stand and the fire
+  pit. They stroll a few tiles at a time, stop and look around, and leave hoofprints. Walk
+  up to one and press A for a line about what it's up to (`REINDEER_LINES`). Hit one with a
+  snowball and it bolts, away from whoever threw it. They aren't dogs, so there's no catch
+  and they aren't on the frisbee leaderboard. Like the coworkers out there, they're only on
+  your own screen, so other players see them somewhere else. It's "the reindeer and the elf"
+  in `js/game.js`, and the pictures are `renderReindeer` in `js/art.js`.
+- **The elf** runs around everywhere east of the rink, carrying a candy cane nearly as tall as he
+  is. He stops for a moment every few tiles, comes back toward you if he's got far away, and
+  takes off if you get within a few tiles, so it's no good chasing him. Walk up to him anyway
+  and he'll tell you it'd take a snowball. Hit him with one and he sits down dazed for 7
+  seconds, seeing stars, with the candy cane in the snow beside him. Press A on him then and the
+  **candy cane** is yours, the size of a walking stick: it's one of your extras in the character
+  editor from then on, for good, held in one hand and in your picture, so it comes with you into
+  mini-games too. It swings as you walk, like a walking stick: planted out in front on one stride,
+  lifted off the ground on the next. He carries on without it. After that he only tells you you've already taken everything he has. If you've been
+  given a candy cane by hand, he still has one for you to win, and the message that goes with it.
+  His lines are `ELF_LINES` in `js/people.js`, and the pictures are `renderElf` in `js/art.js`.
 - Eleven coworkers, picked at random each time the game loads, have gone out there and
   stand around the lot: one minding the gate in the rink's boards, at the fire pit, the
   hot chocolate stand, a car, the snowman and the big spruce, and two pacing along the
@@ -1433,9 +1460,10 @@ nothing gets saved for real, and you're in the `test` world, away from live play
   `&santahat=1` to have the Santa hat for this visit. Add `&look=m100a00000000` to be wearing it,
   and walk around to see the tail swing. A `#play` address skips the name screen, so it's never
   given the hat by itself: to see that for real, use `#christmas=1` and come in through the title.
-- Add `&unlock=santa` (or `candycane`, `ghostmask`, `ribbon`, `cup`, `champion`, or several with commas) to a
+- Add `&unlock=santa` (or `candycane`, `lights`, `ghostmask`, `ribbon`, `cup`, `champion`, or several with commas) to a
   `#play` link to bring up the message you get when that becomes yours, with the picture of you in it.
-  Add `&have=candycane&look=m20000000300` to be holding the candy cane.
+  Add `&have=candycane&look=m20000000300` to be holding the candy cane, and `&have=lights&look=m20008200000`
+  to be in the tangled lights.
 - Add `&sweater=moose` (or `gingerbread`, `reindeer`, `snowflake`, `tree`, `candycane`,
   `santa`, `snowman`, `hvac`, `none`) to a `#play` link to pick your ugly sweater, and
   `&sweaters` to open the sweater picker. In October add `&halloween=0` too, or you're in
