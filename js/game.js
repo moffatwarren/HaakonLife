@@ -6956,8 +6956,8 @@
   // ---------- your cards ----------
   // Everybody has the starter cards. Anything else you've won goes where the special items are, in the
   // database at items/<world>/<name>/c_<id> and in this browser (see itemsCheck). Those rules only let
-  // a 1 be added, so you can't lose a card. Your deck is only kept in this browser: on a new computer
-  // you get the best one your cards can make, until you build another.
+  // a 1 be added, so you can't lose a card. Your deck goes with your name too (see "your deck on every
+  // device" below). Until you build one, you get the best one your cards can make.
   //
   // To give out a card some other way, from a quest or anything else, call cardEarned(id).
   let cardsOwned = new Set(), cardsFor = null;
@@ -6982,6 +6982,7 @@
       else if (v !== undefined) { cardsOwned.delete(c.id); store.set(itemKey(name, key), ''); }
       else if (store.get(itemKey(name, key)) === '1') itemFetch(name, '/' + key, { method: 'PUT', body: '1' }).catch(() => {});
     }
+    deckNews++; // (with more cards, the deck you get might be different)
   }
   const cardsMine = () => { if (cardsFor !== cardsWho()) cardsRead(cardsWho()); return cardsOwned; };
   const cardHave = (id) => CARDS.STARTER.includes(id) || ((CARDS.card(id) || {}).own ? items.owncard === 1 : cardsMine().has(id));
@@ -6991,6 +6992,43 @@
     if (!CARDS.deckProblem(saved) && saved.every(cardHave)) return saved;
     return CARDS.buildDeck([...cardsMine()], { seed: 1 });
   }
+  // Your deck on every device: the one you built last, wherever you built it. It's kept in the database
+  // at decks/<world>/<name> as { d: its cards with commas between, at: when you built it, by that
+  // device's clock }, and in this browser. The rules only let a deck replace one that was built before
+  // it, so a device that was offline when you built one sends it when it's back, and it only counts if
+  // you haven't built a newer one since. It's asked for as you come in, when you come back to the page,
+  // and just before it's needed (MY CARDS, a coworker's game, a challenge), so a window left open on
+  // another computer still gets it.
+  let deckTurn = 0; // (goes up with each ask and each deck you build, so a late answer is ignored)
+  let deckNews = 0; // (goes up when the deck you'd get might have changed, so MY CARDS can catch up)
+  const deckAt = (name) => +store.get(cardKey(name, 'carddeckat')) || 0; // (0: from before decks were kept)
+  function deckPush(name) {
+    const d = store.get(cardKey(name, 'carddeck'));
+    if (d) deckFetch(name, { method: 'PUT', body: JSON.stringify({ d, at: deckAt(name) }) }).catch(() => {});
+  }
+  function deckPull(name = cardsWho()) {
+    const turn = ++deckTurn;
+    deckFetch(name).then((r) => (r.ok ? r.json() : Promise.reject())).then((row) => {
+      if (turn !== deckTurn) return;
+      const mine = store.get(cardKey(name, 'carddeck'));
+      const there = row && typeof row.d === 'string' && typeof row.at === 'number' ? row : null;
+      // (the one here is newer, or the only one: it goes there, in case it didn't get through before)
+      if (!there || (mine && deckAt(name) > there.at)) { if (mine) deckPush(name); return; }
+      if (there.d === mine && there.at === deckAt(name)) return;
+      // (a tie goes to the database, so every device ends up with the same one)
+      store.set(cardKey(name, 'carddeck'), there.d);
+      store.set(cardKey(name, 'carddeckat'), String(there.at));
+      deckNews++;
+    }).catch(() => {});
+  }
+  function deckKeep(ids) {
+    const name = cardsWho();
+    deckTurn++;
+    store.set(cardKey(name, 'carddeck'), ids.join(','));
+    store.set(cardKey(name, 'carddeckat'), String(Date.now()));
+    deckPush(name);
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') deckPull(); });
   // It's yours now, and you get to see it. Says whether it's new to you.
   function cardEarned(id) {
     if (!CARDS.card(id) || cardHave(id)) return false;
@@ -7141,7 +7179,8 @@
     const FILL = TABS.length - 1, YOU = FILL - 1;
     const F = (id) => faceOf(id, { name: cardsWho(), look: wornLook(myLook) });
     const byCost = (a, b) => a.cost - b.cost || a.name.localeCompare(b.name);
-    const start = cardDeck();
+    const same = (a, b) => a.slice().sort().join() === b.slice().sort().join();
+    let start = cardDeck(), news = deckNews;
     let draft = start.slice(), tab = open === 'you' ? YOU : 0, at = 0, scroll = 0, onTabs = false, t = 0, note = cardsNext(), noteT = note ? 170 : 0;
     const list = () => (TABS[tab][1]
       ? CARDS.LIST.filter((c) => c.rarity !== 'T' && TABS[tab][1](c)).sort(byCost).map((c) => c.id)
@@ -7171,7 +7210,7 @@
     function goBack() {
       if (legal()) {
         // (only if you changed something: until then it's still the best your cards can make)
-        if (draft.slice().sort().join() !== start.slice().sort().join()) store.set(cardKey(cardsWho(), 'carddeck'), draft.join(','));
+        if (!same(draft, start)) deckKeep(draft);
         sfx('select');
         remove(self);
         return;
@@ -7183,6 +7222,8 @@
       update() {
         t++;
         if (noteT > 0) noteT--;
+        // (a newer deck from another device, or more cards: if you haven't changed anything, it's that)
+        if (news !== deckNews) { news = deckNews; if (same(draft, start)) { start = cardDeck(); draft = start.slice(); } }
         if (pressed.has('b')) { goBack(); return; }
         if (onTabs) {
           const was = tab;
@@ -7281,6 +7322,7 @@
   const cardsOpened = () => !!store.get(cardKey(cardsWho(), 'cardsopen')) || cardsMine().size > 0;
   function openMyCards() {
     const first = !cardsOpened();
+    deckPull();
     ui.push(DeckApp());
     if (!first) return;
     store.set(cardKey(cardsWho(), 'cardsopen'), '1');
@@ -7301,6 +7343,7 @@
     const foe = npc.name, level = tableLevel(foe), all = CARDS.prizes(foe), next = all.find((id) => !cardHave(id));
     const str = foe + ' at cards: ' + TABLE_SKILL[level] + '. ' + (!next ? 'You have everything they play for, so this one\'s just for fun.'
       : next === all[0] && CARDS.card(next).name === foe ? 'Beat them and their card is yours.' : 'Beat them and you win ' + CARDS.card(next).name + '.');
+    deckPull(); // (it'll be back by the time you've read this)
     ask(str, ['DEAL ME IN', 'NOT NOW'], (i) => {
       if (i !== 0) return;
       sfx('menu');
@@ -15873,6 +15916,7 @@
   function mpInvite(msg, late) {
     const inv = { msg, until: Date.now() + (late ? MP_ANSWER : MP_ASK), els: [] };
     const answer = (k) => { inv.els.forEach(remove); mp.invite = null; mpSend(msg.from, { k, m: msg.m }); };
+    if (msg.g === 'cards') deckPull(); // (your newest deck, before you say yes)
     const dlg = Dialog(msg.n + ' challenges you to ' + VERSUS[msg.g].title + '!', {
       then() {
         const ch = Choice(['ACCEPT', 'NO THANKS'], -1, SH - 48 - 40, (i) => {
@@ -16168,6 +16212,7 @@
           : o.n + ' has an older version of the game. They need to reload before you can play.');
         return;
       }
+      if (keys[i] === 'cards') deckPull(); // (your newest deck, before they say yes)
       const c = { id: Math.random().toString(36).slice(2, 12), opp: o.id, name: o.n, game: keys[i], seed: Math.floor(Math.random() * 1e9), soft: isTouch || o.tc ? 1 : 0 };
       c.el = MpWait(c);
       mp.pending = c;
@@ -20361,17 +20406,20 @@
   // (gold backs and your own legendary aren't worn, so they're not in any list of looks, and have no part)
   const ITEMS = Object.assign({ goldbacks: {}, owncard: {} }, Art.LOOK_ITEMS), TOLD = 'Told';
   const ITEM_URL = LOOK_URL.replace('/looks/', '/items/');
+  const DECK_URL = LOOK_URL.replace('/looks/', '/decks/'); // (your card deck: see deckPull)
   let items = {}; // your name's numbers, like { santa: 1, antlers: 0 } (no entry: no number)
   let itemsTold = {}; // the items your name has had its message about, like { santa: true }
   let itemsAsk = null, itemsHeard = false; // still waiting for the database; whether it answered
   // (what a test address remembers stays apart from what the real game does, or it'd be sent as real)
   const itemKey = (name, item) => 'item.' + (BOARD_POSTS ? '' : 'test.') + item + '.' + boardKey(name || 'New Hire');
   const itemAt = (part, i) => Object.keys(ITEMS).find((item) => ITEMS[item].part === part && ITEMS[item].i === i);
-  function itemFetch(name, path, opts) {
+  function nameFetch(base, name, path, opts) {
     if (!lookName(name) || boardDemo) return Promise.reject();
     const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 4000);
-    return fetch(ITEM_URL + lookName(name) + path + '.json', Object.assign({ signal: ac.signal }, opts)).finally(() => clearTimeout(timer));
+    return fetch(base + lookName(name) + path + '.json', Object.assign({ signal: ac.signal }, opts)).finally(() => clearTimeout(timer));
   }
+  function itemFetch(name, path, opts) { return nameFetch(ITEM_URL, name, path, opts); }
+  function deckFetch(name, opts) { return nameFetch(DECK_URL, name, '', opts); }
   // Start on what this browser remembers for a name, then ask the database (and who won the
   // Christmas Cup, for the champion's antlers). A 1 here with no number there is a save that
   // didn't get through, so it's sent again. comingIn: through the name screen, so it can count as
@@ -20380,6 +20428,7 @@
     const ask = itemsAsk = {};
     items = {}; itemsTold = {}; itemsHeard = false;
     cardsRead(name || 'New Hire');
+    deckPull(name || 'New Hire');
     for (const item in ITEMS) {
       const v = store.get(itemKey(name, item));
       if (v) items[item] = +v;

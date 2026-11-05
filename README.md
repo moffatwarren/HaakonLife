@@ -165,7 +165,7 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
 - **Your own legendary:** it has your name on it and your character in it, as you look now, big head things and all
   (`faceOf`, `ownFrames`), and other players see it that way too. There are six versions, cards like any other
   in `js/cardlist.js` (`own`, `style`): pick one under YOU in MY CARDS, and pick another whenever you like. Which you
-  play is just which is in your deck, so it's kept with your deck, in the browser. It counts as your one legendary and
+  play is just which is in your deck, so it's kept with your deck. It counts as your one legendary and
   takes the place of any other. Nobody can win it, and coworkers and decks built for you never use it. Everywhere the
   game draws a card it goes through a face id (`faceOf`), because two players can have the same version. Adding a
   version is a line in `js/cardlist.js` and a room in `OWN_ROOMS` in `js/cardart.js`.
@@ -176,8 +176,8 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
 - **Against a player:** see **Playing together**. Your deck goes with you. The server checks that it's
   legal, not that you own the cards, the same honour system as scores and items.
 - **Saved:** your cards go in the database with your special items, at `items/<world>/<name>/c_<id>`, so
-  there's nothing to set up (see "Special items"), and in the browser. Your deck is only kept in the
-  browser. On a new computer you get the best one your cards can make until you build another.
+  there's nothing to set up (see "Special items"), and in the browser. Your deck goes with your name too,
+  so the one you built last, on any device, is the one you play everywhere (see "Saved decks").
 - **Leaderboards:** cards collected, and wins against other players.
 
 ## Cody's casino
@@ -402,6 +402,19 @@ The scores live in a free Firebase Realtime Database. To set one up:
           }
         }
       }
+    },
+    "decks": {
+      "$world": {
+        ".validate": "$world === 'live' || $world === 'test'",
+        "$player": {
+          ".read": true,
+          ".write": "newData.exists() && (!data.exists() || newData.child('at').val() > data.child('at').val())",
+          ".validate": "$player.length <= 12 && newData.hasChildren(['d','at'])",
+          "d": { ".validate": "newData.isString() && newData.val().length <= 500" },
+          "at": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= now + 600000" },
+          "$other": { ".validate": false }
+        }
+      }
     }
   }
 }
@@ -447,7 +460,8 @@ can't read everything it fails rather than saving part of it, and GitHub emails 
 
 It has every board's scores, and the saved character and special items of every name on a
 board. The database's rules don't let anybody list all the names, so somebody with a saved
-character who has never posted a score isn't in it. It's nothing the game doesn't already show
+character who has never posted a score isn't in it. Card decks aren't in it: anybody who lost
+theirs would play the best one their cards can make until they built another. It's nothing the game doesn't already show
 or fetch, but the repository is public, so any GitHub user can download these files.
 
 To put something back, go to the Data tab in the Firebase console and pick the place to restore
@@ -597,6 +611,34 @@ starts to cover whoever is standing nearby.
 If the database's rules were set up before special items, add the `items` part above and
 press Publish again. Until then the game can't find or save them there, and just remembers
 them in the browser.
+
+### Saved decks
+
+The `decks` part of the rules is for Morale Madness: each name's deck is kept in the database,
+under `decks/live` or `decks/test` and the name, like a character. So the deck you built last, on
+whichever phone or computer, is the one you play on all of them:
+
+```
+decks/live/warren: { d: "markv,steve,...", at: 1793750400000 }
+```
+
+`d` is the deck's 20 cards with commas between them, and `at` is when it was built, in milliseconds,
+by the clock of the device that built it. The rules only let a deck replace one with an earlier `at`,
+and not one that says it's more than 10 minutes in the future. So a device that was offline when you
+built a deck sends it the next time it can, and it only counts if you haven't built a newer one since.
+A deck saved before this has an `at` of 0, so any deck built since beats it, and if two devices both
+have one, the first to send it wins.
+
+The game asks for your deck as you come in, when you come back to the page, and just before it's
+needed: opening MY CARDS, a coworker's offer of a game, and challenging or being challenged. If MY
+CARDS is open and you haven't changed anything when a newer deck arrives, it shows that one. A deck
+with a card you don't have (or that isn't a legal deck) isn't used, and you get the best your cards
+can make instead. Like a character, anybody could save over somebody's deck, though only with a
+newer `at`. Deleting a row on the Data tab doesn't reset a deck: the next device that has it sends it
+back.
+
+If the database's rules were set up before decks were saved, add the `decks` part above and press
+Publish again. Until then each browser keeps its own deck.
 
 ## Playing together
 
