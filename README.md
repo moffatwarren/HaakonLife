@@ -277,7 +277,9 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   see too (`deckOrbit`). All 131 gives you your own legendary. MY CARDS and each new card say how far off the next one is.
   They're special items (see "Special items"), so adding cards later moves where they come but doesn't take any away.
 - **Your own legendary:** it has your name on it and your character in it, as you look now, big head things and all
-  (`faceOf`, `ownFrames`), and other players see it that way too. There are six versions, cards like any other
+  (`faceOf`, `ownFrames`), and other players see it that way too. Your picture is made from your look's pixels
+  (`Art.lookPixels`), not read back off a canvas, because Brave, and Firefox with fingerprinting protection, add
+  noise to what a page reads back. There are six versions, cards like any other
   in `js/cardlist.js` (`own`, `style`): pick one under YOU in MY CARDS, and pick another whenever you like. Which you
   play is just which is in your deck, so it's kept with your deck. It counts as your one legendary and
   takes the place of any other. Nobody can win it, and coworkers and decks built for you never use it. Everywhere the

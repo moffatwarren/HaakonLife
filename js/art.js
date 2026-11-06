@@ -2741,6 +2741,19 @@ window.Art = (function () {
     const sw = !SHIRTS[look.shirt].over && SWEATERS[sweater];
     return sheet32(look, sw && sweater, lookPalette(look, sw ? sweaterPal(sw) : null));
   }
+  // The same picture as renderLook paints, as numbers: 32 x 32, one to a pixel, 0 for see-through
+  // and a colour as 0xAABBGGRR, the way a Uint32Array over ImageData has it. For making a picture
+  // from without reading a canvas back, since some browsers sprinkle noise over what you read back
+  // to stop sites recognizing them (Brave does, and Firefox with fingerprinting protection on).
+  function lookPixels(look, dir, step) {
+    const pal = lookPalette(look), out = new Uint32Array(1024);
+    lookBuf32(look, dir, step).forEach((c, i) => {
+      if (!c) return;
+      const [r, g, b] = pal[c];
+      out[i] = (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
+    });
+    return out;
+  }
   // The bulbs on someone's tangled lights that you can see (hair or a ribbon might be in the way):
   // each pixel as [x, y, which bulb] from the top left of their picture, for making them twinkle.
   const lightsSeen = {};
@@ -6372,7 +6385,7 @@ window.Art = (function () {
   return {
     LOOKS, UI, COSTUMES, renderFloor, renderSprites, renderCostume, renderDog, renderReindeer, renderElf, lightsShowing, BULBS, LIGHTS, renderMini, renderTileAs,
     LOOK: { skins: SKINS, hairs: HAIRS, hairColours: HAIR_COLOURS, hats: HATS, shirts: SHIRTS, shirtColours: SHIRT_COLOURS, pants: PANTS, pantsColours: PANTS_COLOURS, extras: EXTRAS, flairs: FLAIRS },
-    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, CANDY_CANE, STAR_TRAIL, SWEEPER, CARD_STORM, BIG_COLS, BAUBLE32, SANTA_END32, SWEEPER32, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, renderLookCostume,
+    LOOK_PARTS: LOOK_PARTS.map(([k, list]) => [k, list.length]), LOOK_ITEMS, CROWN, SANTA, ANTLERS, GHOST_MASK, HAUNTED_MASK, RIBBON, GOLD_RIBBON, CANDY_CANE, STAR_TRAIL, SWEEPER, CARD_STORM, BIG_COLS, BAUBLE32, SANTA_END32, SWEEPER32, lookFix, lookCode, lookFrom, lookLike, lookColours, renderLook, lookPixels, renderLookCostume,
     SWEATERS,
   };
 })();

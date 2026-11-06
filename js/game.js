@@ -6260,16 +6260,17 @@
     }
     return key;
   }
-  // them, standing and on each foot, in anything too big for the picture, like the crown
+  // them, standing and on each foot, in anything too big for the picture, like the crown. Made from
+  // the pixels themselves, never read back off a canvas: Brave, and Firefox with fingerprinting
+  // protection, sprinkle noise over that, which once made the card think the picture went right up
+  // to the top and put the character down behind the ribbon, with holes in the art.
   function ownFrames(look) {
-    const W = 64, H = 56, X = 16, Y = 24, sheet = lookSprites(look), big = bigHat(look);
+    const W = 64, H = 56, X = 16, Y = 24, big = bigHat(look);
     return [0, 1, 2].map((f) => {
-      const cv = document.createElement('canvas');
-      cv.width = W; cv.height = H;
-      const c = cv.getContext('2d');
-      if (big) c.drawImage(rowsPic('bigHat' + look.hat + 'down', big.down, Art.BIG_COLS), X + big.x, Y + big.y);
-      c.drawImage(sheet.down[f], X, Y);
-      return { w: W, h: H, px: new Uint32Array(c.getImageData(0, 0, W, H).data.buffer) };
+      const p = CARD_ART.Pic(W, H);
+      if (big) big.down.forEach((row, j) => [...row].forEach((ch, i) => { if (Art.BIG_COLS[ch]) p.set(X + big.x + i, Y + big.y + j, Art.BIG_COLS[ch]); }));
+      Art.lookPixels(look, 'down', f).forEach((v, i) => { if (v) p.px[(Y + (i >> 5)) * W + X + (i & 31)] = v; });
+      return p;
     });
   }
   const bigCard = (id) => cardPic('big' + id, () => CARD_ART.toCanvas(CARD_ART.big(cardFace(id))));
