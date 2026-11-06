@@ -55,7 +55,7 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
 - **Tapping the screen:** on a phone, only Morale Madness and MY CARDS take taps. Everywhere else a
   tap on the screen does nothing, and you use the on-screen buttons.
   - A finger can't point at something first, as the mouse does. So one tap picks something (the
-    cursor goes there), and a second tap on it does it, as A would. Dragging a finger up or down is
+    cursor goes there), and a tap on what's already picked does it, as A would. Dragging a finger up or down is
     the scroll wheel. A tap near something counts as on it, since a fingertip is bigger than what
     it's aiming at (`tapBox`).
   - While one of those is up, the screen sits above the D-pad's invisible margin, which reaches over
@@ -180,13 +180,13 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   that has one, no close-up shows. Click to play a card, start an attack or pick who it's aimed at; while
   aiming, a click on anything you can't aim at puts it back. A click while a card's being played hurries
   it along, and the right button is B (the menu, or putting an aim back).
-- **By touch:** tap a card, a worker, END TURN or one of the last moves to pick it: the cursor goes
-  there and the close-up comes up. Tap it again to do it, as A would. Then tap who it's aimed at,
-  which takes just the one tap. A tap on anything you can't aim at puts the aim back. A tap on an
-  empty part of the table puts the close-up away. When it's just become your turn and the cursor
-  has jumped to something by itself, a tap on that picks it first, as you mightn't have seen it go
-  there. The swap at the start and the menu B opens work the same way: tap to pick, tap again to
-  do it. While a card's being played a tap hurries it along. On a touch screen, HOW TO PLAY has a
+- **By touch:** tap a card, a worker or one of the last moves to pick it: the cursor goes there and
+  the close-up comes up. Tap it again to do it, as A would. Then tap who it's aimed at, which takes
+  just the one tap. A tap on anything you can't aim at puts the aim back. END TURN takes one tap
+  too: there's nothing on it to look at first. A tap on an empty part of the table puts the
+  close-up away. A tap on whatever the cursor's on already does it straight away, however it got
+  there: by a tap, by the keys, or by itself at the start of your turn. The swap at the start and the
+  menu B opens work the same way: a tap picks, and a tap on what's picked does it. While a card's being played a tap hurries it along. On a touch screen, HOW TO PLAY has a
   line about tapping at the end (`CARD_TAPS`).
 
 - **Your cards:** everybody starts with the same 20. Open **MY CARDS** in the Start menu to see them.
@@ -204,7 +204,7 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   with a deck that isn't full and you're asked whether to finish it yourself or fill it. With the mouse,
   point at a card to see it big, click it (or FILL) to put it in or take it out, click a tab for its page,
   and scroll the page with the wheel. On a phone, tap a tab for its page, tap a card to see it big and
-  tap it again to put it in or take it out, and drag the page up or down to scroll. Along the bottom is the coffee curve: what your deck costs. A card
+  tap the one showing big to put it in or take it out, and drag the page up or down to scroll. Along the bottom is the coffee curve: what your deck costs. A card
   you win never goes in your deck by itself: it's only there once you put it there. Until you build a
   deck yourself, you play the best one the cards you had could make, and winning a card keeps that one
   as yours (`deckSettle`).

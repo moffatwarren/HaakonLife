@@ -76,7 +76,8 @@ in a browser (see "Testing in a browser").
   new menu or screen outside a mini-game needs a `point` (see `anyClick` for one that just waits for
   a press), or the mouse stops working there.
 - **Taps:** on a phone, only Morale Madness and MY CARDS take taps (`tap` on a layer: see "touch" in
-  `js/game.js`). One tap picks something and a second tap does it. The user asked for "nothing else",
+  `js/game.js`). A tap picks something, and a tap on what's already picked does it, however it was
+  picked (END TURN and aiming take one tap). The user asked for "nothing else",
   so don't add taps anywhere else unless asked. A tap never reaches `point`, so the mouse stays as it is.
 - **Art:** everything is drawn at 32 x 32 on a 640 x 480 screen, laid out in a 320 x 240 view. Use a
   2-pixel outer outline with the light from the top left, and flat colours with a shade and a
