@@ -409,6 +409,38 @@ window.MUSIC = {
         'D3 . A3 . F2 . C3 . | C3 . G3 . A2 . E3 . | G2 . D3 . G2 . B2 . | E2 . E3 . A2 . . . |' },
     ],
   },
+  // Galaxy Guard on the office computers: a driving arcade tune, arpeggios under it
+  galaxy: {
+    bpm: 138,
+    voices: [
+      { type: 'square', vol: 0.028, notes:
+        'E5 - G5 - B5 - A5 G5 | F#5 - - - D5 - . . | E5 - G5 - B5 - D6 B5 | A5 - - - - - . . |' +
+        'G5 - F#5 - E5 - D5 - | E5 - B4 - G4 - B4 - | C5 - D5 - E5 - F#5 - | E5 - - - - - . . |' },
+      { type: 'square', vol: 0.012, notes:
+        'E4 G4 B4 G4 E4 G4 B4 G4 | D4 F#4 A4 F#4 D4 F#4 A4 F#4 | E4 G4 B4 G4 E4 G4 B4 G4 | A3 C4 E4 C4 A3 C4 E4 C4 |' +
+        'C4 E4 G4 E4 C4 E4 G4 E4 | E4 G4 B4 G4 E4 G4 B4 G4 | C4 E4 G4 E4 D4 F#4 A4 F#4 | E4 G4 B4 G4 E4 . . . |' },
+      { type: 'triangle', vol: 0.09, notes:
+        'E2 . E3 . E2 . E3 . | D2 . D3 . D2 . D3 . | E2 . E3 . E2 . E3 . | A2 . A3 . A2 . A3 . |' +
+        'C2 . C3 . C2 . C3 . | E2 . E3 . E2 . E3 . | C2 . C3 . D2 . D3 . | E2 . B2 . E2 . . . |' },
+      { type: 'drums', vol: 0.45, notes: 'k . h . s . h . | k . h k s . h h' },
+    ],
+  },
+  // and when the mothership comes: quicker and darker, the bass pounding away
+  galaxyboss: {
+    bpm: 156,
+    voices: [
+      { type: 'square', vol: 0.026, notes:
+        'E5 - E5 F5 E5 - D5 - | E5 - - - B4 - . . | E5 - E5 F5 G5 - F5 - | E5 - - - . . . . |' +
+        'C6 - B5 - A5 - G5 - | F5 - E5 - F5 - G5 - | A5 - G5 - F5 - E5 - | D#5 - - - B4 - . . |' },
+      { type: 'square', vol: 0.012, notes:
+        'E4 B4 E5 B4 E4 B4 E5 B4 | E4 B4 E5 B4 E4 B4 E5 B4 | F4 C5 F5 C5 F4 C5 F5 C5 | E4 B4 E5 B4 E4 B4 E5 B4 |' +
+        'C4 G4 C5 G4 C4 G4 C5 G4 | D4 A4 D5 A4 D4 A4 D5 A4 | F4 C5 F5 C5 F4 C5 F5 C5 | B3 F#4 B4 F#4 B3 D#4 F#4 B4 |' },
+      { type: 'triangle', vol: 0.1, notes:
+        'E2 E2 E3 E2 E2 E2 E3 E2 | E2 E2 E3 E2 E2 E2 E3 E2 | F2 F2 F3 F2 F2 F2 F3 F2 | E2 E2 E3 E2 E2 E2 E3 E2 |' +
+        'C2 C2 C3 C2 C2 C2 C3 C2 | D2 D2 D3 D2 D2 D2 D3 D2 | F2 F2 F3 F2 F2 F2 F3 F2 | B1 B1 B2 B1 B1 B1 B2 B1 |' },
+      { type: 'drums', vol: 0.5, notes: 'k . h k s . h . | k k h . s . h s' },
+    ],
+  },
   hockey: {
     bpm: 152,
     voices: [

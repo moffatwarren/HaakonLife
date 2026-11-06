@@ -604,6 +604,16 @@
     creak: () => tone(210 + Math.random() * 60, 0.14, 'sawtooth', 0.025, -70),
     wind: () => noise(1.1, 900, 0.07),
     tink: () => { tone(2640, 0.1, 'triangle', 0.07, 600); noise(0.06, 5200, 0.05); },
+    // Galaxy Guard: your shot, an alien popping, the saucer's warble, one swooping down at you, and your ship blowing up
+    zap: () => tone(1500, 0.07, 'square', 0.022, -1000),
+    pop: () => { noise(0.12, 1600, 0.07); tone(420, 0.09, 'square', 0.035, -300); },
+    warble: () => tone(520, 0.16, 'sine', 0.04, 240),
+    swoop: () => tone(1300, 0.45, 'triangle', 0.05, -900),
+    boom: () => { noise(0.5, 300, 0.13); tone(110, 0.4, 'square', 0.06, -80); },
+    // and catching a power-up, the laser power-up, and the nova going off
+    power: () => { tone(660, 0.07, 'square', 0.035, 400); tone(990, 0.12, 'square', 0.035, 700, 0.07); },
+    laser: () => tone(2400, 0.12, 'sawtooth', 0.018, -1800),
+    nova: () => { noise(0.7, 900, 0.1); tone(160, 0.55, 'sawtooth', 0.05, 700); },
     // the bell on the Santa hat, which goes with every other stride, so it's very quiet
     bell: () => {
       const k = 1 + Math.random() * 0.05;
@@ -1453,15 +1463,20 @@
     poker: { label: 'Poker', App: (pc) => PokerApp(pc), icon: (x, y) => drawPokerIcon(x, y) },
     blackjack: { label: 'Blackjack', App: (pc) => BlackjackApp(pc), icon: (x, y) => drawBlackjackIcon(x, y) },
     humbug: { label: 'Humbugs', App: () => HumbugGame(), icon: (x, y) => drawHumbugIcon(x, y) },
+    galaxy: { label: 'Galaxy', App: () => GalaxyGame(), icon: (x, y) => drawGalaxyIcon(x, y) },
   };
-  // From the first Christmas on (SEASON_FROM), every computer has Humbug Sweeper on its
-  // desktop too, beside its own program, and keeps it for good; &christmas=1 puts it there early.
+  // Every computer has Galaxy Guard on its desktop too, beside its own program. From the first
+  // Christmas on (SEASON_FROM) it has Humbug Sweeper as well, for good; &christmas=1 puts it there early.
   function ComputerScreen(program) {
     const humbugs = CHRISTMAS || Date.now() >= SEASON_FROM.CHRISTMAS;
-    const progs = [PROGRAMS[program] || PROGRAMS.sdg].concat(humbugs ? [PROGRAMS.humbug] : []);
+    const progs = [PROGRAMS[program] || PROGRAMS.sdg, PROGRAMS.galaxy].concat(humbugs ? [PROGRAMS.humbug] : []);
     let sel = 0, state = 'desktop', t = 0;
-    const OPTIONS = progs.map((p) => 'Open ' + p.label).concat('Exit'), EXIT = progs.length;
-    const OPT_X = progs.length > 1 ? [20, 124, 252] : [40, 200], ICON_X = progs.length > 1 ? [83, 175] : [129];
+    // (with three programs there's only room for their names along the bottom)
+    const OPTIONS = progs.map((p) => (progs.length > 2 ? '' : 'Open ') + p.label).concat('Exit'), EXIT = progs.length;
+    // the options spread evenly along the bottom, each with room for the pointer in front of it
+    const OPT_W = OPTIONS.map((o) => o.length * 6 + 10), GAP = (SW - OPT_W.reduce((a, b) => a + b)) / (OPTIONS.length + 1);
+    const OPT_X = OPT_W.map((w, i) => Math.round(GAP * (i + 1) + OPT_W.slice(0, i).reduce((a, b) => a + b, 0) + 10));
+    const ICON_X = progs.length > 2 ? [59, 129, 199] : [83, 175];
     const self = {
       update() {
         t++;
@@ -1849,6 +1864,925 @@
         lines.forEach((l, k) => ctext(l, 205 + k * 11, over && !k ? (state === 'won' ? '#2c6a34' : '#c82020') : undefined));
       },
     };
+    return self;
+  }
+
+  // ---------- Galaxy Guard: a neon space shooter on every office computer ----------
+  // Rows of aliens march back and forth above you, a step lower each time they reach the side,
+  // and quicker the fewer are left. Steer your ship along the neon floor and hold Space to fire.
+  // They drop bombs (a shot knocks one out of the sky), and from the second wave the odd one
+  // breaks away and swoops at you, worth double if you get it on the way. The commander in the
+  // middle of the top row takes two hits, and a saucer crosses the top now and then for a bonus.
+  //
+  // There's no last wave. It gets harder with every one up to the 20th and then holds there, and
+  // new tricks come in along the way: aimed shots from the third wave, the commander firing three
+  // at a time from the sixth, more divers from the sixth and the twelfth, and saucer riders that
+  // take two hits from the eleventh. Every fifth wave is the mothership instead, tougher each
+  // time. Hits in a row build a multiplier on your points (see mult), and a wave cleared without
+  // losing a heart is worth a bonus, so a good player pulls well ahead.
+  //
+  // Downed aliens now and then drop a power-up to catch (GG_POWERS): a heart, or a weapon for
+  // twelve seconds (spread, rapid or laser), a shield that takes one hit, slow motion, or a nova
+  // that clears every bomb on the screen.
+  const GG_OUT = '#0a0414', GG_HORIZON = 186;
+  const NEON = { pink: '#ff2a8a', cyan: '#16e8ff', green: '#3dff6e', yellow: '#ffe83d', violet: '#a64dff', orange: '#ff8a2a', red: '#ff3a4a' };
+  const GG_STARS = ['#ffffff', NEON.yellow, NEON.cyan, '#ff8ad8', NEON.green, '#c89aff'];
+  // Painting its pictures, on a canvas scaled to the screen's pixels: a shape traced by path(c),
+  // with a dark outline round it, lit from the top left (a highlight along the top left and a
+  // shade along the bottom right)...
+  function ggLit(c, path, base, hi, lo) {
+    const shifted = (d) => { c.save(); c.translate(d, d); c.beginPath(); path(c); c.restore(); };
+    c.save();
+    c.lineJoin = 'round'; c.lineWidth = 2; c.strokeStyle = c.fillStyle = GG_OUT;
+    c.beginPath(); path(c); c.stroke(); c.fill();
+    c.beginPath(); path(c); c.clip();
+    c.fillStyle = hi; c.fillRect(-99, -99, 299, 299);
+    shifted(0.5); c.clip();
+    c.fillStyle = lo; c.fillRect(-99, -99, 299, 299);
+    shifted(-1); c.fillStyle = base; c.fill();
+    c.restore();
+  }
+  // ...a line or a curve with an outline, for legs and feelers...
+  function ggLimb(c, w, co, path) {
+    c.lineCap = c.lineJoin = 'round';
+    for (const [lw, s] of [[w + 2, GG_OUT], [w, co]]) { c.lineWidth = lw; c.strokeStyle = s; c.beginPath(); path(c); c.stroke(); }
+  }
+  // ...a disc...
+  const ggDot = (c, x, y, r, co) => { c.fillStyle = co; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); };
+  // ...and a picture with a neon glow round it, in the colour glow: paint(c) paints it, crisp, w x h,
+  // and it comes back with pad all round for the glow.
+  function ggGlow(key, w, h, glow, paint, pad = 6) {
+    return finePic(key, (w + pad * 2) * 2, (h + pad * 2) * 2, (c) => {
+      const cv = document.createElement('canvas');
+      cv.width = Math.ceil(w * 2); cv.height = Math.ceil(h * 2);
+      const g = cv.getContext('2d');
+      g.scale(2, 2); paint(g);
+      crispEdges(g, cv.width, cv.height);
+      c.shadowColor = glow; c.shadowBlur = pad * 2;
+      c.drawImage(cv, pad * 2, pad * 2); c.drawImage(cv, pad * 2, pad * 2);
+      c.shadowBlur = 0; c.drawImage(cv, pad * 2, pad * 2);
+    });
+  }
+  // a picture drawn centred on (x, y), on the nearest half pixel
+  const ggDraw = (pic, x, y) => ctx.drawImage(pic, Math.round(x * 2 - pic.width / 2) / 2, Math.round(y * 2 - pic.height / 2) / 2);
+  // The aliens, the saucer, the mothership and your ship, each w x h with its centre in the middle,
+  // with f for which step of its walk (2 and 3 for the commander once it's been hit, a rider while
+  // it's still armoured, and the mothership once it's angry), what it's worth, its glow, and the
+  // colours of the bits it flies apart into.
+  const GG_SPRITES = {
+    squid: { w: 16, h: 17, pts: 30, glow: NEON.pink, bits: [NEON.pink, '#ffa8d4', '#ffffff'], paint(c, f) {
+      // four tentacles, curling out and in as it goes
+      for (const [x, s] of [[3.5, -1], [6.5, -1], [9.5, 1], [12.5, 1]]) {
+        ggLimb(c, 1.5, '#d81c70', (c) => { c.moveTo(x, 10); c.quadraticCurveTo(x + s * (f ? 1.2 : -0.4), 12.5, x + s * (f ? -0.6 : 1.4), 14.5); });
+      }
+      ggLit(c, (c) => { c.moveTo(8, 1.5); c.bezierCurveTo(11.5, 3, 14.5, 6.5, 14.2, 11); c.lineTo(1.8, 11); c.bezierCurveTo(1.5, 6.5, 4.5, 3, 8, 1.5); c.closePath(); }, NEON.pink, '#ffa8d4', '#b0105a');
+      c.fillStyle = '#ffffff'; c.fillRect(4, 6.5, 3, 2.5); c.fillRect(9, 6.5, 3, 2.5);
+      c.fillStyle = GG_OUT; c.fillRect(5.5, 7, 1.5, 2); c.fillRect(9, 7, 1.5, 2);
+      c.fillStyle = '#70063a'; c.fillRect(3.5, 5.5, 3.5, 1); c.fillRect(9, 5.5, 3.5, 1); c.fillRect(7, 9.5, 2, 0.5);
+      c.fillStyle = '#ffe0f0'; c.fillRect(6, 3.5, 1, 1);
+    } },
+    chief: { w: 20, h: 19, pts: 100, glow: NEON.cyan, bits: [NEON.cyan, '#b8f8ff', NEON.pink], paint(c, f) {
+      const hurt = f > 1;
+      f &= 1;
+      for (const [x, s] of [[5, -1], [8.5, -1], [11.5, 1], [15, 1]]) ggLimb(c, 1.5, NEON.pink, (c) => { c.moveTo(x, 13); c.lineTo(x + s * (f ? 1.5 : 0.5), 16.5); });
+      // the eye on a stalk, looking about
+      ggLimb(c, 1.5, '#0a9ab8', (c) => { c.moveTo(10, 7); c.quadraticCurveTo(f ? 11.5 : 8.5, 5.5, 10, 4); });
+      ggLit(c, (c) => rrPath(c, 2, 6.5, 16, 7, 3.5), hurt ? NEON.yellow : NEON.cyan, hurt ? '#fff8c0' : '#b8f8ff', hurt ? '#c09a10' : '#0a8fb0');
+      ggLit(c, (c) => c.arc(10, 3.5, 2.2, 0, 7), '#ffffff', '#ffffff', '#c0c8d0');
+      ggDot(c, 10 + (f ? 0.6 : -0.6), 3.7, 0.9, hurt ? NEON.red : GG_OUT);
+      // three more along the front
+      for (const x of [5.5, 10, 14.5]) { ggDot(c, x, 9.8, 1.7, GG_OUT); ggDot(c, x, 9.8, 1.2, '#ffffff'); ggDot(c, x, 10.2, 0.6, hurt ? NEON.red : GG_OUT); }
+    } },
+    rider: { w: 18, h: 17, pts: 20, glow: NEON.violet, bits: [NEON.violet, NEON.green, NEON.yellow], paint(c, f) {
+      const armour = f > 1;
+      f &= 1;
+      for (const [x1, x2] of [[5, 3.5], [9, 9], [13, 14.5]]) ggLimb(c, 1, NEON.orange, (c) => { c.moveTo(x1, 12); c.lineTo(x2, 15); });
+      // a one-eyed alien in a glass dome...
+      ggDot(c, 9, 6.5, 5.6, GG_OUT); ggDot(c, 9, 6.5, 4.6, '#0c2440');
+      ggLit(c, (c) => c.ellipse(9, 7.8, 2.6, 3, 0, 0, 7), NEON.green, '#b8ffc8', '#14a040');
+      ggDot(c, 9, 7, 1.3, '#ffffff'); ggDot(c, 9 + (f ? 0.5 : -0.5), 7.2, 0.6, GG_OUT);
+      c.fillStyle = '#b8f8ff'; c.fillRect(5.5, 4, 1, 1.5); c.fillRect(6.5, 3, 1.5, 1);
+      // ...on a saucer, its lights taking turns (armoured, it's gold)
+      ggLit(c, (c) => c.ellipse(9, 11, 7.5, 2.6, 0, 0, 7), armour ? '#ffc83d' : NEON.violet, armour ? '#fff4b0' : '#dcb0ff', armour ? '#b07a10' : '#6a20b8');
+      for (let i = 0; i < 4; i++) { c.fillStyle = (i + f) % 2 ? NEON.yellow : NEON.cyan; c.fillRect(3.5 + i * 3.3, 10.5, 1.5, 1); }
+    } },
+    bug: { w: 16, h: 15, pts: 10, glow: NEON.green, bits: [NEON.green, '#b8ffc8', NEON.yellow], paint(c, f) {
+      // three legs a side, stepping
+      for (const s of [-1, 1]) for (let i = 0; i < 3; i++) {
+        const x = 8 + s * (2.5 + i * 2);
+        ggLimb(c, 1, '#14a040', (c) => { c.moveTo(x, 9); c.lineTo(x + s * ((i + f) % 2 ? 1.5 : 0.3), 12.8); });
+      }
+      for (const s of [-1, 1]) {
+        const tx = 8 + s * (f ? 4.5 : 3.5);
+        ggLimb(c, 1, '#14a040', (c) => { c.moveTo(8 + s * 2, 4); c.lineTo(tx, 2); });
+        ggDot(c, tx, 2, 1.4, GG_OUT); ggDot(c, tx, 2, 0.8, NEON.yellow);
+      }
+      ggLit(c, (c) => { c.moveTo(8, 3); c.quadraticCurveTo(14, 3.5, 14.2, 10.5); c.lineTo(1.8, 10.5); c.quadraticCurveTo(2, 3.5, 8, 3); c.closePath(); }, NEON.green, '#b8ffc8', '#14a040');
+      for (const x of [6, 10]) { ggDot(c, x, 6.8, 1.4, '#ffffff'); ggDot(c, x + (x < 8 ? 0.3 : -0.3), 7.1, 0.7, GG_OUT); }
+      c.fillStyle = GG_OUT; c.fillRect(6.5, 9, 3, 0.5); c.fillStyle = '#ffffff'; c.fillRect(7, 9.5, 0.5, 0.5); c.fillRect(8.5, 9.5, 0.5, 0.5);
+    } },
+    blob: { w: 16, h: 13, pts: 10, glow: NEON.yellow, bits: [NEON.yellow, '#fffbc0', NEON.orange], paint(c, f) {
+      for (const x of f ? [4, 8, 12] : [5.5, 10.5]) ggLimb(c, 1.5, '#c09a10', (c) => { c.moveTo(x, 9); c.lineTo(x, 11); });
+      for (const s of [-1, 1]) { ggDot(c, 8 + s * 3.5, 3.4, 1.9, GG_OUT); ggDot(c, 8 + s * 3.5, 3.4, 1.1, NEON.orange); }
+      ggLit(c, (c) => { c.moveTo(1.8, 10); c.bezierCurveTo(1.8, 2.5, 14.2, 2.5, 14.2, 10); c.closePath(); }, NEON.yellow, '#fffbc0', '#c09a10');
+      c.fillStyle = GG_OUT; c.fillRect(5.5, 5.5, 1.5, 2.5); c.fillRect(9, 5.5, 1.5, 2.5); c.fillRect(7, 8.5, 2, 0.5);
+      c.fillStyle = '#ffffff'; c.fillRect(5.5, 5.5, 0.5, 0.5); c.fillRect(9, 5.5, 0.5, 0.5);
+    } },
+    // the saucer across the top, its lights going round (f is 0 to 2)
+    ufo: { w: 26, h: 12, glow: NEON.pink, bits: [NEON.pink, '#ffd0f0', NEON.cyan], paint(c, f) {
+      ggLit(c, (c) => { c.ellipse(13, 6, 5, 4.5, 0, Math.PI, Math.PI * 2); c.closePath(); }, '#ffd0f0', '#ffffff', '#c890d8');
+      ggLit(c, (c) => c.ellipse(13, 7.5, 11.5, 3, 0, 0, 7), NEON.pink, '#ffa8d4', '#a0104e');
+      for (let i = 0; i < 6; i++) { c.fillStyle = i % 3 === f ? '#ffffff' : NEON.cyan; c.fillRect(4.5 + i * 3.2, 7, 1.5, 1.5); }
+    } },
+    // every fifth wave: guns on its sides, a dome with one great eye, and lights round its hull
+    mother: { w: 60, h: 32, glow: NEON.pink, bits: [NEON.pink, NEON.violet, NEON.cyan, NEON.yellow], paint(c, f) {
+      const angry = f > 1;
+      f &= 1;
+      for (const x of [9, 51]) { ggLit(c, (c) => rrPath(c, x - 4, 15, 8, 9, 3), '#7a2ad8', '#c890ff', '#4a1290'); c.fillStyle = NEON.yellow; c.fillRect(x - 1, 22.5, 2, 1.5); }
+      for (const s of [-1, 1]) {
+        ggLimb(c, 1, NEON.cyan, (c) => { c.moveTo(30 + s * 6, 6); c.lineTo(30 + s * 10, 2); });
+        ggDot(c, 30 + s * 10, 2, 1.5, GG_OUT); ggDot(c, 30 + s * 10, 2, 0.9, f ? '#ffffff' : NEON.cyan);
+      }
+      ggLit(c, (c) => { c.ellipse(30, 14, 13, 10, 0, Math.PI, Math.PI * 2); c.closePath(); }, '#5a1aa0', '#a060e8', '#360a6a');
+      ggLit(c, (c) => c.ellipse(30, 18, 26, 7, 0, 0, 7), angry ? NEON.red : NEON.pink, angry ? '#ffb0b8' : '#ffa8d4', angry ? '#a01020' : '#a0104e');
+      for (let i = 0; i < 7; i++) { c.fillStyle = (i + f) % 2 ? NEON.cyan : NEON.yellow; c.fillRect(13 + i * 5, 18.5, 2, 1.5); }
+      ggDot(c, 30, 10, 5.4, GG_OUT); ggDot(c, 30, 10, 4.4, '#ffffff');
+      ggDot(c, 30, 10.4, 3, angry ? NEON.red : NEON.cyan); ggDot(c, 30 + (f ? 0.8 : -0.8), 10.6, 1.5, GG_OUT);
+      c.fillStyle = '#ffffff'; c.fillRect(28.5, 8.5, 1, 1);
+      ggLit(c, (c) => rrPath(c, 22, 23, 16, 4, 2), '#7a2ad8', '#c890ff', '#4a1290');
+      c.fillStyle = GG_OUT; for (let i = 0; i < 5; i++) c.fillRect(24.5 + i * 2.5, 24, 1, 2);
+    } },
+    ship: { w: 18, h: 20, glow: NEON.cyan, paint(c) {
+      ggLit(c, (c) => { c.moveTo(9, 6); c.lineTo(16.5, 13.5); c.lineTo(16.5, 16); c.lineTo(1.5, 16); c.lineTo(1.5, 13.5); c.closePath(); }, NEON.cyan, '#b8f8ff', '#0a7a98');
+      for (const x of [4.5, 13.5]) ggLit(c, (c) => c.rect(x - 1.5, 15, 3, 3), NEON.pink, '#ffa8d4', '#a0104e');
+      ggLit(c, (c) => { c.moveTo(9, 1.5); c.bezierCurveTo(11.5, 3.5, 12.3, 8, 12, 16.5); c.lineTo(6, 16.5); c.bezierCurveTo(5.7, 8, 6.5, 3.5, 9, 1.5); c.closePath(); }, '#f0f4ff', '#ffffff', '#a0a8c4');
+      c.fillStyle = NEON.pink; c.fillRect(8.5, 11.5, 1, 4);
+      ggDot(c, 9, 8, 2, GG_OUT); ggDot(c, 9, 8, 1.4, NEON.violet); c.fillStyle = '#e0c8ff'; c.fillRect(8, 7, 1, 1);
+    } },
+  };
+  // a sprite, crisp, k times its size (white, for an alien that's just been hit)...
+  const ggCrisp = (kind, f, white, k = 1) => {
+    const s = GG_SPRITES[kind];
+    return finePic('ggc' + kind + f + white + k, s.w * 2 * k, s.h * 2 * k, (c) => {
+      c.scale(2 * k, 2 * k); s.paint(c, f);
+      crispEdges(c, s.w * 2 * k, s.h * 2 * k);
+      if (white) { c.globalCompositeOperation = 'source-atop'; c.fillStyle = '#ffffff'; c.fillRect(0, 0, s.w, s.h); }
+    });
+  };
+  // ...and with its glow
+  const ggPic = (kind, f, white) => {
+    const s = GG_SPRITES[kind];
+    return ggGlow('gg' + kind + f + white, s.w, s.h, white ? '#ffffff' : s.glow, (c) => c.drawImage(ggCrisp(kind, f, white), 0, 0, s.w, s.h), 5);
+  };
+  // the planets drifting past behind it all, in neon wireframe
+  const GG_PLANETS = {
+    globe: { w: 26, h: 26, glow: NEON.cyan, paint(c) {
+      c.fillStyle = '#04121c'; c.beginPath(); c.arc(13, 13, 11, 0, 7); c.fill();
+      c.strokeStyle = NEON.cyan; c.lineWidth = 0.8;
+      for (const [y, ry] of [[13, 2.4], [7.5, 1.6], [18.5, 1.6]]) { c.beginPath(); c.ellipse(13, y, Math.sqrt(121 - (y - 13) * (y - 13)), ry, 0, 0, 7); c.stroke(); }
+      for (const rx of [4, 8]) { c.beginPath(); c.ellipse(13, 13, rx, 11, 0, 0, 7); c.stroke(); }
+      c.lineWidth = 1.2; c.beginPath(); c.arc(13, 13, 11, 0, 7); c.stroke();
+    } },
+    ringed: { w: 30, h: 18, glow: NEON.pink, paint(c) {
+      const ring = (from, to) => { c.strokeStyle = NEON.yellow; c.lineWidth = 1; c.beginPath(); c.ellipse(15, 9, 13, 3.5, -0.2, from, to); c.stroke(); };
+      ring(Math.PI, Math.PI * 2);
+      c.fillStyle = '#1a0614'; c.beginPath(); c.arc(15, 9, 6.5, 0, 7); c.fill();
+      c.save(); c.clip(); c.fillStyle = NEON.pink; c.fillRect(8, 6, 14, 0.6); c.fillRect(8, 11.5, 14, 0.6); c.restore();
+      c.strokeStyle = NEON.pink; c.lineWidth = 1.2; c.beginPath(); c.arc(15, 9, 6.5, 0, 7); c.stroke();
+      ring(0, Math.PI);
+    } },
+    moon: { w: 22, h: 22, glow: NEON.violet, paint(c) {
+      c.fillStyle = '#0e0820'; c.beginPath(); c.arc(11, 11, 9, 0, 7); c.fill();
+      c.strokeStyle = NEON.violet; c.lineWidth = 1.2; c.stroke();
+      c.lineWidth = 0.7;
+      for (const [x, y, r] of [[8, 9, 2.2], [14, 13, 1.8], [12, 5.5, 1.1], [8, 15, 1.3]]) { c.beginPath(); c.arc(x, y, r, 0, 7); c.stroke(); }
+    } },
+    small: { w: 16, h: 16, glow: NEON.green, paint(c) {
+      c.fillStyle = '#06180c'; c.beginPath(); c.arc(8, 8, 5.5, 0, 7); c.fill();
+      c.strokeStyle = NEON.green; c.lineWidth = 1.1; c.stroke();
+      c.lineWidth = 0.6; c.beginPath(); c.ellipse(8, 8, 5.5, 1.6, 0, 0, Math.PI); c.stroke();
+    } },
+    // a far-off galaxy, wound round itself
+    swirl: { w: 32, h: 20, glow: NEON.pink, paint(c) {
+      c.translate(16, 10); c.scale(1, 0.55); c.rotate(-0.3);
+      for (let arm = 0; arm < 2; arm++) for (let i = 0; i < 36; i++) {
+        const a = i * 0.17 + arm * Math.PI, r = 2 + i * 0.36;
+        ggDot(c, Math.cos(a) * r, Math.sin(a) * r, 2 - i * 0.035, i < 12 ? '#ffb0e8' : i < 24 ? NEON.pink : NEON.violet);
+      }
+      ggDot(c, 0, 0, 2.8, '#ffb0e8'); ggDot(c, 0, 0, 1.8, '#ffffff');
+    } },
+  };
+  const ggPlanet = (kind) => ggGlow('ggPlanet' + kind, GG_PLANETS[kind].w, GG_PLANETS[kind].h, GG_PLANETS[kind].glow, (c) => GG_PLANETS[kind].paint(c), 4);
+  // The power-ups, each a glowing token with its picture on it: what it's called when you catch it,
+  // and its colour.
+  const GG_POWERS = {
+    heart: { name: '+1 HEART', color: NEON.pink, icon(c) { c.save(); c.translate(1, 1.5); c.scale(0.5, 0.5); c.fill(new Path2D('M6 9.5C2.5 7 1.5 5 1.7 3.7C2 1.8 5 1.3 6 3.5C7 1.3 10 1.8 10.3 3.7C10.5 5 9.5 7 6 9.5Z')); c.restore(); } },
+    spread: { name: 'SPREAD SHOT', color: NEON.green, icon(c) { c.lineWidth = 1.2; c.lineCap = 'square'; for (const x of [4, 7, 10]) { c.beginPath(); c.moveTo(7, 10); c.lineTo(x, 4); c.stroke(); } } },
+    rapid: { name: 'RAPID FIRE', color: NEON.yellow, icon(c) { c.lineWidth = 1.2; for (const y of [3.5, 7]) { c.beginPath(); c.moveTo(4, y + 3); c.lineTo(7, y); c.lineTo(10, y + 3); c.stroke(); } } },
+    laser: { name: 'LASER', color: '#ff5ab0', icon(c) { c.fillRect(6, 3, 2, 8); c.fillStyle = '#ffffff'; c.fillRect(6.5, 3.5, 1, 7); } },
+    shield: { name: 'SHIELD', color: NEON.cyan, icon(c) { c.lineWidth = 1.2; c.beginPath(); c.arc(7, 7, 3.3, 0, 7); c.stroke(); c.fillRect(6.5, 6.5, 1, 1); } },
+    slow: { name: 'SLOW-MO', color: '#c07aff', icon(c) { c.beginPath(); c.moveTo(4.5, 3.5); c.lineTo(9.5, 3.5); c.lineTo(7, 7); c.lineTo(9.5, 10.5); c.lineTo(4.5, 10.5); c.lineTo(7, 7); c.closePath(); c.fill(); } },
+    nova: { name: 'NOVA', color: NEON.orange, icon(c) { c.beginPath(); for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8, r = i & 1 ? 1.4 : 4; c.lineTo(7 + Math.cos(a) * r, 7 + Math.sin(a) * r); } c.closePath(); c.fill(); } },
+  };
+  const ggToken = (kind) => ggGlow('ggToken' + kind, 14, 14, GG_POWERS[kind].color, (c) => {
+    const co = GG_POWERS[kind].color;
+    ggDot(c, 7, 7, 6.8, GG_OUT); ggDot(c, 7, 7, 6, co); ggDot(c, 7, 7, 4.8, '#12061e');
+    c.fillStyle = c.strokeStyle = co; GG_POWERS[kind].icon(c);
+    c.fillStyle = '#ffffff'; c.fillRect(4, 2.5, 1, 1);
+  }, 4);
+  // your shots, whatever you're firing...
+  const GG_SHOTS = {
+    plain: { h: 8, glow: NEON.cyan, paint(c) { c.fillStyle = NEON.cyan; c.fillRect(1, 0.5, 2, 7); c.fillStyle = '#ffffff'; c.fillRect(1.5, 1, 1, 5); } },
+    spread: { h: 8, glow: NEON.green, paint(c) { c.fillStyle = NEON.green; c.fillRect(1, 0.5, 2, 7); c.fillStyle = '#ffffff'; c.fillRect(1.5, 1, 1, 5); } },
+    rapid: { h: 6, glow: NEON.yellow, paint(c) { c.fillStyle = NEON.yellow; c.fillRect(1, 0.5, 2, 5); c.fillStyle = '#ffffff'; c.fillRect(1.5, 1, 1, 3); } },
+    laser: { h: 18, glow: '#ff5ab0', paint(c) { c.fillStyle = '#ff5ab0'; c.fillRect(0.5, 0, 3, 18); c.fillStyle = '#ffd0ea'; c.fillRect(1, 0.5, 2, 17); c.fillStyle = '#ffffff'; c.fillRect(1.5, 1, 1, 16); } },
+  };
+  const ggShot = (kind) => ggGlow('ggShot' + kind, 4, GG_SHOTS[kind].h, GG_SHOTS[kind].glow, (c) => GG_SHOTS[kind].paint(c), 3);
+  // ...and theirs, big and bright and pulsing (f): a hot orb, a dart aimed at you, and the mothership's.
+  // r is how far from the middle one hits.
+  const GG_BOMBS = {
+    orb: { w: 9, r: 3, glow: '#ff2a4a', trail: '#ff6a3a', paint(c, f) { ggDot(c, 4.5, 4.5, 4, GG_OUT); ggDot(c, 4.5, 4.5, 3.3, '#ff2a4a'); ggDot(c, 4.5, 4.5, 2.3, '#ffa03a'); ggDot(c, 4.5, 4.5, f ? 1.4 : 1, '#ffffff'); } },
+    dart: { w: 9, r: 2.8, glow: NEON.orange, trail: NEON.yellow, paint(c, f) {
+      const d = (s, co) => { c.fillStyle = co; c.beginPath(); c.moveTo(4.5, 4.5 - s); c.lineTo(4.5 + s * 0.6, 4.5); c.lineTo(4.5, 4.5 + s); c.lineTo(4.5 - s * 0.6, 4.5); c.closePath(); c.fill(); };
+      d(4.4, GG_OUT); d(3.6, NEON.yellow); d(f ? 2.2 : 1.6, '#ffffff');
+    } },
+    big: { w: 11, r: 4, glow: '#ff2af0', trail: '#d02aff', paint(c, f) { ggDot(c, 5.5, 5.5, 5, GG_OUT); ggDot(c, 5.5, 5.5, 4.3, '#d02aff'); ggDot(c, 5.5, 5.5, 3, '#ff8ae8'); ggDot(c, 5.5, 5.5, f ? 1.9 : 1.4, '#ffffff'); } },
+  };
+  const ggBomb = (kind, f) => ggGlow('ggBomb' + kind + f, GG_BOMBS[kind].w, GG_BOMBS[kind].w, GG_BOMBS[kind].glow, (c) => GG_BOMBS[kind].paint(c, f), f ? 5 : 4);
+  // a heart (or where one goes) and the coin by your score
+  const ggHeartPath = (c) => { c.moveTo(6, 9.5); c.bezierCurveTo(2.5, 7, 1.5, 5, 1.7, 3.7); c.bezierCurveTo(2, 1.8, 5, 1.3, 6, 3.5); c.bezierCurveTo(7, 1.3, 10, 1.8, 10.3, 3.7); c.bezierCurveTo(10.5, 5, 9.5, 7, 6, 9.5); c.closePath(); };
+  const ggHeart = (full) => ggGlow('ggHeart' + full, 12, 11, full ? NEON.pink : 'rgba(0, 0, 0, 0)', (c) => {
+    if (full) { ggLit(c, ggHeartPath, NEON.pink, '#ffb0d8', '#a0104e'); c.fillStyle = '#ffffff'; c.fillRect(3.5, 3.5, 1, 1); }
+    else ggLit(c, ggHeartPath, '#2a1440', '#3a2058', '#1c0c2c');
+  }, 3);
+  const ggCoin = () => ggGlow('ggCoin', 12, 12, NEON.yellow, (c) => {
+    ggLit(c, (c) => c.arc(6, 6, 4.8, 0, 7), NEON.yellow, '#fffbc0', '#c09a10');
+    c.fillStyle = '#c09a10'; c.fillRect(5.5, 3.5, 1, 5); c.fillStyle = '#fffbc0'; c.fillRect(5, 3.5, 0.5, 4.5);
+  }, 3);
+  // an explosion: a flash for its first moments (step n of 3), then a ring of light spreading (step n of 6)
+  const ggFlash = (n, big) => finePic('ggFlash' + n + big, big ? 64 : 40, big ? 64 : 40, (c) => {
+    const S = big ? 32 : 20, R = (S / 2 - 1) * (0.5 + n * 0.22);
+    c.scale(2, 2); c.translate(S / 2, S / 2);
+    const star = (r1, r2, co, turn) => {
+      c.fillStyle = co; c.beginPath();
+      for (let i = 0; i < 16; i++) { const a = turn + i * Math.PI / 8, r = i & 1 ? r2 : r1; c.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+      c.closePath(); c.fill();
+    };
+    star(R, R * 0.38, NEON.pink, n * 0.2);
+    star(R * 0.7, R * 0.3, NEON.yellow, n * 0.2 + 0.2);
+    ggDot(c, 0, 0, R * 0.3, '#ffffff');
+    crispEdges(c, S * 2, S * 2);
+  });
+  const ggRing = (n, big, co) => {
+    const R = (2.5 + n * 2.6) * (big ? 1.8 : 1), S = Math.ceil(R * 2 + 3);
+    return ggGlow('ggRing' + n + big + co, S, S, co, (c) => {
+      c.strokeStyle = co; c.lineWidth = n < 3 ? 1.5 : 1; c.beginPath(); c.arc(S / 2, S / 2, R, 0, 7); c.stroke();
+    }, 4);
+  };
+  // the sky, the glow along the horizon and the floor below it, and the screen's scanlines over everything
+  const ggSky = () => finePic('ggSky', SW * 2, SH * 2, (c) => {
+    c.scale(2, 2);
+    const g = c.createLinearGradient(0, 0, 0, GG_HORIZON);
+    g.addColorStop(0, '#04020c'); g.addColorStop(0.55, '#0c0420'); g.addColorStop(1, '#3c0c4c');
+    c.fillStyle = g; c.fillRect(0, 0, SW, GG_HORIZON);
+    const f = c.createLinearGradient(0, GG_HORIZON, 0, SH);
+    f.addColorStop(0, '#1c0634'); f.addColorStop(1, '#05020c');
+    c.fillStyle = f; c.fillRect(0, GG_HORIZON, SW, SH - GG_HORIZON);
+    const h = c.createLinearGradient(0, GG_HORIZON - 16, 0, GG_HORIZON + 6);
+    h.addColorStop(0, 'rgba(255, 42, 138, 0)'); h.addColorStop(0.75, 'rgba(255, 42, 138, 0.3)'); h.addColorStop(1, 'rgba(255, 42, 138, 0)');
+    c.fillStyle = h; c.fillRect(0, GG_HORIZON - 16, SW, 22);
+  });
+  const ggScan = () => finePic('ggScan', SW * 2, SH * 2, (c) => {
+    c.fillStyle = 'rgba(0, 0, 0, 0.18)';
+    for (let y = 1; y < SH * 2; y += 2) c.fillRect(0, y, SW * 2, 1);
+    const v = c.createRadialGradient(SW, SH, SH * 0.7, SW, SH, SW * 1.25);
+    v.addColorStop(0, 'rgba(0, 0, 0, 0)'); v.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
+    c.fillStyle = v; c.fillRect(0, 0, SW * 2, SH * 2);
+  });
+  // the game over box
+  const ggPanel = () => ggGlow('ggPanel', 216, 120, NEON.pink, (c) => {
+    c.fillStyle = NEON.pink; c.beginPath(); rrPath(c, 0.5, 0.5, 215, 119, 6); c.fill();
+    c.fillStyle = '#0c0418'; c.beginPath(); rrPath(c, 2, 2, 212, 116, 5); c.fill();
+  }, 6);
+  // its icon on the desktop: a squid over your ship, firing, above a neon floor
+  function drawGalaxyIcon(x, y) {
+    ctx.drawImage(finePic('ggIcon', 124, 128, (c) => {
+      c.scale(2, 2);
+      c.fillStyle = NEON.pink; c.beginPath(); rrPath(c, 3, 1, 56, 58, 7); c.fill();
+      c.fillStyle = GG_OUT; c.beginPath(); rrPath(c, 4, 2, 54, 56, 6.5); c.fill();
+      c.save(); c.beginPath(); rrPath(c, 5, 3, 52, 54, 6); c.clip();
+      const g = c.createLinearGradient(0, 3, 0, 44);
+      g.addColorStop(0, '#04020c'); g.addColorStop(1, '#3c0c4c');
+      c.fillStyle = g; c.fillRect(5, 3, 52, 41);
+      c.fillStyle = '#1c0634'; c.fillRect(5, 44, 52, 13);
+      c.strokeStyle = NEON.violet; c.lineWidth = 0.5; c.beginPath();
+      for (const yy of [46, 49, 53]) { c.moveTo(5, yy); c.lineTo(57, yy); }
+      for (let j = -4; j <= 4; j++) { c.moveTo(31 + j * 5, 44); c.lineTo(31 + j * 16, 57); }
+      c.stroke();
+      c.fillStyle = '#ff6ad5'; c.fillRect(5, 43.5, 52, 0.5);
+      for (const [sx, sy, co] of [[10, 9, '#ffffff'], [50, 7, NEON.yellow], [13, 34, NEON.cyan], [49, 30, '#ff8ad8'], [44, 18, '#ffffff'], [9, 22, NEON.green]]) { c.fillStyle = co; c.fillRect(sx, sy, 1, 1); }
+      c.shadowBlur = 10;
+      c.shadowColor = NEON.pink; c.drawImage(ggCrisp('squid', 0, false, 1.5), 19, 4, 24, 25.5);
+      c.shadowColor = NEON.cyan; c.fillStyle = '#ffffff'; c.fillRect(30.5, 30.5, 1, 4); c.fillStyle = NEON.cyan; c.fillRect(30, 30, 2, 5);
+      c.drawImage(ggCrisp('ship', 0, false), 22, 36, 18, 20);
+      c.restore();
+    }), x, y);
+  }
+  // what you're firing: how long between shots, how many can be in the air at once, which way they
+  // go, how fast, and (the laser) whether they go on through what they hit
+  const GG_WEAPONS = {
+    plain: { cool: 9, max: 3, vx: [0], speed: 5 },
+    spread: { cool: 12, max: 12, vx: [-0.9, 0, 0.9], speed: 5 },
+    rapid: { cool: 4, max: 8, vx: [0], speed: 6.5 },
+    laser: { cool: 15, max: 2, vx: [0], speed: 7, pierce: true },
+  };
+  function GalaxyGame() {
+    const COLS = 9, ROWS = 5, DX = 24, DY = 17, SHIP_Y = 216, WEAPON_TIME = 720, SLOW_TIME = 420;
+    const ROW_KIND = ['squid', 'rider', 'bug', 'bug', 'blob'];
+    const rnd = (n) => Math.floor(Math.random() * n);
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const half = (v) => Math.round(v * 2) / 2;
+    let state, t, wave, score, kills, hearts, record, invaded, banked, bonus, perfectBonus, gift, perfect;
+    let aliens, mother, fx, fy, fdir, walk, ship, cool, shake, ufo, ufoWait, diveWait, chiefWait;
+    let weapon, wtime, slowT, nova, chain, pace = 1;
+    let shots, bombs, drops, bits, bursts, floats;
+    let sitting = 0, gridAt = 0; // your best since you sat down, for the leaderboard when you get up; how far the floor has scrolled
+    // the night sky: stars drifting past at three depths, a few twinkling, the planets, and now and then a comet
+    const stars = Array.from({ length: 64 }, (_, i) => ({ x: Math.random() * SW, y: Math.random() * GG_HORIZON, z: 1 + (i % 3), c: GG_STARS[i % GG_STARS.length], p: rnd(64) }));
+    const sparks = Array.from({ length: 7 }, (_, i) => ({ x: 10 + Math.random() * 300, y: 20 + Math.random() * 150, c: GG_STARS[(i + 1) % GG_STARS.length], p: rnd(64) }));
+    const planets = [['globe', 34, 66], ['small', 64, 148], ['moon', 286, 150], ['swirl', 232, 104], ['ringed', 276, 38]]
+      .map(([kind, x, y], i) => ({ kind, x, y, v: 0.02 + i * 0.005 }));
+    let comet = null, cometWait = 600 + rnd(900);
+    // How hard it is: it climbs with every wave up to the 20th, and holds there
+    const hard = () => Math.min(wave, 20);
+    const bombSpeed = () => 1.2 + hard() * 0.065;
+    // The multiplier on your points: hit 8 in a row for x2, 8 more for x3, up to x5. A shot that
+    // misses (unless you've a weapon power-up) takes you down a step, and being hit back to x1.
+    const mult = () => Math.min(5, 1 + Math.floor(chain / 8));
+    const alive = () => aliens.filter((a) => a.hp > 0);
+    const slot = (a) => ({ x: fx + a.c * DX, y: fy + a.r * DY });
+    // the lowest alien in each column still in the rows: the ones that can drop bombs or break away
+    const shooters = () => {
+      const low = [];
+      for (const a of alive()) if (!a.dive && !a.escort && (!low[a.c] || a.r > low[a.c].r)) low[a.c] = a;
+      return low.filter(Boolean);
+    };
+    function newGame() {
+      wave = 0; score = 0; kills = 0; hearts = 3; record = false; invaded = false; banked = false;
+      ship = { x: SW / 2, dead: 0, safe: 0, shield: false };
+      cool = 0; shake = 0; ufo = null; ufoWait = 1500 + rnd(900);
+      weapon = null; wtime = 0; slowT = 0; nova = null; chain = 0;
+      drops = []; bits = []; bursts = []; floats = [];
+      nextWave();
+    }
+    function nextWave() {
+      wave++;
+      aliens = []; mother = null; shots = []; bombs = []; perfect = true;
+      state = 'enter'; t = 0;
+      if (wave % 5 === 0) {
+        const n = wave / 5, hp = 60 + n * 20;
+        mother = { x: SW / 2, y: -40, hp, max: hp, n, t: 0, cd: 100, flash: 0, next: 0, burst: 0, burstT: 0, rain: 0, rainT: 0, dying: 0 };
+        return;
+      }
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        const kind = r === 0 && c === COLS >> 1 ? 'chief' : ROW_KIND[r];
+        aliens.push({ kind, c, r, hp: kind === 'chief' || (kind === 'rider' && wave >= 11) ? 2 : 1, x: 0, y: 0, dive: null, flash: 0 });
+      }
+      // (each wave of rows starts a little lower than the last)
+      const rows = wave - Math.floor(wave / 5);
+      fx = (SW - (COLS - 1) * DX) / 2; fy = 46 + Math.min(rows - 1, 6) * 6; fdir = 1; walk = 0;
+      diveWait = 360; chiefWait = 240;
+      place(150);
+    }
+    // where the aliens in the rows are, dropping in from drop above
+    function place(drop) {
+      for (const a of aliens) if (!a.dive && !a.escort) { const s = slot(a); a.x = s.x; a.y = s.y - drop; }
+    }
+    // the game's over (or you've left it): your score is in
+    function bank() {
+      if (banked) return;
+      banked = true;
+      record = saveBest('galaxy', score);
+      sitting = Math.max(sitting, score);
+      // (the leaderboard that comes up when you leave is for your best game this time, not your last)
+      if (sitting > score) boardNote('galaxy', sitting);
+    }
+    function explode(x, y, cols, n, big, glow) {
+      bursts.push({ x, y, t: 0, big, c: glow || NEON.orange });
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2, v = 0.4 + Math.random() * (big ? 2.4 : 1.5);
+        bits.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 16 + rnd(20), c: cols[i % cols.length] });
+      }
+    }
+    // a bomb at you, or a dart straight at where you are
+    const drop = (x, y, vx, vy, kind) => bombs.push({ x, y, vx, vy, kind, t: 0 });
+    function aimed(x, y, v, kind) {
+      const dx = ship.x - x, dy = Math.max(40, SHIP_Y - y), d = Math.hypot(dx, dy);
+      drop(x, y, (dx / d) * v, (dy / d) * v, kind);
+    }
+    // hit: the shield takes it if you have one
+    function struck() {
+      if (!ship.shield) { hurt(); return; }
+      ship.shield = false; ship.safe = 60;
+      explode(ship.x, SHIP_Y, [NEON.cyan, '#ffffff'], 16, false, NEON.cyan);
+      sfx('tink');
+    }
+    function hurt() {
+      hearts--; perfect = false; chain = 0; weapon = null; wtime = 0;
+      ship.dead = 1; ship.shield = false; shake = 16; bombs = [];
+      explode(ship.x, SHIP_Y, ['#ffffff', NEON.cyan, NEON.pink, NEON.yellow], 34, true, NEON.cyan);
+      sfx('boom');
+    }
+    function hit(a) {
+      const sp = GG_SPRITES[a.kind];
+      chain++;
+      if (--a.hp > 0) { a.flash = 10; explode(a.x, a.y + 4, sp.bits, 5, false, sp.glow); sfx('tink'); return; }
+      const pts = sp.pts * (a.dive ? 2 : 1) * mult();
+      score += pts; kills++;
+      explode(a.x, a.y, sp.bits, a.kind === 'chief' ? 26 : 14, a.kind === 'chief', sp.glow);
+      if (pts >= 40) floats.push({ x: a.x, y: a.y - 6, t: 0, s: String(pts) });
+      if (a.kind === 'chief' || Math.random() < 0.06) dropPower(a.x, a.y);
+      sfx('pop');
+    }
+    function hitMother(x, y) {
+      const m = mother;
+      m.hp--; m.flash = 6; chain++; score += 10 * mult();
+      explode(x, y, GG_SPRITES.mother.bits, 3, false, NEON.pink);
+      sfx('blip');
+      if (m.hp > 0) return;
+      // down: it goes up in a string of blasts (see motherTick), taking its escorts with it
+      const pts = 1000 * m.n * mult();
+      m.dying = 1; score += pts; kills++;
+      floats.push({ x: m.x, y: m.y + 18, t: 0, s: String(pts), c: NEON.yellow });
+      for (const a of alive()) { a.hp = 0; explode(a.x, a.y, GG_SPRITES[a.kind].bits, 10, false, GG_SPRITES[a.kind].glow); }
+      bombs = [];
+    }
+    function miss() { chain = Math.max(0, (mult() - 2) * 8); }
+    // a power-up falls from (x, y): never a shield you already have, a heart with five, or one
+    // that's already on its way down
+    function dropPower(x, y, kind) {
+      let pool = ['spread', 'spread', 'rapid', 'rapid', 'laser', 'laser', 'slow', 'nova'];
+      if (!ship.shield) pool.push('shield', 'shield');
+      if (hearts < 5) pool.push('heart', 'heart');
+      const fresh = pool.filter((k) => !drops.some((d) => d.kind === k));
+      if (fresh.length) pool = fresh;
+      drops.push({ x, y, kind: kind || pool[rnd(pool.length)] });
+    }
+    function power(kind, x, y) {
+      const P = GG_POWERS[kind];
+      // (its name goes up above any you've just caught nearby)
+      const near = floats.filter((f) => f.t < 30 && Math.abs(f.x - x) < 50).length;
+      floats.push({ x, y: y - 14 - near * 10, t: 0, s: P.name, c: P.color });
+      if (kind === 'heart') { if (hearts < 5) hearts++; else score += 50 * mult(); }
+      else if (kind === 'shield') ship.shield = true;
+      else if (kind === 'slow') slowT = SLOW_TIME;
+      else if (kind === 'nova') blastNova();
+      else { weapon = kind; wtime = WEAPON_TIME; }
+      sfx('power');
+    }
+    // every bomb on the screen gone (10 points each), every diving alien with them, and a dent in the mothership
+    function blastNova() {
+      nova = { x: ship.x, t: 0 };
+      for (const b of bombs) explode(b.x, b.y, [NEON.orange, NEON.yellow], 3, false, NEON.orange);
+      score += bombs.length * 10 * mult(); bombs = [];
+      for (const a of alive()) if (a.dive) { a.hp = 1; hit(a); }
+      if (mother && !mother.dying) for (let i = 0; i < 6 && mother.hp > 0; i++) hitMother(mother.x, mother.y + 8);
+      shake = 10; sfx('nova');
+    }
+    function moveShip() {
+      if (!ship.dead) ship.x = clamp(ship.x + steer().x * 2.2, 12, SW - 12);
+    }
+    // the rows march, quicker the fewer are left, and a step down at each side
+    function march() {
+      const now = alive().filter((a) => !a.escort), left = now.length / (COLS * ROWS);
+      if (!now.length) return;
+      const speed = pace * (0.24 + (hard() - 1) * 0.03) * (1 + 3.4 * (1 - left) * (1 - left)) * (now.length === 1 ? 1.4 : 1);
+      fx += fdir * speed; walk += speed;
+      let lo = COLS, hi = -1;
+      for (const a of now) { lo = Math.min(lo, a.c); hi = Math.max(hi, a.c); }
+      if ((fdir > 0 && fx + hi * DX > SW - 14) || (fdir < 0 && fx + lo * DX < 14)) { fdir = -fdir; fy += 5; }
+      place(0);
+      // down as far as you: that's it
+      if (!ship.dead && now.some((a) => !a.dive && a.y + 7 >= SHIP_Y - 8)) { invaded = true; hearts = 1; hurt(); }
+    }
+    function fire() {
+      if (cool) cool--;
+      const w = GG_WEAPONS[weapon || 'plain'];
+      if (!held.a || cool || ship.dead || shots.length >= w.max) return;
+      cool = w.cool;
+      for (const vx of w.vx) shots.push({ x: ship.x, y: SHIP_Y - 10, vx, vy: -w.speed, kind: weapon || 'plain', free: !!weapon, hit: w.pierce ? new Set() : null, landed: false });
+      sfx(weapon === 'laser' ? 'laser' : 'zap');
+    }
+    function alienFire() {
+      if (ship.dead || bombs.length >= Math.min(2 + Math.ceil(hard() * 0.5), 9) || Math.random() > (0.012 + hard() * 0.0025) * pace) return;
+      const can = shooters();
+      if (!can.length) return;
+      // (often whichever is nearest you, and from the third wave, some aim)
+      const near = can.reduce((m, a) => (Math.abs(a.x - ship.x) < Math.abs(m.x - ship.x) ? a : m));
+      const a = Math.random() < 0.4 ? near : can[rnd(can.length)];
+      if (wave >= 3 && Math.random() < Math.min(0.5, 0.1 + hard() * 0.025)) aimed(a.x, a.y + 6, bombSpeed() * 1.1, 'dart');
+      else drop(a.x, a.y + 6, 0, bombSpeed(), 'orb');
+    }
+    // from the sixth wave the commander fires three at a time
+    function chiefFire() {
+      if (wave < 6 || ship.dead || (chiefWait -= pace) > 0) return;
+      chiefWait = Math.max(100, 260 - hard() * 8) + rnd(60);
+      const ch = aliens.find((a) => a.kind === 'chief' && a.hp > 0 && !a.dive);
+      if (ch) for (const vx of [-0.7, 0, 0.7]) drop(ch.x, ch.y + 8, vx, bombSpeed(), 'orb');
+    }
+    // From the second wave, one now and then breaks away: a hop up and out, a swoop down at you
+    // (dropping a bomb on the way), and if it gets past you, round from the top to its place again.
+    // Up to two at once from the sixth wave and three from the twelfth.
+    function dives() {
+      for (const a of aliens) if (a.dive && a.hp > 0) swoop(a);
+      if (wave < 2 || mother || ship.dead || (diveWait -= pace) > 0) return;
+      diveWait = Math.max(90, 400 - hard() * 22) + rnd(120);
+      if (aliens.filter((a) => a.dive && a.hp > 0).length >= (wave < 6 ? 1 : wave < 12 ? 2 : 3)) return;
+      const can = shooters().filter((a) => a.kind !== 'chief');
+      if (!can.length) return;
+      const a = can[rnd(can.length)];
+      a.dive = { phase: 'out', t: 0, side: a.x < SW / 2 ? -1 : 1, vx: 0, vy: 0, bombed: false };
+      sfx('swoop');
+    }
+    function swoop(a) {
+      const d = a.dive;
+      d.t += pace;
+      if (d.phase === 'out') {
+        a.x += d.side * 1.2 * pace; a.y += (-1.4 + (d.t / 30) * 2.4) * pace;
+        if (d.t >= 30) { d.phase = 'down'; d.vx = d.side * 0.8; d.vy = 1.2; }
+      } else if (d.phase === 'down') {
+        d.vy = Math.min(d.vy + 0.04 * pace, 1.8 + hard() * 0.06);
+        d.vx = clamp(d.vx + Math.sign(ship.x - a.x) * 0.07 * pace, -1.6, 1.6);
+        a.x = clamp(a.x + d.vx * pace, 8, SW - 8); a.y += d.vy * pace;
+        if (!d.bombed && !ship.dead && a.y > 80 && a.y < 170 && Math.abs(a.x - ship.x) < 26) {
+          if (wave >= 8) aimed(a.x, a.y + 6, d.vy + 1, 'dart'); else drop(a.x, a.y + 6, 0, d.vy + 1, 'orb');
+          d.bombed = true;
+        }
+        // (the mothership's escorts don't come back)
+        if (a.y > SH + 12) { if (a.escort) a.hp = 0; else { d.phase = 'back'; a.x = slot(a).x; a.y = -12; } }
+      } else {
+        const s = slot(a), dx = s.x - a.x, dy = s.y - a.y, dist = Math.hypot(dx, dy);
+        if (dist < 2.5 * pace + 0.1) a.dive = null;
+        else { a.x += (dx / dist) * 2.5 * pace; a.y += (dy / dist) * 2.5 * pace; }
+      }
+      // (it runs into you, and that's the end of it, and of you unless you've a shield)
+      if (a.hp > 0 && !ship.dead && !ship.safe && Math.abs(a.x - ship.x) < 10 && Math.abs(a.y - SHIP_Y) < 10) {
+        a.hp = 0; kills++;
+        explode(a.x, a.y, GG_SPRITES[a.kind].bits, 14, false, GG_SPRITES[a.kind].glow);
+        struck();
+      }
+    }
+    // The mothership sweeps from side to side, taking turns at four attacks: a fan of shots, a burst
+    // aimed at you, escorts that dive at you, and a rain from its side guns. Each one has more hits
+    // to it and attacks harder than the last, and below half its hits it gets angry: quicker,
+    // with more in each attack.
+    function motherTick() {
+      const m = mother;
+      if (m.flash) m.flash--;
+      if (m.dying) {
+        if (++m.dying % 8 === 0) { explode(m.x - 24 + rnd(48), m.y - 8 + rnd(16), GG_SPRITES.mother.bits, 12, true, NEON.pink); sfx('pop'); }
+        if (m.dying > 70) {
+          explode(m.x, m.y, GG_SPRITES.mother.bits, 50, true, NEON.pink); shake = 20; sfx('boom');
+          dropPower(m.x - 22, m.y, hearts < 5 ? 'heart' : undefined); dropPower(m.x, m.y + 4); dropPower(m.x + 22, m.y);
+          mother = null;
+        }
+        return;
+      }
+      if (state === 'enter') return;
+      m.t += pace;
+      const angry = m.hp < m.max / 2;
+      m.x =SW / 2 + Math.sin(m.t * (0.011 + m.n * 0.002) * (angry ? 1.4 : 1)) * 112;
+      m.y = 62 + Math.sin(m.t * 0.03) * 6;
+      if (ship.dead) return;
+      if (m.burst > 0 && (m.burstT -= pace) <= 0) { aimed(m.x, m.y + 12, 1.9 + m.n * 0.1, 'big'); m.burst--; m.burstT = 8; }
+      if (m.rain > 0 && (m.rainT -= pace) <= 0) { drop(m.x + (m.rain % 2 ? -21 : 21), m.y + 8, 0, 2 + m.n * 0.1, 'orb'); m.rain--; m.rainT = 6; }
+      if ((m.cd -= pace) > 0) return;
+      m.cd = Math.max(45, (angry ? 75 : 105) - m.n * 6);
+      const attack = m.next++ % 4;
+      if (attack === 0) {
+        const n = 5 + Math.min(m.n, 3) + (angry ? 2 : 0);
+        for (let i = 0; i < n; i++) { const a = -0.9 + (1.8 * i) / (n - 1), v = 1.3 + m.n * 0.1; drop(m.x, m.y + 12, Math.sin(a) * v, Math.cos(a) * v, 'big'); }
+      } else if (attack === 1) { m.burst = 3 + m.n + (angry ? 1 : 0); m.burstT = 0; }
+      else if (attack === 2) {
+        const n = 2 + Math.min(m.n, 3);
+        for (let i = 0; i < n; i++) {
+          const off = i - (n - 1) / 2;
+          aliens.push({ kind: ['bug', 'blob', 'squid'][rnd(3)], c: 0, r: 0, hp: 1, x: m.x + off * 14, y: m.y + 10, flash: 0, escort: true,
+            dive: { phase: 'down', t: 30, side: 1, vx: off * 0.8, vy: 0.8, bombed: false } });
+        }
+        sfx('swoop');
+      } else { m.rain = 10 + m.n * 2; m.rainT = 0; }
+    }
+    function saucer(spawn) {
+      if (ufo) {
+        ufo.x += ufo.dir * 0.9 * pace; ufo.t++;
+        if (ufo.t % 24 === 0) sfx('warble');
+        if (ufo.x < -20 || ufo.x > SW + 20) { ufo = null; ufoWait = 1500 + rnd(1200); }
+      } else if (spawn && --ufoWait <= 0) {
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        ufo = { x: dir > 0 ? -16 : SW + 16, y: 30, dir, t: 0, pts: [50, 100, 150, 300][rnd(4)] };
+      }
+    }
+    function moveShots() {
+      for (const s of shots) { s.x += s.vx; s.y += s.vy; }
+      shots = shots.filter((s) => {
+        const tall = GG_SHOTS[s.kind].h / 2;
+        if (s.y < 16 || s.x < -4 || s.x > SW + 4) { if (!s.free && !s.landed) miss(); return false; }
+        // a bomb in the way: they knock each other out (the laser goes on through)
+        const b = bombs.find((b) => Math.abs(b.x - s.x) < 1.5 + GG_BOMBS[b.kind].r && Math.abs(b.y - s.y) < tall + GG_BOMBS[b.kind].r);
+        if (b) {
+          bombs.splice(bombs.indexOf(b), 1); explode(b.x, b.y, [NEON.yellow, NEON.orange], 6, false, NEON.orange); sfx('blip');
+          s.landed = true;
+          if (!s.hit) return false;
+        }
+        if (ufo && Math.abs(ufo.x - s.x) < 12 && Math.abs(ufo.y - s.y) < 6 + tall) {
+          const pts = ufo.pts * mult();
+          score += pts; chain++;
+          explode(ufo.x, ufo.y, GG_SPRITES.ufo.bits, 20, true, NEON.pink);
+          floats.push({ x: ufo.x, y: ufo.y + 6, t: 0, s: String(pts) });
+          ufo = null; ufoWait = 1500 + rnd(1200);
+          sfx('pop'); sfx('cup');
+          s.landed = true;
+          if (!s.hit) return false;
+        }
+        if (mother && !mother.dying && Math.abs(mother.x - s.x) < 26 && Math.abs(mother.y + 2 - s.y) < 10 + tall && !(s.hit && s.hit.has(mother))) {
+          hitMother(s.x, s.y - tall);
+          s.landed = true;
+          if (!s.hit) return false;
+          s.hit.add(mother);
+        }
+        for (const a of aliens) {
+          const sp = GG_SPRITES[a.kind];
+          if (a.hp <= 0 || Math.abs(a.x - s.x) >= sp.w / 2 - 1 || Math.abs(a.y - s.y) >= sp.h / 2 + tall - 3) continue;
+          if (!s.hit) { hit(a); return false; }
+          if (!s.hit.has(a)) { s.hit.add(a); hit(a); s.landed = true; }
+        }
+        return true;
+      });
+    }
+    function moveBombs() {
+      for (const b of bombs) { b.x += b.vx * pace; b.y += b.vy * pace; b.t++; }
+      bombs = bombs.filter((b) => b.y < SH + 6 && b.x > -10 && b.x < SW + 10);
+      if (ship.dead || ship.safe) return;
+      const b = bombs.find((b) => { const r = GG_BOMBS[b.kind].r; return Math.abs(b.x - ship.x) < 4.5 + r && b.y > SHIP_Y - 7 - r && b.y < SHIP_Y + 8 + r; });
+      if (b) { bombs.splice(bombs.indexOf(b), 1); struck(); }
+    }
+    function moveDrops() {
+      for (const d of drops) d.y += 0.8;
+      drops = drops.filter((d) => {
+        if (d.y > SH + 8) return false;
+        if (ship.dead || Math.abs(d.x - ship.x) > 12 || Math.abs(d.y - SHIP_Y) > 12) return true;
+        power(d.kind, d.x, d.y);
+        return false;
+      });
+    }
+    // blown up: back after a moment and safe for two seconds, or with no hearts left, the end
+    function shipTick() {
+      if (ship.safe) ship.safe--;
+      if (shake) shake--;
+      if (wtime && !--wtime) weapon = null;
+      if (slowT) slowT--;
+      if (nova && ++nova.t > 30) nova = null;
+      for (const a of aliens) if (a.flash) a.flash--;
+      if (!ship.dead) return;
+      ship.dead++;
+      if (hearts > 0 && ship.dead > 100) { ship.dead = 0; ship.safe = 120; ship.x = SW / 2; }
+      else if (hearts <= 0 && ship.dead > 80) { bank(); state = 'over'; t = 0; sfx('buzz'); }
+    }
+    function cleared() {
+      state = 'clear'; t = 0; bombs = [];
+      bonus = 50 * wave; perfectBonus = perfect ? 100 * wave : 0;
+      score += bonus + perfectBonus;
+      gift = wave % 3 === 0 && hearts < 5 && !ship.dead;
+      if (gift) hearts++;
+      sfx('cup');
+    }
+    function moveSky() {
+      gridAt = (gridAt + 0.012 * pace) % 1;
+      for (const s of stars) { s.y += s.z * 0.06 * pace; if (s.y > GG_HORIZON) { s.y -= GG_HORIZON; s.x = Math.random() * SW; } }
+      for (const s of sparks) { s.y += 0.04 * pace; if (s.y > GG_HORIZON + 3) { s.y = -3; s.x = 10 + Math.random() * 300; } }
+      for (const p of planets) {
+        const r = GG_PLANETS[p.kind].h / 2 + 4;
+        p.y += p.v * pace;
+        if (p.y - r > GG_HORIZON) { p.y = -r; p.x = 20 + Math.random() * 280; }
+      }
+      if (comet) { comet.x -= 1.5; comet.y += 0.75; if (comet.x < -60 || comet.y > GG_HORIZON + 20) comet = null; }
+      else if (--cometWait <= 0) { comet = { x: 120 + Math.random() * 240, y: -10 }; cometWait = 900 + rnd(1200); }
+      for (const b of bits) { b.x += b.vx; b.y += b.vy; b.vx *= 0.94; b.vy *= 0.94; b.t++; }
+      bits = bits.filter((b) => b.t < b.life);
+      for (const b of bursts) b.t++;
+      bursts = bursts.filter((b) => b.t < 18);
+      for (const f of floats) { f.t++; f.y -= 0.4; }
+      floats = floats.filter((f) => f.t < 50);
+    }
+    // writing that glows (each letter with its glow painted once, as blurring every frame is slow
+    // on a phone), and the same across the middle
+    function glow(str, x, y, scale, c) {
+      if (buttonHints()) str = touchHint(str);
+      let cx = x;
+      for (const ch of str) {
+        if (ch !== ' ') {
+          const g = glyphPic(ch, c), h = (g.height / 2) * scale;
+          ctx.drawImage(ggGlow('ggGlyph' + ch + c + scale, 5 * scale, h, c, (cc) => { cc.imageSmoothingEnabled = false; cc.drawImage(g, 0, 0, 5 * scale, h); }, 3), cx - 3, y - 3);
+        }
+        cx += FONT.ADV * scale;
+      }
+    }
+    function glowMid(str, y, c, scale = 1) {
+      if (buttonHints()) str = touchHint(str);
+      glow(str, (SW - (str.length * 6 - 1) * scale) >> 1, y, scale, c);
+    }
+    function drawSky() {
+      ctx.drawImage(ggSky(), 0, 0);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, 0, SW, GG_HORIZON); ctx.clip();
+      for (const s of stars) {
+        const on = ((tick + s.p) >> 5) & 1, sz = s.z === 3 ? 1 : 0.5;
+        fine(half(s.x), half(s.y), sz, sz, s.z === 1 && !on ? '#4a3a78' : s.c);
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      for (const s of sparks) {
+        const L = ((tick + s.p) >> 5) & 1 ? 2 : 1, x = half(s.x), y = half(s.y);
+        fine(x - L, y, L * 2 + 1, 1, s.c); fine(x, y - L, 1, L * 2 + 1, s.c); fine(x, y, 1, 1, '#ffffff');
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.75;
+      for (const p of planets) ggDraw(ggPlanet(p.kind), p.x, p.y);
+      ctx.globalAlpha = 1;
+      if (comet) {
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = 7; i >= 0; i--) fineDisc(half(comet.x + i * 3), half(comet.y - i * 1.5), 2.2 - i * 0.22, i > 4 ? NEON.violet : i > 1 ? NEON.pink : '#ffd0f0');
+        fineDisc(half(comet.x), half(comet.y), 1, '#ffffff');
+      }
+      ctx.restore();
+      // the neon floor: lines across it coming towards you, and lines away to a point on the horizon
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const H = GG_HORIZON, D = SH - H;
+      for (let i = 0; i < 8; i++) {
+        const z = (i + gridAt) / 8;
+        fine(0, half(H + D * z * z), SW, 0.5, 'rgba(166, 77, 255, ' + (0.2 + z * 0.6).toFixed(2) + ')');
+      }
+      ctx.strokeStyle = 'rgba(166, 77, 255, 0.5)'; ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      for (let j = -10; j <= 10; j++) { ctx.moveTo(SW / 2 + j * 12, H); ctx.lineTo(SW / 2 + j * 66, SH); }
+      ctx.stroke();
+      fine(0, H, SW, 0.5, '#ff6ad5'); fine(0, H + 0.5, SW, 0.5, 'rgba(255, 42, 138, 0.5)');
+      ctx.restore();
+    }
+    function drawHud() {
+      for (let i = 0; i < 5; i++) ctx.drawImage(ggHeart(i < hearts), 1 + i * 13, 0);
+      ggDraw(ggPic('bug', 0, false), 120, 10);
+      glow('x', 130, 8, 1, '#c8b8ff');
+      glow(String(kills).padStart(3, '0'), 138, 3, 2, NEON.cyan);
+      const s = String(score).padStart(5, '0'), sx = SW - 4 - (s.length * 12 - 2);
+      ctx.drawImage(ggCoin(), sx - 18, 1);
+      glow(s, sx, 3, 2, NEON.yellow);
+      // the multiplier under it, and how far you are to the next step
+      if (chain) {
+        const m = mult(), co = [null, '#c8b8ff', NEON.cyan, NEON.green, NEON.yellow, NEON.pink][m];
+        glow('x' + m, SW - 64, 22, 1, co);
+        for (let i = 0; i < 8; i++) fine(SW - 50 + i * 6, 24, 4, 3, m === 5 || i < chain % 8 ? co : '#2a1c44');
+      }
+      glow('WAVE ' + wave, 4, SH - 11, 1, '#c07aff');
+      // what you've got going, and how long it lasts
+      let y = SH - 13;
+      for (const [kind, left, all] of [[weapon, wtime, WEAPON_TIME], [slowT && 'slow', slowT, SLOW_TIME]]) {
+        if (!kind) continue;
+        const co = GG_POWERS[kind].color;
+        ggDraw(ggToken(kind), SW - 54, y + 3);
+        fine(SW - 45, y + 2, 41, 3, '#2a1c44'); fine(SW - 45, y + 2, 41 * left / all, 3, left > 120 || (tick >> 3) & 1 ? co : '#ffffff');
+        y -= 14;
+      }
+      if (mother) {
+        glowMid('MOTHERSHIP', 21, NEON.pink);
+        fine(90, 30, 140, 4, '#2a1c44'); fine(90, 30, 140 * Math.max(0, mother.hp) / mother.max, 4, mother.hp < mother.max / 2 ? NEON.red : NEON.pink);
+        fine(90, 30, 140 * Math.max(0, mother.hp) / mother.max, 1, '#ffd0ea');
+      }
+    }
+    const self = {
+      doing: 'galaxy',
+      get music() { return mother ? 'galaxyboss' : 'galaxy'; },
+      update() {
+        t++;
+        pace = slowT ? 0.45 : 1;
+        moveSky();
+        if (state === 'over') {
+          if (t > 40 && pressed.has('a')) { sfx('menu'); newGame(); }
+          else if (t > 40 && (pressed.has('b') || pressed.has('start'))) { sfx('menu'); remove(self); }
+          return;
+        }
+        if (pressed.has('start') || pressed.has('b')) {
+          sfx('menu');
+          ui.push(Choice(['KEEP GOING', 'NEW GAME', 'LEAVE'], -1, 24, (i) => {
+            if (i > 0 && score > 0) bank();
+            if (i === 1) newGame();
+            else if (i === 2) remove(self);
+          }, { startCloses: true }));
+          return;
+        }
+        moveShip();
+        shipTick();
+        if (state === 'enter') {
+          const e = 1 - Math.pow(1 - Math.min(1, t / 80), 3);
+          if (mother) { mother.y = -40 + 102 * e; motherTick(); } else place(150 * (1 - e));
+          if (t >= (mother ? 150 : 100)) { state = 'play'; t = 0; }
+          return;
+        }
+        if (state === 'clear') {
+          moveShots(); moveDrops(); saucer(false);
+          if (t >= 150) nextWave();
+          return;
+        }
+        if (mother) motherTick(); else { march(); chiefFire(); }
+        fire(); alienFire(); dives(); saucer(!mother);
+        moveShots(); moveBombs(); moveDrops();
+        if (!alive().length && !mother) cleared();
+      },
+      draw() {
+        drawSky();
+        ctx.save();
+        // (everything comes and goes under the hearts and the score, the aliens flying in, too)
+        ctx.beginPath(); ctx.rect(0, 19, SW, SH - 19); ctx.clip();
+        if (shake) ctx.translate(half(((tick % 4) - 1.5) * shake / 12), 0);
+        if (slowT) fine(0, 19, SW, SH - 19, 'rgba(140, 70, 255, ' + (slowT > 60 ? 0.1 : (slowT / 600).toFixed(2)) + ')');
+        if (ufo) ggDraw(ggPic('ufo', (tick >> 3) % 3, false), ufo.x, ufo.y);
+        if (mother && !(mother.dying && (tick >> 2) & 1)) {
+          ggDraw(ggPic('mother', ((tick >> 4) & 1) + (mother.hp < mother.max / 2 ? 2 : 0), mother.flash > 0 && !!((mother.flash >> 1) & 1)), mother.x, mother.y);
+        }
+        const f = Math.floor(walk / 7) & 1;
+        for (const a of aliens) {
+          if (a.hp <= 0) continue;
+          const more = (a.kind === 'chief' && a.hp < 2) || (a.kind === 'rider' && a.hp > 1) ? 2 : 0;
+          ggDraw(ggPic(a.kind, (a.escort ? (tick >> 3) & 1 : f) + more, a.flash > 0 && !!((a.flash >> 1) & 1)), a.x, a.y);
+        }
+        for (const d of drops) ggDraw(ggToken(d.kind), d.x, d.y + ((tick >> 3) & 1 ? 0.5 : 0));
+        ctx.globalCompositeOperation = 'lighter';
+        for (const s of shots) ggDraw(ggShot(s.kind), s.x, s.y);
+        // their bombs, each with a trail behind it
+        for (const b of bombs) {
+          const sp = Math.hypot(b.vx, b.vy) || 1;
+          ctx.globalAlpha = 0.5;
+          for (let i = 1; i <= 3; i++) { const r = 1.6 - i * 0.35; fine(half(b.x - (b.vx / sp) * i * 3.5 - r), half(b.y - (b.vy / sp) * i * 3.5 - r), r * 2, r * 2, GG_BOMBS[b.kind].trail); }
+          ctx.globalAlpha = 1;
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        for (const b of bombs) ggDraw(ggBomb(b.kind, (b.t >> 2) & 1), b.x, b.y);
+        if (!ship.dead && !(ship.safe && (tick >> 2) & 1)) {
+          const x = half(ship.x), on = (tick >> 2) & 1;
+          ctx.globalCompositeOperation = 'lighter';
+          for (const s of [-4.5, 4.5]) { fine(x + s - 1, SHIP_Y + 9, 2, on ? 3 : 2, NEON.pink); fine(x + s - 0.5, SHIP_Y + 9, 1, on ? 2 : 1, '#ffd0ea'); }
+          ctx.globalCompositeOperation = 'source-over';
+          ggDraw(ggPic('ship', 0, false), x, SHIP_Y);
+          if (ship.shield) { ctx.globalAlpha = 0.65 + 0.35 * ((tick >> 3) & 1); ggDraw(ggRing(3, true, NEON.cyan), x, SHIP_Y + 1); ctx.globalAlpha = 1; }
+        }
+        ctx.globalCompositeOperation = 'lighter';
+        for (const b of bursts) {
+          ctx.globalAlpha = 1 - b.t / 20;
+          ggDraw(ggRing(Math.min(5, Math.floor(b.t / 3)), b.big, b.c), b.x, b.y);
+          ctx.globalAlpha = 1;
+          if (b.t < 6) ggDraw(ggFlash(b.t >> 1, b.big), b.x, b.y);
+        }
+        for (const b of bits) {
+          const x = half(b.x), y = half(b.y);
+          ctx.globalAlpha = 0.35; fine(x - 1, y - 1, 3, 3, b.c);
+          ctx.globalAlpha = 1; fine(x, y, 1, 1, b.t < b.life * 0.6 ? b.c : '#ffffff');
+        }
+        if (nova) {
+          ctx.strokeStyle = NEON.orange; ctx.lineWidth = 2; ctx.globalAlpha = 1 - nova.t / 30;
+          ctx.beginPath(); ctx.arc(nova.x, SHIP_Y, 10 + nova.t * 9, 0, Math.PI * 2); ctx.stroke();
+          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.5; ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        for (const fl of floats) if (fl.t < 36 || (tick >> 2) & 1) glow(fl.s, Math.round(fl.x - fl.s.length * 3), Math.round(fl.y), 1, fl.c || NEON.yellow);
+        ctx.restore();
+        drawHud();
+        if (state === 'enter' && t > 15) {
+          if (mother) {
+            if ((tick >> 3) & 1) glowMid('WARNING', 120, NEON.red, 2);
+            glowMid('THE MOTHERSHIP IS COMING', 144, '#ffd0ea');
+          } else {
+            glowMid('WAVE ' + wave, 146, NEON.yellow, 2);
+            if (wave === 1) { glowMid('Arrows: move   Space: fire', 170, '#e8d8ff'); glowMid('Catch the power-ups!   Enter: menu', 182, '#a890d8'); }
+          }
+        } else if (state === 'clear' && t > 15) {
+          glowMid(wave % 5 ? 'WAVE ' + wave + ' CLEARED' : 'MOTHERSHIP DOWN!', 112, NEON.yellow, 2);
+          glowMid('Bonus +' + bonus, 136, '#ffffff');
+          if (perfectBonus) glowMid('PERFECT! No hearts lost +' + perfectBonus, 150, NEON.cyan);
+          if (gift) glowMid('+1 HEART', 164, NEON.pink);
+        } else if (state === 'over') {
+          ggDraw(ggPanel(), SW / 2, 120);
+          glowMid('GAME OVER', 72, NEON.pink, 2);
+          glowMid(invaded ? 'They got down to you!' : 'Out of hearts!', 94, '#e8d8ff');
+          glowMid('Score ' + score + '   Wave ' + wave + '   ' + kills + ' aliens', 112, '#ffffff');
+          glowMid(record ? 'A new record!' : 'Best ' + getBest('galaxy'), 128, record ? NEON.yellow : '#a890d8');
+          if (t > 40 && (tick >> 4) & 1) glowMid('Space: play again   X: leave', 156, NEON.cyan);
+        }
+        ctx.drawImage(ggScan(), 0, 0);
+      },
+    };
+    newGame();
     return self;
   }
 
@@ -3832,7 +4766,7 @@
     stack: { title: 'PHOTOCOPIER' }, simon: { title: 'CONTROL PANEL' }, lunch: { title: 'FIND MY LUNCH' },
     candy: { title: 'CANDY TABLE' }, squat: { title: 'SQUAT RACK', unit: ' lb' }, fan: { title: 'FAN BALANCING' },
     coil: { title: 'COOLING COIL', unit: 's' }, damper: { title: 'DAMPERS' }, filter: { title: 'FILTER CHANGE' },
-    snake: { title: 'SNAKE' }, pong: { title: 'BEAT THE TV AT PONG', unit: times, count: true }, chess: { title: 'CHESS CHECKMATES', unit: times, count: true }, checkers: { title: 'CHECKERS WINS', unit: times, count: true }, parts: { title: 'PARTS SORTING' }, cable: { title: 'CABLE TIDY' }, cpr: { title: 'CPR' },
+    snake: { title: 'SNAKE' }, galaxy: { title: 'GALAXY GUARD' }, pong: { title: 'BEAT THE TV AT PONG', unit: times, count: true }, chess: { title: 'CHESS CHECKMATES', unit: times, count: true }, checkers: { title: 'CHECKERS WINS', unit: times, count: true }, parts: { title: 'PARTS SORTING' }, cable: { title: 'CABLE TIDY' }, cpr: { title: 'CPR' },
     engrave: { title: 'ENGRAVER', unit: '%' }, pulldown: { title: 'LAT PULLDOWN' }, ball: { title: 'EXERCISE BALL', unit: 's' },
     desk: { title: 'FRONT DESK' }, jam: { title: 'PAPER JAM' }, laundry: { title: 'LAUNDRY' },
     forms: { title: 'JHONNA\'S FORMS' }, trophy: { title: 'NATHAN\'S TROPHIES' }, legolines: { title: 'JOE\'S BRICK BATTLE' },
@@ -4121,7 +5055,7 @@
   const FAME_GROUPS = [
     ['OFFICE', ['coffee', 'toss', 'lunch', 'candy', 'stack', 'simon', 'desk', 'jam', 'filter']],
     ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pulldown', 'ball', 'laundry']],
-    ['TVS AND CODY\'S CASINO', ['pong', 'snake', 'poker', 'pokerlive', 'blackjack', 'slots']],
+    ['SCREENS AND CODY\'S CASINO', ['pong', 'snake', 'galaxy', 'poker', 'pokerlive', 'blackjack', 'slots']],
     ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cpr', 'engrave', 'golf', 'legosolo']],
     ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catchrun']],
     ['BOARD AND CARD GAMES', ['chess', 'checkers', 'cards', 'cardwins']],
@@ -16413,7 +17347,7 @@
     cards: 'Playing Morale Madness',
     deck: 'Sorting their cards',
     dark: 'Playing Damir\'s Lights', duel: 'Playing Air Duel', fan: 'Playing Fan Balancing', coil: 'Playing Cooling Coil',
-    damper: 'Playing Dampers', filter: 'Playing Filter Change', snake: 'Playing Snake', parts: 'Playing Parts Sorting',
+    damper: 'Playing Dampers', filter: 'Playing Filter Change', snake: 'Playing Snake', galaxy: 'Playing Galaxy Guard', parts: 'Playing Parts Sorting',
     cable: 'Playing Cable Tidy', cpr: 'Playing CPR', engrave: 'Playing Engraver', pulldown: 'Playing Lat Pulldown',
     ball: 'Playing Exercise Ball', desk: 'Playing Front Desk', jam: 'Playing Paper Jam', laundry: 'Playing Laundry',
     elevator: 'Riding the elevator', forms: 'Playing Jhonna\'s Forms', trophy: 'Playing Nathan\'s Trophies',
@@ -22711,7 +23645,7 @@
     }
     const GAME = { coffee: CoffeeGame, punch: PunchGame, run: RunGame, pong: PongGame, toss: TossGame, stack: StackGame, simon: SimonGame, lunch: LunchGame, candy: CandyGame, squat: SquatGame, golf: GolfGame, dark: DarkGame, battle: BattleGame,
       fan: FanGame, coil: CoilGame, damper: DamperGame, filter: FilterGame,
-      snake: SnakeGame, parts: PartsGame, cable: CableGame, cpr: CprGame,
+      snake: SnakeGame, galaxy: GalaxyGame, parts: PartsGame, cable: CableGame, cpr: CprGame,
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
       desk: FrontDeskGame, jam: JamGame, laundry: LaundryGame, forms: FormsGame,
       dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp, slots: SlotsGame,

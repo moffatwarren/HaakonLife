@@ -63,7 +63,7 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
     a new card turning over), the office computers' desktop and SDG, chess and checkers, and poker
     (Spring Roll Hold'em and Live Hold'em), which take the mouse as their menus do. Humbug Sweeper
     stays on the keys on purpose: its times go on a leaderboard and the Christmas Cup, and a mouse
-    would beat the D-pad on a phone.
+    would beat the D-pad on a phone. So does Galaxy Guard, the computers' other game.
   - **Chess and checkers:** the cursor follows the pointer round the board. Click a piece of yours to
     pick it up, then a square it can go to. A click anywhere else on the board puts it back, and the
     right button is B (the menu). A click off the side picker at the start doesn't walk you away.
@@ -158,6 +158,40 @@ Walk up to these and press A:
 - **Office computers**: SDG, lay out an air handling unit. It works with the mouse too, like any
   program: click a component (in the list or the drawing) to pick it and a button to press it,
   with Move a click puts the component where you clicked, and the wheel goes up and down the list
+- **Galaxy Guard** (every office computer, beside its own program): a neon space shooter over a
+  glowing grid floor. Rows of aliens march back and forth above you, a step lower each time they
+  reach the side and quicker the fewer are left. Steer your ship along the bottom with the arrows
+  and hold Space to fire (three shots in the air at once, so aim). Their bombs are big glowing orbs
+  with trails, and a shot knocks one out of the sky. From the second wave the odd alien breaks away
+  and swoops at you, worth double if you get it on the way; if it gets past you it comes round from
+  the top to its place again. Squids are worth 30, the ones in saucers 20 and the bugs and blobs 10.
+  The commander in the middle of the top row takes two hits (it goes yellow after the first) and is
+  worth 100, and a pink saucer crosses the top now and then for 50 to 300.
+  - **Waves:** there's no last one. Each gets harder up to the 20th, and then it holds there. New
+    things come in along the way: yellow darts aimed at you from the 3rd wave, the commander firing
+    three at a time from the 6th, two divers at once from the 6th and three from the 12th, divers
+    dropping darts from the 8th, and gold-armoured saucer riders that take two hits from the 11th.
+  - **The mothership** comes instead of the rows every 5th wave. It sweeps from side to side, taking
+    turns at a fan of shots, a burst aimed at you, escorts that dive at you, and a rain from its side
+    guns. It has a bar of hits along the top, more each time it comes, and below half it turns red
+    and attacks harder. Down, it's worth 1,000 for each time it's come and drops three power-ups.
+  - **Points:** hits in a row build a multiplier on everything you score, x2 after 8 and up to x5
+    (the bar under your score). A shot that misses takes it down a step, and being hit takes it back
+    to x1, so careful aim pays. Each wave cleared is worth 50 times the wave, and twice that again
+    if you lost no hearts in it (PERFECT).
+  - **Power-ups:** a downed alien now and then drops one to catch, and the commander always does. Spread
+    shot (three ways at once), rapid fire and the laser (it goes on through everything in its way)
+    last twelve seconds, with a bar by the bottom right, and a miss with one of them costs nothing.
+    A shield takes one hit for you. Slow-mo slows everything but you for seven seconds. A nova
+    clears every bomb on the screen (10 points each) and takes out the divers. A heart is another
+    heart, and you can hold five. You start with three, and every third wave you clear gives you one.
+  - **The end:** lose your last heart, or let the rows get down to you, and it's over. Space plays
+    again; Enter or X brings up the menu (keep going, a new game, leave). It keeps to the keys, like
+    Humbug Sweeper.
+  - **The code:** it's `GalaxyGame` in `js/game.js`. `hard()` is how hard a wave is, `motherTick` is the
+    mothership and `GG_POWERS` the power-ups. The pictures are in `GG_SPRITES`, `GG_PLANETS`,
+    `GG_SHOTS` and `GG_BOMBS`, drawn with paths at double resolution and given their glow by
+    `ggGlow`. Its songs are `galaxy` and `galaxyboss` (the mothership) in `js/music.js`
 - **Zin's computer** (office 126): Spring Roll Hold'em, no-limit Texas Hold'em against Cody and Dmitriy, played for spring rolls. The arrows pick Fold, Call, Raise or All in and A does it; or click, or tap, the button (see **The mouse** and **Tapping the screen**)
 - **Cody's casino** (cubicle 142): see below
 - **Coffee machine** (lunch room): catch the coffee in your cup. It pours 150 drops, and the nozzle gets quicker and twitchier as it goes; you're scored on how many you catch
@@ -418,7 +452,7 @@ shows every leaderboard at once. Left and right flip between its pages:
   spring rolls lost and the difference, in order of the difference. Underneath you see
   your place and your own totals. (Live Hold'em is on the casino page too, like the
   other games.)
-- **One page per area** (Office, Fitness Room, TVs and Cody's Casino, Boardroom and 2nd Floor,
+- **One page per area** (Office, Fitness Room, Screens and Cody's Casino, Boardroom and 2nd Floor,
   Coworkers and Dogs, Kingston Plant, Halloween and Christmas):
   each game's champion and their score, or "up for grabs" if nobody has played it.
   Up and down pick a game, which shows what it takes to climb: the score to beat for the
@@ -1547,8 +1581,9 @@ From November 27 to December 31 (by your device's date) the office does Christma
   They're in `js/game.js` after `yardTalk` (ChopGame, MallowGame, SpruceGame, SnowmanGame,
   CocoaGame and SnowballGame), and `YARD_GAMES` says which prop starts which.
 - **Humbug Sweeper**: from the day Christmas first starts (`SEASON_FROM`, November 27 2026)
-  every office computer has a second icon on its desktop, **Humbugs**, and it stays there
-  for good, all year round, after the holidays are over.
+  every office computer has a third icon on its desktop, **Humbugs**, and it stays there
+  for good, all year round, after the holidays are over. (With three programs on the desktop,
+  the options along the bottom are just their names.)
   Humbugs (grumpy little green gremlins out to spoil Christmas) are hiding under a field of
   snow. Each time you come in you pick how big: **Small** (9 by 9 with 10 humbugs, on bigger
   squares), **Medium** (16 by 16 with 40) or **Full** (30 by 16 with 99). It starts on the
@@ -1795,7 +1830,7 @@ pants and their colours.
 | --- | --- |
 | Office and lunch room | `coffee`, `toss`, `lunch`, `candy`, `chess` and `checkers` (against a coworker; add `&fen=` and a position to start from there), `stack`, `jam`, `desk`, `filter`, `simon` |
 | Fitness room | `punch`, `squat`, `run`, `pulldown`, `ball`, `laundry` |
-| TVs and computers | `pong`, `snake`, `poker`, `blackjack` |
+| TVs and computers | `pong`, `snake`, `galaxy` (Galaxy Guard), `poker`, `blackjack`, `computer` (the desktop) |
 | Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf`, `build` (Joe's Lego shelf) |
 | Coworkers | `dark` (Damir), `battle` (Richard), `dance` (Patrick), `nathan`, `wade`, `jar` (Kiki), `forms` (Jhonna), `wok` (Nik), `carrot` (Dmitriy), `lego` (Joe) |
 | Morale Madness | `deck` (MY CARDS), and `cards` (a game). `&deck=` is your deck (`plant`, `sales`, `office`, `engineering` or `starter`, the usual), `&foe=` who you play, `&level=` how good they are (1 to 4), `&first=0` or `1` who goes first, `&seed=` the same deal every time |
@@ -1828,7 +1863,7 @@ for working on the game live.
 Best scores are saved in the browser, and sent to the online leaderboards when
 `BOARD_URL` is set. For testing, `index.html#play&game=punch`
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
-`dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `parts`,
+`dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `galaxy`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
 `forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `pokerlive`, `hockey1`, `hockey2` and `hockey3` (live hockey, with `&yard=1` to be out at the rink), `signhockey` and `signpoker` (the sign-up sheets; all of these from `pokerlive` on need `&server=`), `blackjack`, `build`, `forklift`, `paint`,
 `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `hockey`, `chess`, `checkers`) opens a game straight away. With `chess`, `&fen=` and a position in the usual chess notation starts from there, which is the quick way to try a checkmate or a promotion. It works with `checkers` too, for trying a double jump or a crowning: the ranks from 8 down to 1 written the same way (`M` a black man, `K` a black king, the same in lower case for red), whose turn (`b` or `r`), a `-` and a count of moves since a jump or a man moved, like `7k/8/5m2/8/3m4/2M5/8/6M1 b - 0`.
