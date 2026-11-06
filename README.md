@@ -186,7 +186,8 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   too: there's nothing on it to look at first. A tap on an empty part of the table puts the
   close-up away. A tap on whatever the cursor's on already does it straight away, however it got
   there: by a tap, by the keys, or by itself at the start of your turn. The swap at the start and the
-  menu B opens work the same way: a tap picks, and a tap on what's picked does it. While a card's being played a tap hurries it along. On a touch screen, HOW TO PLAY has a
+  menu B opens work the same way: a tap picks, and a tap on what's picked does it. The swap's KEEP
+  THESE button (SWAP 2 and so on, once you've marked some) takes just one tap. While a card's being played a tap hurries it along. On a touch screen, HOW TO PLAY has a
   line about tapping at the end (`CARD_TAPS`).
 
 - **Your cards:** everybody starts with the same 20. Open **MY CARDS** in the Start menu to see them.

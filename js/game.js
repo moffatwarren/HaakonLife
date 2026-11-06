@@ -7429,8 +7429,8 @@
       // would, however it got there (by a tap, the keys, or by itself at the start of your turn): the
       // user's call. One tap on END TURN ends your turn. Aiming, one tap on who it's going to does it,
       // and a tap on anything you can't aim at puts it back, like B. The swap at the start and the menu go
-      // the same way: a tap picks, and a tap on what's picked does it. While a card's being played a tap
-      // hurries it along, as A does.
+      // the same way: a tap picks, and a tap on what's picked does it, except that the swap's KEEP THESE
+      // button takes one tap. While a card's being played a tap hurries it along, as A does.
       tap(px, py) {
         if (menu) {
           const was = menu.at, k = menu.point(px, py, 'a');
@@ -7444,7 +7444,8 @@
           if (you.swapped) return null;
           const at = tapBox(x, y, you.hand.map((c, i) => [312 + i * 100, 102, 88, 124]).concat([[372, 270, 180, 34]]), SLOP);
           if (at < 0) return null;
-          if (at === swapAt) return 'a';
+          // (KEEP THESE, or SWAP and how many, has nothing to look at first, so one tap does it: the user's call)
+          if (at === swapAt || at === n) { swapAt = at; return 'a'; }
           swapAt = at;
           sfx('blip');
           return null;
