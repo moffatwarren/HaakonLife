@@ -72,9 +72,12 @@ in a browser (see "Testing in a browser").
   layer, or `MODE_MOUSE`: see "the mouse" in `js/game.js`). Mini-games keep to the keys, their own
   menus too, except Morale Madness and the office computers' desktop and SDG. Don't add the mouse to
   another mini-game unless asked: the user took it out of Humbug Sweeper as unfair, since it's a race
-  on a leaderboard and phone players only have a D-pad. Taps still do nothing, and the user has
-  turned down camera rotation. A new menu or screen outside a mini-game needs a `point` (see
-  `anyClick` for one that just waits for a press), or the mouse stops working there.
+  on a leaderboard and phone players only have a D-pad. The user has turned down camera rotation. A
+  new menu or screen outside a mini-game needs a `point` (see `anyClick` for one that just waits for
+  a press), or the mouse stops working there.
+- **Taps:** on a phone, only Morale Madness and MY CARDS take taps (`tap` on a layer: see "touch" in
+  `js/game.js`). One tap picks something and a second tap does it. The user asked for "nothing else",
+  so don't add taps anywhere else unless asked. A tap never reaches `point`, so the mouse stays as it is.
 - **Art:** everything is drawn at 32 x 32 on a 640 x 480 screen, laid out in a 320 x 240 view. Use a
   2-pixel outer outline with the light from the top left, and flat colours with a shade and a
   highlight. People keep short legs and fit within one tile. The one exception is a special head thing

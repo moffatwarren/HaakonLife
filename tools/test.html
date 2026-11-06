@@ -94,6 +94,8 @@
   }
   #ab button.down { background: var(--ab-down); box-shadow: 0 1px 0 #5a1030; transform: translateY(3px); }
   #meta { grid-area: meta; justify-content: center; gap: 22px; position: relative; } /* above the pad's margin */
+  /* and the screen too, while what's on it takes taps (a phone held sideways has the margin over its edge) */
+  body.taps #screen { position: relative; z-index: 1; }
   #meta button {
     width: 76px; height: 24px; border-radius: 12px; border: 0; background: var(--btn);
     color: var(--label); font: 700 11px system-ui, sans-serif; letter-spacing: 1px;

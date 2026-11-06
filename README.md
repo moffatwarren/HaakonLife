@@ -22,7 +22,7 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
 
 | Action | Keyboard | Mouse (on a computer) | Touch | Controller (Xbox / PlayStation) |
 | --- | --- | --- | --- | --- |
-| Move | Arrows / WASD | Left click where to go | Thumbstick (a D-pad in menus and most mini-games) | Left stick or D-pad |
+| Move | Arrows / WASD | Left click where to go | Thumbstick (a D-pad in menus and most mini-games). In Morale Madness and MY CARDS, tap the screen too | Left stick or D-pad |
 | A: interact, confirm | E / Space | Right click someone or something (you walk up to it first); in a menu, left click | A | A / ✕ |
 | B: back, cancel (out in the parking lot at Christmas, throw a snowball) | Esc / X / Shift | Right click, in a menu | B | B or X / ○ or □ |
 | Start menu (map, edit your character, zoom, sound, music) | Enter (or Esc while walking) | Click yourself | START | Menu / Options |
@@ -50,9 +50,18 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
     a new card turning over) and the office computers' desktop and SDG, which take the mouse as
     their menus do. Humbug Sweeper stays on the keys on purpose: its times go on a leaderboard and
     the Christmas Cup, and a mouse would beat the D-pad on a phone.
-  - Tapping a phone's screen still does nothing anywhere: it keeps to its on-screen buttons. In
-    the code, a layer that takes the mouse has `point(x, y, button)` and maybe `wheel(steps)`, and
+  - In the code, a layer that takes the mouse has `point(x, y, button)` and maybe `wheel(steps)`, and
     the screens that aren't layers have theirs in `MODE_MOUSE`: see "the mouse" in `js/game.js`.
+- **Tapping the screen:** on a phone, only Morale Madness and MY CARDS take taps. Everywhere else a
+  tap on the screen does nothing, and you use the on-screen buttons.
+  - A finger can't point at something first, as the mouse does. So one tap picks something (the
+    cursor goes there), and a second tap on it does it, as A would. Dragging a finger up or down is
+    the scroll wheel. A tap near something counts as on it, since a fingertip is bigger than what
+    it's aiming at (`tapBox`).
+  - While one of those is up, the screen sits above the D-pad's invisible margin, which reaches over
+    the screen's edge on a small phone held sideways (`body.taps`).
+  - The mouse works as it did before taps. In the code, a layer that takes taps has `tap(x, y)` as
+    well as `point`, and a tap never reaches `point`: see "touch" in `js/game.js`.
 - Controllers: pair an Xbox or PlayStation controller with your phone or computer over
   Bluetooth (or plug it in), then press a button on it: browsers keep a controller hidden
   from a page until then (and from any page that isn't https). While you play with one,
@@ -171,6 +180,14 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   that has one, no close-up shows. Click to play a card, start an attack or pick who it's aimed at; while
   aiming, a click on anything you can't aim at puts it back. A click while a card's being played hurries
   it along, and the right button is B (the menu, or putting an aim back).
+- **By touch:** tap a card, a worker, END TURN or one of the last moves to pick it: the cursor goes
+  there and the close-up comes up. Tap it again to do it, as A would. Then tap who it's aimed at,
+  which takes just the one tap. A tap on anything you can't aim at puts the aim back. A tap on an
+  empty part of the table puts the close-up away. When it's just become your turn and the cursor
+  has jumped to something by itself, a tap on that picks it first, as you mightn't have seen it go
+  there. The swap at the start and the menu B opens work the same way: tap to pick, tap again to
+  do it. While a card's being played a tap hurries it along. On a touch screen, HOW TO PLAY has a
+  line about tapping at the end (`CARD_TAPS`).
 
 - **Your cards:** everybody starts with the same 20. Open **MY CARDS** in the Start menu to see them.
   The first time, it explains the game, and from then on coworkers offer you a game when you talk to
@@ -186,7 +203,8 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   first thing on the MY DECK page is a FILL button, which tops it up with the best of what you have. Go
   with a deck that isn't full and you're asked whether to finish it yourself or fill it. With the mouse,
   point at a card to see it big, click it (or FILL) to put it in or take it out, click a tab for its page,
-  and scroll the page with the wheel. Along the bottom is the coffee curve: what your deck costs. A card
+  and scroll the page with the wheel. On a phone, tap a tab for its page, tap a card to see it big and
+  tap it again to put it in or take it out, and drag the page up or down to scroll. Along the bottom is the coffee curve: what your deck costs. A card
   you win never goes in your deck by itself: it's only there once you put it there. Until you build a
   deck yourself, you play the best one the cards you had could make, and winning a card keeps that one
   as yours (`deckSettle`).

@@ -947,7 +947,7 @@
   // new card turning over) and the office computers' desktop and SDG take it. The rest keep to the
   // keys, menus over them included, and Humbug Sweeper on purpose, so its times on the leaderboard and
   // the Christmas Cup are fair between players on a computer and on a phone. A tap on a phone's screen
-  // still does nothing anywhere: there it's the on-screen buttons.
+  // does nothing except in Morale Madness and MY CARDS: see "touch", below.
   //
   // A layer on the ui stack that takes the mouse has point(x, y, button): x and y are where
   // the pointer is, in the view's 320 x 240, and button is 'a' for the left button, 'b' for the right
@@ -1016,6 +1016,75 @@
   }
   // (whether x, y is in the box at bx, by, w across and h down)
   const inBox = (x, y, bx, by, w, h) => x >= bx && x < bx + w && y >= by && y < by + h;
+
+  // ---------- touch ----------
+  // On a touch screen, tapping the picture does something only in Morale Madness and MY CARDS, at the
+  // user's request. Everywhere else it's the on-screen buttons, as before. The mouse doesn't change: a
+  // tap never reaches point, and a click never reaches tap.
+  //
+  // A layer that takes taps has tap(x, y), where the tap was in the view's 320 x 240, and gets them only
+  // while it's on top (a dialog over it doesn't pass them down). A finger can't point at something without
+  // pressing, so a tap picks what's there (the cursor goes to it) and a second tap on the same thing does
+  // it. tap returns the key that tap stands for, as point does: 'a', 'b' or nothing. A finger dragged up
+  // or down the picture is the scroll wheel, for a layer with wheel: a step for each TAP_ROW of the view
+  // it goes, so the page keeps up with your finger. Taps wait their turn, one an update, as clicks do.
+  const TAP_SLIDE = 12; // (how far, in screen pixels, a finger can slide and still be a tap, not a drag)
+  const TAP_ROW = 60; // (a row of cards in MY CARDS)
+  const touch = { taps: [], wheel: 0, seen: false };
+  let finger = null; // the finger on the picture: { id, x, y: where it went down, dragY: where the last step was, drag }
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' || finger) return;
+    e.preventDefault();
+    finger = { id: e.pointerId, x: e.clientX, y: e.clientY, dragY: e.clientY, drag: false };
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!finger || e.pointerId !== finger.id) return;
+    if (Math.hypot(e.clientX - finger.x, e.clientY - finger.y) > TAP_SLIDE) finger.drag = true;
+    if (!finger.drag) return;
+    const row = TAP_ROW * canvas.getBoundingClientRect().height / SH;
+    // (a finger going up brings the page up, which is scrolling down)
+    while (finger.dragY - e.clientY >= row) { touch.wheel++; finger.dragY -= row; }
+    while (e.clientY - finger.dragY >= row) { touch.wheel--; finger.dragY += row; }
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    if (!finger || e.pointerId !== finger.id) return;
+    if (!finger.drag && touch.taps.length < 8) {
+      const r = canvas.getBoundingClientRect();
+      touch.taps.push({ x: (finger.x - r.left) * SW / r.width, y: (finger.y - r.top) * SH / r.height });
+    }
+    finger = null;
+  });
+  canvas.addEventListener('pointercancel', (e) => { if (finger && e.pointerId === finger.id) finger = null; });
+  // what fingers have done since the last update, handed to the layer on top (see layerUpdate)
+  function tapTo(el) {
+    touch.seen = true;
+    if (touch.wheel && el.wheel) el.wheel(touch.wheel);
+    touch.wheel = 0;
+    const c = touch.taps.shift();
+    if (!c) return;
+    const k = el.tap(c.x, c.y);
+    if (k === 'a' || k === 'b') pressed.add(k);
+  }
+  // While what's on the screen takes taps, the screen goes above the D-pad's invisible margin, which
+  // reaches over its edge on a phone held sideways (body.taps, in index.html).
+  let tapsOn = false;
+  function tapsUp(on) {
+    if (on === tapsOn) return;
+    tapsOn = on;
+    document.body.classList.toggle('taps', on);
+  }
+  // Which of rects ([x, y, w, h] each) a tap at x, y is on: the last one it's in (the one on top, where
+  // they overlap), or else the nearest within slop, as a fingertip is bigger than what it's aiming at.
+  // -1 for none.
+  function tapBox(x, y, rects, slop) {
+    for (let i = rects.length - 1; i >= 0; i--) if (inBox(x, y, ...rects[i])) return i;
+    let best = -1, far = Infinity;
+    rects.forEach(([bx, by, w, h], i) => {
+      const d = Math.hypot(Math.max(bx - x, 0, x - bx - w), Math.max(by - y, 0, y - by - h));
+      if (d <= slop && d < far) { far = d; best = i; }
+    });
+    return best;
+  }
 
   // ---------- drawing helpers ----------
   // Keyboard hints -> touch button hints ("Space: punch" -> "A: punch", "Esc: give up" ->
@@ -1204,6 +1273,7 @@
     if (x < 0) x = SW - w + x + 1;
     const self = {
       options, overlay: true,
+      get at() { return cur; }, // (which one's picked)
       update() {
         // (opts.wait: ticks before it listens, in case you're still tapping at something else)
         if (wait > 0) { wait--; return; }
@@ -6050,6 +6120,8 @@
     'When you\'re done, press Down from your hand to get to END TURN.',
     'The column on the left is the last 4 moves, newest at the top. Press Left from the start of a row to look through them.',
   ];
+  // (and on a touch screen, after those)
+  const CARD_TAPS = 'You can tap the table too. Tap a card or a worker to pick it, and tap it again to play it or attack. If it asks who, tap them.';
   let cardsNow = null; // the game going on, for trying things out (window.GAME.cards)
   // o: { foe, npc, level, deck: a department or 'starter', mine: a deck, foeDeck: theirs, seed,
   //      after(won): called once the game's over and everything's been said }
@@ -6084,7 +6156,8 @@
     // (rest: how long the cursor's been where it is. off: the mouse is over nothing with a close-up, and
     // pointed what it was last over, so that arriving on something brings its close-up up)
     let cur = { row: 2, i: 0 }, rest = 0, off = false, pointed = null, aim = null, menu = null, note = '', noteT = 0, again = false;
-    let swapAt = 0, announced = false;
+    // (tapped: what the last tap picked, so a tap on it again does it: see tap)
+    let swapAt = 0, announced = false, tapped = null;
     const swapping = new Set();
     let bits = [], pops = [], gone = [];
     let fly = null, big = null, dim = 0, halo = null, rings = [], flare = null, legend = null, alarm = 0, shake = 0, jolt = 0, mover = null, banner = null, glint = null, drawn = null;
@@ -6504,6 +6577,7 @@
     function homeCursor() {
       // on your turn, go straight to something you can do
       aim = null; rest = 0;
+      tapped = null; // (a tap on where it's gone picks it first, as you mightn't have seen it go there)
       if (shown.turn !== me || view.ph !== 'play') return;
       if (nothingLeft()) { cur = { row: 2, i: shown.you.hand.length }; return; }
       const stops = rowStops(cur.row), s = stops[Math.min(cur.i, stops.length - 1)];
@@ -6578,6 +6652,7 @@
       sfx('blip');
     }
     function send(a) {
+      tapped = null;
       if (vs) { vs.input(a); aim = null; again = true; sentT = t; return true; } // (it shows when the server says)
       if (g.act(me, a)) { pull(); aim = null; again = true; return true; }
       sfx('bump');
@@ -6641,7 +6716,7 @@
     function backMenu() {
       menu = Choice(['KEEP PLAYING', 'HOW TO PLAY', vs ? 'RESIGN' : 'LEAVE GAME'], 110, 96, (i) => {
         menu = null;
-        if (i === 1) { const next = (k) => { if (k < CARD_HOW.length) say(CARD_HOW[k], () => next(k + 1)); }; next(0); }
+        if (i === 1) { const how = isTouch ? CARD_HOW.concat([CARD_TAPS]) : CARD_HOW, next = (k) => { if (k < how.length) say(how[k], () => next(k + 1)); }; next(0); }
         if (i === 2) {
           if (!vs) leave(foe + ' goes back to work.');
           else if (t - heardT > 180) leave(); // (the server can't hear you say it)
@@ -7352,6 +7427,49 @@
         off = !hit;
         return hit && hit.row !== HISTORY ? 'a' : null; // (a last move is only for looking at)
       },
+      // A finger (see "touch"): a tap on a card, a worker, END TURN or one of the last moves picks it, so
+      // the cursor goes there and its close-up comes up, and a second tap on it does it, as A would. Aiming,
+      // one tap on who it's going to does it, and a tap on anything you can't aim at puts it back, like B.
+      // In the menu a tap picks an option, and a tap on the one that's picked does it. While a card's
+      // being played a tap hurries it along, as A does.
+      tap(px, py) {
+        if (menu) {
+          const was = menu.at, k = menu.point(px, py, 'a');
+          if (k === 'a' && menu.at !== was) { sfx('select'); return null; }
+          return k;
+        }
+        const x = px * 2, y = py * 2, SLOP = 16; // (the table is laid out at 640 x 480)
+        if (!shown || doneLines || anim || queue.length) return 'a';
+        if (shown.ph === 'swap') {
+          const you = shown.you, n = you.hand.length;
+          if (you.swapped) return null;
+          const at = tapBox(x, y, you.hand.map((c, i) => [312 + i * 100, 102, 88, 124]).concat([[372, 270, 180, 34]]), SLOP);
+          if (at < 0) return null;
+          const key = at < n ? you.hand[at].u : 'go';
+          if (at === swapAt && key === tapped) return 'a';
+          swapAt = at; tapped = key;
+          sfx('blip');
+          return null;
+        }
+        if (aim) {
+          const k = tapBox(x, y, aimStops().map(rectOf), SLOP);
+          if (k < 0) return 'b';
+          cur.i = k; rest = 0; off = false;
+          return 'a';
+        }
+        const hits = [];
+        for (const row of [0, 1, 2, HISTORY]) rowStops(row).forEach((s, i) => { if (!(s.m && s.m.waiting)) hits.push({ row, i, s }); });
+        const k = tapBox(x, y, hits.map((h) => rectOf(h.s)), SLOP);
+        if (k < 0) { off = true; tapped = null; return null; } // (a tap on nothing puts the close-up away)
+        const { row, i, s } = hits[k];
+        const keyOf = (z) => z && z.kind + (z.kind === 'hand' ? z.c.u : z.kind === 'move' ? z.k : z.kind === 'end' ? '' : z.u);
+        const key = keyOf(s);
+        if (key === tapped && keyOf(stopNow()) === key) return row === HISTORY ? null : 'a'; // (a last move is only for looking at)
+        cur = row !== HISTORY ? { row, i } : { row, i, back: cur.row === HISTORY ? cur.back : cur };
+        rest = 0; off = false; tapped = key;
+        sfx('blip');
+        return null;
+      },
       draw() {
         ctx.save();
         ctx.scale(0.5, 0.5);
@@ -7608,6 +7726,7 @@
     const same = (a, b) => a.slice().sort().join() === b.slice().sort().join();
     let start = cardDeck(), news = deckNews;
     let draft = start.slice(), tab = open === 'you' ? YOU : 0, at = 0, scroll = 0, onTabs = false, t = 0, note = cardsNext(), noteT = note ? 170 : 0;
+    let tapped = null; // (the card the last tap picked, so a tap on it again does it: see tap)
     const list = () => (TABS[tab][1]
       ? CARDS.LIST.filter((c) => c.rarity !== 'T' && TABS[tab][1](c)).sort(byCost).map((c) => c.id)
       : (draft.length < SIZE ? [FILL] : []).concat(draft.map(CARDS.card).sort(byCost).map((c) => c.id)));
@@ -7705,6 +7824,29 @@
         if (col < 0 || col >= COLS || row < 0 || row >= ROWS || (x - GX) % 92 >= 88 || (y - GY) % 120 >= 116 || i >= list().length) return null;
         onTabs = false; at = i;
         return 'a';
+      },
+      // A finger (see "touch"): a tap on a tab opens its page. A tap on a card picks it, to see it big, and a
+      // second tap on it puts it in your deck or takes it out (or fills your deck, on FILL). Drag the page up
+      // or down to scroll it.
+      tap(px, py) {
+        const x = px * 2, y = py * 2; // (laid out at 640 x 480)
+        const rects = [];
+        let tx = 6;
+        for (const [label] of TABS) { const w = label.length * 12 + 8; rects.push([tx, 6, w, 28]); tx += w + 2; }
+        const ids = list(), first = scroll * COLS;
+        ids.slice(first, first + ROWS * COLS).forEach((id, i) => rects.push([GX + (i % COLS) * 92, GY + Math.floor(i / COLS) * 120, 88, 116]));
+        const k = tapBox(x, y, rects, 16);
+        if (k < 0) return null;
+        if (k < TABS.length) {
+          if (k !== tab) { tab = k; at = 0; scroll = 0; }
+          onTabs = true; tapped = null;
+          return 'a'; // (as a click on one does: its page, with the cursor on its first card)
+        }
+        const i = first + k - TABS.length;
+        if (!onTabs && at === i && tapped === ids[i]) return 'a';
+        onTabs = false; at = i; tapped = ids[i];
+        sfx('blip');
+        return null;
       },
       wheel(d) {
         const n = list().length, to = Math.max(0, Math.min(Math.ceil(n / COLS) - ROWS, scroll + d));
@@ -21152,6 +21294,9 @@
     pressed.clear();
     if (!mouse.seen) { mouse.clicks.length = 0; mouse.moved = false; }
     mouse.seen = false; mouse.wheel = 0;
+    if (!touch.seen) touch.taps.length = 0;
+    touch.seen = false; touch.wheel = 0;
+    tapsUp(!!(ui.length && top().tap));
     if (canvas.style.cursor && !(ui.length ? takesMouse(top()) : MODE_MOUSE[mode])) canvas.style.cursor = '';
   }
 
@@ -22189,7 +22334,7 @@
     }
     sorry();
   }
-  function layerUpdate(el) { try { if (takesMouse(el)) mouseTo(el); el.update(); } catch (e) { layerBroke(el, e); } }
+  function layerUpdate(el) { try { if (takesMouse(el)) mouseTo(el); if (el.tap) tapTo(el); el.update(); } catch (e) { layerBroke(el, e); } }
   function layerDraw(el) { try { el.draw(); } catch (e) { layerBroke(el, e); } }
   // Something outside the stack threw. Returns whether to carry on.
   function frameBroke(e) {
