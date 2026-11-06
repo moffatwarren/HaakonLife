@@ -66,9 +66,12 @@ in a browser (see "Testing in a browser").
   the README too.
 - **A bug ends that game, not everything:** the browser (`layerBroke`) and the server (`crash`, `safely`)
   both work this way. Don't add code that runs outside them with no catch.
-- **Controls:** everything works with the D-pad or arrows plus A and B on every platform. On a computer
-  the mouse is extra, at the user's request: left click to walk somewhere, right click to go up to
-  someone or something and press A, and every menu and screen outside the mini-games (`point` on a
+- **Controls:** everything works with the D-pad or arrows plus A and B on every platform, except typing
+  letters. The user took out the on-screen keyboard, so a name or a line to say is typed on a computer's
+  keyboard or a phone's own, into a real text box (see "typing" in `js/game.js`). On a computer
+  the mouse is extra, at the user's request: walking round goes as in Diablo (left click to walk
+  somewhere, or to go up to someone or something from afar and use it, hold it to keep going where it
+  points, onto the stairs and out of the doors too, right click is B), and every menu and screen outside the mini-games (`point` on a
   layer, or `MODE_MOUSE`: see "the mouse" in `js/game.js`). Mini-games keep to the keys, their own
   menus too, except Morale Madness and the office computers' desktop and SDG. Don't add the mouse to
   another mini-game unless asked: the user took it out of Humbug Sweeper as unfair, since it's a race
@@ -76,7 +79,7 @@ in a browser (see "Testing in a browser").
   new menu or screen outside a mini-game needs a `point` (see `anyClick` for one that just waits for
   a press), or the mouse stops working there.
 - **Taps:** on a phone, only Morale Madness and MY CARDS take taps (`tap` on a layer: see "touch" in
-  `js/game.js`). A tap picks something, and a tap on what's already picked does it, however it was
+  `js/game.js`), and the box you type in, which brings up the phone's keyboard. A tap picks something, and a tap on what's already picked does it, however it was
   picked (END TURN and aiming take one tap). The user asked for "nothing else",
   so don't add taps anywhere else unless asked. A tap never reaches `point`, so the mouse stays as it is.
 - **Art:** everything is drawn at 32 x 32 on a 640 x 480 screen, laid out in a 320 x 240 view. Use a

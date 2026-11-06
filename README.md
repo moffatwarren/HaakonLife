@@ -22,23 +22,36 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
 
 | Action | Keyboard | Mouse (on a computer) | Touch | Controller (Xbox / PlayStation) |
 | --- | --- | --- | --- | --- |
-| Move | Arrows / WASD | Left click where to go | Thumbstick (a D-pad in menus and most mini-games). In Morale Madness and MY CARDS, tap the screen too | Left stick or D-pad |
-| A: interact, confirm | E / Space | Right click someone or something (you walk up to it first); in a menu, left click | A | A / ✕ |
-| B: back, cancel (out in the parking lot at Christmas, throw a snowball) | Esc / X / Shift | Right click, in a menu | B | B or X / ○ or □ |
-| Start menu (map, edit your character, zoom, sound, music) | Enter (or Esc while walking) | Click yourself | START | Menu / Options |
+| Move | Arrows / WASD | Left click where to go, or hold it down and point | Thumbstick (a D-pad in menus and most mini-games). In Morale Madness and MY CARDS, tap the screen too | Left stick or D-pad |
+| A: interact, confirm | E / Space | Left click someone or something (you walk up to it first); in a menu, left click | A | A / ✕ |
+| B: back, cancel (out in the parking lot at Christmas, throw a snowball) | Esc / X / Shift | Right click | B | B or X / ○ or □ |
+| Start menu (map, edit your character, zoom, sound, music) | Enter (or Esc while walking) | Left click yourself | START | Menu / Options |
 | Map | M | (Start → Map) | (Start → Map) | Y or View / △ or Share (Create on a PS5) |
 
 - **The mouse:** on a computer you can play most of the game with a mouse as well as the keys.
-  - **Walking round:** left click somewhere and you walk there, finding your own way round desks
-    and walls; somewhere you can't stand, and you go as near as you can. Little corners mark where
-    you're going. Right click a coworker, another player or a thing and you walk up to it, turn to
-    face it and press A at it: a coworker you're going to talk to is followed if they walk off. Click
-    the stairs or the doors outside to go through them; otherwise a walk keeps off them, off the
-    other bathroom, and off the rink if there's another way. Somebody standing in the way is walked
-    round, and after a few goes you give up. Any key, or the stick, takes over at once. The pointer
-    turns into a hand over somebody you can talk to, and over you: click yourself for the Start menu. This is "walking with the mouse" in `js/game.js`
-    (`walkPlan`, `walkStep`, `worldPoint`), going by where the world was last drawn (`viewAt`, zoom
-    and all).
+  - **Walking round** goes as it does in Diablo. Left click somewhere and you walk there, finding your
+    own way round desks and walls. Little corners mark where you're going. Left click a coworker,
+    another player or a thing, from however far off, and you walk up to it, turn to face it and press
+    A at it: talk to them, sit at the computer, open the fridge. A coworker is followed if they walk
+    off, and anywhere on a spruce counts as the spruce. Floor is for walking onto, snow included (a
+    snow angel is A's), and so are the walls (`WALLS`), but the computer parts on the floor are
+    something to use. Hold the left button down and you keep going wherever the pointer is, until you
+    let go and stop. A press shorter than a quarter of a second (`HOLD_T`) is a click, and so is a
+    press on someone or something however long it's held, until the pointer moves off it. Holding,
+    you head straight for the pointer whenever nothing's in the way, so you walk onto the stairs and
+    out of the doors to the parking lot just as the keys take you. With something in the way, it
+    depends on the mouse. Moving it about, you're pointing at a spot, and you go round to get there,
+    as a click does. Keeping it still, you're pointing a way to go (the spot under it moves on as the
+    view follows you), so you only go round something small, like a desk, and otherwise push on that
+    way and slide along the wall, as the stick would. The right button is B wherever you click it,
+    yourself included, so out in the parking lot it throws a snowball the way you're facing. Click
+    the stairs (any step of them) or the doors outside to go through them; otherwise a walk keeps off
+    them, off the other bathroom, and off the rink if there's another way. Somebody standing in the
+    way is walked round, and after a few goes you give up. Any key, or the stick, takes over at once.
+    The pointer turns into a hand over somebody you can talk to, and over you: left click yourself
+    for the Start menu. This is "walking with the mouse" in `js/game.js` (`walkPlan`, `walkStep`,
+    `worldPoint`, `clickUse`, `worldHold`, `holdTo`), going by where the world was last drawn
+    (`viewAt`, zoom and all).
   - **Menus:** every menu and dialog, and the screens along the way (the title, your name, the
     character editor, the costume and sweater pickers, the map, the leaderboards and the Hall of
     Fame, Linda's and Kiki's lists, the live sign-up sheets, and saying something to other players).
@@ -52,8 +65,9 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
     the Christmas Cup, and a mouse would beat the D-pad on a phone.
   - In the code, a layer that takes the mouse has `point(x, y, button)` and maybe `wheel(steps)`, and
     the screens that aren't layers have theirs in `MODE_MOUSE`: see "the mouse" in `js/game.js`.
-- **Tapping the screen:** on a phone, only Morale Madness and MY CARDS take taps. Everywhere else a
-  tap on the screen does nothing, and you use the on-screen buttons.
+- **Tapping the screen:** on a phone, only Morale Madness and MY CARDS take taps, and the box you
+  type in (see **Typing**). Everywhere else a tap on the screen does nothing, and you use the
+  on-screen buttons.
   - A finger can't point at something first, as the mouse does. So one tap picks something (the
     cursor goes there), and a tap on what's already picked does it, as A would. Dragging a finger up or down is
     the scroll wheel. A tap near something counts as on it, since a fingertip is bigger than what
@@ -62,6 +76,24 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
     the screen's edge on a small phone held sideways (`body.taps`).
   - The mouse works as it did before taps. In the code, a layer that takes taps has `tap(x, y)` as
     well as `point`, and a tap never reaches `point`: see "touch" in `js/game.js`.
+- **Typing:** your name, a password and a line to say to other players are typed on a real keyboard:
+  a computer's, or a phone's own. There's no keyboard on the screen to pick letters from.
+  - On a computer the box takes the keys as soon as it's up. Arrows move the caret, Backspace rubs
+    out, and pasting works. Enter is OK (or says it) and Esc goes back. Clicking between the letters
+    puts the caret there, and there are OK and BACK (or SAY IT and CANCEL) buttons to click.
+  - On a phone, tap the box and the phone's keyboard comes up, with capitals where they go and a
+    Done (or Send) key that's OK. It comes up by itself when it can: phones only let a page bring
+    it up straight after a tap, so it does for saying something (the tap on A that picks CUSTOM),
+    and on Android usually for your name too. With nothing typed yet, A brings it up as well; once
+    there's something in the box, A is OK. B goes back.
+  - With a controller, A or START is OK and B goes back, but the letters still need a keyboard.
+  - Only what the font can show goes in (curly quotes and long dashes from a phone become plain
+    ones), and only as much as there's room for.
+  - In the code it's "typing" in `js/game.js`: a real text box (`typeEl`), see-through and kept over
+    the box drawn on the screen, so the browser treats it as a text box. `typeOpen` opens one and
+    the screen calls `typeBox` each frame it's showing it; one that isn't drawn is put away, and a
+    phone's keyboard with it. While one's up, keys go into it rather than the game (`typeKey`),
+    except Enter (START) and Esc (B). A phone's keyboard being up doesn't resize the game (`layout`).
 - Controllers: pair an Xbox or PlayStation controller with your phone or computer over
   Bluetooth (or plug it in), then press a button on it: browsers keep a controller hidden
   from a page until then (and from any page that isn't https). While you play with one,
@@ -74,7 +106,8 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
   get through. Press A to talk to whoever is in front of you, or to use what you're
   facing, without having to line up with it first.
 - Walk onto a staircase to change floors, or face the elevator doors and press A.
-- After the title screen, type your name (the game remembers it), then make your
+- After the title screen, type your name (the game remembers it; see **Typing** for doing it on a
+  phone), then make your
   character: gender, skin, hair and its colour, something on your head (a cap, a toque,
   a hard hat, a cowboy hat, headphones, glasses, shades or a bow, a Santa hat once
   your name has come in over Christmas, humbug antlers if your name won
@@ -571,9 +604,9 @@ there, and just remembers yours in the browser.
 ### Names with a password
 
 A name can have a password, so nobody else can come in under it. Warren has one. Pick that name on
-the name screen, and OK asks for the password before you go any further. It's typed with the same
-letters as the name (or on a keyboard), shown as dots, and it matters whether letters are capitals.
-DEL with nothing typed (or Esc) goes back to change the name. It goes by the name's letters, so
+the name screen, and OK asks for the password before you go any further. It's typed the same way as
+the name, shown as dots, and it matters whether letters are capitals. B (or Esc, or BACK) goes back
+to change the name. It goes by the name's letters, so
 "Warren", "WARREN" and "War-ren" all need it.
 
 Once it's been typed right in a browser, that browser remembers and doesn't ask again. A browser
@@ -592,7 +625,7 @@ node -e "console.log(require('crypto').pbkdf2Sync(process.argv[2], 'haakonlife:'
 
 Every browser that remembered the old one asks for the new one. Use something that isn't easy to
 guess: anybody can read the scrambled one in the code and try passwords against it on their own
-computer. For a phone, keep it to letters, spaces, `'`, `-` and `.`, the keys on the name screen.
+computer. The box only takes letters, numbers, spaces, `'`, `-` and `.`, the same as a name.
 
 It only keeps people off the name in the game. Somebody who knows how could still write to that
 name's rows in the database themselves, as they could to anybody's (see "Leaderboards").
@@ -817,9 +850,9 @@ which tile they're on (and has them walking from tile to tile).
   emoji along the top of the screen, and that goes over your head instead (they're
   `EMOJI` in `js/game.js`). The last two rows are Haakon's own: a unit, a plenum fan, a
   frozen coil, a dirty filter, the SDG logo and so on. Or pick **Custom** and type your own, up to 32
-  characters (letters, numbers and `. , ! ? ' " - : / & ( ) +`): straight from a
-  keyboard, or on a phone by picking characters with the D-pad and A, then START to say
-  it. Nothing filters what people type, so it's down to everyone to keep it office-friendly.
+  characters (letters, numbers and `. , ! ? ' " - : / & ( ) + # %`), on a computer's
+  keyboard or a phone's (see **Typing**), then Enter (Send on a phone, or A) to say it, or
+  B to go back. The box sits along the top of the screen, clear of a phone's keyboard. Nothing filters what people type, so it's down to everyone to keep it office-friendly.
   The ready-made lines are a list (`MP_SAY` in `js/game.js`) and are sent as their place
   in it, so add new ones only at the end of the last page (or as a new page), because
   players on older versions would otherwise see the wrong line. An emoji is sent the same
@@ -1740,7 +1773,9 @@ pants and their colours.
 | Halloween | `contest`, `bob`, `mummy`, `carve`, `treat`, `ghosts`, `hsplash` (the closing screen) |
 | Christmas | `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `humbug` (Humbug Sweeper: it asks what size, or add `&field=small`, `medium` or `full` to go straight in), `hockey` (against whoever's minding the gate; add `&yard` to see the rink) |
 
-Plain `index.html#play` skips the title screen and drops you at the entrance.
+Plain `index.html#play` skips the title screen and drops you at the entrance. `&naming=1` opens the
+name screen instead, for trying the typing (add `&touch` to see it as a phone does), and `&title=1`
+the title screen.
 
 **Eugene's phone and the plant**
 

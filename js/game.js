@@ -771,20 +771,26 @@
   // Esc backs out of any menu or mini-game (like B); while walking around it opens the start
   // menu, as it does in a mini-game where B does something else (escStart).
   let escAs = 'b';
+  // (the keys down right now, by code, for typing: see typeStale)
+  const keysDown = new Set();
   addEventListener('keydown', (e) => {
-    // naming yourself: keys type letters, and only the arrows keep their game meaning
-    if (mode === 'name' && !fade && (nameKey(e) || !e.code.startsWith('Arrow'))) { e.preventDefault(); return; }
-    // the same for a box you type into (it has key())
-    const typing = top();
-    if (typing && typing.key && !fade && (typing.key(e) || !e.code.startsWith('Arrow'))) { e.preventDefault(); return; }
+    keysDown.add(e.code);
+    // a box you type into (your name, or a line to say): the keys type in it (see "typing")
+    if (typeKey(e)) return;
+    // a message over the name screen: any key puts it away
+    if (mode === 'name' && !fade && nameNote(e)) { e.preventDefault(); return; }
     if (e.code === 'Escape' && !e.repeat) escAs = mode === 'play' && (!ui.length || top().escStart) && !fade ? 'start' : 'b';
     const k = e.code === 'Escape' ? escAs : KEYS[e.code];
     if (!k) return;
     e.preventDefault();
     if (!e.repeat) press(k);
   });
-  addEventListener('keyup', (e) => { const k = e.code === 'Escape' ? escAs : KEYS[e.code]; if (k) release(k); });
-  addEventListener('blur', () => { for (const k in held) release(k); ctlHeld.clear(); });
+  addEventListener('keyup', (e) => {
+    keysDown.delete(e.code); typeStale.delete(e.code);
+    const k = e.code === 'Escape' ? escAs : KEYS[e.code];
+    if (k) release(k);
+  });
+  addEventListener('blur', () => { for (const k in held) release(k); ctlHeld.clear(); keysDown.clear(); });
 
   // A thumbstick, on screen or on a controller, pushed x, y (a share of how far it goes):
   // how hard that is, -1 to 1 each way (nothing inside dead, all the way from full on), and
@@ -811,9 +817,14 @@
   // Touch / mouse controls
   document.querySelectorAll('[data-btn]').forEach((el) => {
     const k = el.dataset.btn;
-    el.addEventListener('pointerdown', (e) => { e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add('down'); press(k); });
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add('down');
+      // (A with a box to type in and nothing typed yet brings up the phone's keyboard: see "typing")
+      if (k === 'a' && typeTouch()) return;
+      press(k);
+    });
     const up = () => { el.classList.remove('down'); release(k); };
-    el.addEventListener('pointerup', up);
+    el.addEventListener('pointerup', () => { up(); typeLift(); });
     el.addEventListener('pointercancel', up);
     el.addEventListener('lostpointercapture', up);
   });
@@ -930,18 +941,21 @@
   addEventListener('pointerdown', () => { if (isTouch) useController(false); });
   // a browser won't let a controller start the sound, so a click or a tap anywhere does
   addEventListener('pointerup', unlockAudio);
-  document.addEventListener('contextmenu', (e) => e.preventDefault());
+  // (except on the box you type in, where it's how a phone pastes)
+  document.addEventListener('contextmenu', (e) => { if (e.target !== typeEl) e.preventDefault(); });
   // iOS Safari ignores user-scalable=no and touch-action on the page, so a quick double tap
   // (say on the d-pad) zooms in and there's no way back out. The controls all run on pointer
-  // events, so cancelling the touch defaults costs nothing and stops the zoom.
-  document.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
+  // events, so cancelling the touch defaults costs nothing and stops the zoom. Not on the box you
+  // type in, though: a tap there has to stay a tap, to bring up the keyboard (see "typing").
+  document.addEventListener('touchend', (e) => { if (e.target !== typeEl) e.preventDefault(); }, { passive: false });
   document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
   for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault());
 
   // ---------- the mouse ----------
   // On a computer the mouse works nearly everywhere outside the mini-games: walking round (left click
-  // somewhere to go there, right click someone or something to go up to it and press A: see "walking
-  // with the mouse"), every menu and dialog, the screens before you come in (the title, your name, the
+  // somewhere to go there, or someone or something to go up to it and use it, hold it down to keep
+  // going where it points, and the right button is B: see "walking with the mouse"),
+  // every menu and dialog, the screens before you come in (the title, your name, the
   // character editor and the costume and sweater pickers), and the screens that come up along the way,
   // like the map and the Hall of Fame. Of the mini-games, only Morale Madness (the game, MY CARDS and a
   // new card turning over) and the office computers' desktop and SDG take it. The rest keep to the
@@ -959,24 +973,34 @@
   // screens before you come in, and walking round, have the same kind of point in MODE_MOUSE.
   // Clicks wait their turn, one an update, each where it was made: a key only counts once an update,
   // and on a slow computer the pointer can have moved on before the game gets to the click. What the
-  // mouse does while nothing is taking it is forgotten (seen).
-  const mouse = { x: 0, y: 0, moved: false, clicks: [], wheel: 0, seen: false };
+  // mouse does while nothing is taking it is forgotten (seen). held says whether the left button is
+  // down now, for walking round (see worldHold). The canvas keeps the pointer while a button's down, so
+  // letting go off the picture still counts.
+  const mouse = { x: 0, y: 0, moved: false, clicks: [], wheel: 0, seen: false, held: false };
   let wheelSum = 0;
   const mouseAt = (e) => {
     const r = canvas.getBoundingClientRect();
     mouse.x = (e.clientX - r.left) * SW / r.width;
     mouse.y = (e.clientY - r.top) * SH / r.height;
+    mouse.held = !!(e.buttons & 1);
   };
+  const mouseClick = (button) => { if (mouse.clicks.length < 16) mouse.clicks.push({ x: mouse.x, y: mouse.y, button }); };
   canvas.addEventListener('pointermove', (e) => {
     if (e.pointerType !== 'mouse') return;
     mouseAt(e); mouse.moved = true;
+    // (a second button going down while one's held already comes as a move, not a pointerdown)
+    if ((e.button === 0 && e.buttons & 1) || (e.button === 2 && e.buttons & 2)) mouseClick(e.button === 0 ? 'a' : 'b');
   });
   canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType !== 'mouse' || (e.button !== 0 && e.button !== 2)) return;
     e.preventDefault();
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* it's gone already */ }
     mouseAt(e);
-    if (mouse.clicks.length < 16) mouse.clicks.push({ x: mouse.x, y: mouse.y, button: e.button === 0 ? 'a' : 'b' });
+    mouseClick(e.button === 0 ? 'a' : 'b');
   });
+  canvas.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') mouseAt(e); });
+  for (const ev of ['lostpointercapture', 'pointercancel']) canvas.addEventListener(ev, (e) => { if (e.pointerType === 'mouse') mouse.held = false; });
+  addEventListener('blur', () => { mouse.held = false; });
   canvas.addEventListener('pointerleave', () => { canvas.style.cursor = ''; });
   // (a notch of a wheel is one step; a trackpad's little nudges add up to one)
   canvas.addEventListener('wheel', (e) => {
@@ -15304,129 +15328,202 @@
     ctx.drawImage(pic('easel'), x + 0.5, y - 6.5); ctx.drawImage(sprites.down[0], 0, 0, 16, 16, x + 4, y - 3.5, 7.5, 8.5);
   }
 
-  // ---------- on-screen keyboard ----------
-  // What you pick characters from with the D-pad (or arrows) + A, when naming yourself or
-  // typing a line to say: laid out QWERTY like a phone's, each row of keys staggered a bit
-  // further right, then a row of wider keys (SHIFT, SPACE, DEL and the one that's done).
-  // Letters show in capitals while SHIFT is on. It comes on by itself for the first
-  // letter (and after a space, if `eachWord`), and goes off again after one letter.
-  // Up and down go to whichever key is nearest above or below.
-  function Keyboard(rows, { x0, pitch, stagger, eachWord }) {
-    rows = rows.map((r) => (typeof r === 'string' ? r.split('') : r));
-    const kb = { r: 0, c: 0, shift: true };
-    const isLetter = (t) => t.length === 1 && t.toLowerCase() !== t.toUpperCase();
-    // where a key starts across the screen, and how wide it is
-    const wide = (row) => row.some((t) => t.length > 1);
-    kb.x = (r, c) => {
-      const row = rows[r];
-      if (!wide(row)) return x0 + (stagger[r] || 0) + c * pitch;
-      let x = x0;
-      for (let i = 0; i < c; i++) x += row[i].length * 6 + 18;
-      return x;
-    };
-    const mid = (r, c) => kb.x(r, c) + rows[r][c].length * 3;
-    kb.label = (t) => (isLetter(t) && kb.shift ? t.toUpperCase() : t);
-    kb.token = () => rows[kb.r][kb.c];
-    kb.move = () => {
-      const row = rows[kb.r];
-      for (const d of ['up', 'down']) {
-        if (!pressed.has(d)) continue;
-        const x = mid(kb.r, kb.c);
-        kb.r = (kb.r + (d === 'up' ? rows.length - 1 : 1)) % rows.length;
-        kb.c = rows[kb.r].reduce((best, t, c) => (Math.abs(mid(kb.r, c) - x) < Math.abs(mid(kb.r, best) - x) ? c : best), 0);
-        sfx('select');
-      }
-      if (pressed.has('left')) { kb.c = (kb.c + row.length - 1) % row.length; sfx('select'); }
-      if (pressed.has('right')) { kb.c = (kb.c + 1) % row.length; sfx('select'); }
-    };
-    // The character a key types (with SHIFT seen to), '' for SHIFT itself, or null for a
-    // key the caller deals with (DEL, and the one that's done).
-    kb.char = (t) => {
-      if (t === 'SHIFT') { kb.shift = !kb.shift; sfx('select'); return ''; }
-      if (t === 'SPACE') { if (eachWord) kb.shift = true; return ' '; }
-      if (t.length > 1) return null;
-      const ch = kb.label(t);
-      if (isLetter(t)) kb.shift = false;
-      return ch;
-    };
-    // after the text has changed some other way (rubbing out, or a real keyboard)
-    kb.fit = (str) => { kb.shift = !str || (eachWord && str.endsWith(' ')); };
-    // the mouse: the key at x, y (as drawn by draw(y0, rowH)) becomes the one picked, if there's one there
-    kb.at = (x, y, y0, rowH) => {
-      const r = Math.floor((y - y0 + 3) / rowH);
-      if (r < 0 || r >= rows.length) return false;
-      const c = rows[r].findIndex((t, i) => x >= kb.x(r, i) - 4 && x < kb.x(r, i) + kb.label(t).length * 6 + 3);
-      if (c < 0) return false;
-      kb.r = r; kb.c = c;
+  // ---------- typing ----------
+  // Your name, a password and a line to say to other players are typed on whatever keyboard you
+  // have: a computer's, or a phone's own. Under the box drawn on the screen there's a real text
+  // box (typeEl), kept over it and see-through, so the browser treats it as one: a tap on it
+  // brings up a phone's keyboard, with capitals, autocorrect and a Done or Send key to suit, and
+  // pasting works. What's in it is tidied as it changes (anything the font can't show goes, and
+  // so does anything past the most there's room for), and the screen draws that, with the caret
+  // and whatever's picked where the real ones are.
+  //
+  // typeOpen(owner, opts, text) opens a box (or gives back the one owner has open already), and
+  // the screen it's on calls typeBox every frame it's taking typing. A box that isn't drawn is put
+  // away, and a phone's keyboard with it. While one's up, keys go into it as into any text box,
+  // except Enter, which is START (OK, or say it), and Esc, which is B (back), so the screen deals
+  // with those in its update as usual. On a computer the box keeps the keys: if something else
+  // gets them (a click off the screen), the next key brings them back. On a touch screen the
+  // keyboard comes up by itself when it can: the tap that opened a box, or a box that opens with
+  // no button held. A phone only lets a page do that straight after a tap, so if it doesn't, a tap
+  // on the box does, and so does A while nothing's typed yet (typeTouch).
+  const typeForm = document.createElement('form'), typeEl = document.createElement('input');
+  typeForm.setAttribute('autocomplete', 'off');
+  typeForm.style.cssText = 'margin: 0';
+  // (16px letters, or an iPhone zooms in on it)
+  typeEl.style.cssText = 'position: absolute; z-index: 2; display: none; margin: 0; padding: 0; border: 0; outline: none; '
+    + 'background: transparent; color: transparent; caret-color: transparent; opacity: 0; font-size: 16px; '
+    + '-webkit-user-select: text; user-select: text; -webkit-touch-callout: default; touch-action: manipulation';
+  typeEl.setAttribute('autocomplete', 'off');
+  typeEl.spellcheck = false;
+  typeForm.appendChild(typeEl);
+  if (getComputedStyle(canvas.parentElement).position === 'static') canvas.parentElement.style.position = 'relative';
+  canvas.parentElement.appendChild(typeForm);
+  // the box that's open (or null), the one that was drawn last frame (or null), and keys that were
+  // down when it opened (so a key held down to open it doesn't type itself over and over)
+  let typing = null, typeShown = null, typeStale = new Set();
+  // (curly quotes and long dashes, as a phone's keyboard types them, are the font's plain ones)
+  const typePlain = (s) => String(s).replace(/[\u2018\u2019\u201a\u201b\u2032]/g, '\'').replace(/[\u201c\u201d\u201e\u2033]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-').replace(/\u2026/g, '...').replace(/[\u00a0\t]/g, ' ');
+  // raw with only what the box takes, and where the caret at raw's character `caret` ends up in it: with
+  // too much, what was just put in before the caret is cut short, as a box with a most it holds does
+  function typeTidy(f, raw, caret) {
+    const all = f.filter(raw), at = f.filter(raw.slice(0, caret)).length, over = all.length - f.max;
+    if (over <= 0) return { text: all, at };
+    const cut = Math.max(0, at - over);
+    return { text: (all.slice(0, cut) + all.slice(at)).slice(0, f.max), at: cut };
+  }
+  // opts: max (letters), ok (a test for one letter), password, caps ('words', 'sentences' or 'none'),
+  // enter (what a phone's Enter key says: 'done' or 'send'), label (for a screen reader)
+  function typeOpen(owner, opts, text) {
+    if (typing && typing.owner === owner) return typing;
+    const f = Object.assign({ owner, max: 32, ok: /./, password: false, caps: 'none', enter: 'done', label: '', tried: false, at: null, place: null }, opts);
+    f.filter = (s) => [...typePlain(s)].filter((ch) => f.ok.test(ch)).join('');
+    f.set = (s) => { f.text = typeTidy(f, s, s.length).text; if (typing === f) typeEl.value = f.text; };
+    typing = f;
+    typeStale = new Set(keysDown);
+    typeEl.type = f.password ? 'password' : 'text';
+    typeEl.setAttribute('autocapitalize', f.caps);
+    typeEl.setAttribute('autocorrect', f.caps === 'sentences' ? 'on' : 'off');
+    typeEl.setAttribute('enterkeyhint', f.enter);
+    typeEl.setAttribute('aria-label', f.label);
+    f.set(text || '');
+    return f;
+  }
+  function typeClose(owner) { if (typing && typing.owner === owner) typing = null; }
+  function typeFocus() {
+    if (typing) typing.tried = true;
+    try { typeEl.focus({ preventScroll: true }); } catch (e) { /* not while it's hidden */ }
+  }
+  // the real box has changed: tidy it, and a sound for a letter in (or out, or one it won't take)
+  function typeSync(composing) {
+    const f = typing;
+    if (!f) return;
+    const raw = typeEl.value, was = f.text, t = typeTidy(f, raw, typeEl.selectionStart == null ? raw.length : typeEl.selectionStart);
+    f.text = t.text;
+    // (a phone's keyboard partway through a word is left alone till it's done, or it can lose track)
+    if (!composing && raw !== t.text) {
+      typeEl.value = t.text;
+      try { typeEl.setSelectionRange(t.at, t.at); } catch (e) { /* a box that can't have one */ }
+    }
+    if (f.text.length > was.length) sfx('blip');
+    else if (f.text.length < was.length) sfx('select');
+    else if (f.text === was && raw !== was) sfx('bump');
+  }
+  // (Safari says a word's done before its last change, and the others after)
+  typeEl.addEventListener('input', (e) => typeSync(!!e.isComposing));
+  typeEl.addEventListener('compositionend', () => typeSync(false));
+  // (a phone's Enter key, if it didn't come as a key: see typeKey)
+  typeForm.addEventListener('submit', (e) => { e.preventDefault(); if (typeShown) pressed.add('start'); });
+  // A click or a tap on the box puts the caret between the letters it's nearest, as they're drawn.
+  typeEl.addEventListener('click', (e) => {
+    const f = typeShown, p = f && f.place;
+    if (!p || typeEl.value !== f.text || typeEl.selectionStart !== typeEl.selectionEnd) return;
+    const r = canvas.getBoundingClientRect(), x = (e.clientX - r.left) * SW / r.width;
+    const i = Math.max(0, Math.min(f.text.length, Math.round((x - p.tx) / p.adv)));
+    try { typeEl.setSelectionRange(i, i); } catch (err) { /* a box that can't have one */ }
+  });
+  // (a phone's keyboard going away: the page goes back where it was, and fits the screen again)
+  typeEl.addEventListener('blur', () => { if (isTouch) { scrollTo(0, 0); layout(); } });
+  // A key while a box is up (from the keydown listener): true if it was the box's, and then it isn't a
+  // game key. Enter and Esc are pressed as START and B, and anything else goes into the box as it would
+  // in any text box, after giving it the keys back if something else had them.
+  function typeKey(e) {
+    if (!typeShown) return false;
+    if (e.isComposing || e.keyCode === 229) return true; // (a phone's keyboard, or one for another language, partway through a word)
+    const k = e.key === 'Enter' ? 'start' : e.key === 'Escape' ? 'b' : null;
+    if (k || e.key === 'Tab') {
+      e.preventDefault();
+      if (k === 'b') escAs = 'b';
+      if (k && !e.repeat) pressed.add(k);
       return true;
-    };
-    kb.draw = (y0, rowH) => rows.forEach((row, r) => row.forEach((t, c) => {
-      const x = kb.x(r, c), y = y0 + r * rowH, sel = kb.r === r && kb.c === c, label = kb.label(t);
-      if (sel) pickBar(x - 4, y - 3, label.length * 6 + 7, rowH - 3, col.dark);
-      text(label, x, y, 1, sel ? col.light : col.dark);
-    }));
-    return kb;
+    }
+    if (e.repeat && typeStale.has(e.code)) { e.preventDefault(); return true; }
+    if (document.activeElement !== typeEl) typeFocus();
+    return true;
+  }
+  // A pressed on a touch screen (from its button, as it's pressed): with a box up and nothing typed in
+  // it, A brings up the phone's keyboard instead (again, if it was put away), and returns true.
+  function typeTouch() {
+    if (!typeShown || typeShown.text) return false;
+    typeEl.blur();
+    typeFocus();
+    return true;
+  }
+  // A button on a touch screen let go: if that tap opened a box, the keyboard comes up for it.
+  function typeLift() { if (typeShown && !typeShown.tried) typeFocus(); }
+  // The screen drawing box f this frame: p is where the box is (x, y, w, h) and its letters (from tx,
+  // adv apart, with the caret ch tall from cy). Call it before drawing the letters, so whatever's
+  // picked shows behind them. On a touch screen an empty box with no keyboard up says to tap it.
+  function typeBox(f, p) {
+    f.at = f.place = p;
+    const on = document.activeElement === typeEl;
+    let s = f.text.length, e = s;
+    if (on && typeEl.value === f.text) { s = typeEl.selectionStart || 0; e = typeEl.selectionEnd || s; }
+    if (e > s) { ctx.fillStyle = '#b8d0f0'; ctx.fillRect(p.tx + s * p.adv, p.cy, (e - s) * p.adv, p.ch); }
+    if (!on && isTouch && !f.text) text('Tap here to type', p.tx, p.cy + ((p.ch - 7) >> 1), 1, '#9898a8');
+    else if ((on || !isTouch) && e === s && (tick >> 4) & 1) { ctx.fillStyle = col.dark; ctx.fillRect(p.tx + s * p.adv, p.cy, p.adv > 6 ? 2 : 1, p.ch); }
+  }
+  // After drawing: the real box goes over the one drawn, or away if none was (and a phone's
+  // keyboard with it). On a computer it keeps the keys.
+  let typePlaced = '';
+  function typeFrame() {
+    const p = typing && typing.at, f = p && !fade ? typing : null;
+    if (typing) typing.at = null;
+    typeShown = f;
+    if (!f) {
+      if (document.activeElement === typeEl) typeEl.blur();
+      if (typePlaced) { typeEl.style.display = 'none'; typePlaced = ''; }
+      return;
+    }
+    const s = canvas.clientWidth / SW;
+    const where = [canvas.offsetLeft + p.x * s, canvas.offsetTop + p.y * s, p.w * s, p.h * s].map((n) => Math.round(n) + 'px');
+    if (where.join() !== typePlaced) {
+      typePlaced = where.join();
+      Object.assign(typeEl.style, { display: 'block', left: where[0], top: where[1], width: where[2], height: where[3] });
+    }
+    if (document.activeElement === typeEl) return;
+    if (!isTouch) { if (document.hasFocus()) typeFocus(); } else if (!f.tried && !held.a) typeFocus();
   }
 
   // ---------- your name, for the picture ----------
+  // Typed on a keyboard (see "typing"): Enter, A or START is OK.
   const NAME_MAX = 12;
-  const NAME_ROWS = ['qwertyuiop', 'asdfghjkl\'', 'zxcvbnm-.', ['SHIFT', 'SPACE', 'DEL', 'OK']];
-  const nameKeys = Keyboard(NAME_ROWS, { x0: 46, pitch: 24, stagger: [0, 8, 20], eachWord: true });
+  const NAME_TYPE = { max: NAME_MAX, ok: /[A-Za-z0-9 .'\-]/, caps: 'words', enter: 'done', label: 'Your name' };
+  const nameBox = () => typeOpen('name', NAME_TYPE, playerName);
   // Bob owns the company, so nobody else gets to be Bob (or BOB, or B.o.b, or B0B).
   const isBob = (name) => name.toLowerCase().replace(/0/g, 'o').replace(/[^a-z]/g, '') === 'bob';
   let bobNote = 0; // ticks the "only ONE true Bob" message has been up; 0 when it isn't
-  // A name with a password (LOCKED) that this browser doesn't know yet: OK asks for it, with the same
-  // keys as the name. pass is null, or what's been typed (text), whether it's being checked, and a
-  // message that's up (note: 'wrong', or 'cant' where passwords can't be checked) and for how long.
+  // A name with a password (LOCKED) that this browser doesn't know yet: OK asks for it, typed the same
+  // way as the name, and B (or Esc) goes back to the name. pass is null, or whether it's being checked,
+  // and a message that's up (note: 'wrong', or 'cant' where passwords can't be checked) and for how long.
   const PASS_MAX = 16;
-  const passKeys = Keyboard(NAME_ROWS, { x0: 46, pitch: 24, stagger: [0, 8, 20] });
+  const PASS_TYPE = { max: PASS_MAX, ok: /[A-Za-z0-9 .'\-]/, password: true, enter: 'done', label: 'Password' };
+  const passBox = () => typeOpen('pass', PASS_TYPE, '');
   let pass = null;
   function passStart() {
-    pass = { text: '', checking: false, note: null, t: 0 };
-    passKeys.r = passKeys.c = 0; passKeys.shift = false;
+    pass = { checking: false, note: null, t: 0 };
+    typeClose('pass');
+    passBox();
     sfx('menu');
-  }
-  function passType(tok) {
-    if (tok === 'OK') { passDone(); return; }
-    if (tok === 'DEL') {
-      // (with nothing typed, back to the name)
-      if (!pass.text) { pass = null; nameKeys.fit(playerName); } else pass.text = pass.text.slice(0, -1);
-      sfx('select');
-      return;
-    }
-    if (pass.text.length >= PASS_MAX) { if (tok !== 'SHIFT') sfx('bump'); else passKeys.char(tok); return; }
-    const ch = passKeys.char(tok);
-    if (ch) { pass.text += ch; sfx('blip'); }
   }
   function passDone() {
     if (pass.checking) return;
     const tried = pass, want = LOCKED[lockName(playerName)];
     tried.checking = true;
-    passHash(playerName, tried.text).then((h) => (h === want ? 'right' : 'wrong'), () => 'cant').then((how) => {
+    passHash(playerName, passBox().text).then((h) => (h === want ? 'right' : 'wrong'), () => 'cant').then((how) => {
       if (pass !== tried) return;
       tried.checking = false;
       if (how === 'right') { store.set('pass.' + lockName(playerName), want); pass = null; nameDone(); return; }
-      tried.text = ''; tried.note = how; tried.t = 0;
+      passBox().set(''); tried.note = how; tried.t = 0;
       sfx('buzz');
     });
   }
-  function passKey(e) {
-    if (pass.note) { if (!e.repeat && pass.t > 20) { pass.note = null; sfx('select'); } return true; }
-    if (pass.checking) return true;
-    if (e.code === 'Escape') { if (!e.repeat) { pass = null; nameKeys.fit(playerName); sfx('select'); } return true; }
-    if (e.code === 'Enter') { if (!e.repeat) passDone(); return true; }
-    if (e.code === 'Backspace') { passType('DEL'); return true; }
-    if (e.key && e.key.length === 1 && /[A-Za-z0-9 .'\-]/.test(e.key)) {
-      if (pass.text.length < PASS_MAX) { pass.text += e.key; sfx('blip'); } else sfx('bump');
-      return true;
-    }
-    return false;
-  }
   function nameDone() {
     if (fade || pass) return;
-    if (isBob(playerName)) { playerName = ''; bobNote = 1; sfx('buzz'); return; }
+    if (isBob(playerName)) { playerName = ''; nameBox().set(''); bobNote = 1; sfx('buzz'); return; }
     playerName = playerName.trim() || 'New Hire';
     if (!unlocked(playerName)) { passStart(); return; }
+    typeClose('name'); typeClose('pass');
     store.set('name', playerName);
     sfx('menu');
     editStart();
@@ -15439,33 +15536,25 @@
     if (HALLOWEEN) questQueue.push('It\'s Halloween at Haakon! When you\'re ready for the party, go and take a seat in the downstairs boardroom.');
     if (CHRISTMAS) questQueue.push('Happy holidays from Haakon! The office is all decked out, and somebody has flooded a rink in the parking lot. Head out through the fitness room\'s side doors.');
   }
-  function nameType(tok) {
-    if (pass) { passType(tok); return; }
-    if (tok === 'OK') { nameDone(); return; }
-    if (tok === 'DEL') { playerName = playerName.slice(0, -1); nameKeys.fit(playerName); sfx('select'); return; }
-    if (playerName.length >= NAME_MAX) { if (tok !== 'SHIFT') sfx('bump'); else nameKeys.char(tok); return; }
-    const ch = nameKeys.char(tok);
-    if (ch) { playerName += ch; sfx('blip'); }
-  }
-  // physical keyboard: type straight into the name
-  function nameKey(e) {
-    if (pass) return passKey(e);
+  // a key while a message is up over the name (or the password's being checked): any key puts the
+  // message away, as A does, and nothing gets typed
+  function nameNote(e) {
     if (bobNote) { if (!e.repeat && bobNote > 20) { bobNote = 0; sfx('select'); } return true; }
-    if (e.code === 'Enter') { if (!e.repeat) nameDone(); return true; }
-    if (e.code === 'Backspace') { nameType('DEL'); return true; }
-    if (e.key && e.key.length === 1 && /[A-Za-z0-9 .'\-]/.test(e.key)) {
-      // typed as is (the on-screen SHIFT doesn't touch a real keyboard's capitals)
-      if (playerName.length < NAME_MAX) { playerName += e.key; sfx('blip'); } else sfx('bump');
-      nameKeys.fit(playerName);
-      return true;
-    }
-    return false;
+    if (!pass || !(pass.note || pass.checking)) return false;
+    if (pass.note && !e.repeat && pass.t > 20) { pass.note = null; sfx('select'); }
+    return true;
   }
-  // the mouse: click a letter to type it (or OK when you're done), and the right button rubs one out
+  // The buttons under the box, for the mouse (on a touch screen it's the keyboard's Done, or A):
+  // [x, label] each, 60 x 15 at NAME_BTN_Y. The first is OK (A), and BACK is B.
+  const NAME_BTN_Y = 88;
+  const nameBtns = () => (isTouch ? [] : pass ? [[119, 'OK'], [195, 'BACK']] : [[157, 'OK']]);
+  let nameHover = -1;
+  // the mouse: click OK (or BACK), or the box to type in it; the right button is B
   function namePoint(x, y, button) {
     if (bobNote || (pass && pass.note)) return button; // (any click, as any key, puts the message away)
     if (button === 'b') return 'b';
-    return (pass ? passKeys : nameKeys).at(x, y, 102, 18) ? 'a' : null;
+    nameHover = pass && pass.checking ? -1 : nameBtns().findIndex(([bx]) => inBox(x, y, bx, NAME_BTN_Y, 60, 15));
+    return nameHover < 0 ? null : nameHover ? 'b' : 'a';
   }
   function updateName() {
     if (pass) {
@@ -15474,43 +15563,46 @@
         return;
       }
       if (pass.checking) return;
-      passKeys.move();
-      if (pressed.has('a')) passType(passKeys.token());
-      if (pressed.has('b')) passType('DEL');
-      if (pressed.has('start')) passDone();
+      passBox();
+      if (pressed.has('a') || pressed.has('start')) passDone();
+      else if (pressed.has('b')) { pass = null; sfx('select'); }
       return;
     }
     if (bobNote) {
       if (++bobNote > 20 && (pressed.has('a') || pressed.has('b') || pressed.has('start'))) { bobNote = 0; sfx('select'); }
       return;
     }
-    nameKeys.move();
-    if (pressed.has('a')) nameType(nameKeys.token());
-    if (pressed.has('b')) nameType('DEL');
-    if (pressed.has('start')) nameDone();
+    playerName = nameBox().text;
+    if (pressed.has('a') || pressed.has('start')) nameDone();
   }
+  // what to do, for whatever you're typing with: a phone's keyboard, a computer's, or one with a controller in hand
+  const nameHint = (tap, keys, pad) => (isTouch && !usingController ? tap : usingController ? pad : keys);
   function drawName() {
     menuFrame();
     const title = pass ? 'Password, please' : 'What\'s your name?';
     text(title, (SW - title.length * 12) >> 1, 18, 2);
     floorShadow(48, 88, 12, 2.5);
     ctx.drawImage(sprites.down[[1, 0, 2, 0][(tick >> 3) & 3]], 24, 42, 48, 48);
-    // the name field (or the password, a dot a letter)
+    // the box you type in (the password a dot a letter), taking typing unless there's a message over it
     roundBox(84, 52, 206, 28, 3.5, col.dark); roundBox(85.5, 53.5, 203, 25, 2.5, '#f8f8f8');
     fine(87, 53.5, 200, 0.5, '#c8ccd8'); fine(85.5, 55, 0.5, 22, '#d8dce4');
-    const typed = pass ? pass.text.length : playerName.length;
+    const f = pass ? passBox() : nameBox();
     if (pass && pass.checking) text('Checking...', 92, 62, 1, '#686878');
     else {
-      if (pass) for (let i = 0; i < typed; i++) fineDisc(97 + i * 12, 66, 3.5, col.dark);
-      else text(playerName, 92, 58, 2);
-      if ((tick >> 4) & 1) { ctx.fillStyle = col.dark; ctx.fillRect(92 + typed * 12, 58, 2, 16); }
+      if (!bobNote && !(pass && pass.note)) typeBox(f, { x: 84, y: 52, w: 206, h: 28, tx: 92, adv: 12, cy: 58, ch: 16 });
+      if (pass) for (let i = 0; i < f.text.length; i++) fineDisc(97 + i * 12, 66, 3.5, col.dark);
+      else text(f.text, 92, 58, 2);
     }
-    // letters to pick with the arrows (for touch screens)
-    (pass ? passKeys : nameKeys).draw(102, 18);
+    nameBtns().forEach(([x, label], i) => {
+      const sel = nameHover === i;
+      if (sel) pickBar(x, NAME_BTN_Y, 60, 15, col.dark); else pickRing(x, NAME_BTN_Y, 60, 15);
+      text(label, x + 30 - label.length * 3, NAME_BTN_Y + 4, 1, sel ? col.light : col.dark);
+    });
+    const lines = pass ? nameHint(['Tap the box to type the password,', 'then Done (or A). B goes back.'],
+      ['Type the password, then press Enter', '(Esc to change your name)'], ['Type the password, then press A', '(B to change your name)'])
+      : nameHint(['Tap the box to type your name,', 'then Done on the keyboard (or A).'], ['Type your name, then press Enter'], ['Type your name, then press A']);
+    lines.forEach((line, i) => text(line, (SW - line.length * 6) >> 1, SH - 22 - lines.length * 6 + i * 12));
     if (pass) {
-      const lines = buttonHints() ? ['Pick letters, then OK (or START).', 'B with nothing typed goes back.']
-        : ['Type the password, then press Enter', '(Esc to change your name)'];
-      lines.forEach((line, i) => text(line, (SW - line.length * 6) >> 1, SH - 34 + i * 12));
       if (pass.note) {
         box(20, 78, SW - 40, 84);
         const say = pass.note === 'wrong' ? ['That isn\'t the password', 'for ' + playerName + '.', '', 'Try again, or pick another name.']
@@ -15519,13 +15611,6 @@
         if (pass.t > 20 && (tick >> 4) & 1) text(buttonHints() ? 'Press A' : 'Press any key', (SW - (buttonHints() ? 7 : 13) * 6) >> 1, 144);
       }
       return;
-    }
-    if (buttonHints()) {
-      text('Pick letters with the D-pad + A,', (SW - 32 * 6) >> 1, SH - 34);
-      text('then choose OK (or press START)', (SW - 31 * 6) >> 1, SH - 22);
-    } else {
-      text('Type your name, then press Enter', (SW - 32 * 6) >> 1, SH - 34);
-      text('(or pick letters with the arrows + A)', (SW - 37 * 6) >> 1, SH - 22);
     }
     if (bobNote) {
       box(20, 78, SW - 40, 84);
@@ -16874,64 +16959,50 @@
     };
     return self;
   }
-  // Typing your own line: straight from a keyboard, or picking characters with the arrows
-  // (or D-pad) + A, like naming yourself. B rubs out a character, or backs out once it's
-  // empty.
-  const MP_TYPE_ROWS = ['1234567890', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm,.?', '!\'"-:/&()+', ['SHIFT', 'SPACE', 'DEL', 'SAY IT']];
+  // Typing your own line, on a computer's keyboard or a phone's (see "typing"). Enter (or A, or
+  // START, or a phone's Send) says it, and B (or Esc) goes back to the pages. It sits along the
+  // top of the screen, clear of a phone's keyboard.
+  const MP_TYPE = { max: MP_TYPE_MAX, ok: MP_TYPE_OK, caps: 'sentences', enter: 'send', label: 'Say something' };
   function MpType() {
-    let str = '';
-    const keys = Keyboard(MP_TYPE_ROWS, { x0: 40, pitch: 24, stagger: [0, 0, 8, 20, 0] }), Y = SH - 152;
-    function type(tok) {
-      if (tok === 'SAY IT') { done(); return; }
-      if (tok === 'DEL') {
-        if (str) { str = str.slice(0, -1); keys.fit(str); sfx('select'); } else { remove(self); sfx('select'); mpSayMenu(); }
-        return;
-      }
-      if (str.length >= MP_TYPE_MAX && tok !== 'SHIFT') { sfx('bump'); return; }
-      const ch = keys.char(tok);
-      if (ch) { str += ch; sfx('blip'); }
-    }
-    // a real keyboard types exactly what it types
-    function typeKey(ch) {
-      if (str.length >= MP_TYPE_MAX) { sfx('bump'); return; }
-      str += ch; keys.fit(str); sfx('blip');
-    }
+    const H = 58, BTNS = [[SW - 136, 'SAY IT'], [SW - 70, 'CANCEL']]; // (for the mouse: [x, label], 60 x 15 at y 38)
+    const field = typeOpen({}, MP_TYPE, '');
+    let hover = -1;
     function done() {
-      remove(self);
-      const line = mpClean(str);
+      remove(self); typeClose(field.owner);
+      const line = mpClean(field.text);
       if (line) { sfx('select'); mpSay(-1, line); }
     }
     const self = {
       overlay: true,
-      // a keyboard types straight in (see the keydown listener); only the arrows still
-      // move around the characters
-      key(e) {
-        if (e.code === 'Enter') { if (!e.repeat) done(); return true; }
-        if (e.code === 'Escape') { if (!e.repeat) { remove(self); sfx('select'); } return true; }
-        if (e.code === 'Backspace') { if (str) type('DEL'); return true; }
-        // (not a held key repeating: Space or E opened this box, and might still be down)
-        if (e.key && e.key.length === 1 && MP_TYPE_OK.test(e.key)) { if (!e.repeat) typeKey(e.key); return true; }
-        return false;
-      },
       update() {
-        keys.move();
-        if (pressed.has('a')) type(keys.token());
-        if (pressed.has('b')) type('DEL');
-        if (pressed.has('start')) done();
+        if (pressed.has('a') || pressed.has('start')) done();
+        else if (pressed.has('b')) { remove(self); typeClose(field.owner); sfx('select'); mpSayMenu(); }
       },
-      // the mouse: click a character to type it, the right button rubs one out
-      point: (x, y, button) => (button === 'b' ? 'b' : keys.at(x, y, Y + 42, 15) ? 'a' : null),
+      // the mouse: click the box to type in it, or SAY IT or CANCEL (a click under the box is CANCEL too)
+      point(x, y, button) {
+        if (button === 'b') return 'b';
+        hover = isTouch ? -1 : BTNS.findIndex(([bx]) => inBox(x, y, bx, 38, 60, 15));
+        if (hover >= 0) return hover ? 'b' : 'a';
+        return button && y >= H ? 'b' : null;
+      },
       draw() {
-        box(0, Y, SW, SH - Y);
-        text('Say something:', 10, Y + 8);
-        const n = MP_TYPE_MAX - str.length + '';
-        text(n, SW - 10 - n.length * 6, Y + 8, 1, '#686878');
-        ctx.fillStyle = col.dark; ctx.fillRect(8, Y + 19, SW - 16, 15);
-        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(9, Y + 20, SW - 18, 13);
-        text(str, 12, Y + 23);
-        if ((tick >> 4) & 1) { ctx.fillStyle = col.dark; ctx.fillRect(12 + str.length * 6, Y + 22, 1, 9); }
-        keys.draw(Y + 42, 15);
-        text(buttonHints() ? 'A: pick  B: rub out  START: say it' : 'Type, then Enter   Esc: cancel', 10, SH - 14, 1, '#686878');
+        box(0, 0, SW, H);
+        text('Say something:', 10, 8);
+        const n = MP_TYPE_MAX - field.text.length + '';
+        text(n, SW - 10 - n.length * 6, 8, 1, '#686878');
+        ctx.fillStyle = col.dark; ctx.fillRect(8, 19, SW - 16, 15);
+        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(9, 20, SW - 18, 13);
+        // (with something over it, like a challenge coming in, it isn't taking typing)
+        if (top() === self) typeBox(field, { x: 8, y: 19, w: SW - 16, h: 15, tx: 12, adv: 6, cy: 22, ch: 9 });
+        text(field.text, 12, 23);
+        if (isTouch) text('Tap the box to type, then Send.  B: back', 10, 42, 1, '#686878');
+        else {
+          text(usingController ? 'Type, then press A' : 'Type, then press Enter', 10, 42, 1, '#686878');
+          BTNS.forEach(([x, label], i) => {
+            if (hover === i) pickBar(x, 38, 60, 15, col.dark); else pickRing(x, 38, 60, 15);
+            text(label, x + 30 - label.length * 3, 42, 1, hover === i ? col.light : col.dark);
+          });
+        }
       },
     };
     return self;
@@ -20990,17 +21061,22 @@
     return 2;
   }
   // ---------- walking with the mouse ----------
-  // Left click somewhere and you walk there, round whatever's in the way (somewhere you can't
-  // stand, and you go as near as you can get). Right click someone or something and you walk up
-  // to it, turn to face it and press A at it. Any key, or the stick, takes over at once. The way is
-  // worked out over the floor's tiles (walkMap) and then pulled straight wherever there's room for
-  // you (walkLine), so you don't zigzag. The stairs, the doors outside and the other bathroom are
-  // kept off it unless they're where you clicked, and the rink unless there's no other way. People
+  // It goes as in Diablo. Left click somewhere and you walk there, round whatever's in the way. Left
+  // click someone, or something you can't stand on (or the computer parts on the floor, or anywhere on
+  // a spruce), and you walk up to it, turn to face it and press A at it, from however far off. Hold
+  // the left button down and you keep going wherever the pointer is, onto the stairs and out of the
+  // doors too, as the keys would take you, and let go and you stop (worldHold). The right button is
+  // B, wherever it's clicked, so out in the snow it throws a snowball the way you face. A left click
+  // on yourself opens the Start menu, as Enter does. Any key, or the stick, takes over at once.
+  // The way is worked out over the floor's tiles (walkMap) and then pulled straight wherever there's
+  // room for you (walkLine), so you don't zigzag. The stairs, the doors outside and the other bathroom
+  // are kept off it unless they're where you clicked, and the rink unless there's no other way. People
   // move about, so if you're stuck for a moment it's worked out again round them, a few times, and
   // someone you're going to talk to is followed if they walk off.
   // walkTo: { floor, path: the spots to go through (tiles, the last one where you'll stop), mark: the
-  // tile clicked, use: { npc }, { other } or { tile: [x, y] } to press A at once you're there, or
-  // null, tries, still: updates you've been stuck for, at: where you were last update }
+  // tile clicked, use: { npc }, { other }, { tile: [x, y] } or { tile, tree: true } to press A at
+  // once you're there, or null, tries, still: updates you've been stuck for, at: where you were last
+  // update, direct: heading straight for the pointer, holding the button }
   let walkTo = null;
   let viewAt = null; // where the world was drawn last: { floor, cx, cy, z, vx, vy } (see drawWorld)
   const STEPS8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
@@ -21014,16 +21090,19 @@
   // Everywhere you can get to from where you are, and the way: from[k] is the tile you'd come from
   // (k = y * w + x, -1 where you start, -2 nowhere you can get to), and order the tiles nearest first.
   // end: a tile you can go onto though it's off the way (stairs, say: where you're going), but not
-  // past. avoid: tiles to keep off (somebody standing there). ice: whether the rink's all right.
+  // past. Going to the stairs, any of them will do, as most of a flight is behind its first step.
+  // avoid: tiles to keep off (somebody standing there). ice: whether the rink's all right.
   function walkMap(end, avoid, ice) {
     const f = MAPS.floors[P.floor], w = f.tiles[0].length, h = f.tiles.length, from = new Int32Array(w * h).fill(-2);
+    const isEnd = !end ? () => false : tileAt(P.floor, ...end) === 'S' ? (x, y) => tileAt(P.floor, x, y) === 'S'
+      : (x, y) => x === end[0] && y === end[1];
     const ok = (x, y) => x >= 0 && y >= 0 && x < w && y < h && !(avoid && avoid.has(y * w + x))
-      && (walkOK(x, y, ice) || (!!end && x === end[0] && y === end[1] && (walkable(P.floor, x, y) || !!sideDoorTo(P.floor, x, y))));
+      && (walkOK(x, y, ice) || (isEnd(x, y) && (walkable(P.floor, x, y) || !!sideDoorTo(P.floor, x, y))));
     const start = P.y * w + P.x, order = [start];
     from[start] = -1;
     for (let q = 0; q < order.length; q++) {
       const k = order[q], x = k % w, y = (k - x) / w;
-      if (q && end && x === end[0] && y === end[1]) continue;
+      if (q && isEnd(x, y)) continue;
       for (const [dx, dy] of STEPS8) {
         const nx = x + dx, ny = y + dy;
         if (!ok(nx, ny) || from[ny * w + nx] !== -2) continue;
@@ -21048,12 +21127,15 @@
     const o = mpHere().find((p) => p.id === who.other.id && p.f === P.floor);
     return o ? [o.px / 16, o.py / 16] : null;
   }
+  // (how near a spruce's trunk you can be and use it: up against its branches, as with A in tilesAhead)
+  const TREE_REACH = SPRUCE_R + 0.5;
   // Set off for tile [gx, gy], or to press A at `use`, keeping off `avoid`. Says whether you're going.
   function walkPlan(use, [gx, gy], avoid, tries = 0) {
     if (use && !use.tile) { const at = whereIs(use); if (!at) return false; gx = Math.round(at[0]); gy = Math.round(at[1]); }
     walkTo = null;
     // already near enough to talk to them, or right next to the thing: turn and press A
-    if (use && (use.tile ? Math.abs(gx - P.x) + Math.abs(gy - P.y) === 1 : Math.hypot(gx - P.fx, gy - P.fy) < 1.25)) {
+    if (use && (use.tree ? Math.hypot(gx - P.fx, gy - P.fy) < TREE_REACH
+      : use.tile ? Math.abs(gx - P.x) + Math.abs(gy - P.y) === 1 : Math.hypot(gx - P.fx, gy - P.fy) < 1.25)) {
       walkTo = { floor: P.floor, use }; walkArrive(); return true;
     }
     const end = use ? null : [gx, gy];
@@ -21066,8 +21148,9 @@
     let goal = pick();
     if (goal === undefined && !iceToo) { m = walkMap(end, avoid, true); goal = pick(); }
     if (goal === undefined) {
-      // nowhere next to it you can get to: as near as you can get, and no A at the end
-      use = null;
+      // nowhere next to it you can get to: as near as you can get, and no A at the end (except at a
+      // spruce, where that's up against its branches: nobody gets to its trunk)
+      if (!(use && use.tree)) use = null;
       let near = Infinity;
       for (const k of m.order) { const x = k % m.w, d = Math.hypot(x - gx, (k - x) / m.w - gy); if (d < near - 1e-6) { near = d; goal = k; } }
     }
@@ -21099,10 +21182,11 @@
     const ice = tileAt(P.floor, P.x, P.y) === '~';
     while (w.path.length > 1 && d < (ice ? 0.5 : 0.15)) { w.path.shift(); [tx, ty] = w.path[0]; dx = tx - P.fx; dy = ty - P.fy; d = Math.hypot(dx, dy); }
     if (w.path.length === 1 && d < (ice ? 0.4 : 0.08)) { walkArrive(); return none; }
-    // stuck (somebody's in the way): find a way round them, or after a few goes give up
+    // stuck (somebody's in the way): find a way round them, or after a few goes give up (but not
+    // holding the button, heading straight for the pointer: that pushes on, as the stick would)
     const moved = Math.hypot(P.fx - w.at[0], P.fy - w.at[1]);
     w.at = [P.fx, P.fy];
-    if (moved > 0.01) w.still = 0;
+    if (moved > 0.01 || w.direct) w.still = 0;
     else if (++w.still > 20) {
       const avoid = new Set(), cols = MAPS.floors[P.floor].tiles[0].length;
       for (const n of npcs.concat(dogs, critters)) if (n.floor === P.floor) { avoid.add(n.y * cols + n.x); if (n.moving) avoid.add((n.y + n.mdy) * cols + n.x + n.mdx); }
@@ -21124,6 +21208,7 @@
     if (!at) return;
     const dx = at[0] - P.fx, dy = at[1] - P.fy;
     if (!use.tile && Math.hypot(dx, dy) > 1.6) { if ((w.tries || 0) < 3) walkPlan(use, at.map(Math.round), null, (w.tries || 0) + 1); return; }
+    if (use.tree && Math.hypot(dx, dy) >= TREE_REACH) return;
     if (dx || dy) { P.face = Math.atan2(dx, dy); P.dir = wayOf(dx, dy); }
     if (use.npc) talkTo(use.npc);
     else if (use.other) mpTalk(use.other);
@@ -21140,25 +21225,133 @@
     }
     return best;
   }
-  // The mouse, walking round: a click starts you off (see above), and a click on yourself opens the
-  // Start menu, as Enter does. The pointer's a hand over you, and over somebody you can talk to.
-  function worldPoint(x, y, button) {
+  // What's under the pointer at x, y on the screen, walking round: { me: whether it's you, who: whoever's
+  // there (personAtPx), tree: the trunk of a spruce it's on, anywhere on the picture (see bigSpruce in
+  // js/lot.js), tile: the tile, kept on the map, wx, wy: the spot in the world, in pixels }, or null if
+  // the world hasn't been drawn here yet.
+  function mouseGoal(x, y) {
     const v = viewAt;
     if (!v || v.floor !== P.floor) return null;
-    const wx = x / v.z + v.vx + v.cx, wy = y / v.z + v.vy + v.cy, [mx, my] = mePx();
-    if (Math.hypot(wx - (mx + 8), (wy - (my + 4)) * 0.8) < 9) {
+    const wx = x / v.z + v.vx + v.cx, wy = y / v.z + v.vy + v.cy, [mx, my] = mePx(), f = MAPS.floors[P.floor];
+    const tile = [Math.max(0, Math.min(f.tiles[0].length - 1, Math.floor(wx / 16))), Math.max(0, Math.min(f.tiles.length - 1, Math.floor(wy / 16)))];
+    const tree = P.floor === YARD ? spruces.find(([tx, ty]) => Math.abs(wx - (tx * 16 + 8)) < 28 && wy < ty * 16 + 16 && wy > ty * 16 - 88) : null;
+    return { me: Math.hypot(wx - (mx + 8), (wy - (my + 4)) * 0.8) < 9, who: personAtPx(wx, wy), tree, tile, wx, wy };
+  }
+  // What a left click on g is to press A at, once you've walked up to it: whoever's there, a spruce, or
+  // something you can't stand on, or the computer parts lying on the floor. null for somewhere to walk
+  // to: the floor, the stairs, snow and all (a snow angel is the A button's), the doors outside (you go
+  // through), and the walls (WALLS: the pointer's often on one, holding the button to walk that way).
+  const WALLS = '# =';
+  function clickUse(g) {
+    if (g.who) return g.who;
+    if (g.tree) return { tile: g.tree, tree: true };
+    const [x, y] = g.tile, t = tileAt(P.floor, x, y);
+    if (sideDoorTo(P.floor, x, y) || WALLS.includes(t)) return null;
+    return !walkable(P.floor, x, y) || t === 'j' ? { tile: g.tile } : null;
+  }
+  // The mouse, walking round (see above). The pointer's a hand over you, and over somebody you can talk to.
+  function worldPoint(x, y, button) {
+    if (button === 'b') return 'b';
+    const g = mouseGoal(x, y);
+    if (!g) return null;
+    if (g.me) {
       if (button) { walkTo = null; P.vx = P.vy = 0; P.glide = false; openStartMenu(); }
       return !button;
     }
-    const who = personAtPx(wx, wy);
-    if (!button) return who;
-    const tile = [Math.floor(wx / 16), Math.floor(wy / 16)];
-    walkPlan(button === 'b' ? who || { tile } : null, tile);
+    if (!button) return g.who;
+    const use = clickUse(g);
+    walkPlan(use, (use && use.tile) || g.tile);
+    mouseHold = { t: 0, steer: false, x, y, use: !!use, mx: x, my: y, moved: -Infinity };
     return null;
   }
-  // corners round the tile you're walking to, or round whoever you're going to talk to (cx, cy: the view's corner in the world)
+  // Holding the left button down, walking round: once it's been down HOLD_T updates it's a hold and not a
+  // click, and you keep going wherever the pointer is (holdTo) until you let go and stop. Let go sooner
+  // and it was a click: you carry on to where you clicked. A press on somebody or something stays a
+  // click however long it's held, unless the pointer moves off it (HOLD_OFF, on the screen). Anything
+  // else coming up (somebody talking, a menu, the stairs) ends the hold, until the next click (holdSeen).
+  const HOLD_T = 15, HOLD_OFF = 8;
+  // mouseHold: { t: updates it's been held, steer: whether it's a hold yet, x, y: where on the screen it
+  // was pressed, use: whether that was on somebody or something, mx, my, moved: where the pointer was
+  // on the screen last, and when (t) it last moved, key: the tile it was over last, way: how you're
+  // getting there (see holdTo) }
+  let mouseHold = null;
+  let holdSeen = false;
+  function worldHold() {
+    holdSeen = true;
+    const h = mouseHold;
+    if (!h) return;
+    if (!mouse.held) { mouseHold = null; if (h.steer) walkTo = null; return; }
+    h.t++;
+    if (Math.hypot(mouse.x - h.mx, mouse.y - h.my) > 1) { h.mx = mouse.x; h.my = mouse.y; h.moved = h.t; }
+    if (h.t < HOLD_T || (!h.steer && h.use && Math.hypot(mouse.x - h.x, mouse.y - h.y) < HOLD_OFF)) return;
+    h.steer = true;
+    const g = mouseGoal(mouse.x, mouse.y);
+    if (!g) return;
+    if (g.me) { walkTo = null; return; }
+    holdTo(g, h);
+  }
+  // Holding the button, with the pointer at g: straight for it if nothing's in the way (so onto the
+  // stairs and out of the doors, as the keys go). Otherwise it depends on the mouse. Moving it about
+  // (in the last half a second: HOLD_AIM), you're pointing at somewhere, and you go round whatever's in
+  // the way to get there, as a click does. Keeping it still, you're pointing a way to go, and the spot
+  // under it moves on as the view follows you: you go round what's in the way only if that's not far
+  // out of the way (a desk, somebody standing there), or else straight on anyway, as pushing the stick
+  // that way would take you, sliding along whatever you come up against. (A long way round would chase
+  // that spot off through some other door.) The way round is walkPlan's, worked out again once the
+  // pointer's over another tile. Whoever or whatever's under the pointer, a hold only walks you.
+  // h.way: 'round' or 'push' for the tile the pointer's over (h.key), null going straight; a push is
+  // looked at again on each new tile you're on (h.here), in case there's a way round now.
+  const HOLD_AIM = 30;
+  function holdTo(g, h) {
+    const to = [g.wx / 16 - 0.5, g.wy / 16 - 0.5], key = g.tile.join(), here = P.x + ',' + P.y;
+    if (lineClear(to)) h.way = null;
+    else if (key !== h.key || !h.way || (h.way === 'push' && here !== h.here)) {
+      h.way = walkPlan(null, g.tile) && (h.t - h.moved < HOLD_AIM || shortWay(g.tile)) ? 'round' : 'push';
+    }
+    h.key = key; h.here = here;
+    if (h.way === 'round') return;
+    if (walkTo && walkTo.direct) { walkTo.path = [to]; walkTo.mark = g.tile; }
+    else walkTo = { floor: P.floor, path: [to], mark: g.tile, use: null, tries: 0, still: 0, at: [P.fx, P.fy], direct: true };
+  }
+  // whether walkTo, just worked out to `tile`, gets you there (or onto the same stairs) without going far
+  // out of your way: setting off toward it at all, and no more than two and a half times as far as it
+  // is in a straight line
+  function shortWay(tile) {
+    const p = walkTo && walkTo.path, end = p && p[p.length - 1];
+    if (!end || ((end[0] !== tile[0] || end[1] !== tile[1]) && !(tileAt(P.floor, ...end) === 'S' && tileAt(P.floor, ...tile) === 'S'))) return false;
+    if ((p[0][0] - P.fx) * (tile[0] - P.fx) + (p[0][1] - P.fy) * (tile[1] - P.fy) <= 0) return false;
+    let len = 0, at = [P.fx, P.fy];
+    for (const q of p) { len += Math.hypot(q[0] - at[0], q[1] - at[1]); at = q; }
+    return len <= Math.hypot(tile[0] - P.fx, tile[1] - P.fy) * 2.5 + 3;
+  }
+  // Whether you'd get straight from where you are to `to` (in tiles) with nothing and nobody in the way,
+  // or onto the stairs or into the doors outside on the way there, which take you through (onArrive,
+  // freeStep). The rink's in the way unless you're on it or it's where you're going, as for walkPlan.
+  function lineClear(to) {
+    const n = Math.max(1, Math.ceil(Math.hypot(to[0] - P.fx, to[1] - P.fy) / 0.1)), R = FREE_R + 0.02, known = new Map();
+    const ice = tileAt(P.floor, P.x, P.y) === '~' || tileAt(P.floor, Math.round(to[0]), Math.round(to[1])) === '~';
+    // (each tile your corners go over: true to go on, false in the way, 'out' a door outside)
+    const ok = (x, y) => {
+      const k = x + ',' + y;
+      if (!known.has(k)) {
+        known.set(k, sideDoorTo(P.floor, x, y) ? 'out' : (x === P.x && y === P.y)
+          || ((walkOK(x, y, ice) || tileAt(P.floor, x, y) === 'S') && !npcAt(P.floor, x, y)));
+      }
+      return known.get(k);
+    };
+    for (let i = 1; i <= n; i++) {
+      const x = P.fx + (to[0] - P.fx) * i / n, y = P.fy + (to[1] - P.fy) * i / n;
+      if (tileAt(P.floor, Math.round(x), Math.round(y)) === 'S') return true;
+      const at = [[x - R, y - R], [x + R, y - R], [x - R, y + R], [x + R, y + R]].map(([cx, cy]) => ok(Math.round(cx), Math.round(cy)));
+      if (at.includes('out')) return true;
+      if (!at.every(Boolean)) return false;
+    }
+    return true;
+  }
+  // corners round the tile you're walking to, or round whoever you're going to talk to (cx, cy: the view's
+  // corner in the world). Not while you're holding the button down: you're going where it points.
   function drawWalkMark(cx, cy) {
-    if (!walkTo || walkTo.floor !== P.floor || !walkTo.mark) return;
+    if (!walkTo || walkTo.floor !== P.floor || !walkTo.mark || (mouseHold && mouseHold.steer)) return;
     const at = walkTo.use && !walkTo.use.tile ? whereIs(walkTo.use) : walkTo.mark;
     if (!at) return;
     const x = realPx(at[0] * 16 + 8 - cx), y = realPx(at[1] * 16 + 8 - cy), r = 6 + ((tick >> 3) & 1);
@@ -21180,11 +21373,11 @@
     }
     // stopping to do something
     const act = pressed.has('start') ? openStartMenu : pressed.has('map') ? () => { sfx('menu'); ui.push(MapView()); } : pressed.has('a') ? interact : null;
-    if (act) { P.vx = P.vy = 0; P.glide = false; walkTo = null; act(); return; }
+    if (act) { P.vx = P.vy = 0; P.glide = false; walkTo = mouseHold = null; act(); return; }
     // B throws a snowball the way you're facing (snowTick lets it go)
     if (P.floor === YARD && pressed.has('b') && !P.throwing) P.throwing = { t: tick, a: P.face };
     let { x: ix, y: iy } = steer();
-    if (ix || iy) walkTo = null; // (a key, or the stick, takes over from the mouse)
+    if (ix || iy) walkTo = mouseHold = null; // (a key, or the stick, takes over from the mouse)
     else if (walkTo) ({ x: ix, y: iy } = walkStep());
     const push = Math.hypot(ix, iy);
     if (push > 1) { ix /= push; iy /= push; }
@@ -21249,7 +21442,7 @@
       if (pressed.has('a') || pressed.has('start')) {
         sfx('menu');
         if (!playerName) playerName = store.get('name') || '';
-        nameKeys.fit(playerName);
+        typeClose('name');
         mode = 'name';
       }
     } else if (mode === 'edit') {
@@ -21272,7 +21465,7 @@
     } else if (mode === 'play' && !fade && cupNews()) {
       // (the Christmas Cup's champion has just been told)
     } else {
-      if (mode === 'play') mouseTo(MODE_MOUSE.play);
+      if (mode === 'play') { mouseTo(MODE_MOUSE.play); worldHold(); }
       updatePlayer();
       updateNpcs();
       if (mode === 'play' && P.floor === YARD) snowTick();
@@ -21292,6 +21485,8 @@
     pressed.clear();
     if (!mouse.seen) { mouse.clicks.length = 0; mouse.moved = false; }
     mouse.seen = false; mouse.wheel = 0;
+    if (!holdSeen && mouseHold) { if (mouseHold.steer) walkTo = null; mouseHold = null; }
+    holdSeen = false;
     if (!touch.seen) touch.taps.length = 0;
     touch.seen = false; touch.wheel = 0;
     tapsUp(!!(ui.length && top().tap));
@@ -21674,7 +21869,7 @@
     else if (pressed.has('a')) editDone();
     if (pressed.has('start')) editDone();
     else if (pressed.has('b') && edit.back) { sfx('select'); startFade(editBack); }
-    else if (pressed.has('b')) { sfx('select'); nameKeys.fit(playerName); startFade(() => { mode = 'name'; }); }
+    else if (pressed.has('b')) { sfx('select'); typeClose('name'); startFade(() => { mode = 'name'; }); }
   }
   // The mouse: point at a part to pick it and click to change it (on the < it goes back one). RANDOM
   // and DONE are buttons, the wheel steps through the part you're on, and the right button is B.
@@ -22151,6 +22346,8 @@
   // ---------- layout ----------
   document.body.classList.toggle('touch', isTouch);
   function layout() {
+    // (not while a phone's keyboard is up: it can make the window shorter, and the screen would shrink to fit)
+    if (isTouch && document.activeElement === typeEl) return;
     const vw = innerWidth, vh = innerHeight, portrait = vh >= vw;
     document.body.classList.toggle('portrait', portrait);
     document.body.classList.toggle('landscape', !portrait);
@@ -22373,6 +22570,7 @@
       while (acc >= STEP) { if (!frozen) update(); acc -= STEP; }
       drawAlpha = acc / STEP;
       draw();
+      typeFrame();
     } catch (e) {
       acc = 0; // (or everything would run double time to catch up, afterwards)
       if (!frameBroke(e)) return;
