@@ -266,6 +266,24 @@ for (const m of CODE.matchAll(/\b(?:saveBest|boardNote)\(\s*'/g)) {
   if (!boardKeys.has(key) && !NO_BOARD[key]) say(`saveBest('${key}') has no leaderboard: add ${key} to BOARDS, or to NO_BOARD in tools/check_games.mjs with why not.`);
 }
 
+// The database's rules (in the README, to publish on the Firebase console's Rules tab) only take
+// a score for a board they name, so a board missing from them never gets one.
+{
+  const m = /```json\r?\n(\{\s*"rules"[\s\S]*?)\r?\n```/.exec(read('README.md'));
+  if (!m) throw new Error('can\'t find the database\'s rules (a ```json block that starts { "rules") in README.md');
+  const rule = JSON.parse(m[1]).rules?.scores?.$game?.$player?.['.validate'] || '';
+  const listed = /\$game\.matches\(\/\^\(([\w|]+)\)\$\/\)/.exec(rule);
+  if (!listed) throw new Error('can\'t find the list of boards ($game.matches) in the scores part of the database\'s rules in README.md');
+  const allowed = new Set(listed[1].split('|'));
+  for (const b of boards) {
+    // (a net board is kept as two, its won and its lost: see netNote)
+    const stored = /\bnet:\s*true\b/.test(CODE.slice(b.a, b.b)) ? [b.key + 'won', b.key + 'lost'] : [b.key];
+    for (const key of stored) {
+      if (!allowed.has(key)) say(`The database's rules in the README don't list the board ${key}, so the database would refuse its scores: add ${key} to the list in $game.matches in the scores part, then publish the rules again on the Firebase console's Rules tab.`);
+    }
+  }
+}
+
 // ---------- the tiles that start them ----------
 const TILE_LISTS = [
   ['GAMES', 'const GAMES = {', 'an indoor map', (f) => !f.outdoor],

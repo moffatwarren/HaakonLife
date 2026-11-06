@@ -109,7 +109,9 @@ with the reason.
    it. It returns `{ doing, music, update(), draw() }` and goes on the stack with `ui.push(WidgetGame())`.
    It closes with `remove(self)`.
 2. **The score:** call `saveBest('widget', score)` when it ends. Add `widget` to `BOARDS` and to a page
-   in `FAME_GROUPS`. A win-or-lose game with no board goes in `NO_BOARD` in the check.
+   in `FAME_GROUPS`. A win-or-lose game with no board goes in `NO_BOARD` in the check. A new board
+   also goes in the `$game.matches` list in the README's database rules, and the user has to publish
+   them on the Firebase console before the database takes its scores, so tell them.
 3. **What you're doing:** `doing: 'widget'` in the game, and a label in `MP_DOING`.
 4. **What starts it:** a tile in `GAMES` (in `useTile`), `PLANT_GAMES` or `YARD_GAMES`, a coworker in
    `OFFERS` (in `talkTo`), or a program in `PROGRAMS`. A new tile also goes on the map in

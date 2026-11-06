@@ -494,9 +494,9 @@ The scores live in a free Firebase Realtime Database. To set one up:
         ".read": true,
         ".indexOn": ["score"],
         "$player": {
-          ".write": "newData.exists() && (!data.exists() || newData.child('score').val() > data.child('score').val())",
-          ".validate": "$game.length <= 24 && $player.length <= 12 && newData.hasChildren(['name','score','t']) && newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 12 && newData.child('score').isNumber() && newData.child('score').val() >= -100000 && newData.child('score').val() <= 1000000 && newData.child('t').val() == now",
-          "name": { ".validate": true },
+          ".write": "newData.exists() && (!data.exists() || newData.child('score').val() > data.child('score').val()) && ($game !== 'humbug26' || (now >= 1795766400000 && now < 1798790400000))",
+          ".validate": "$game.matches(/^(ball|blackjack|bob|cable|candy|cards|cardwins|carrotpct|carve|catchrun|checkers|chess|chop|cocoa|coffee|coil|costume|cpr|damper|dance|dark|desk|engrave|eotm|fan|filter|forklift|forms|galaxy|ghosts|golf|hockey|humbug|humbug26|jam|laundry|legolines|legosolo|linda|lunch|mallow|mummy|paint|parts|poker|pokerlivelost|pokerlivewon|pong|pulldown|punch5|run|simon|slots|snake|snowball|snowman|spruce|squat|stack|toss|treat|trophy|wokdishes)$/) && $player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['name','score','t']) && newData.child('score').isNumber() && newData.child('score').val() >= -100000 && newData.child('score').val() <= 1000000 && newData.child('t').val() == now",
+          "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12 && newData.val().toLowerCase().replace(' ', '_').replace('.', '_').replace(\"'\", '_').replace('-', '_') === $player" },
           "score": { ".validate": true },
           "t": { ".validate": true },
           "$other": { ".validate": false }
@@ -505,11 +505,11 @@ The scores live in a free Firebase Realtime Database. To set one up:
     },
     "mp": {
       "$world": {
-        ".validate": "$world === 'live' || $world === 'test'",
+        ".validate": "$world === 'test'",
         "players": {
-          ".read": true,
+          ".read": "$world === 'test'",
           "$id": {
-            ".write": true,
+            ".write": "$world === 'test'",
             ".validate": "$id.length <= 16 && newData.hasChildren(['n','f','x','y','p','t']) && newData.child('t').val() == now",
             "n": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12" },
             "$other": { ".validate": "newData.isNumber() || newData.isBoolean() || (newData.isString() && newData.val().length <= 16)" }
@@ -517,8 +517,8 @@ The scores live in a free Firebase Realtime Database. To set one up:
         },
         "inbox": {
           "$id": {
-            ".read": true,
-            ".write": "$id.length <= 16",
+            ".read": "$world === 'test'",
+            ".write": "$world === 'test' && $id.length <= 16",
             "$msg": {
               ".validate": "newData.hasChildren(['k','from','t']) && newData.child('t').val() == now",
               "$other": { ".validate": "newData.isNumber() || newData.isBoolean() || (newData.isString() && newData.val().length <= 16)" }
@@ -533,8 +533,8 @@ The scores live in a free Firebase Realtime Database. To set one up:
         "$player": {
           ".read": true,
           ".write": "newData.exists()",
-          ".validate": "$player.length <= 12 && newData.hasChildren(['name','a','t']) && newData.child('t').val() == now",
-          "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12" },
+          ".validate": "$player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['name','a','t']) && newData.child('t').val() == now",
+          "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12 && newData.val().toLowerCase().replace(' ', '_').replace('.', '_').replace(\"'\", '_').replace('-', '_') === $player" },
           "a": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 16" },
           "t": { ".validate": true },
           "$other": { ".validate": false }
@@ -546,10 +546,10 @@ The scores live in a free Firebase Realtime Database. To set one up:
         ".validate": "$world === 'live' || $world === 'test'",
         "$player": {
           ".read": true,
-          ".validate": "$player.length <= 12",
+          ".validate": "$player.length <= 12 && $player.matches(/^[a-z0-9_]+$/)",
           "$item": {
             ".write": "!data.exists() && newData.val() === 1",
-            ".validate": "$item.length <= 16 && (newData.val() === 0 || newData.val() === 1)"
+            ".validate": "$item.length <= 16 && $item.matches(/^[A-Za-z0-9_]+$/) && (newData.val() === 0 || newData.val() === 1)"
           }
         }
       }
@@ -560,8 +560,8 @@ The scores live in a free Firebase Realtime Database. To set one up:
         "$player": {
           ".read": true,
           ".write": "newData.exists() && (!data.exists() || newData.child('at').val() > data.child('at').val())",
-          ".validate": "$player.length <= 12 && newData.hasChildren(['d','at'])",
-          "d": { ".validate": "newData.isString() && newData.val().length <= 500" },
+          ".validate": "$player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['d','at'])",
+          "d": { ".validate": "newData.isString() && newData.val().length <= 500 && newData.val().matches(/^[a-z0-9,]+$/)" },
           "at": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= now + 600000" },
           "$other": { ".validate": false }
         }
@@ -573,8 +573,8 @@ The scores live in a free Firebase Realtime Database. To set one up:
         ".validate": "$world === 'live' || $world === 'test'",
         "$player": {
           ".write": "newData.exists()",
-          ".validate": "$player.length <= 12 && newData.hasChildren(['name','s','t']) && newData.child('t').val() == now && newData.child('s').isNumber() && ((!data.exists() && newData.child('s').val() > 0 && newData.child('s').val() <= 600) || (data.exists() && newData.child('s').val() > data.child('s').val() && newData.child('s').val() <= data.child('s').val() + 600))",
-          "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12" },
+          ".validate": "$player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['name','s','t']) && newData.child('t').val() == now && newData.child('s').isNumber() && ((!data.exists() && newData.child('s').val() > 0 && newData.child('s').val() <= 600) || (data.exists() && newData.child('s').val() > data.child('s').val() && newData.child('s').val() <= data.child('s').val() + 600))",
+          "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12 && newData.val().toLowerCase().replace(' ', '_').replace('.', '_').replace(\"'\", '_').replace('-', '_') === $player" },
           "s": { ".validate": true },
           "t": { ".validate": true },
           "$other": { ".validate": false }
@@ -585,28 +585,40 @@ The scores live in a free Firebase Realtime Database. To set one up:
 }
 ```
 
-The `mp` part is for playing together (see below): where everyone is, and the messages
-players send each other. Without it the leaderboards still work, but nobody sees
-anybody else.
+The `mp` part was for playing together through the database (see "Playing together"). The game
+server does that now, so these rules shut the database's `live` world: nobody can read or write
+it. The `test` world stays open, so you can still try the old way out with `&mp=` (see
+**Testing**). If you ever empty `GAME_SERVER`, change each `$world === 'test'` in the `mp` part to
+`($world === 'live' || $world === 'test')` and publish them first, or nobody sees anybody else.
 
 With these rules anyone can read the boards and add or improve a row, but nobody can
-lower or delete one. The game runs in the browser, so a determined person could still
-send a made-up score or use somebody else's name. To remove a row (or wipe a whole
+lower or delete one. Each row has to be under the name it holds, squashed the way the game
+does it (`boardKey`: lower case, with each space, `.`, `'` and `-` made `_`). So "Warren" can only
+go under `warren`, nobody can add a second "Warren" under another key, and nothing a name
+can't have gets in. A score can only go to a board in the `$game.matches` list. Saved
+characters, special items, decks and play time work the same way: each one is under the
+name's own key, with nothing in it the game wouldn't send.
+
+If your rules were published before November 6 2026, publish these ones instead. The game works
+with either, but the old ones take anything under any key, and leave the `live` world of `mp`
+open to anybody. Then delete `mp/live` on the Data tab, since nothing uses it now.
+
+Nobody signs in, and the game runs in the browser, so a determined person could still send a
+made-up score or use somebody else's name. To remove a row (or wipe a whole
 board), delete it on the Data tab in the Firebase console: rows are under
 `scores`, then the game, then the name. The games where lowest wins (golf, Damir's
 lights, mummy wrap, Humbug Sweeper) are stored as negative numbers.
 
 The game stops sending scores to the Christmas Cup's board (`scores/humbug26`) after
-December 31 2026 by the device's date. To have the database hold it to the dates as well
-(so a phone with its clock set wrong can't add to it), change the `$player` rule's
-`.write` line to this (the times are midnight Pacific at the start of November 27 2026 and
-of January 1 2027):
+December 31 2026 by the device's date. The database holds it to the dates as well, so a phone
+with its clock set wrong can't add to it: that's the `$game !== 'humbug26'` part of the scores'
+`.write` line, and the times in it are midnight Pacific at the start of November 27 2026 and of
+January 1 2027.
 
-```
-".write": "newData.exists() && (!data.exists() || newData.child('score').val() > data.child('score').val()) && ($game !== 'humbug26' || (now >= 1795766400000 && now < 1798790400000))",
-```
-
-Which games have a board, and their titles, is the `BOARDS` list in `js/game.js`. The two
+Which games have a board, and their titles, is the `BOARDS` list in `js/game.js`. A new
+board also goes in the `$game.matches` list in the rules above, and then they need publishing
+again: until they are, the database refuses that board's scores. `tools/check_games.mjs` stops the
+site deploying if the list here is missing a board, but it can't see what's been published. The two
 quests and Pong are stored the same way, under `scores/linda`, `scores/eotm` and
 `scores/pong`, with the number of times as the score, so the rules above already cover them.
 So is Live Hold'em: its totals won and lost are two boards of their own,
@@ -1046,9 +1058,11 @@ someone with a newer version turns up, an older copy says so and the Start menu 
 in `js/game.js`. Copies on different numbers can't see each other at all, rather than
 seeing each other wrong, until the old ones reload.
 
-**Where it lives.** Each player is a small record under `mp/live/players` in the same
-Firebase database as the leaderboards, updated as they move (and every few seconds
-anyway). A player who hasn't been heard from for 12 seconds disappears, so a phone that
+**Where it lives.** Everyone meets through the game server (see **Game server** below). Without
+one, each player is a small record under `mp/live/players` in the same Firebase database as the
+leaderboards, updated as they move (and every few seconds anyway). The database's rules shut
+`mp/live` while the game server does the job, so only `mp/test` works there now (see
+"Leaderboards"). A player who hasn't been heard from for 12 seconds disappears, so a phone that
 goes to sleep vanishes and comes back when it wakes. Records left behind by closed tabs
 get tidied up after ten minutes. A copy opened from the folder or a local server uses
 `mp/test` instead, so testing never puts anyone in the real office. You can test with
@@ -1067,7 +1081,8 @@ their own copy side by side. The leaderboards stay in Firebase either way.
 
 `GAME_SERVER` near the top of the "other players" part of `js/game.js` says where the
 server is (for example `'wss://play.haakonlife.com'`). While it's empty, players meet
-through the database as described above. Players on the server and players on the
+through the database as described above, once the `mp` part of the database's rules lets
+them into `live` again (see "Leaderboards"). Players on the server and players on the
 database can't see each other, so change it when nobody's mid-game.
 
 **Running it on your computer.** It needs Node.js 20 or newer.

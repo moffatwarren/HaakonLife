@@ -4931,7 +4931,8 @@
   // ---------- play time ----------
   // How long each name has spent playing, kept in the database for you to look at (see "Play time"
   // in the README) as playtime/<world>/<name> = { name, s: the seconds all told, t: when it was last
-  // added to }. Nobody can read it but you, on the Firebase console's Data tab.
+  // added to }. Only you get PLAY TIME in the start menu, but the rules let anybody read it straight
+  // from the database, since that menu has to.
   //
   // Only time with the game in front of somebody counts. The tab has to be showing and its window
   // the one in use (on a phone, just showing), and somebody has to be there: the time since your
