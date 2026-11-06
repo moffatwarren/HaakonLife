@@ -57,6 +57,25 @@
   // too, so an address with one counts as a local copy, in every way: nothing it does gets
   // saved for real, and it's in the test world with no live players (see MP_WORLD).
   const BOARD_POSTS = /(^|\.)haakonlife\.com$/.test(location.hostname) && !location.hash;
+  // Names with a password (see "Names with a password" in the README): its letters, in lower case,
+  // and the password as passHash makes it, so the password itself isn't in the code. "Warren",
+  // "WARREN" and "War-ren" are all the same name here. Once it's been typed right in a browser, that
+  // browser remembers (pass.<name>) and doesn't ask again. A browser that has the name saved from
+  // before, but not the password, forgets the name, so it has to come through the name screen.
+  const LOCKED = {
+    warren: '9cfbdc7fa08244a389936137f36401b459d9297be841f7cf1bd39acea60c56da',
+  };
+  const lockName = (name) => String(name || '').toLowerCase().replace(/[^a-z]/g, '');
+  const unlocked = (name) => { const h = LOCKED[lockName(name)]; return !h || store.get('pass.' + lockName(name)) === h; };
+  if (!unlocked(store.get('name'))) store.set('name', '');
+  // A password scrambled for keeping (PBKDF2, salted with the name), as hex. It throws (rejects) in a
+  // browser that can't, which is only a page that isn't https.
+  function passHash(name, password) {
+    const enc = new TextEncoder();
+    return Promise.resolve().then(() => crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']))
+      .then((k) => crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode('haakonlife:' + lockName(name)), iterations: 300000 }, k, 256))
+      .then((bits) => [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join(''));
+  }
 
   // ---------- art ----------
   const GENDERS = ['male', 'female'];
@@ -716,6 +735,7 @@
   let dirStack = [];
   function press(k) {
     unlockAudio();
+    playStir(); // (somebody's there: see "play time")
     if (held[k]) return;
     held[k] = true;
     pressed.add(k);
@@ -3782,6 +3802,124 @@
     };
     return self;
   }
+
+  // ---------- play time ----------
+  // How long each name has spent playing, kept in the database for you to look at (see "Play time"
+  // in the README) as playtime/<world>/<name> = { name, s: the seconds all told, t: when it was last
+  // added to }. Nobody can read it but you, on the Firebase console's Data tab.
+  //
+  // Only time with the game in front of somebody counts. The tab has to be showing and its window
+  // the one in use (on a phone, just showing), and somebody has to be there: the time since your
+  // last press (a key, a button, a controller, a tap, the mouse moving) counts when you next press
+  // something, as long as that's under PLAY_IDLE. Any longer and it's dropped, so a game left open
+  // while you go for lunch adds nothing. What's counted waits in this browser until it's sent, every
+  // minute and as the page is put away, so time played offline goes when it's back. The database adds
+  // it to what's there (the increment), so a phone and a computer add up.
+  const PLAY_IDLE = 5 * 60 * 1000, PLAY_EVERY = 60 * 1000;
+  // the most one send can add (the database's rules refuse more); a bigger backlog goes in pieces
+  const PLAY_MOST = 600;
+  const PLAY_KEY = (BOARD_POSTS ? '' : 'test.') + 'playtime';
+  const PLAY_URL = BOARD_URL && !boardDemo ? BOARD_URL.replace(/\/+$/, '') + '/playtime/' + (BOARD_POSTS ? 'live' : 'test') + '/' : '';
+  // ms in front of somebody since their last press, ms counted but not yet a whole second, and the clock
+  let playSince = 0, playPart = 0, playAt = performance.now(), playWas = false, playSending = false, playLast = playAt;
+  const playInFront = () => document.visibilityState === 'visible' && (isTouch || document.hasFocus());
+  const playUnsent = () => Math.max(0, Math.floor(+store.get(PLAY_KEY) || 0));
+  // Somebody pressed something: the time since the last press was them playing, unless it was too long.
+  function playStir() {
+    if (playSince <= PLAY_IDLE) playPart += playSince;
+    playSince = 0;
+    const s = Math.floor(playPart / 1000);
+    if (s > 0) { playPart -= s * 1000; store.set(PLAY_KEY, String(playUnsent() + s)); }
+  }
+  // Every second: the clock runs while the game's in front (from the second second, so time spent
+  // away doesn't count), and every so often what's been counted goes to the database.
+  function playTick() {
+    const now = performance.now(), on = playInFront();
+    if (on && playWas) playSince = Math.min(playSince + Math.min(now - playAt, 5000), PLAY_IDLE + 1);
+    playAt = now; playWas = on;
+    // (more than one send's worth waiting: the rest goes soon after, not in another minute)
+    if (now - playLast >= (playUnsent() > PLAY_MOST ? 5000 : PLAY_EVERY)) playSend(false);
+  }
+  // Send what's waiting under the name you're playing as. With leaving, it's sent even if the page
+  // closes (keepalive). It only comes off what's waiting once the database has it.
+  function playSend(leaving) {
+    if (!PLAY_URL || playSending || mode === 'name') return; // (not while the name is being typed)
+    playLast = performance.now();
+    const name = playerName || store.get('name') || '', s = Math.min(playUnsent(), PLAY_MOST);
+    if (!s || !name || name === 'New Hire') return;
+    playSending = true;
+    const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 10000);
+    fetch(PLAY_URL + boardKey(name) + '.json', {
+      method: 'PATCH', keepalive: leaving, signal: ac.signal,
+      body: JSON.stringify({ name, s: { '.sv': { increment: s } }, t: { '.sv': 'timestamp' } }),
+    }).then((r) => { if (r.ok) store.set(PLAY_KEY, String(Math.max(0, playUnsent() - s))); })
+      .catch(() => {}) // (it waits for next time)
+      .finally(() => { clearTimeout(timer); playSending = false; });
+  }
+  // The names that get PLAY TIME in the start menu (only with their password: see LOCKED)
+  const PLAY_TIME_FOR = ['warren'];
+  const seesPlayTime = () => PLAY_TIME_FOR.includes(lockName(playerName)) && unlocked(playerName);
+  // 3h 05m, 12m, 40s
+  const playFmt = (s) => (s < 60 ? s + 's' : s < 3600 ? Math.floor(s / 60) + 'm'
+    : Math.floor(s / 3600) + 'h ' + String(Math.floor((s % 3600) / 60)).padStart(2, '0') + 'm');
+  // Everybody's play time, A to Z, with when they last played. (The test page makes some up.)
+  function PlayTimeList() {
+    let rows = null, failed = false, scroll = 0, t = 0;
+    const SHOWN = 11, rep = heldRepeat();
+    const got = boardDemo ? Promise.resolve(Object.fromEntries(DEMO_NAMES.map((n, i) => [boardKey(n), { name: n, s: 400 + ((i * 7919) % 23) * 1777, t: Date.now() - i * 5400000 }])))
+      : PLAY_URL ? fetch(PLAY_URL.replace(/\/$/, '') + '.json').then((r) => (r.ok ? r.json() : Promise.reject(new Error('play time ' + r.status))))
+      : Promise.reject(new Error('no database'));
+    got.then((all) => {
+      rows = Object.entries(all || {}).filter(([, r]) => r && typeof r.s === 'number' && r.s > 0)
+        .map(([id, r]) => ({ name: String(typeof r.name === 'string' ? r.name : id).slice(0, NAME_MAX), s: Math.floor(r.s), t: +r.t || 0 }))
+        .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+    }, () => { failed = true; });
+    const room = () => (rows ? Math.max(0, rows.length - SHOWN) : 0);
+    const right = (str, x, y, c) => text(str, x - str.length * 6, y, 1, c);
+    const self = {
+      update() {
+        t++;
+        if (pressed.has('b') || (pressed.has('a') && t > 10)) { sfx('menu'); remove(self); return; }
+        const d = rep();
+        if (d === 'up' || d === 'down') {
+          const s = Math.max(0, Math.min(room(), scroll + (d === 'up' ? -1 : 1)));
+          if (s !== scroll) { scroll = s; sfx('select'); }
+        }
+      },
+      // (a click closes it, as A does, and the wheel scrolls)
+      point: anyClick,
+      wheel(d) { pressed.add(d > 0 ? 'down' : 'up'); },
+      draw() {
+        box(0, 0, SW, SH);
+        text('PLAY TIME', (SW - 9 * 12) >> 1, 8, 2, col.dark);
+        ctext('Everyone, A to Z', 28, '#686878');
+        ctx.fillStyle = col.dark; ctx.fillRect(14, 39, SW - 28, 1);
+        if (failed) { ctext('Couldn\'t read play time.', 100); ctext('Check the database\'s playtime rules', 116, '#686878'); ctext('(see "Play time" in the README).', 128, '#686878'); }
+        else if (!rows) ctext('Loading...', 110);
+        else if (!rows.length) ctext('Nobody has any play time yet.', 110);
+        else {
+          right('PLAYED', 216, 44, '#686878'); right('LAST', SW - 18, 44, '#686878');
+          rows.slice(scroll, scroll + SHOWN).forEach((r, i) => {
+            const y = 56 + i * 12;
+            text(r.name, 20, y);
+            right(playFmt(r.s), 216, y);
+            right(r.t ? ago(r.t) : '', SW - 18, y, '#686878');
+          });
+          if (scroll) text('^', SW - 12, 56, 1, '#686878');
+          if (scroll < room()) text('v', SW - 12, 56 + (SHOWN - 1) * 12, 1, '#686878');
+          ctx.fillStyle = col.mid; ctx.fillRect(14, 190, SW - 28, 1);
+          ctext(rows.length + (rows.length === 1 ? ' name, ' : ' names, ') + playFmt(rows.reduce((n, r) => n + r.s, 0)) + ' in all', 196);
+        }
+        ctext(room() ? 'Up/down: scroll   Esc: close' : 'Esc: close', SH - 16, '#686878');
+      },
+    };
+    return self;
+  }
+  // (press() stirs it too, for the on-screen buttons and a controller)
+  for (const ev of ['keydown', 'pointerdown', 'pointermove', 'wheel']) addEventListener(ev, playStir, { capture: true, passive: true });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') playSend(true); });
+  addEventListener('pagehide', () => playSend(true));
+  setInterval(() => { try { playTick(); } catch (e) { console.error(e); } }, 1000);
 
   // ---------- the Hall of Fame: every board at once, on the wall in reception ----------
   // Each board's top ten earn points towards Office Champion (10 for 1st down to 1 for
@@ -14546,6 +14684,9 @@
       .concat(kikiList ? [['KIKI\'S LIST', () => ui.push(KikiList())]] : [])
       .concat([
         ['MY CARDS', () => openMyCards()],
+      ])
+      .concat(seesPlayTime() ? [['PLAY TIME', () => ui.push(PlayTimeList())]] : [])
+      .concat([
         ['EDIT CHARACTER', (self) => { remove(self); editAgain(); }],
         [ZOOMS[zoomPick][0], (self) => { zoomPick = (zoomPick + 1) % ZOOMS.length; store.set('zoom', zoomPick); self.options = items().map((o) => o[0]); sfx('select'); }],
         [soundOn ? 'SOUND ON' : 'SOUND OFF', (self) => { soundOn = !soundOn; store.set('sound', soundOn ? 'on' : 'off'); self.options = items().map((o) => o[0]); sfx('select'); }],
@@ -15089,15 +15230,63 @@
 
   // ---------- your name, for the picture ----------
   const NAME_MAX = 12;
-  const nameKeys = Keyboard(['qwertyuiop', 'asdfghjkl\'', 'zxcvbnm-.', ['SHIFT', 'SPACE', 'DEL', 'OK']],
-    { x0: 46, pitch: 24, stagger: [0, 8, 20], eachWord: true });
+  const NAME_ROWS = ['qwertyuiop', 'asdfghjkl\'', 'zxcvbnm-.', ['SHIFT', 'SPACE', 'DEL', 'OK']];
+  const nameKeys = Keyboard(NAME_ROWS, { x0: 46, pitch: 24, stagger: [0, 8, 20], eachWord: true });
   // Bob owns the company, so nobody else gets to be Bob (or BOB, or B.o.b, or B0B).
   const isBob = (name) => name.toLowerCase().replace(/0/g, 'o').replace(/[^a-z]/g, '') === 'bob';
   let bobNote = 0; // ticks the "only ONE true Bob" message has been up; 0 when it isn't
+  // A name with a password (LOCKED) that this browser doesn't know yet: OK asks for it, with the same
+  // keys as the name. pass is null, or what's been typed (text), whether it's being checked, and a
+  // message that's up (note: 'wrong', or 'cant' where passwords can't be checked) and for how long.
+  const PASS_MAX = 16;
+  const passKeys = Keyboard(NAME_ROWS, { x0: 46, pitch: 24, stagger: [0, 8, 20] });
+  let pass = null;
+  function passStart() {
+    pass = { text: '', checking: false, note: null, t: 0 };
+    passKeys.r = passKeys.c = 0; passKeys.shift = false;
+    sfx('menu');
+  }
+  function passType(tok) {
+    if (tok === 'OK') { passDone(); return; }
+    if (tok === 'DEL') {
+      // (with nothing typed, back to the name)
+      if (!pass.text) { pass = null; nameKeys.fit(playerName); } else pass.text = pass.text.slice(0, -1);
+      sfx('select');
+      return;
+    }
+    if (pass.text.length >= PASS_MAX) { if (tok !== 'SHIFT') sfx('bump'); else passKeys.char(tok); return; }
+    const ch = passKeys.char(tok);
+    if (ch) { pass.text += ch; sfx('blip'); }
+  }
+  function passDone() {
+    if (pass.checking) return;
+    const tried = pass, want = LOCKED[lockName(playerName)];
+    tried.checking = true;
+    passHash(playerName, tried.text).then((h) => (h === want ? 'right' : 'wrong'), () => 'cant').then((how) => {
+      if (pass !== tried) return;
+      tried.checking = false;
+      if (how === 'right') { store.set('pass.' + lockName(playerName), want); pass = null; nameDone(); return; }
+      tried.text = ''; tried.note = how; tried.t = 0;
+      sfx('buzz');
+    });
+  }
+  function passKey(e) {
+    if (pass.note) { if (!e.repeat && pass.t > 20) { pass.note = null; sfx('select'); } return true; }
+    if (pass.checking) return true;
+    if (e.code === 'Escape') { if (!e.repeat) { pass = null; nameKeys.fit(playerName); sfx('select'); } return true; }
+    if (e.code === 'Enter') { if (!e.repeat) passDone(); return true; }
+    if (e.code === 'Backspace') { passType('DEL'); return true; }
+    if (e.key && e.key.length === 1 && /[A-Za-z0-9 .'\-]/.test(e.key)) {
+      if (pass.text.length < PASS_MAX) { pass.text += e.key; sfx('blip'); } else sfx('bump');
+      return true;
+    }
+    return false;
+  }
   function nameDone() {
-    if (fade) return;
+    if (fade || pass) return;
     if (isBob(playerName)) { playerName = ''; bobNote = 1; sfx('buzz'); return; }
     playerName = playerName.trim() || 'New Hire';
+    if (!unlocked(playerName)) { passStart(); return; }
     store.set('name', playerName);
     sfx('menu');
     editStart();
@@ -15111,6 +15300,7 @@
     if (CHRISTMAS) questQueue.push('Happy holidays from Haakon! The office is all decked out, and somebody has flooded a rink in the parking lot. Head out through the fitness room\'s side doors.');
   }
   function nameType(tok) {
+    if (pass) { passType(tok); return; }
     if (tok === 'OK') { nameDone(); return; }
     if (tok === 'DEL') { playerName = playerName.slice(0, -1); nameKeys.fit(playerName); sfx('select'); return; }
     if (playerName.length >= NAME_MAX) { if (tok !== 'SHIFT') sfx('bump'); else nameKeys.char(tok); return; }
@@ -15119,6 +15309,7 @@
   }
   // physical keyboard: type straight into the name
   function nameKey(e) {
+    if (pass) return passKey(e);
     if (bobNote) { if (!e.repeat && bobNote > 20) { bobNote = 0; sfx('select'); } return true; }
     if (e.code === 'Enter') { if (!e.repeat) nameDone(); return true; }
     if (e.code === 'Backspace') { nameType('DEL'); return true; }
@@ -15132,11 +15323,23 @@
   }
   // the mouse: click a letter to type it (or OK when you're done), and the right button rubs one out
   function namePoint(x, y, button) {
-    if (bobNote) return button; // (any click, as any key, puts the Bob message away)
+    if (bobNote || (pass && pass.note)) return button; // (any click, as any key, puts the message away)
     if (button === 'b') return 'b';
-    return nameKeys.at(x, y, 102, 18) ? 'a' : null;
+    return (pass ? passKeys : nameKeys).at(x, y, 102, 18) ? 'a' : null;
   }
   function updateName() {
+    if (pass) {
+      if (pass.note) {
+        if (++pass.t > 20 && (pressed.has('a') || pressed.has('b') || pressed.has('start'))) { pass.note = null; sfx('select'); }
+        return;
+      }
+      if (pass.checking) return;
+      passKeys.move();
+      if (pressed.has('a')) passType(passKeys.token());
+      if (pressed.has('b')) passType('DEL');
+      if (pressed.has('start')) passDone();
+      return;
+    }
     if (bobNote) {
       if (++bobNote > 20 && (pressed.has('a') || pressed.has('b') || pressed.has('start'))) { bobNote = 0; sfx('select'); }
       return;
@@ -15148,17 +15351,35 @@
   }
   function drawName() {
     menuFrame();
-    const title = 'What\'s your name?';
+    const title = pass ? 'Password, please' : 'What\'s your name?';
     text(title, (SW - title.length * 12) >> 1, 18, 2);
     floorShadow(48, 88, 12, 2.5);
     ctx.drawImage(sprites.down[[1, 0, 2, 0][(tick >> 3) & 3]], 24, 42, 48, 48);
-    // the name field
+    // the name field (or the password, a dot a letter)
     roundBox(84, 52, 206, 28, 3.5, col.dark); roundBox(85.5, 53.5, 203, 25, 2.5, '#f8f8f8');
     fine(87, 53.5, 200, 0.5, '#c8ccd8'); fine(85.5, 55, 0.5, 22, '#d8dce4');
-    text(playerName, 92, 58, 2);
-    if ((tick >> 4) & 1) { ctx.fillStyle = col.dark; ctx.fillRect(92 + playerName.length * 12, 58, 2, 16); }
+    const typed = pass ? pass.text.length : playerName.length;
+    if (pass && pass.checking) text('Checking...', 92, 62, 1, '#686878');
+    else {
+      if (pass) for (let i = 0; i < typed; i++) fineDisc(97 + i * 12, 66, 3.5, col.dark);
+      else text(playerName, 92, 58, 2);
+      if ((tick >> 4) & 1) { ctx.fillStyle = col.dark; ctx.fillRect(92 + typed * 12, 58, 2, 16); }
+    }
     // letters to pick with the arrows (for touch screens)
-    nameKeys.draw(102, 18);
+    (pass ? passKeys : nameKeys).draw(102, 18);
+    if (pass) {
+      const lines = buttonHints() ? ['Pick letters, then OK (or START).', 'B with nothing typed goes back.']
+        : ['Type the password, then press Enter', '(Esc to change your name)'];
+      lines.forEach((line, i) => text(line, (SW - line.length * 6) >> 1, SH - 34 + i * 12));
+      if (pass.note) {
+        box(20, 78, SW - 40, 84);
+        const say = pass.note === 'wrong' ? ['That isn\'t the password', 'for ' + playerName + '.', '', 'Try again, or pick another name.']
+          : ['This page can\'t check passwords.', 'Try https://haakonlife.com', '', 'or pick another name.'];
+        say.forEach((line, i) => text(line, (SW - line.length * 6) >> 1, 92 + i * 12));
+        if (pass.t > 20 && (tick >> 4) & 1) text(buttonHints() ? 'Press A' : 'Press any key', (SW - (buttonHints() ? 7 : 13) * 6) >> 1, 144);
+      }
+      return;
+    }
     if (buttonHints()) {
       text('Pick letters with the D-pad + A,', (SW - 32 * 6) >> 1, SH - 34);
       text('then choose OK (or press START)', (SW - 31 * 6) >> 1, SH - 22);
@@ -21898,7 +22119,7 @@
       chop: ChopGame, mallow: MallowGame, spruce: SpruceGame, snowman: SnowmanGame, cocoa: CocoaGame, snowball: SnowballGame, humbug: HumbugGame,
       catch: () => CatchGame(testDog), dogs: () => DogBoard(testDog),
       computer: () => ComputerScreen('sdg'), sdg: SdgApp, elevator: () => ElevatorGame(npcs[0], 0, 2, () => {}),
-      fame: HallOfFame, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo || !BOARD_POSTS ? +q.get('score') || 0 : 0 }) }[q.get('game')];
+      fame: HallOfFame, playtime: PlayTimeList, board: () => Leaderboard({ key: BOARDS[q.get('key')] ? q.get('key') : 'snake', score: boardDemo || !BOARD_POSTS ? +q.get('score') || 0 : 0 }) }[q.get('game')];
     // &vs=1 plays a head-to-head game (a VERSUS key: duel, jar, lego, dance, coffee, run,
     // snake, simon, golf) against "Echo", a stand-in who sends you back everything you send, a
     // second later
@@ -22018,5 +22239,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo, npcs, critters, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get cards() { return cardsNow; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, cardWhere, get myCards() { return [...cardsMine()]; } };
+  window.GAME = { P, MAPS, warpTo, npcs, critters, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get cards() { return cardsNow; }, get playtime() { return { unsent: playUnsent(), since: playSince, part: playPart }; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, cardWhere, get myCards() { return [...cardsMine()]; } };
 })();

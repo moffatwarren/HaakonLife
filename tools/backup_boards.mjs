@@ -3,7 +3,7 @@
 //   node tools/backup_boards.mjs [folder]     (default: backup/)
 //
 // That's every board's scores, plus the saved character and special items of every name on
-// any board. .github/workflows/backup-data.yml runs this every night. It only reads, using
+// any board, and everybody's play time. .github/workflows/backup-data.yml runs this every night. It only reads, using
 // the same public access as the game, so it needs no password. The rules only let anyone read
 // one board or one name at a time, so the boards come from BOARDS in js/game.js and the
 // names from the boards: somebody who has a saved character but has never posted a score
@@ -34,10 +34,12 @@ function boards() {
 }
 
 let failures = 0;
-async function read(path) {
+// (with optional, a place the rules don't let anybody read is left out with a note, not a failure)
+async function read(path, optional) {
   for (let i = 1; ; i++) {
     try {
       const r = await fetch(BOARD_URL + '/' + path + '.json', { signal: AbortSignal.timeout(20000) });
+      if (r.status === 401 && optional) { console.log('left out ' + path + ': the rules don\'t let it be read'); return undefined; }
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return await r.json();
     } catch (e) {
@@ -66,6 +68,8 @@ const scores = await readAll(keys, (k) => 'scores/' + k);
 const names = [...new Set(Object.values(scores).flatMap((rows) => Object.keys(rows)))].sort();
 const looks = await readAll(names, (n) => 'looks/live/' + n);
 const items = await readAll(names, (n) => 'items/live/' + n);
+// everybody's play time, in one go (left out until the rules have its .read: see "Play time" in the README)
+const playtime = await read('playtime/live', true);
 
 if (failures) { console.error(failures + ' reads failed, so no backup was written'); process.exit(1); }
 const rows = Object.values(scores).reduce((sum, b) => sum + Object.keys(b).length, 0);
@@ -74,5 +78,5 @@ if (!rows) { console.error('every board came back empty, so no backup was writte
 const folder = process.argv[2] || join(HERE, '../backup');
 const day = new Date().toISOString().slice(0, 10), file = join(folder, 'haakonlife-data-' + day + '.json');
 mkdirSync(folder, { recursive: true });
-writeFileSync(file, JSON.stringify({ scores, looks: { live: looks }, items: { live: items } }, null, 1) + '\n');
-console.log(`${file}: ${keys.length} boards checked, ${Object.keys(scores).length} with scores, ${rows} rows, ${names.length} names, ${Object.keys(looks).length} characters, ${Object.keys(items).length} with items`);
+writeFileSync(file, JSON.stringify({ scores, looks: { live: looks }, items: { live: items }, playtime: playtime ? { live: playtime } : undefined }, null, 1) + '\n');
+console.log(`${file}: ${keys.length} boards checked, ${Object.keys(scores).length} with scores, ${rows} rows, ${names.length} names, ${Object.keys(looks).length} characters, ${Object.keys(items).length} with items, ${playtime ? Object.keys(playtime).length : 0} with play time`);

@@ -460,6 +460,20 @@ The scores live in a free Firebase Realtime Database. To set one up:
           "$other": { ".validate": false }
         }
       }
+    },
+    "playtime": {
+      "$world": {
+        ".read": true,
+        ".validate": "$world === 'live' || $world === 'test'",
+        "$player": {
+          ".write": "newData.exists()",
+          ".validate": "$player.length <= 12 && newData.hasChildren(['name','s','t']) && newData.child('t').val() == now && newData.child('s').isNumber() && ((!data.exists() && newData.child('s').val() > 0 && newData.child('s').val() <= 600) || (data.exists() && newData.child('s').val() > data.child('s').val() && newData.child('s').val() <= data.child('s').val() + 600))",
+          "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12" },
+          "s": { ".validate": true },
+          "t": { ".validate": true },
+          "$other": { ".validate": false }
+        }
+      }
     }
   }
 }
@@ -506,7 +520,8 @@ can't read everything it fails rather than saving part of it, and GitHub emails 
 It has every board's scores, and the saved character and special items of every name on a
 board. The database's rules don't let anybody list all the names, so somebody with a saved
 character who has never posted a score isn't in it. Card decks aren't in it: anybody who lost
-theirs would play the best one their cards can make until they built another. It's nothing the game doesn't already show
+theirs would play the best one their cards can make until they built another. It does have everybody's
+play time (see "Play time"), once the rules let it be read; until then it's left out, with a note. It's nothing the game doesn't already show
 or fetch, but the repository is public, so any GitHub user can download these files.
 
 To put something back, go to the Data tab in the Firebase console and pick the place to restore
@@ -533,6 +548,35 @@ your name and change your character. To reset one, delete its row on the Data ta
 If the database's rules were set up before the character editor, replace them with the
 ones above and press Publish again. Until then the game can't find or save characters
 there, and just remembers yours in the browser.
+
+### Names with a password
+
+A name can have a password, so nobody else can come in under it. Warren has one. Pick that name on
+the name screen, and OK asks for the password before you go any further. It's typed with the same
+letters as the name (or on a keyboard), shown as dots, and it matters whether letters are capitals.
+DEL with nothing typed (or Esc) goes back to change the name. It goes by the name's letters, so
+"Warren", "WARREN" and "War-ren" all need it.
+
+Once it's been typed right in a browser, that browser remembers and doesn't ask again. A browser
+that had the name saved from before, but has never had the password, forgets the name as the page
+loads, so its next visit comes through the name screen. Testing shortcuts with `&name=` don't ask
+(they're in the `test` world and save nothing for real).
+
+The passwords are `LOCKED` near the top of `js/game.js`, under each name's letters in lower case.
+What's kept there is the password scrambled (`passHash`: PBKDF2 with SHA-256, 300,000 rounds, salted
+with `haakonlife:` and the name), since the code is public. To set or change one, run this with the
+name's letters and the new password, and put what it prints in `LOCKED`:
+
+```
+node -e "console.log(require('crypto').pbkdf2Sync(process.argv[2], 'haakonlife:' + process.argv[1], 300000, 32, 'sha256').toString('hex'))" warren 'the password'
+```
+
+Every browser that remembered the old one asks for the new one. Use something that isn't easy to
+guess: anybody can read the scrambled one in the code and try passwords against it on their own
+computer. For a phone, keep it to letters, spaces, `'`, `-` and `.`, the keys on the name screen.
+
+It only keeps people off the name in the game. Somebody who knows how could still write to that
+name's rows in the database themselves, as they could to anybody's (see "Leaderboards").
 
 ### Special items
 
@@ -686,6 +730,52 @@ back.
 
 If the database's rules were set up before decks were saved, add the `decks` part above and press
 Publish again. Until then each browser keeps its own deck.
+
+### Play time
+
+The `playtime` part of the rules keeps how long each name has spent playing, under `playtime/live`
+(from haakonlife.com) or `playtime/test` (from any other copy), then the name, keyed the same way as
+its scores:
+
+```
+playtime/live/warren: { name: "Warren", s: 45296, t: 1793925224727 }
+```
+
+`s` is the seconds played all told (45296 is 12 hours, 34 minutes and 56 seconds), and `t` is when
+it was last added to, in milliseconds. The same name on a phone and a computer adds up to one total.
+Players aren't told about it in the game.
+
+Warren sees it all in the game: Warren's start menu has **PLAY TIME** (`PLAY_TIME_FOR` in `js/game.js`,
+which only counts once Warren's password has been typed in that browser: see "Names with a password"). It
+lists every name A to Z, with how long they've played and when they last did, and the total for
+everyone underneath. Up and down scroll, and B, A or a click closes it. To do that the game has to be
+able to read the whole list, so the rules let anybody read `playtime` (the `.read` under `$world`).
+Only Warren gets the menu, but somebody who knew how could read everybody's play time straight from
+the database, the way they can read the scores.
+
+Only time spent playing counts:
+
+- **The game has to be in front of you.** The tab has to be showing and its window the one in use,
+  so a tab in the background, a minimized window, or a window on a second screen while you work in
+  something else adds nothing. On a phone, it just has to be on the screen.
+- **Somebody has to be there.** The time since your last press (a key, an on-screen button, a
+  controller, the mouse moving or clicking) counts when you next press something, as long as it's
+  under 5 minutes. Any longer and that time is dropped, so a game left open while you go for lunch
+  adds nothing. So does a long stretch of only watching, like somebody else's hockey game.
+
+The browser keeps what it's counted until it gets through to the database. It sends it every minute
+and as the page is put away, so time played with no connection goes the next time there is one. Time
+before you've typed a name goes to the name you pick, and while you're "New Hire" it waits for one. It
+all happens in `js/game.js` under "play time" (`PLAY_IDLE` is the 5 minutes).
+
+Like the scores, a determined person could send time they didn't play: the rules only stop any one
+send adding more than 10 minutes. Delete a row on the Data tab to start a name again from nothing.
+The nightly backup has it (see "Backups").
+
+If the database's rules were set up before play time was kept, add the `playtime` part above and
+press Publish again (and if they have it without the `.read` line, add that, or PLAY TIME says it
+can't read it). Until then each browser keeps adding up its own time, and sends it all, 10
+minutes at a time, once the rules are there.
 
 ## Playing together
 
@@ -1689,7 +1779,8 @@ whoever is there leave through the portal in 120 ticks (2 seconds).
 `game=board&key=snake` opens that game's leaderboard without sending anything (`key=pokerlive`
 is the live poker table's), and
 `game=fame` opens the Hall of Fame (in `tools/test.html` it's filled with made-up rows,
-with `&name=Sam` among them on some boards).
+with `&name=Sam` among them on some boards). `game=playtime` opens Warren's PLAY TIME list (made up
+too in `tools/test.html`; anywhere else it reads `playtime/test`).
 
 To try a head-to-head game on your own, add `&vs=1` with `game=duel`, `jar`, `lego`,
 `dance`, `coffee`, `run`, `snake`, `simon` or `golf`. It plays against "Echo", a stand-in who
