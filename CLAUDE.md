@@ -73,15 +73,21 @@ in a browser (see "Testing in a browser").
   somewhere, or to go up to someone or something from afar and use it, hold it to keep going where it
   points, onto the stairs and out of the doors too, right click is B), and every menu and screen outside the mini-games (`point` on a
   layer, or `MODE_MOUSE`: see "the mouse" in `js/game.js`). Mini-games keep to the keys, their own
-  menus too, except Morale Madness and the office computers' desktop and SDG. Don't add the mouse to
+  menus too, except Morale Madness, the office computers' desktop and SDG, chess and checkers
+  (`tableGame`), and poker (`PokerApp`, `LivePoker`), which the user asked for. Don't add the mouse to
   another mini-game unless asked: the user took it out of Humbug Sweeper as unfair, since it's a race
   on a leaderboard and phone players only have a D-pad. The user has turned down camera rotation. A
   new menu or screen outside a mini-game needs a `point` (see `anyClick` for one that just waits for
   a press), or the mouse stops working there.
-- **Taps:** on a phone, only Morale Madness and MY CARDS take taps (`tap` on a layer: see "touch" in
-  `js/game.js`), and the box you type in, which brings up the phone's keyboard. A tap picks something, and a tap on what's already picked does it, however it was
-  picked (END TURN and aiming take one tap). The user asked for "nothing else",
+- **Taps:** on a phone, only Morale Madness, MY CARDS, chess, checkers and poker take taps (`tap` on a
+  layer: see "touch" in `js/game.js`; a menu over one takes them with `taps` in `Choice`), and the box
+  you type in, which brings up the phone's keyboard. A tap picks something, and a tap on what's already picked does it, however it was
+  picked (END TURN and aiming take one tap, and so does picking up a chess or checkers piece, which
+  only shows where it can go). The user asked for "nothing else" beyond those,
   so don't add taps anywhere else unless asked. A tap never reaches `point`, so the mouse stays as it is.
+- **Chat at a live game:** START types a line to the others in a live game of chess, checkers or
+  poker (`GameChat` in `js/game.js`). A game that wants it has `chat`, calls `chat.update()` first in
+  its update, and draws the bubbles.
 - **Art:** everything is drawn at 32 x 32 on a 640 x 480 screen, laid out in a 320 x 240 view. Use a
   2-pixel outer outline with the light from the top left, and flat colours with a shade and a
   highlight. People keep short legs and fit within one tile. The one exception is a special head thing

@@ -22,7 +22,7 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
 
 | Action | Keyboard | Mouse (on a computer) | Touch | Controller (Xbox / PlayStation) |
 | --- | --- | --- | --- | --- |
-| Move | Arrows / WASD | Left click where to go, or hold it down and point | Thumbstick (a D-pad in menus and most mini-games). In Morale Madness and MY CARDS, tap the screen too | Left stick or D-pad |
+| Move | Arrows / WASD | Left click where to go, or hold it down and point | Thumbstick (a D-pad in menus and most mini-games). In Morale Madness, MY CARDS, chess, checkers and poker, tap the screen too | Left stick or D-pad |
 | A: interact, confirm | E / Space | Left click someone or something (you walk up to it first); in a menu, left click | A | A / ✕ |
 | B: back, cancel (out in the parking lot at Christmas, throw a snowball) | Esc / X / Shift | Right click | B | B or X / ○ or □ |
 | Start menu (map, edit your character, zoom, sound, music) | Enter (or Esc while walking) | Left click yourself | START | Menu / Options |
@@ -60,31 +60,48 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
     question (it might only be a click on what's being asked). The wheel scrolls where there's
     something to scroll. Pointing never makes a sound: only clicking does.
   - **Mini-games keep to the keys,** their own menus too, except Morale Madness (a game, MY CARDS and
-    a new card turning over) and the office computers' desktop and SDG, which take the mouse as
-    their menus do. Humbug Sweeper stays on the keys on purpose: its times go on a leaderboard and
-    the Christmas Cup, and a mouse would beat the D-pad on a phone.
+    a new card turning over), the office computers' desktop and SDG, chess and checkers, and poker
+    (Spring Roll Hold'em and Live Hold'em), which take the mouse as their menus do. Humbug Sweeper
+    stays on the keys on purpose: its times go on a leaderboard and the Christmas Cup, and a mouse
+    would beat the D-pad on a phone.
+  - **Chess and checkers:** the cursor follows the pointer round the board. Click a piece of yours to
+    pick it up, then a square it can go to. A click anywhere else on the board puts it back, and the
+    right button is B (the menu). A click off the side picker at the start doesn't walk you away.
+  - **Poker:** point at Fold, Call, Raise or All in to pick it, and click to do it. Raising, click
+    along the bar for how much (all the way right is all in), then the button with the amount on it
+    to bet it; a click anywhere else puts it back. Between hands a click deals the next one, and on
+    Zin's computer the window's x is B, as the right button is.
   - In the code, a layer that takes the mouse has `point(x, y, button)` and maybe `wheel(steps)`, and
     the screens that aren't layers have theirs in `MODE_MOUSE`: see "the mouse" in `js/game.js`.
-- **Tapping the screen:** on a phone, only Morale Madness and MY CARDS take taps, and the box you
-  type in (see **Typing**). Everywhere else a tap on the screen does nothing, and you use the
-  on-screen buttons.
+- **Tapping the screen:** on a phone, only Morale Madness, MY CARDS, chess, checkers and poker
+  (Spring Roll Hold'em and Live Hold'em) take taps, and the box you type in (see **Typing**).
+  Everywhere else a tap on the screen does nothing, and you use the on-screen buttons.
   - A finger can't point at something first, as the mouse does. So one tap picks something (the
     cursor goes there), and a tap on what's already picked does it, as A would. Dragging a finger up or down is
     the scroll wheel. A tap near something counts as on it, since a fingertip is bigger than what
     it's aiming at (`tapBox`).
+  - **Chess and checkers:** a move is two taps, the piece and then where it goes, since picking a
+    piece up only shows where it can go (there's nothing to look at first). A tap anywhere else on
+    the board puts it back. The menus go as above: a tap picks, a tap on what's picked does it.
+  - **Poker:** a tap picks a button and a tap on the picked one does it, so whichever is picked
+    when your go comes round (Call or Check) takes one tap, and Fold and All in always take two.
+    Raising, a tap on the bar sets how much and a tap on the button with the amount on it bets it;
+    a tap anywhere else puts it back. Between hands a tap deals the next one, and LEAVE or KEEP
+    PLAYING (after B) take taps too.
   - While one of those is up, the screen sits above the D-pad's invisible margin, which reaches over
     the screen's edge on a small phone held sideways (`body.taps`).
   - The mouse works as it did before taps. In the code, a layer that takes taps has `tap(x, y)` as
     well as `point`, and a tap never reaches `point`: see "touch" in `js/game.js`.
-- **Typing:** your name, a password and a line to say to other players are typed on a real keyboard:
-  a computer's, or a phone's own. There's no keyboard on the screen to pick letters from.
+- **Typing:** your name, a password and a line to say to other players (in the office, or at a live
+  game of chess, checkers or poker) are typed on a real keyboard: a computer's, or a phone's own.
+  There's no keyboard on the screen to pick letters from.
   - On a computer the box takes the keys as soon as it's up. Arrows move the caret, Backspace rubs
     out, and pasting works. Enter is OK (or says it) and Esc goes back. Clicking between the letters
     puts the caret there, and there are OK and BACK (or SAY IT and CANCEL) buttons to click.
   - On a phone, tap the box and the phone's keyboard comes up, with capitals where they go and a
     Done (or Send) key that's OK. It comes up by itself when it can: phones only let a page bring
-    it up straight after a tap, so it does for saying something (the tap on A that picks CUSTOM),
-    and on Android usually for your name too. With nothing typed yet, A brings it up as well; once
+    it up straight after a tap, so it does for saying something (the tap on A that picks CUSTOM, or
+    on START at a live game), and on Android usually for your name too. With nothing typed yet, A brings it up as well; once
     there's something in the box, A is OK. B goes back.
   - With a controller, A or START is OK and B goes back, but the letters still need a keyboard.
   - Only what the font can show goes in (curly quotes and long dashes from a phone become plain
@@ -141,11 +158,11 @@ Walk up to these and press A:
 - **Office computers**: SDG, lay out an air handling unit. It works with the mouse too, like any
   program: click a component (in the list or the drawing) to pick it and a button to press it,
   with Move a click puts the component where you clicked, and the wheel goes up and down the list
-- **Zin's computer** (office 126): Spring Roll Hold'em, no-limit Texas Hold'em against Cody and Dmitriy, played for spring rolls
+- **Zin's computer** (office 126): Spring Roll Hold'em, no-limit Texas Hold'em against Cody and Dmitriy, played for spring rolls. The arrows pick Fold, Call, Raise or All in and A does it; or click, or tap, the button (see **The mouse** and **Tapping the screen**)
 - **Cody's casino** (cubicle 142): see below
 - **Coffee machine** (lunch room): catch the coffee in your cup. It pours 150 drops, and the nozzle gets quicker and twitchier as it goes; you're scored on how many you catch
 - **Recycling bin** (lunch room): toss crumpled paper into the bin; watch the wind
-- **Chess** (the lunch room table with the board on it): a whole game against whichever coworker happens to be looking for one. Pick white or black first. Each coworker always plays the same way, from Beginner to Shark, as it says under their name. The arrows move the cursor, A picks a piece up and puts it down, and B lets go of it, or with nothing in your hand opens the menu (keep playing or leave). A pawn reaching the far end asks what it should become. Stalemate, not enough pieces left, the same position three times and fifty moves with no capture or pawn move are all draws. Every piece is the shape you'd expect, so you can always tell which is which, with some air handling on top: a pawn's head is a little fan, a rook's walls are damper blades, the queen's collar is a copper coil and the king has the supply fan in his crown. Can also be played against another player (see **Playing together**)
+- **Chess** (the lunch room table with the board on it): a whole game against whichever coworker happens to be looking for one. Pick white or black first. Each coworker always plays the same way, from Beginner to Shark, as it says under their name. The arrows move the cursor, A picks a piece up and puts it down, and B lets go of it, or with nothing in your hand opens the menu (keep playing or leave). With the mouse or a finger, click or tap the piece and then where it goes (see **The mouse** and **Tapping the screen**). A pawn reaching the far end asks what it should become. Stalemate, not enough pieces left, the same position three times and fifty moves with no capture or pawn move are all draws. Every piece is the shape you'd expect, so you can always tell which is which, with some air handling on top: a pawn's head is a little fan, a rook's walls are damper blades, the queen's collar is a copper coil and the king has the supply fan in his crown. Can also be played against another player (see **Playing together**)
 - **Checkers** (the lunch room table under the chess one): a whole game against whichever coworker happens to be looking for one, played just like chess. Pick black or red first (black goes first). You have to jump if you can, and the pieces that must are lit up orange; a double jump goes one jump at a time, with the piece staying in your hand until it's done. A man reaching the far side is crowned, and his turn stops there. You win by taking everything or leaving them no move; the same position three times, or forty moves each with no jump and no man moved, is a draw. Each checker is a fan wheel in its round housing, seen from above, and a king has a gold crown on top. Can also be played against another player (see **Playing together**)
 - **Fridge**: keep your eye on your lunch while the containers shuffle
 - **Candy table**: hold A to reach for candy, and freeze when your coworker turns around
@@ -297,7 +314,8 @@ start each game with 200:
   200 spring rolls, the blinds stay at 2/4, and if a hand is going you're dealt in from
   the next one. On your own you wait for somebody to join. You have 30 seconds to act
   (run out twice in a row and you lose your seat), and running out of rolls gets you up
-  from the table; sit back down for another 200. The live table has its own leaderboard
+  from the table; sit back down for another 200. START types a line to everyone at the
+  table (see **Chat at a live game**). The live table has its own leaderboard
   (see **Leaderboards**), which comes up when you get up from the table
 - **Slot machines**: Spring Roll Slots. Left and right pick your bet (5, 10, 25, 50 or
   100) and A pulls the lever; the reels stop by themselves one after another, or press
@@ -861,6 +879,17 @@ which tile they're on (and has them walking from tile to tile).
   the closest one that's free, as a damper goes by 🪟. A typed line
   goes in your record as two 16-character pieces (`w0` and `w1`). Older versions just don't
   show an emoji or a typed line.
+- **Chat at a live game**: playing chess or checkers against another player, or at a Live
+  Hold'em table, press START (Enter on a computer) to type a line to whoever you're playing,
+  up to 32 characters, the same as **Custom** above. Enter (Send on a phone, or A) says it and B
+  (Esc) puts it away. The bar sits along the top of the screen, and the game carries on under
+  it (a clock keeps running), but while it's up the buttons are the bar's. A line comes up in a
+  speech bubble for a few seconds: in chess and checkers under their picture (or over yours)
+  in the column down the right, and at the poker table beside whoever said it. Chess and
+  checkers also have SAY SOMETHING on the B menu. In the code it's `GameChat` in `js/game.js`:
+  each line goes to each of the others as a message of its own (`{ k: 'chat', w0, w1 }`, the
+  same two pieces as a typed line), which the game server passes along like any other, and it
+  only shows if it comes from someone in your game. Older versions ignore it.
 - **Challenge**: walk up to another player, press A and pick a game (each has a little
   picture beside its name, from `VS_ICONS`):
   - **Air duel**: Richard's air handling duel, against each other. You each pick a
@@ -930,7 +959,8 @@ which tile they're on (and has them walking from tile to tile).
     decides; whoever hasn't picked after 20 seconds gets whatever's left. You each have ten
     minutes for the whole game, so someone who wanders off can't hold you up: their clock
     runs out and you win (unless all you have left is your king, or a king and one small
-    piece, when it's a draw). B opens the menu, which is where you resign. If they
+    piece, when it's a draw). START types them a line (see **Chat at a live game**). B opens
+    the menu, which is where you resign, or say something. If they
     leave, or drop out for too long, the game's yours. The game server runs this one
     (`server/games/chess.js`), so it's only in the list when there is one.
   - **Checkers**: the lunch room's checkers, against each other, and the same in every way as

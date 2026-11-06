@@ -958,10 +958,11 @@
   // every menu and dialog, the screens before you come in (the title, your name, the
   // character editor and the costume and sweater pickers), and the screens that come up along the way,
   // like the map and the Hall of Fame. Of the mini-games, only Morale Madness (the game, MY CARDS and a
-  // new card turning over) and the office computers' desktop and SDG take it. The rest keep to the
-  // keys, menus over them included, and Humbug Sweeper on purpose, so its times on the leaderboard and
-  // the Christmas Cup are fair between players on a computer and on a phone. A tap on a phone's screen
-  // does nothing except in Morale Madness and MY CARDS: see "touch", below.
+  // new card turning over), the office computers' desktop and SDG, chess and checkers (tableGame) and
+  // poker (PokerApp and LivePoker) take it, at the user's request. The rest keep to the keys, menus
+  // over them included, and Humbug Sweeper on purpose, so its times on the leaderboard and the
+  // Christmas Cup are fair between players on a computer and on a phone. A tap on a phone's screen
+  // does nothing except in Morale Madness, MY CARDS, chess, checkers and poker: see "touch", below.
   //
   // A layer on the ui stack that takes the mouse has point(x, y, button): x and y are where
   // the pointer is, in the view's 320 x 240, and button is 'a' for the left button, 'b' for the right
@@ -1042,9 +1043,10 @@
   const inBox = (x, y, bx, by, w, h) => x >= bx && x < bx + w && y >= by && y < by + h;
 
   // ---------- touch ----------
-  // On a touch screen, tapping the picture does something only in Morale Madness and MY CARDS, at the
-  // user's request. Everywhere else it's the on-screen buttons, as before. The mouse doesn't change: a
-  // tap never reaches point, and a click never reaches tap.
+  // On a touch screen, tapping the picture does something only in Morale Madness, MY CARDS, chess,
+  // checkers and poker, at the user's request (and in a menu over one of them that asks for it: taps in
+  // Choice). Everywhere else it's the on-screen buttons, as before. The mouse doesn't change: a tap never
+  // reaches point, and a click never reaches tap.
   //
   // A layer that takes taps has tap(x, y), where the tap was in the view's 320 x 240, and gets them only
   // while it's on top (a dialog over it doesn't pass them down). A finger can't point at something without
@@ -1331,7 +1333,17 @@
         if (first + rows < options.length) text('v', x + w - 11, y + 8 + (rows - 1) * 16, 1, '#686878');
       },
     };
+    // (opts.taps: it takes taps, for a menu over a game that does: a tap on an option picks it, and a
+    // tap on the one that's picked already does it, as in Morale Madness. See "touch".)
+    if (opts.taps) self.tap = (px, py) => menuTap(self, px, py);
     return self;
+  }
+  // A tap on a menu, for a layer that takes taps and has one open (menu, a Choice): it picks the option
+  // under it, or does it if it was picked already. Like A, B or nothing, as point.
+  function menuTap(menu, px, py) {
+    const was = menu.at, k = menu.point(px, py, 'a');
+    if (k === 'a' && menu.at !== was) { sfx('select'); return null; }
+    return k;
   }
   function ask(str, options, cb, opts) {
     ui.push(Dialog(str, {
@@ -2348,6 +2360,39 @@
     fine(x + 1, 203, w - 3, 3, on ? '#f6e4a8' : '#d4d8e2'); fine(x + 1, 214, w - 3, 2, on ? '#e8cc78' : '#bcc0cc');
     text(label, x + (w >> 1) - label.length * 3, 206, 1, ok ? INK : WIN_DARK);
   }
+  // The mouse and taps at a poker table, the same for Spring Roll Hold'em and Live Hold'em: where the
+  // buttons along the bottom are (drawCardButton, [x, y, w, h]), and while you're raising, the button
+  // with what you'd raise to on it and the bar for how much (drawBetBar).
+  const cardButtonAt = (i) => [6 + i * 78, 202, 74, 16];
+  const RAISE_BTN = [6, 202, 148, 16], BET_BAR = [158, 199, 154, 17];
+  // How much a click or a tap along the bar comes to: from minTo at the left to maxTo (all in) at the
+  // right, in steps of step, as the arrows go.
+  function betAt(x, minTo, maxTo, step) {
+    const f = (x - 161) / 148;
+    if (f >= 0.99) return maxTo;
+    return Math.max(minTo, Math.min(maxTo, minTo + Math.round(f * (maxTo - minTo) / step) * step));
+  }
+  // What the mouse (point) or a finger (tap: true, with button 'a') does at the table, as point and tap
+  // return. now says what you can do: turn (it's your go, with the four buttons), btn (the one that's
+  // picked) and pick(i) to pick another, and raising, with bet(x) to set how much from where the bar
+  // was clicked. The mouse picks a button by pointing at it and does it with a click. A finger picks one
+  // with a tap and does it with a tap on the one that's picked (so the one already picked when your go
+  // comes round takes one tap, and Fold and All in always take two). Raising, a click or a tap on the
+  // bar sets how much, and on the button bets it; anywhere else puts it back, as B does.
+  function pokerPick(now, x, y, button, tap) {
+    if (now.raising) {
+      if (inBox(x, y, ...BET_BAR)) { if (!button) return 'a'; now.bet(x); sfx('select'); return null; }
+      if (inBox(x, y, ...RAISE_BTN)) return 'a';
+      return button ? 'b' : null;
+    }
+    if (!now.turn) return null;
+    const rects = [0, 1, 2, 3].map(cardButtonAt);
+    const i = tap ? tapBox(x, y, rects, 6) : rects.findIndex((r) => inBox(x, y, ...r));
+    if (i < 0) return null;
+    if (tap && i !== now.btn) { now.pick(i); sfx('select'); return null; }
+    now.pick(i);
+    return 'a';
+  }
   function drawPokerIcon(x, y) {
     drawCard({ r: 14, s: 1 }, x + 10, y + 4);
     drawCard({ r: 13, s: 0 }, x + 28, y + 10);
@@ -2540,27 +2585,50 @@
       return ['fold'];
     }
 
+    const askLeave = () => ask('Leave the table with ' + seats[0].stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); }, { taps: true });
+    // what the mouse and taps can do right now (see pokerPick)
+    function canDo() {
+      const me = seats[0], turn = state === 'play' && !timer && toAct === 0;
+      const maxTo = me.bet + me.stack, minTo = Math.min(maxTo, curBet + minRaise);
+      return { turn, raising: turn && raising, btn, pick: (i) => { btn = i; }, bet: (x) => { raiseTo = betAt(x, minTo, maxTo, bb()); } };
+    }
+
     startHand();
     const self = {
       music: 'poker', doing: 'poker',
+      // The mouse and taps go by pokerPick. Between hands a click or a tap deals the next one, and once
+      // it's over, carries on. The right button is B, and so is the window's x on Zin's computer.
+      point(x, y, button) {
+        if (button === 'b' || (!table && inBox(x, y, SW - 14, 1, 12, 12))) return 'b';
+        if (state === 'over') return button;
+        if (timer) return null;
+        if (state !== 'play') return button && 'a';
+        return pokerPick(canDo(), x, y, button, false);
+      },
+      tap(x, y) {
+        if (state === 'over') return 'a';
+        if (timer) return null;
+        if (state !== 'play') return 'a';
+        return pokerPick(canDo(), x, y, 'a', true);
+      },
       update() {
         t++;
         rolls.update();
         if (timer > 0) {
-          if (pressed.has('b')) ask('Leave the table with ' + seats[0].stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
+          if (pressed.has('b')) askLeave();
           else if (--timer === 0 && next) { const f = next; next = null; f(); }
           return;
         }
         if (state === 'over') { if (t > 30 && (pressed.has('a') || pressed.has('b'))) leave(); return; }
         if (state === 'result' || state === 'busted') {
           if (pressed.has('a')) { sfx('select'); if (state === 'busted') startHand(); else endHand(); }
-          else if (pressed.has('b')) ask('Leave the table with ' + seats[0].stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
+          else if (pressed.has('b')) askLeave();
           return;
         }
         if (toAct < 0) return;
         const p = seats[toAct];
         if (!p.you) {
-          if (pressed.has('b')) { ask('Leave the table with ' + p.stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); }); return; }
+          if (pressed.has('b')) { askLeave(); return; }
           if (++think < 40) return;
           const [kind, to] = botMove(toAct);
           act(toAct, kind, to);
@@ -2582,7 +2650,7 @@
         }
         if (pressed.has('left')) { btn = (btn + 3) % 4; sfx('select'); }
         if (pressed.has('right')) { btn = (btn + 1) % 4; sfx('select'); }
-        if (pressed.has('b')) { ask('Leave the table with ' + p.stack + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); }); return; }
+        if (pressed.has('b')) { askLeave(); return; }
         if (pressed.has('a')) {
           if (btn === 0) act(0, 'fold');
           else if (btn === 1) act(0, 'call');
@@ -2648,7 +2716,7 @@
         if (raising) {
           const minTo = Math.min(me.bet + me.stack, curBet + minRaise), maxTo = me.bet + me.stack;
           const lbl = (curBet ? 'Raise to ' : 'Bet ') + raiseTo + (raiseTo === maxTo ? ' (all in)' : '');
-          text(lbl, 10, 204, 1, ink);
+          drawCardButton(RAISE_BTN[0], RAISE_BTN[2], lbl, true, true, table); // (A bets it, and so does a click or a tap)
           drawBetBar(maxTo > minTo ? (raiseTo - minTo) / (maxTo - minTo) : 1);
           text('Arrows: amount  Space: OK  Esc: back', 10, 224, 1, ink);
         } else if (state === 'play') {
@@ -2831,6 +2899,16 @@
     const stackAt = (sp, n) => (sp.right ? [sp.ax - 18 - String(n).length * 6, sp.ay + 13] : [sp.ax + 28, sp.ay + 13]);
     const rolls = RollFlyer();
     let btn = 1, raising = false, raiseTo = 0, t = 0, ev = -1, prev = null, acted = '';
+    // a line to say to everyone else at the table (see GameChat)
+    const others = () => { const v = tb.view; return v && !tb.out ? v.seats.filter((q, i) => q && i !== v.me).map((q) => q.id) : []; };
+    const chat = GameChat(others, 'Say to the table:');
+    // what the mouse and taps can do right now (see pokerPick)
+    function canDo() {
+      const v = tb.view, p = v.seats[v.me];
+      const turn = !!p && v.ph === 'play' && v.act === v.me && acted !== v.hn + '/' + v.ev;
+      const maxTo = p ? p.b + p.st : 0, minTo = Math.min(maxTo, v.bet + v.min);
+      return { turn, raising: turn && raising, btn, pick: (i) => { btn = i; }, bet: (x) => { raiseTo = betAt(x, minTo, maxTo, v.bb); } };
+    }
 
     // a new view from the server: play its sound, and send spring rolls flying into the
     // pot for a bet and out of it to whoever won
@@ -2869,6 +2947,7 @@
     // to leave, say, or in another tab).
     const gone = () => {
       remove(self); if (mp.table === tb) mp.table = null;
+      chat.close();
       if (tb.view && tb.view !== prev) tally(tb.view);
       settle(lastSt);
       if (played && (BOARD_URL || boardDemo)) pendingBoard = { key: 'pokerlive', score: 0, owner: self };
@@ -2879,10 +2958,17 @@
       gone();
       say('You leave the table with ' + myStack() + ' spring rolls.');
     }
-    const askLeave = () => ask('Leave the table with ' + myStack() + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); });
+    const askLeave = () => ask('Leave the table with ' + myStack() + ' spring rolls?', ['LEAVE', 'KEEP PLAYING'], (i) => { if (i === 0) leave(); }, { taps: true });
 
     const self = {
-      music: 'poker',
+      music: 'poker', chat,
+      // the mouse and taps (see pokerPick), and the right button is B
+      point(x, y, button) {
+        if (chat.typing) return chat.point(x, y, button);
+        if (button === 'b') return 'b';
+        return tb.view ? pokerPick(canDo(), x, y, button, false) : null;
+      },
+      tap(x, y) { return chat.typing || !tb.view ? null : pokerPick(canDo(), x, y, 'a', true); },
       // over your head for everyone else: waiting for someone to play with, or how many are playing
       get doing() { return tb.view && tb.view.ph !== 'wait' ? 'pokerlive' : 'pokerwait'; },
       get seated() { return tb.view ? tb.view.seats.filter(Boolean).length : 0; },
@@ -2913,6 +2999,8 @@
           return;
         }
         if (v !== prev) { hear(v, prev); tally(v); prev = v; }
+        // (while the bar to say something in is up, the buttons are its)
+        if (chat.update()) return;
         // your turn, unless you've already said what you're doing and the server's yet to hear
         const p = v.seats[v.me], key = v.hn + '/' + v.ev;
         const myTurn = !!p && v.ph === 'play' && v.act === v.me && acted !== key;
@@ -2967,22 +3055,31 @@
         if (v.ph === 'wait') ctext('Waiting for another player' + dots, 136, CREAM);
         else if (p && !p.d) ctext('You\'re in from the next hand.', 136, CREAM);
         rolls.draw();
+        // what anyone's just said, beside their picture (over their name)
+        v.seats.forEach((q, i) => {
+          const said = q && chat.line(i === v.me ? '' : q.id);
+          if (!said) return;
+          const sp = spot(v, i), b = chatBox(said, 18);
+          chatBubble(b, sp.right ? sp.ax - 4 - b.w : sp.ax + 28, sp.ay - 1, sp.right ? 'right' : 'left', sp.ay + 12);
+        });
         drawCardLog(v.log, true);
         // your controls
         const myTurn = !!p && v.ph === 'play' && v.act === v.me && acted !== v.hn + '/' + v.ev;
+        const chatHint = others().length ? '   Enter: chat' : ''; // (not on your go: there isn't room)
         if (raising && myTurn) {
           const maxTo = p.b + p.st, minTo = Math.min(maxTo, v.bet + v.min);
           const lbl = (v.bet ? 'Raise to ' : 'Bet ') + raiseTo + (raiseTo === maxTo ? ' (all in)' : '');
-          text(lbl, 10, 204, 1, CREAM);
+          drawCardButton(RAISE_BTN[0], RAISE_BTN[2], lbl, true, true, true); // (A bets it, and so does a click or a tap)
           drawBetBar(maxTo > minTo ? (raiseTo - minTo) / (maxTo - minTo) : 1);
           text('Arrows: amount  Space: OK  Esc: back', 10, 224, 1, CREAM);
         } else if (p && p.d && v.ph === 'play') {
           const call = Math.min(v.bet - p.b, p.st);
           const labels = ['Fold', call ? 'Call ' + call : 'Check', v.bet ? 'Raise' : 'Bet', 'All in'];
           labels.forEach((l, i) => drawCardButton(6 + i * 78, 74, l, myTurn && i === btn, myTurn, true));
-          text(myTurn ? 'Arrows: choose  Space: OK  Esc: leave' : 'Esc: leave the table', 10, 226, 1, CREAM);
-        } else text('Esc: leave the table', 10, 214, 1, CREAM);
+          text(myTurn ? 'Arrows: choose  Space: OK  Esc: leave' : 'Esc: leave the table' + chatHint, 10, 226, 1, CREAM);
+        } else text('Esc: leave the table' + chatHint, 10, 214, 1, CREAM);
         if (myTurn) text(v.clk + 's', 310 - String(v.clk).length * 6 - 6, raising ? 224 : 226, 1, v.clk <= 10 && blink ? '#f87050' : CREAM);
+        chat.draw(top() === self);
       },
     };
 
@@ -5721,6 +5818,8 @@
     let menu = null, anim = null, note = '', noteT = 0;
     let view = null, sentT = -999, pickLeft = 0; // against a player
     let lines = null, parting = '', counted = false; // how it ended
+    // against a player, a line to say to them (see GameChat)
+    const chat = vs ? GameChat(() => (vs.gone ? [] : [vs.opp]), 'Say to ' + foe + ':') : null;
     const mine = (pc) => !!pc && (pc === pc.toLowerCase() ? 1 : 0) === me;
     const sqAt = (x, y) => (me ? y * 8 + 7 - x : (7 - y) * 8 + x);
     const posOf = (sq) => (me ? { x: 7 - (sq & 7), y: sq >> 3 } : { x: sq & 7, y: 7 - (sq >> 3) });
@@ -5756,19 +5855,38 @@
         const was = g.fen();
         g = RULES.create({ fen: was, seed: Math.floor(Math.random() * 2 ** 31), players: i ? [them, you] : [you, them] });
         begin(i);
-      }, { icon: (i, x, y) => ctx.drawImage(spec.pic(spec.sidePics[i]), x, y, 12, 12) });
+        // (a question, so a click or a tap off it on the board doesn't walk you away from the game)
+      }, { icon: (i, x, y) => ctx.drawImage(spec.pic(spec.sidePics[i]), x, y, 12, 12), question: true });
     }
     function leave() {
       remove(self);
       if (vs) vs.end();
+      if (chat) chat.close();
       if (!vs) say(state === 'play' && g.ply ? 'You leave the game where it is. ' + foe + ' goes back to their lunch.' : foe + ' goes back to their lunch.');
     }
     function backMenu() {
-      menu = Choice(['KEEP PLAYING', vs ? 'RESIGN' : 'LEAVE GAME'], MID - 54, BY + SQ * 4 - 8, (i) => {
+      const opts = vs ? ['KEEP PLAYING', 'SAY SOMETHING', 'RESIGN'] : ['KEEP PLAYING', 'LEAVE GAME'];
+      menu = Choice(opts, MID - 54, BY + SQ * 4 - 8, (i) => {
         menu = null;
-        if (i !== 1) return;
-        if (vs) vs.input({ resign: true }); else leave();
+        if (opts[i] === 'SAY SOMETHING') chat.open();
+        else if (opts[i] === 'RESIGN') vs.input({ resign: true });
+        else if (opts[i] === 'LEAVE GAME') leave();
       });
+    }
+    // The square at px, py on the screen, as [x, y] for the cursor, or null off the board.
+    function squareAt(px, py) {
+      const x = Math.floor((px - BX) / SQ), y = Math.floor((py - BY) / SQ);
+      return x >= 0 && x < 8 && y >= 0 && y < 8 ? [x, y] : null;
+    }
+    // What a click or a tap on the cursor's square stands for: A where A does something (a piece of
+    // yours to pick up, somewhere the one you're holding can go, or that one, to put it back), B to put
+    // it back when the square's nowhere it can go, or null.
+    function squareKey() {
+      const sq = sqAt(cx, cy);
+      if (sel >= 0 && options.some((m) => m.to === sq)) return 'a';
+      if (sq === sel) return locked() < 0 ? 'a' : null;
+      if (mine(g.at(sq))) return 'a';
+      return sel >= 0 && locked() < 0 ? 'b' : null;
     }
     function play(mv) {
       const was = onBoard();
@@ -5814,6 +5932,7 @@
     }
     function over(outcome, why) {
       state = 'done'; doneT = t; menu = null; sel = -1; options = [];
+      if (chat) chat.close();
       const won = outcome === 'win', drew = outcome === 'draw';
       counted = won && spec.counts(why);
       sfx(won ? 'cup' : drew ? 'ding' : 'bump');
@@ -5865,7 +5984,38 @@
       } else if (Array.isArray(s.c)) g.clock = s.c;
     }
     const self = {
-      music: spec.music, doing: spec.doing,
+      music: spec.music, doing: spec.doing, chat,
+      // The mouse: the cursor follows it round the board, so what's under it is named in the column, as
+      // with the keys, and a click is A there: on a piece of yours to pick it up, then where it's to go.
+      // A click anywhere else on the board puts it back, as B does, and the right button is B. The menus
+      // take it as menus do, and once it's over a click carries on.
+      point(px, py, button) {
+        if (chat && chat.typing) return chat.point(px, py, button);
+        if (menu) return menu.point(px, py, button);
+        if (state === 'done') return button;
+        if (button === 'b') return 'b';
+        const at = state === 'play' && squareAt(px, py);
+        if (!at) return null;
+        [cx, cy] = at;
+        const k = squareKey();
+        return button ? k : k === 'a' && g.turn === me ? 'a' : null; // (a hand only over something to do now)
+      },
+      // A finger (see "touch"): a tap on a square puts the cursor there and does what A would, so a move
+      // is two taps, the piece and then where it goes. (Picking a piece up only shows where it can go,
+      // so there's nothing to look at first: one tap does it.) A tap anywhere else on the board puts it
+      // back, as B would, or with nothing in your hand just moves the cursor there. The menus go as
+      // Morale Madness's do: a tap picks, and a tap on what's picked does it. Once it's over a tap carries on.
+      tap(px, py) {
+        if (chat && chat.typing) return null;
+        if (menu) return menuTap(menu, px, py);
+        if (state === 'done') return 'a';
+        const at = state === 'play' && squareAt(px, py);
+        if (!at) return null;
+        [cx, cy] = at;
+        const k = squareKey();
+        if (!k) sfx('blip');
+        return k;
+      },
       update() {
         t++;
         if (anim && ++anim.t >= 9) anim = null;
@@ -5886,6 +6036,8 @@
           // server update separately, so it can be a few minutes behind). Better to say so
           // than to leave you both waiting for each other.
           if (!view && t > NO_WORD) { over('none', 'noserver'); return; }
+          // (while the bar to say something in is up, the buttons are its)
+          if (chat.update()) return;
         }
         if (state === 'pick' && !menu) pickMenu();
         if (menu) { menu.update(); return; }
@@ -5971,6 +6123,7 @@
         }
         if (menu) menu.draw();
         if (state === 'done' && lines && t - doneT > 45) doneBox(lines, t - doneT - 45);
+        if (chat) chat.draw(top() === self);
       },
     };
     // the column down the right: them at the top, you at the bottom, as you sit at the board
@@ -5988,22 +6141,36 @@
       person(foeLook.down[0], others, foe, 10, vs ? clock(others) : TABLE_SKILL[level]);
       const row = (list, y) => list.forEach((pc, i) => ctx.drawImage(spec.pic(pc), TX + (i % 8) * 10, y + (i >> 3) * 11, 10, 10));
       row(spec.taken(g, me), 64);
-      // what's going on
+      // What they've just said goes in a bubble under their picture, over what you've lost, and what you
+      // have over yours. What's going on moves down out of their bubble's way, and anything that one of
+      // them would cover only partly stays out till it's gone (so a long note is cut short). Against a
+      // player there are three hints along the bottom, so your side of the column sits a little higher.
+      const low = vs ? 6 : 0; // (how much higher your side sits)
+      const theirs = chat && chat.line(vs.opp), yours = chat && chat.line('');
+      const tb = theirs && chatBox(theirs, 13), yb = yours && chatBox(yours, 13);
+      const yourTop = yb ? 153 - low - yb.h : SH;
+      const noteY = tb ? Math.max(91, 63 + tb.h + 4) : 91;
       let str = '', co = col.dark;
       if (state === 'play') {
         if (noteT > 0) { str = note; co = '#b83028'; }
         else if (g.turn === me) str = 'Your move';
         else str = (vs ? 'Waiting for ' + foe : foe + ' is thinking') + '.'.repeat(1 + ((tick >> 4) % 3));
       } else if (state !== 'done' && vs && pickLeft) str = pickLeft + 's left to pick a side';
-      wrap(str, 13).slice(0, 3).forEach((l, i) => text(l, TX, 91 + i * 10, 1, co));
-      if (state === 'play') {
+      wrap(str, 13).slice(0, Math.max(0, Math.floor((Math.min(126, yourTop - 3) - noteY) / 10))).forEach((l, i) => text(l, TX, noteY + i * 10, 1, co));
+      if (state === 'play' && yourTop > 131) {
         const pc = g.at(sqAt(cx, cy));
         if (pc) text(spec.describe(pc), TX, 123, 1, '#686878');
       }
-      row(spec.taken(g, others), 133);
-      person(sprites.down[0], me, playerName || 'You', 156, vs ? clock(me) : '');
-      text('A: pick/move', TX, SH - 29, 1, '#686878');
-      text('B: back/menu', TX, SH - 19, 1, '#686878');
+      row(spec.taken(g, others), 133 - low / 3);
+      person(sprites.down[0], me, playerName || 'You', 156 - low, vs ? clock(me) : '');
+      const bubble = (b, y, side) => {
+        const PX = TX + 16; // (the middle of a picture)
+        chatBubble(b, Math.max(228, Math.min(314 - b.w, PX - (b.w >> 1))), y, side, PX);
+      };
+      if (tb) bubble(tb, 63, 'top');
+      if (yb) bubble(yb, yourTop, 'bottom');
+      const hints = vs ? ['A: pick/move', 'B: back/menu', 'Enter: chat'] : ['A: pick/move', 'B: back/menu'];
+      hints.forEach((h, i) => text(h, TX, vs ? SH - 37 + i * 9 : SH - 29 + i * 10, 1, '#686878'));
     }
     return self;
   }
@@ -16758,6 +16925,9 @@
       if (!inTable(VERSUS, msg.g) || c || inv || held || m || mpDoing()) mpSend(msg.from, { k: 'busy', m: msg.m });
       else if (mpFree()) mpInvite(msg);
       else { mp.held = { msg, until: Date.now() + MP_ASK }; sfx('ding'); }
+    } else if (msg.k === 'chat') {
+      // a line typed at a live game (see GameChat), for the one you've got open, if you have
+      for (let i = ui.length - 1; i >= 0; i--) if (ui[i].chat) { ui[i].chat.hear(msg); break; }
     } else if (c && msg.m === c.id && msg.k === 'seen') {
       c.until = Date.now() + MP_ANSWER; // they've come out of their menu and are looking at it
     } else if (c && msg.m === c.id) {
@@ -16964,7 +17134,6 @@
   // top of the screen, clear of a phone's keyboard.
   const MP_TYPE = { max: MP_TYPE_MAX, ok: MP_TYPE_OK, caps: 'sentences', enter: 'send', label: 'Say something' };
   function MpType() {
-    const H = 58, BTNS = [[SW - 136, 'SAY IT'], [SW - 70, 'CANCEL']]; // (for the mouse: [x, label], 60 x 15 at y 38)
     const field = typeOpen({}, MP_TYPE, '');
     let hover = -1;
     function done() {
@@ -16978,34 +17147,129 @@
         if (pressed.has('a') || pressed.has('start')) done();
         else if (pressed.has('b')) { remove(self); typeClose(field.owner); sfx('select'); mpSayMenu(); }
       },
-      // the mouse: click the box to type in it, or SAY IT or CANCEL (a click under the box is CANCEL too)
-      point(x, y, button) {
-        if (button === 'b') return 'b';
-        hover = isTouch ? -1 : BTNS.findIndex(([bx]) => inBox(x, y, bx, 38, 60, 15));
-        if (hover >= 0) return hover ? 'b' : 'a';
-        return button && y >= H ? 'b' : null;
-      },
-      draw() {
-        box(0, 0, SW, H);
-        text('Say something:', 10, 8);
-        const n = MP_TYPE_MAX - field.text.length + '';
-        text(n, SW - 10 - n.length * 6, 8, 1, '#686878');
-        ctx.fillStyle = col.dark; ctx.fillRect(8, 19, SW - 16, 15);
-        ctx.fillStyle = '#f8f8f8'; ctx.fillRect(9, 20, SW - 18, 13);
-        // (with something over it, like a challenge coming in, it isn't taking typing)
-        if (top() === self) typeBox(field, { x: 8, y: 19, w: SW - 16, h: 15, tx: 12, adv: 6, cy: 22, ch: 9 });
-        text(field.text, 12, 23);
-        if (isTouch) text('Tap the box to type, then Send.  B: back', 10, 42, 1, '#686878');
-        else {
-          text(usingController ? 'Type, then press A' : 'Type, then press Enter', 10, 42, 1, '#686878');
-          BTNS.forEach(([x, label], i) => {
-            if (hover === i) pickBar(x, 38, 60, 15, col.dark); else pickRing(x, 38, 60, 15);
-            text(label, x + 30 - label.length * 3, 42, 1, hover === i ? col.light : col.dark);
-          });
-        }
-      },
+      point(x, y, button) { let k; [hover, k] = pointSayBar(x, y, button); return k; },
+      // (with something over it, like a challenge coming in, it isn't taking typing)
+      draw() { drawSayBar(field, 'Say something:', top() === self, hover); },
     };
     return self;
+  }
+  // The bar along the top of the screen that a line to say is typed into, for MpType and for chat at a
+  // live game (GameChat), clear of a phone's keyboard: label, how many letters are left, the box, and
+  // under it what to press, with SAY IT and CANCEL to click on a computer. here: nothing's over it, so
+  // it's taking the typing. hover: the button the mouse is on (0 or 1), or -1.
+  const SAY_H = 58, SAY_BTNS = [[SW - 136, 'SAY IT'], [SW - 70, 'CANCEL']]; // (for the mouse: [x, label], 60 x 15 at y 38)
+  function drawSayBar(field, label, here, hover) {
+    box(0, 0, SW, SAY_H);
+    text(label, 10, 8);
+    const n = MP_TYPE_MAX - field.text.length + '';
+    text(n, SW - 10 - n.length * 6, 8, 1, '#686878');
+    ctx.fillStyle = col.dark; ctx.fillRect(8, 19, SW - 16, 15);
+    ctx.fillStyle = '#f8f8f8'; ctx.fillRect(9, 20, SW - 18, 13);
+    if (here) typeBox(field, { x: 8, y: 19, w: SW - 16, h: 15, tx: 12, adv: 6, cy: 22, ch: 9 });
+    text(field.text, 12, 23);
+    if (isTouch) text('Tap the box to type, then Send.  B: back', 10, 42, 1, '#686878');
+    else {
+      text(usingController ? 'Type, then press A' : 'Type, then press Enter', 10, 42, 1, '#686878');
+      SAY_BTNS.forEach(([x, str], i) => {
+        if (hover === i) pickBar(x, 38, 60, 15, col.dark); else pickRing(x, 38, 60, 15);
+        text(str, x + 30 - str.length * 3, 42, 1, hover === i ? col.light : col.dark);
+      });
+    }
+  }
+  // The mouse on that bar: click the box to type in it, or SAY IT or CANCEL (a click under the bar is
+  // CANCEL too). [the button it's on, or -1, and what a click there stands for, as point returns]
+  function pointSayBar(x, y, button) {
+    if (button === 'b') return [-1, 'b'];
+    const hover = isTouch ? -1 : SAY_BTNS.findIndex(([bx]) => inBox(x, y, bx, 38, 60, 15));
+    if (hover >= 0) return [hover, hover ? 'b' : 'a'];
+    return [hover, button && y >= SAY_H ? 'b' : null];
+  }
+
+  // ---------- chat at a live game ----------
+  // Playing chess, checkers or poker against other players, you can type them a line. START (Enter on
+  // a computer) opens the same bar along the top as saying something in the office (drawSayBar), Enter
+  // (Send on a phone, or A) says it, and B (Esc) puts it away. The game carries on underneath, but
+  // while the bar is up the buttons are its. A line comes up in a speech bubble by whoever said it,
+  // yours too, for a few seconds (chatFor).
+  //
+  // It goes to each of the others as a message of its own, { k: 'chat', w0, w1 }: the line in pieces
+  // of up to 16, as a typed line goes in your record, since a message only carries short strings. A
+  // copy from before chat ignores one, and the game server passes it along like any other message,
+  // so it needs nothing new there. Anyone's browser can send anything, so a line only counts from
+  // somebody in your game, and it's tidied with mpClean, as a typed line in a record is.
+  //
+  // GameChat(others, label): others() is the ids of everyone else in the game right now, and label goes
+  // over the box. The game has it as `chat`, so that a line coming in finds it (mpMail). It calls
+  // update() first thing in its own update, and while that says true (the bar has the buttons) leaves
+  // the buttons alone; sends the mouse to point() while it's typing; draws the bubbles from line(id)
+  // (line('') for yours) and then draw() over everything; and calls close() once the game's over.
+  const chatFor = (str) => Math.max(5000, str.length * 220); // (ms a line stays up)
+  function GameChat(others, label) {
+    let field = null, hover = -1;
+    const said = new Map(); // who: their id, or '' for you -> { str, at }
+    function close() { if (field) { typeClose(chat); field = null; } }
+    function send() {
+      const str = mpClean(field.text);
+      close();
+      if (!str) return; // (nothing typed: the same as putting it away)
+      sfx('select');
+      const msg = { k: 'chat', w0: str.slice(0, 16) };
+      if (str.length > 16) msg.w1 = str.slice(16);
+      for (const id of others()) mpSend(id, msg);
+      said.set('', { str, at: Date.now() });
+    }
+    const chat = {
+      get typing() { return !!field; },
+      open() {
+        if (field) return;
+        if (!others().length) { sfx('bump'); return; } // (nobody to say it to)
+        field = typeOpen(chat, MP_TYPE, ''); hover = -1; sfx('menu');
+      },
+      update() {
+        if (!field) {
+          if (!pressed.has('start')) return false;
+          chat.open();
+          return true;
+        }
+        if (pressed.has('a') || pressed.has('start')) send();
+        else if (pressed.has('b')) { close(); sfx('select'); }
+        return true;
+      },
+      point(x, y, button) { let k; [hover, k] = pointSayBar(x, y, button); return k; },
+      // a message that's come in: a line, if it's from somebody in the game
+      hear(msg) {
+        if (typeof msg.from !== 'string' || !others().includes(msg.from)) return;
+        const str = mpClean((typeof msg.w0 === 'string' ? msg.w0 : '') + (typeof msg.w1 === 'string' ? msg.w1 : ''));
+        if (!str) return;
+        said.set(msg.from, { str, at: Date.now() });
+        sfx('tap');
+      },
+      // what they (or you, for '') said, while it's still up, or ''
+      line(who) {
+        const s = said.get(who);
+        return s && Date.now() - s.at < chatFor(s.str) ? s.str : '';
+      },
+      draw(here) { if (field) drawSayBar(field, label, here, hover); },
+      close,
+    };
+    return chat;
+  }
+  // A speech bubble at a live game: str's words wrapped at chars a line (a word longer than that is
+  // broken up). chatBox measures it; chatBubble draws that with its top left at x, y and a little tail
+  // out of one side ('top', 'bottom', 'left' or 'right'), at `at` along it, towards whoever said it.
+  function chatBox(str, chars) {
+    const lines = wrap(str, chars).flatMap((l) => l.match(new RegExp('.{1,' + chars + '}', 'g')) || ['']);
+    return { lines, w: Math.max(...lines.map((l) => l.length)) * FONT.ADV + 8, h: lines.length * 10 + 3 };
+  }
+  function chatBubble(b, x, y, side, at) {
+    x = Math.round(x); y = Math.round(y);
+    ctx.fillStyle = col.dark; ctx.fillRect(x, y, b.w, b.h);
+    if (side === 'top') ctx.fillRect(at - 1, y - 2, 3, 2);
+    else if (side === 'bottom') ctx.fillRect(at - 1, y + b.h, 3, 2);
+    else if (side === 'left') ctx.fillRect(x - 2, at - 1, 2, 3);
+    else ctx.fillRect(x + b.w, at - 1, 2, 3);
+    ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 1, y + 1, b.w - 2, b.h - 2);
+    b.lines.forEach((l, i) => text(l, x + 4, y + 3 + i * 10));
   }
   function mpChallenge(o) {
     const keys = Object.keys(VERSUS).filter((k) => (MP_WS || !VERSUS[k].server)
