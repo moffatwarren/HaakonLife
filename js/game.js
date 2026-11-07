@@ -22578,13 +22578,15 @@
   }
 
   // Pressing A: turn to whoever is in front of you, or use the first thing there that does
-  // anything. Everyone in a live game stays standing where they signed up while they play, so
-  // someone busy doesn't get in the way of you signing up too, at the rink's booth or the
-  // poker table.
+  // anything. Everyone playing something stays standing where they started it, and other players
+  // don't get in your way walking round, so a few can end up on the same spot: another player
+  // who's busy (in a game, or reading something), or standing right where you are, never gets in
+  // the way of what's in front of you, like the racing cabinet, the chess table, the rink's booth
+  // or the poker table. You use that, and only talk to them if there's nothing there to use.
+  const inTheWay = (near) => !!near && !!near.other && (!!near.other.b || Math.hypot(near.dx, near.dy) < 0.5);
   function interact() {
-    const signUp = P.floor === YARD ? 'G' : P.floor === CASINO ? ']' : '';
-    let near = personAhead();
-    if (near && near.other && near.other.b && tilesAhead().some(([x, y]) => tileAt(P.floor, x, y) === signUp)) near = null;
+    const near = personAhead();
+    if (inTheWay(near)) for (const [x, y] of tilesAhead()) if (useTile(x, y) !== false) return;
     if (near) {
       if (near.dx || near.dy) { P.face = Math.atan2(near.dx, near.dy); P.dir = wayOf(near.dx, near.dy); }
       if (near.npc) talkTo(near.npc); else mpTalk(near.other);
@@ -23065,12 +23067,14 @@
   // to: the floor, the stairs, snow and all (a snow angel is the A button's), the doors outside (you go
   // through), and the walls (WALLS: the pointer's often on one, holding the button to walk that way).
   const WALLS = '# =';
+  // (another player who's busy, standing over what you clicked on, doesn't get in the way of it,
+  // as with A: see interact)
   function clickUse(g) {
-    if (g.who) return g.who;
-    if (g.tree) return { tile: g.tree, tree: true };
     const [x, y] = g.tile, t = tileAt(P.floor, x, y);
-    if (sideDoorTo(P.floor, x, y) || WALLS.includes(t)) return null;
-    return !walkable(P.floor, x, y) || t === 'j' ? { tile: g.tile } : null;
+    const thing = !sideDoorTo(P.floor, x, y) && !WALLS.includes(t) && (!walkable(P.floor, x, y) || t === 'j');
+    if (g.who && !(thing && g.who.other && g.who.other.b)) return g.who;
+    if (g.tree) return { tile: g.tree, tree: true };
+    return thing ? { tile: g.tile } : null;
   }
   // The mouse, walking round (see above). The pointer's a hand over you, and over somebody you can talk to.
   function worldPoint(x, y, button) {

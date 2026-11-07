@@ -995,7 +995,13 @@ map, and **Who's here** in the Start menu lists everyone and the room they're in
 "Kingston" in front of it for anyone at the plant, whose rooms can sound like the office's). Other
 players don't block your way, so nobody can stand in a doorway and trap you. You see them
 where they really are, going any way, unless they're on an older copy, which only says
-which tile they're on (and has them walking from tile to tile).
+which tile they're on (and has them walking from tile to tile). Nor do they get in the way
+of anything you use: everyone playing something stays standing where they started it, so
+several can end up on the same spot, and A (or a click) on something in front of you uses it
+even with another player there, if they're busy (in a game, or reading something) or
+standing right where you are. You only talk to them if there's nothing there to use. So any
+number can sign up at the racing cabinet, the chess table, the rink's booth or the poker
+table (`interact` and `clickUse` in `js/game.js`).
 
 - **Say something**: from the Start menu, or walk up to another player and press A
   (anywhere within about a tile and a half in front of you will do, or right on top of
