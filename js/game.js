@@ -22137,7 +22137,7 @@
     if (Number.isInteger(startTrack) && Number.isInteger(startCar)) begin();
     const self = {
       music: 'race', doing: 'race', escStart: true, // (B is the brake: Esc brings up the menu)
-      get stick() { return state === 'race'; }, // steering with the thumbstick, as far as you push it
+      // (no stick: on a phone it's the D-pad, at the user's request; a controller's stick still steers as far as it's pushed)
       update() {
         t++;
         if (state === 'track' || state === 'car') {
@@ -22326,7 +22326,6 @@
     const self = {
       music: 'race',
       get escStart() { return onTrack; }, // Esc opens the menu in a race (B is the brake), and leaves the lobby
-      get stick() { return onTrack && menu < 0; },
       // over your head for everyone else: waiting in the lobby for more players, or the race
       get doing() {
         const v = tb.view;

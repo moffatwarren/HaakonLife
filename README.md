@@ -261,8 +261,8 @@ and a steering wheel). Press A on it: **RACE COWORKERS**, or with a game server,
   over the line the computer drives your car round while the rest finish, and the results come up over
   the race; Space (A) brings up RACE AGAIN, NEW TRACK OR CAR and LEAVE. Enter (START) pauses, with
   START AGAIN and LEAVE.
-- **Driving:** A is the gas and B the brake, and reverse from a standstill. Left and right steer, and a
-  thumbstick (on a phone's screen or a controller) steers as far as you push it. The car only turns on
+- **Driving:** A is the gas and B the brake, and reverse from a standstill. Left and right steer: on a
+  phone it's the D-pad, not the thumbstick, and a controller's stick steers as far as you push it. The car only turns on
   the move, a little less at speed. The wide bends you can take flat out, but the tight ones you can't:
   go in too fast and the tyres can't hold it, and you slide wide onto the kerb, the grass or the
   barrier. Ease off or brake before them, or drift them. Kerbs (red and white, or yellow and black at the plant) are as good
@@ -273,7 +273,8 @@ and a steering wheel). Press A on it: **RACE COWORKERS**, or with a game server,
 - **Drifting:** keep the gas down and turn as hard as you can at speed, and after a moment (about a
   quarter of a second) the back swings out. It works the same on a phone, a controller or a keyboard,
   with nothing to press but the gas and the way you're turning. To take a bend on grip instead, turn
-  less hard (a thumbstick pushed part way, or tapping the arrows) or ease off the gas. The car points
+  less hard (tapping left or right instead of holding it, or a controller's stick pushed part way) or
+  ease off the gas. The car points
   further into the bend than it's going, up to about a third of a right angle, and gets round a little
   harder than the tyres could on grip (`DRIFT_GRIP`), keeping most of its speed, but it's still the tyres
   doing it: drift into a bend much too fast and you'll still slide wide. It lasts as long as you keep turning that way, and ends a
