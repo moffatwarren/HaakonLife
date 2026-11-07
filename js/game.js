@@ -4779,7 +4779,8 @@
     catchrun: { title: 'FRISBEE CATCH' },
     bob: { title: 'BOBBING FOR APPLES' }, carve: { title: 'PUMPKIN CARVING' }, treat: { title: 'TRICK-OR-TREAT' },
     ghosts: { title: 'GHOST IN THE CUPBOARD' }, costume: { title: 'COSTUME CONTEST' },
-    golf: { title: 'WADE\'S PUTTING GREEN', low: true }, dark: { title: 'DAMIR\'S LIGHTS', unit: 's', low: true },
+    // (the old `golf` board was over 5 holes, before you got all 9 on your own)
+    golf9: { title: 'WADE\'S PUTTING GREEN', low: true }, dark: { title: 'DAMIR\'S LIGHTS', unit: 's', low: true },
     mummy: { title: 'MUMMY WRAP', unit: tenths, low: true }, humbug: { title: 'HUMBUG SWEEPER', unit: tenths, low: true },
     // Humbug Sweeper over Christmas 2026 only, for the Christmas Cup (CUP): not in the Hall of Fame
     humbug26: { title: 'CHRISTMAS CUP 2026', unit: tenths, low: true, unlisted: true },
@@ -5057,7 +5058,7 @@
     ['OFFICE', ['coffee', 'toss', 'lunch', 'candy', 'stack', 'simon', 'desk', 'jam', 'filter']],
     ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pulldown', 'ball', 'laundry']],
     ['SCREENS AND CODY\'S CASINO', ['pong', 'snake', 'galaxy', 'poker', 'pokerlive', 'blackjack', 'slots']],
-    ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cpr', 'engrave', 'golf', 'legosolo']],
+    ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cpr', 'engrave', 'golf9', 'legosolo']],
     ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catchrun']],
     ['BOARD AND CARD GAMES', ['chess', 'checkers', 'cards', 'cardwins']],
     ['KINGSTON PLANT', ['forklift', 'paint']],
@@ -9884,9 +9885,9 @@
   }
 
   // ---------- Wade's putting green: top-down mini golf ----------
-  // Against another player (VERSUS.golf) it's a score race, fewest strokes wins, over the
-  // same course with four more holes on the end. You each play at your own pace, seeing
-  // their ball when you're on the same hole, and whoever finishes first watches the other.
+  // Nine holes. Against another player (VERSUS.golf) it's a score race, fewest strokes wins,
+  // over the same course. You each play at your own pace, seeing their ball when you're on
+  // the same hole, and whoever finishes first watches the other.
   function GolfGame(vs) {
     const FX = 16, FY = 40, FW = 288, FH = 174, R = 3, CUP = 5, MAX_STROKES = 10;
     // walls / sand / water are rects inside the field
@@ -9901,7 +9902,6 @@
       { par: 4, ball: [44, 196], cup: [270, 64],
         walls: [{ x: 92, y: 40, w: 12, h: 130 }, { x: 186, y: 92, w: 12, h: 122 }],
         sand: [{ x: 214, y: 150, w: 70, h: 44 }], water: [{ x: 120, y: 40, w: 50, h: 26 }] },
-    ].concat(!vs ? [] : [ // (not on your own, so the green's records stay out of 5 holes)
       { par: 3, ball: [40, 127], cup: [280, 127], walls: [],
         sand: [{ x: 240, y: 40, w: 64, h: 40 }, { x: 240, y: 174, w: 64, h: 40 }], water: [{ x: 110, y: 84, w: 100, h: 86 }] },
       { par: 4, ball: [40, 190], cup: [284, 190],
@@ -9910,7 +9910,7 @@
         sand: [{ x: 206, y: 106, w: 88, h: 14 }, { x: 206, y: 180, w: 88, h: 14 }, { x: 280, y: 120, w: 14, h: 60 }], water: [] },
       { par: 3, ball: [40, 127], cup: [284, 127], walls: [{ x: 226, y: 120, w: 10, h: 14 }],
         sand: [], water: [{ x: 150, y: 40, w: 154, h: 62 }, { x: 150, y: 152, w: 154, h: 62 }] },
-    ]);
+    ];
     const BOUNDS = [
       { x: FX - 8, y: FY - 8, w: FW + 16, h: 8 }, { x: FX - 8, y: FY + FH, w: FW + 16, h: 8 },
       { x: FX - 8, y: FY, w: 8, h: FH }, { x: FX + FW, y: FY, w: 8, h: FH },
@@ -9943,7 +9943,8 @@
     }
     const total = () => cards.reduce((a, b) => a + b, 0);
     const parSoFar = () => HOLES.slice(0, cards.length).reduce((a, h) => a + h.par, 0);
-    const best = () => +store.get('best.golf') || 0; // fewest strokes, 0 = never finished
+    // fewest strokes, 0 = never finished (best.golf, without the 9, was from when it was 5 holes)
+    const best = () => +store.get('best.golf9') || 0;
     // their ball: the hole they're on, where they last said it was and where it's drawn
     const foe = { h: 0, x: HOLES[0].ball[0], y: HOLES[0].ball[1], px: HOLES[0].ball[0], py: HOLES[0].ball[1] };
     const race = vs && scoreRace(vs, { what: 'mini golf', fmt: String, low: true, hear: (m) => {
@@ -10024,8 +10025,8 @@
             state = 'done'; t = 0;
             questNote('golf', 1);
             record = !best() || total() < best();
-            if (record) store.set('best.golf', total());
-            boardNote('golf', total());
+            if (record) store.set('best.golf9', total());
+            boardNote('golf9', total());
             sfx('ding');
           }
         }

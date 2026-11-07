@@ -206,7 +206,7 @@ Walk up to these and press A:
 - **Squat rack** (fitness room): mash A to stand up with the bar before time runs out; it gets heavier every lift
 - **Treadmill** (fitness room): jump over the gym clutter (hold A to jump higher) and duck under hanging stuff with Down
 - **Big TVs**: play Pong against the TV, first to 5
-- **Wade's putting green** (2nd floor, office 137): 5 holes of top-down mini golf with sand and water (9 holes when you challenge another player to it; see **Playing together**)
+- **Wade's putting green** (2nd floor, office 137): 9 holes of top-down mini golf with sand and water (you can challenge another player to it too; see **Playing together**)
 - **Air handling fan** (Boardroom 114): hold the wheel inside the target CFM band without tripping the motor
 - **Cooling coil** (Boardroom 114): hold the superheat in the green while the load wanders; frost it or flood it and you lose
 - **Dampers** (Boardroom 114): three branches share one fan, so balancing them is a puzzle, not three dials
@@ -495,7 +495,7 @@ The scores live in a free Firebase Realtime Database. To set one up:
         ".indexOn": ["score"],
         "$player": {
           ".write": "newData.exists() && (!data.exists() || newData.child('score').val() > data.child('score').val()) && ($game !== 'humbug26' || (now >= 1795766400000 && now < 1798790400000))",
-          ".validate": "$game.matches(/^(ball|blackjack|bob|cable|candy|cards|cardwins|carrotpct|carve|catchrun|checkers|chess|chop|cocoa|coffee|coil|costume|cpr|damper|dance|dark|desk|engrave|eotm|fan|filter|forklift|forms|galaxy|ghosts|golf|hockey|humbug|humbug26|jam|laundry|legolines|legosolo|linda|lunch|mallow|mummy|paint|parts|poker|pokerlivelost|pokerlivewon|pong|pulldown|punch5|run|simon|slots|snake|snowball|snowman|spruce|squat|stack|toss|treat|trophy|wokdishes)$/) && $player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['name','score','t']) && newData.child('score').isNumber() && newData.child('score').val() >= -100000 && newData.child('score').val() <= 1000000 && newData.child('t').val() == now",
+          ".validate": "$game.matches(/^(ball|blackjack|bob|cable|candy|cards|cardwins|carrotpct|carve|catchrun|checkers|chess|chop|cocoa|coffee|coil|costume|cpr|damper|dance|dark|desk|engrave|eotm|fan|filter|forklift|forms|galaxy|ghosts|golf9|hockey|humbug|humbug26|jam|laundry|legolines|legosolo|linda|lunch|mallow|mummy|paint|parts|poker|pokerlivelost|pokerlivewon|pong|pulldown|punch5|run|simon|slots|snake|snowball|snowman|spruce|squat|stack|toss|treat|trophy|wokdishes)$/) && $player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['name','score','t']) && newData.child('score').isNumber() && newData.child('score').val() >= -100000 && newData.child('score').val() <= 1000000 && newData.child('t').val() == now",
           "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12 && newData.val().toLowerCase().replace(' ', '_').replace('.', '_').replace(\"'\", '_').replace('-', '_') === $player" },
           "score": { ".validate": true },
           "t": { ".validate": true },
@@ -980,10 +980,10 @@ which tile they're on (and has them walking from tile to tile).
     rounds they've cleared (not their presses, so they can't give it away). Once one of
     you is out, they watch the other's lights on their panel until they're out too.
     Most rounds wins.
-  - **Mini golf**: Wade's putting green, against each other: its 5 holes and 4 more you
-    only get here, the same course for you both. You each putt at your own pace, you can
-    see the other's ball whenever you're on the same hole and which hole they've got to,
-    and whoever finishes first watches the other play on. Fewest strokes wins.
+  - **Mini golf**: Wade's putting green, against each other: its 9 holes, the same course
+    for you both. You each putt at your own pace, you can see the other's ball whenever
+    you're on the same hole and which hole they've got to, and whoever finishes first
+    watches the other play on. Fewest strokes wins.
   - **Pong**: the break room TV's Pong, against each other on one table, first to 5.
     The game server runs this one (see **Game server**), so it's only in the list when
     there is one. You're always the left paddle on your own screen.
