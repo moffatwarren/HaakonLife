@@ -50,7 +50,8 @@ test('the starters make a legal deck, so everybody can play from the start', () 
 test('the words on a card are written from what it does', () => {
   const says = (id) => CARDS.text(CARDS.card(id)).replace(/\*/g, '');
   assert.equal(says('forklift'), 'Keen. On play: send an enemy worker back to their hand.');
-  assert.equal(says('officedog'), 'Thick Skin. Every morning: draw a card.');
+  assert.equal(says('officedog'), 'Thick Skin. Keen. Every morning: draw a card.');
+  assert.equal(says('airhandler'), 'On play: your other workers get +2 Power and +1 Patience.');
   assert.equal(says('firedrill'), 'Everyone on both sides goes home.');
   assert.equal(says('dmitriy'), 'On play: 2 damage to a worker.');
   assert.equal(says('felix'), 'Gatekeeper.');
@@ -408,7 +409,7 @@ test('the Forklift comes in Keen and sends somebody back', () => {
   assert.equal(me(g, 1).table.length, 0);
   const f = me(g, 0).table[0];
   assert.ok(g.act(0, { do: 'attack', from: f.u, target: 1 }));
-  assert.equal(me(g, 1).morale, MORALE - 6);
+  assert.equal(me(g, 1).morale, MORALE - CARDS.card('forklift').power);
 });
 test('the Office Dog brings you a card each morning', () => {
   const g = game();
@@ -434,6 +435,26 @@ test('Linda always comes back to your hand', () => {
   play(g, 0, 'reorg', u);
   assert.equal(me(g, 1).table.length, 0);
   assert.deepEqual(plain(me(g, 1).hand.map((c) => c.id)), ['linda']);
+});
+test('the Air Handler livens up everybody else, but not itself', () => {
+  const g = game();
+  const a = g.give(0, 'nightshift'), them = g.give(1, 'student');
+  play(g, 0, 'airhandler');
+  assert.equal(worker(g, 0, a).pw, 7);
+  assert.equal(worker(g, 0, a).pa, 6);
+  assert.equal(worker(g, 0, a).max, 6, 'and they can be patched up to the new Patience');
+  const air = me(g, 0).table.find((x) => x.id === 'airhandler');
+  assert.equal(air.pw, CARDS.card('airhandler').power);
+  assert.equal(worker(g, 1, them).pw, 1, 'the other side is left alone');
+});
+test('the Morale Officer gives the others +1 Power, then +2 Morale every morning', () => {
+  const g = game();
+  const a = g.give(0, 'nightshift');
+  play(g, 0, 'youmorale');
+  assert.equal(worker(g, 0, a).pw, 6);
+  const before = me(g, 0).morale;
+  nextTurn(g); nextTurn(g);
+  assert.equal(me(g, 0).morale, before + 2);
 });
 test('the Humbug takes Power away, but never below nothing', () => {
   const g = game();

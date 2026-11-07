@@ -93,7 +93,7 @@ window.CARD_LIST = [
   { id: 'miked', name: 'Mike D.', dept: 'plant', rarity: 'C', cost: 6, power: 6, patience: 7, said: 'Normal Tuesday.' },
   { id: 'bigcoil', name: 'The Big Coil', dept: 'plant', rarity: 'R', heldBy: 'Jillian', cost: 5, power: 1, patience: 9, words: ['gate'] },
   { id: 'crane', name: 'Overhead Crane', dept: 'plant', rarity: 'R', heldBy: 'Graham', cost: 7, power: 5, patience: 7, does: [{ do: 'hit', n: 3, who: 'enemy' }] },
-  { id: 'forklift', name: 'Forklift', dept: 'plant', rarity: 'L', heldBy: 'Mike D.', cost: 7, power: 6, patience: 6, words: ['keen'], does: [{ do: 'back', who: 'enemy' }] },
+  { id: 'forklift', name: 'Forklift', dept: 'plant', rarity: 'L', heldBy: 'Mike D.', cost: 7, power: 7, patience: 7, words: ['keen'], does: [{ do: 'back', who: 'enemy' }] },
 
   // ---------- Sales: fast, and straight at the other player ----------
   { id: 'mikeh', name: 'Mike H.', dept: 'sales', rarity: 'C', cost: 1, power: 2, patience: 1 },
@@ -109,7 +109,7 @@ window.CARD_LIST = [
   { id: 'roadtrip', name: 'Road Trip', dept: 'sales', rarity: 'R', heldBy: 'Wade', kind: 'task', cost: 3, does: [{ do: 'hit', n: 3, who: 'them' }] },
   { id: 'bigorder', name: 'The Big Order', dept: 'sales', rarity: 'R', heldBy: 'Howard', kind: 'task', cost: 6, does: [{ do: 'hit', n: 5, who: 'them' }] },
   { id: 'demounit', name: 'Demo Unit', dept: 'sales', rarity: 'R', heldBy: 'Mike Friesen', cost: 3, power: 0, patience: 5, does: [{ when: 'morning', do: 'hit', n: 1, who: 'them' }] },
-  { id: 'truck', name: 'Company Truck', dept: 'sales', rarity: 'L', heldBy: 'Mauro', cost: 6, power: 4, patience: 5, words: ['keen'], does: [{ do: 'hit', n: 3, who: 'them' }] },
+  { id: 'truck', name: 'Company Truck', dept: 'sales', rarity: 'L', heldBy: 'Mauro', cost: 5, power: 4, patience: 5, words: ['keen'], does: [{ do: 'hit', n: 3, who: 'them' }] },
 
   // ---------- Office: clever ----------
   { id: 'davisson', name: 'Davisson', dept: 'office', rarity: 'C', cost: 2, power: 1, patience: 1, does: [{ do: 'draw', n: 1 }], said: 'Everything perfectly organised.' },
@@ -132,8 +132,8 @@ window.CARD_LIST = [
   { id: 'budget', name: 'Budget Meeting', dept: 'office', rarity: 'R', heldBy: 'Rob', kind: 'task', cost: 3, does: [{ do: 'freeze', who: 'enemies' }] },
   { id: 'reorg', name: 'Reorg', dept: 'office', rarity: 'R', heldBy: 'STEPHEN', kind: 'task', cost: 4, does: [{ do: 'home', who: 'enemy' }] },
   { id: 'felix', name: 'Felix', dept: 'office', rarity: 'R', heldBy: 'Kim', cost: 4, power: 0, patience: 7, words: ['gate'], said: 'Meow... yawn... zzzz' },
-  { id: 'printer', name: 'The Printer', dept: 'office', rarity: 'L', heldBy: 'Leo', cost: 4, power: 2, patience: 6, does: [{ when: 'morning', do: 'freeze', who: 'random' }] },
-  { id: 'officedog', name: 'Office Dog', dept: 'office', rarity: 'L', heldBy: 'Jhonna', cost: 5, power: 3, patience: 6, words: ['skin'], does: [{ when: 'morning', do: 'draw', n: 1 }] },
+  { id: 'printer', name: 'The Printer', dept: 'office', rarity: 'L', heldBy: 'Leo', cost: 3, power: 2, patience: 6, words: ['gate'], does: [{ when: 'morning', do: 'freeze', who: 'random' }] },
+  { id: 'officedog', name: 'Office Dog', dept: 'office', rarity: 'L', heldBy: 'Jhonna', cost: 4, power: 3, patience: 5, words: ['skin', 'keen'], does: [{ when: 'morning', do: 'draw', n: 1 }] },
 
   // ---------- Engineering: designers, programmers and R&D. Keeps everything running ----------
   { id: 'matthew', name: 'Matthew', dept: 'engineering', rarity: 'C', cost: 1, power: 1, patience: 1, does: [{ do: 'coffee', n: 1 }], said: 'This is my third coffee.' },
@@ -186,7 +186,7 @@ window.CARD_LIST = [
   { id: 'roofcurb', name: 'Roof Curb', dept: 'engineering', rarity: 'U', heldBy: 'Charles', cost: 2, power: 0, patience: 6, words: ['gate'] },
   { id: 'revisiond', name: 'Revision D', dept: 'engineering', rarity: 'U', heldBy: 'William', kind: 'task', cost: 2, does: [{ do: 'boost', p: 2, h: 2, who: 'ally' }] },
   { id: 'heatwheel', name: 'Heat Wheel', dept: 'engineering', rarity: 'R', heldBy: 'Troy', cost: 3, power: 1, patience: 5, does: [{ when: 'morning', do: 'hit', n: 1, who: 'random' }] },
-  { id: 'airhandler', name: 'The Air Handler', dept: 'engineering', rarity: 'L', heldBy: 'Dmitriy', cost: 6, power: 3, patience: 6, does: [{ when: 'morning', do: 'boost', p: 1, who: 'others' }] },
+  { id: 'airhandler', name: 'The Air Handler', dept: 'engineering', rarity: 'L', heldBy: 'Dmitriy', cost: 5, power: 3, patience: 6, does: [{ do: 'boost', p: 2, h: 1, who: 'others' }] },
 
   // ---------- for any deck ----------
   { id: 'sneakycoke', name: 'Sneaky Coke', rarity: 'U', heldBy: 'John', kind: 'task', cost: 0, does: [{ do: 'coffee', n: 1 }] },
@@ -200,13 +200,13 @@ window.CARD_LIST = [
   { id: 'firedrill', name: 'Fire Drill', rarity: 'R', heldBy: 'Steve', kind: 'task', cost: 5, does: [{ do: 'home', who: 'all' }], said: 'Leave your coffee.' },
   { id: 'xmasparty', name: 'Christmas Party', rarity: 'R', heldBy: 'Lam', kind: 'task', cost: 5, does: [{ do: 'boost', p: 1, h: 1, who: 'allies' }, { do: 'heal', n: 3, who: 'you' }] },
   { id: 'humbug', name: 'Humbug', rarity: 'L', heldBy: 'Brian', cost: 6, power: 4, patience: 4, does: [{ do: 'boost', p: -2, who: 'enemies' }] },
-  { id: 'linda', name: 'Linda', rarity: 'L', heldBy: 'Davisson', cost: 5, power: 4, patience: 5, words: ['skin'], does: [{ when: 'last', do: 'back', who: 'self' }], said: 'Boooooo...' },
+  { id: 'linda', name: 'Linda', rarity: 'L', heldBy: 'Davisson', cost: 5, power: 4, patience: 5, words: ['skin', 'keen'], does: [{ when: 'last', do: 'back', who: 'self' }], said: 'Boooooo...' },
   // Your own legendary, for winning every other card. Nobody holds these: they show your character and
   // your name, and you pick which one you play in MY CARDS. Only the game ever uses "Legend" as a name.
-  { id: 'youbruiser', name: 'Legend', style: 'BRUISER', own: true, rarity: 'L', cost: 6, power: 5, patience: 4, words: ['keen'], does: [{ do: 'hit', n: 2, who: 'them' }] },
-  { id: 'youwall', name: 'Legend', style: 'WALL', own: true, rarity: 'L', cost: 6, power: 2, patience: 6, words: ['gate', 'skin'] },
-  { id: 'youboss', name: 'Legend', style: 'BOSS', own: true, rarity: 'L', cost: 7, power: 5, patience: 5, does: [{ do: 'home', who: 'enemy' }] },
-  { id: 'youlead', name: 'Legend', style: 'TEAM LEAD', own: true, rarity: 'L', cost: 4, power: 3, patience: 5, does: [{ do: 'give', word: 'skin', who: 'others' }] },
-  { id: 'youmorale', name: 'Legend', style: 'MORALE OFFICER', own: true, rarity: 'L', cost: 5, power: 3, patience: 7, does: [{ when: 'morning', do: 'heal', n: 2, who: 'you' }] },
-  { id: 'youplanner', name: 'Legend', style: 'PLANNER', own: true, rarity: 'L', cost: 4, power: 3, patience: 5, does: [{ do: 'draw', n: 2 }] },
+  { id: 'youbruiser', name: 'Legend', style: 'BRUISER', own: true, rarity: 'L', cost: 5, power: 5, patience: 4, words: ['keen'], does: [{ do: 'hit', n: 2, who: 'them' }] },
+  { id: 'youwall', name: 'Legend', style: 'WALL', own: true, rarity: 'L', cost: 5, power: 3, patience: 7, words: ['gate', 'skin'] },
+  { id: 'youboss', name: 'Legend', style: 'BOSS', own: true, rarity: 'L', cost: 5, power: 4, patience: 5, does: [{ do: 'home', who: 'enemy' }] },
+  { id: 'youlead', name: 'Legend', style: 'TEAM LEAD', own: true, rarity: 'L', cost: 3, power: 3, patience: 5, does: [{ do: 'give', word: 'skin', who: 'others' }] },
+  { id: 'youmorale', name: 'Legend', style: 'MORALE OFFICER', own: true, rarity: 'L', cost: 4, power: 3, patience: 6, does: [{ do: 'boost', p: 1, who: 'others' }, { when: 'morning', do: 'heal', n: 2, who: 'you' }] },
+  { id: 'youplanner', name: 'Legend', style: 'PLANNER', own: true, rarity: 'L', cost: 2, power: 2, patience: 4, does: [{ do: 'draw', n: 2 }] },
 ];
