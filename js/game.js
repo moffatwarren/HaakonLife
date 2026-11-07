@@ -4,7 +4,7 @@
   // only whatever uses that script would break, much later on. Stop here instead: with no
   // window.GAME, index.html reloads the page, and a reload always asks for the newest index.html.
   // (tools/check_games.mjs makes sure every script has a name in this list.)
-  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'CHESS', 'CHECKERS', 'SWEEPER', 'CARD_LIST', 'CARDS', 'CARD_ART'].some((name) => !window[name])) return;
+  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'RACE', 'TrackArt', 'CHESS', 'CHECKERS', 'SWEEPER', 'CARD_LIST', 'CARDS', 'CARD_ART'].some((name) => !window[name])) return;
 
   // View: 20 x 15 tiles of 16px.
   const SW = 320, SH = 240;
@@ -614,6 +614,13 @@
     power: () => { tone(660, 0.07, 'square', 0.035, 400); tone(990, 0.12, 'square', 0.035, 700, 0.07); },
     laser: () => tone(2400, 0.12, 'sawtooth', 0.018, -1800),
     nova: () => { noise(0.7, 900, 0.1); tone(160, 0.55, 'sawtooth', 0.05, 700); },
+    // Haakon Grand Prix: tyres sliding in a drift, a kerb rattling under you, a barrier, a bump
+    // from another car, and the burst of speed out of a long drift
+    skid: () => noise(0.09, 1500 + Math.random() * 300, 0.022),
+    kerb: () => { tone(110, 0.05, 'square', 0.02); tone(140, 0.04, 'square', 0.015, 0, 0.05); },
+    crash: (p) => { noise(0.18, 320, 0.06 + 0.08 * (p || 0)); tone(80, 0.14, 'square', 0.05 + 0.04 * (p || 0), -40); },
+    clunk: (p) => { noise(0.08, 900, 0.05 + 0.05 * (p || 0)); tone(160, 0.08, 'square', 0.04, -60); },
+    boost: () => { noise(0.4, 2400, 0.05); tone(300, 0.35, 'sawtooth', 0.025, 500); },
     // the bell on the Santa hat, which goes with every other stride, so it's very quiet
     bell: () => {
       const k = 1 + Math.random() * 0.05;
@@ -621,6 +628,25 @@
     },
   };
   function sfx(name, arg) { if (soundOn && actx) SFX[name](arg); }
+  // Your car's engine while you race: a rasp that climbs through the gears with your speed (0 to 1
+  // of top speed), louder on the gas. Each call keeps it going for a moment, so it dies away by
+  // itself once nothing calls it (the race over, paused, or broken).
+  let hum = null;
+  function engineHum(speed, gas) {
+    if (!soundOn || !actx) return;
+    if (!hum) {
+      const o = actx.createOscillator(), o2 = actx.createOscillator(), f = actx.createBiquadFilter(), g = actx.createGain();
+      o.type = 'sawtooth'; o2.type = 'square'; f.type = 'lowpass'; f.frequency.value = 700; g.gain.value = 0;
+      o.connect(f); o2.connect(f); f.connect(g); g.connect(sfxBus); o.start(); o2.start();
+      hum = { o, o2, g };
+    }
+    const t = actx.currentTime, v = Math.max(0, Math.min(1.2, speed)) * 4, gear = Math.min(3, Math.floor(v)), rev = v - gear;
+    const fq = 46 + gear * 9 + rev * 52;
+    hum.o.frequency.setTargetAtTime(fq, t, 0.03); hum.o2.frequency.setTargetAtTime(fq * 0.5, t, 0.03);
+    const gn = hum.g.gain;
+    gn.cancelScheduledValues(t); gn.setValueAtTime(gn.value, t);
+    gn.linearRampToValueAtTime(gas ? 0.03 : 0.016, t + 0.04); gn.linearRampToValueAtTime(0, t + 0.3);
+  }
 
   // ---------- music: a tiny chiptune sequencer for the songs in js/music.js ----------
   let musicOn = store.get('music') !== 'off';
@@ -3666,17 +3692,19 @@
   }
 
   // ---------- the sign-up sheet: which live game to join, or start a new one ----------
-  // At the booth by the rink's gate (g: 'hockey') or the casino's poker table ('poker'). The
-  // game server has as many games going at once as people start (see server/tables.js), so
-  // this asks it what's on, every second while it's up, and lists the ones with room: a lobby
-  // still filling up, a game on with a skater the computer's playing (see sit in
-  // server/tables/hockey.js), or a table with a seat free, each with who's there. Or you start
-  // a new one, which comes straight up if there's nothing to join: for hockey it asks what
-  // size of game first, and then you're in its lobby.
+  // At the booth by the rink's gate (g: 'hockey'), the casino's poker table ('poker') or the
+  // lunch room's racing cabinet ('race'). The game server has as many games going at once as
+  // people start (see server/tables.js), so this asks it what's on, every second while it's up,
+  // and lists the ones with room: a lobby still filling up, a game on with a skater the
+  // computer's playing (see sit in server/tables/hockey.js), or a table with a seat free, each
+  // with who's there. Or you start a new one, which comes straight up if there's nothing to join:
+  // for hockey it asks what size of game first, and for a race which track, and then you're in
+  // its lobby.
   const newTable = (kind) => kind + ':' + Math.random().toString(36).slice(2, 10);
   function SignUp(g) {
-    const hk = g === 'hockey', sheet = mp.sheet = { g, list: null }, SHOWN = 5;
-    const SIZES = [['1 ON 1', 'You and one other player'], ['2 ON 2', '2 to 4 players, and the computer fills in'], ['3 ON 3', '2 to 6 players, and the computer fills in']];
+    const hk = g === 'hockey', rc = g === 'race', sheet = mp.sheet = { g, list: null }, SHOWN = 5;
+    const SIZES = rc ? RACE.TRACKS.map((tr) => [tr.name, tr.about])
+      : [['1 ON 1', 'You and one other player'], ['2 ON 2', '2 to 4 players, and the computer fills in'], ['3 ON 3', '2 to 6 players, and the computer fills in']];
     // t: ticks it's been up; pick: the game picked (null for starting a new one); at: where that
     // is in the list, for when it's gone; first: the top game showing; sizes: asking what size
     // of game (size: the one picked)
@@ -3685,7 +3713,7 @@
     const close = () => { remove(self); if (mp.sheet === sheet) mp.sheet = null; };
     const go = (Game) => { close(); sfx('menu'); if (hk) startFade(() => ui.push(Game()), '#f8f8f8'); else ui.push(Game()); };
     const startNew = () => {
-      if (hk) { sizes = true; sfx('select'); } else go(() => LivePoker(newTable('poker')));
+      if (hk || rc) { sizes = true; sfx('select'); } else go(() => LivePoker(newTable('poker')));
     };
     const self = {
       update() {
@@ -3702,15 +3730,15 @@
         if (!begun) {
           begun = true;
           if (games.length) pick = games[0].t;
-          else if (hk) sizes = true;
+          else if (hk || rc) sizes = true;
           else { go(() => LivePoker(newTable('poker'))); return; }
         }
         if (sizes) {
           if (pressed.has('up')) { size = (size + SIZES.length - 1) % SIZES.length; sfx('select'); }
           if (pressed.has('down')) { size = (size + 1) % SIZES.length; sfx('select'); }
           if (pressed.has('a')) {
-            const n = (size + 1) * 2;
-            go(() => LiveHockey(n, newTable('hockey' + (size + 1))));
+            const n = (size + 1) * 2, tr = size;
+            go(rc ? () => LiveRace(newTable('race'), false, tr) : () => LiveHockey(n, newTable('hockey' + (size + 1))));
           } else if (pressed.has('b')) {
             sfx('select');
             if (games.length) sizes = false; else close();
@@ -3728,7 +3756,7 @@
         if (pressed.has('a')) {
           const x = games[i];
           if (!x) startNew();
-          else go(() => (hk ? LiveHockey(x.size, x.t, true) : LivePoker(x.t, true)));
+          else go(() => (hk ? LiveHockey(x.size, x.t, true) : rc ? LiveRace(x.t, true) : LivePoker(x.t, true)));
         } else if (pressed.has('b')) { sfx('select'); close(); }
       },
       // the mouse: point at a size, a game or START A NEW one to pick it, and click to go
@@ -3752,7 +3780,7 @@
       wheel(d) { pressed.add(d > 0 ? 'down' : 'up'); },
       draw() {
         box(0, 0, SW, SH);
-        const title = hk ? 'LIVE HOCKEY SIGN-UP' : 'LIVE HOLD\'EM TABLES';
+        const title = hk ? 'LIVE HOCKEY SIGN-UP' : rc ? 'LIVE RACE SIGN-UP' : 'LIVE HOLD\'EM TABLES';
         text(title, (SW - title.length * 6) >> 1, 10);
         if (!sheet.list || !begun) {
           ctext('Checking the sheet' + '.'.repeat(1 + ((tick >> 4) % 3)), 104);
@@ -3768,21 +3796,22 @@
           if (b) text(b, 24, y + 11, 1, col.mid);
         };
         if (sizes) {
-          ctext(sheet.list.length ? 'What size of game?' : 'Nobody\'s playing yet. What size of game?', 30);
-          SIZES.forEach(([a, b], i) => row(56 + i * 32, i === size, a, b));
+          const what = rc ? 'Which track?' : 'What size of game?';
+          ctext(sheet.list.length ? what : (rc ? 'Nobody\'s racing yet. ' : 'Nobody\'s playing yet. ') + what, 30);
+          SIZES.forEach(([a, b], i) => row(56 + i * (SIZES.length > 4 ? 30 : 32), i === size, a, b));
           text('Arrows: choose  Space: OK  Esc: back', 10, SH - 18);
           return;
         }
-        ctext(hk ? 'Join a game, or start a new one' : 'Pull up a chair, or start a new table', 26);
-        games.slice(first, first + SHOWN).forEach((x, i) => row(44 + i * 28, x.t === pick, sheetLine(x, hk), sheetNames(x.who)));
+        ctext(hk ? 'Join a game, or start a new one' : rc ? 'Join a race, or start a new one' : 'Pull up a chair, or start a new table', 26);
+        games.slice(first, first + SHOWN).forEach((x, i) => row(44 + i * 28, x.t === pick, rc ? raceLine(x) : sheetLine(x, hk), sheetNames(x.who)));
         if (games.length > SHOWN) {
           const more = first + 1 + '-' + (first + SHOWN) + ' of ' + games.length;
           text(more, SW - 12 - more.length * 6, 10, 1, col.mid);
         }
         const y = 44 + Math.min(SHOWN, games.length) * 28 + 2, full = sheet.list.length - games.length;
-        row(y, !pick, hk ? 'START A NEW GAME' : 'START A NEW TABLE');
+        row(y, !pick, hk ? 'START A NEW GAME' : rc ? 'START A NEW RACE' : 'START A NEW TABLE');
         if (!games.length) ctext('Nothing to join right now.', y + 20, col.mid);
-        else if (full) ctext(full + ' more ' + (hk ? (full > 1 ? 'games are' : 'game is') : (full > 1 ? 'tables are' : 'table is')) + ' going, with no room.', y + 20, col.mid);
+        else if (full) ctext(full + ' more ' + (hk ? (full > 1 ? 'games are' : 'game is') : rc ? (full > 1 ? 'races are' : 'race is') : (full > 1 ? 'tables are' : 'table is')) + ' going, with no room.', y + 20, col.mid);
         text('Arrows: choose  Space: OK  Esc: back', 10, SH - 18);
       },
     };
@@ -3796,6 +3825,11 @@
     if (x.ph !== 'play' || !Array.isArray(x.sc)) return kind + 'In the lobby: ' + left;
     const when = x.ot ? 'overtime' : Math.floor(x.clk / 60) + ':' + String(x.clk % 60).padStart(2, '0') + ' left';
     return kind + 'Playing ' + x.sc[0] + '-' + x.sc[1] + ', ' + when + ': ' + left;
+  }
+  // ...or for a race: which track, and how many spots are left in its lobby
+  function raceLine(x) {
+    const tr = RACE.TRACKS[x.tr] || RACE.TRACKS[0];
+    return tr.name + '  In the lobby: ' + x.open + ' spot' + (x.open > 1 ? 's' : '') + ' open';
   }
   // and its second: who's there, as many as fit
   function sheetNames(who) {
@@ -4758,6 +4792,7 @@
   // here have a board. A higher stored score is always better, so the fewest-strokes and
   // fastest-time games (low) are stored negated.
   const tenths = (n) => (n / 10).toFixed(1) + 's';
+  const racetime = (n) => Math.floor(n / 600) + ':' + ((n % 600) / 10).toFixed(1).padStart(4, '0'); // (tenths of a second, as 1:05.3)
   const times = (n) => n + (n === 1 ? ' time' : ' times');
   const goals = (n) => n + (n === 1 ? ' goal' : ' goals');
   const signed = (n) => (n > 0 ? '+' : '') + n;
@@ -4787,6 +4822,10 @@
     forklift: { title: 'FORKLIFT RUSH', unit: ' pallets' }, paint: { title: 'EVEN COAT' },
     chop: { title: 'WOOD CHOPPING', unit: ' logs' }, mallow: { title: 'MARSHMALLOWS' }, spruce: { title: 'DECK THE SPRUCE' },
     snowman: { title: 'SNOWMAN', unit: ' cm' }, cocoa: { title: 'HOT CHOCOLATE STAND', unit: ' stars' }, snowball: { title: 'SNOWBALL FIGHT', unit: ' hits' },
+    // Haakon Grand Prix: your fastest race on each track, three laps against coworkers (RACE_BOARDS)
+    racelake: { title: 'LAKESHORE GP', unit: racetime, low: true }, racemaple: { title: 'MAPLE HOLLOW GP', unit: racetime, low: true },
+    racesnow: { title: 'SNOWBELT GP', unit: racetime, low: true }, raceprairie: { title: 'CANOLA FLATS GP', unit: racetime, low: true },
+    raceplant: { title: 'KINGSTON PLANT GP', unit: racetime, low: true },
     // the most you've scored in one game of hockey against a coworker (played to the end)
     hockey: { title: 'HOCKEY GOALS', unit: goals },
     // Morale Madness: how many cards you have, starter cards and all, and how many times you've beaten another player
@@ -5061,6 +5100,7 @@
     ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cpr', 'engrave', 'golf9', 'legosolo']],
     ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catchrun']],
     ['BOARD AND CARD GAMES', ['chess', 'checkers', 'cards', 'cardwins']],
+    ['HAAKON GRAND PRIX', ['racelake', 'racemaple', 'racesnow', 'raceprairie', 'raceplant']],
     ['KINGSTON PLANT', ['forklift', 'paint']],
     ['HALLOWEEN', ['bob', 'mummy', 'carve', 'treat', 'ghosts', 'costume']],
     ['CHRISTMAS', ['chop', 'mallow', 'spruce', 'snowman', 'cocoa', 'snowball', 'hockey', 'humbug']],
@@ -17343,6 +17383,7 @@
     pokerlive: (n) => 'Playing live poker (' + n + ' players)', pokerwait: 'Waiting for poker players',
     hockey: 'Playing hockey', hockey1v1: 'Playing live hockey (1 on 1)', hockey2v2: 'Playing live hockey (2 on 2)', hockey3v3: 'Playing live hockey (3 on 3)',
     hockeywait: 'Waiting for hockey players',
+    race: 'Playing Haakon Grand Prix', racelive: (n) => 'In a live race (' + n + ' players)', racewait: 'Waiting for racers',
     coffee: 'Playing Coffee Machine', catch: 'Playing Frisbee Catch', punch: 'Playing Punching Bag', run: 'Playing Treadmill',
     pong: 'Playing Pong', toss: 'Playing Paper Toss', stack: 'Playing Photocopier', simon: 'Playing Control Panel',
     lunch: 'Playing Find My Lunch', candy: 'Playing Candy Table', squat: 'Playing Squat Rack', golf: 'Playing mini golf',
@@ -21851,6 +21892,584 @@
     ctx.globalAlpha = 1;
   }
 
+  // ---------- Haakon Grand Prix: the racing game on the lunch room's arcade cabinet ----------
+  // The race itself (the tracks, the cars and how they drive, the laps, and how coworkers drive)
+  // is js/race.js, and its pictures js/track.js. RaceGame races three coworkers: pick a track,
+  // then a car, and you start at the back of the grid. LiveRace races other players on the game
+  // server (server/tables/race.js), picked from the sign-up sheet (SignUp). Both draw the race
+  // with raceScreen. A is the gas, B the brake (and reverse), and left and right steer; keep the
+  // gas down and hold a hard turn at speed, and the back swings out in a drift (see js/race.js).
+  const RACE_HINTS = ['Space: gas  X: brake  Arrows: steer', 'Hold a hard turn at speed to drift']; // (up for the countdown)
+  const RACE_BOARDS = ['racelake', 'racemaple', 'racesnow', 'raceprairie', 'raceplant']; // each track's fastest race, in RACE.TRACKS' order
+  const RACE_PLACES = ['1ST', '2ND', '3RD', '4TH'];
+  const raceClock = (ticks) => racetime(Math.round(ticks / 6));
+  const raceCar = (i) => (Number.isInteger(i) && RACE.CARS[i] ? i : 0);
+  const RACE_GRASS = { lake: '#5ca84a', maple: '#94a644', snow: '#dce4f0', prairie: '#c4b84a', plant: '#a6a69e' };
+  const RACE_DUST = { maple: '#b8963c', snow: '#f8fbff', plant: '#c4c4bc' }; // (what flies up off the grass, or the yard)
+  // a map of a track's road, k of the game's pixels to a tile (made once for each)
+  const raceMaps = new Map();
+  function raceMap(ti, k) {
+    const key = ti + ':' + k;
+    if (!raceMaps.has(key)) raceMaps.set(key, TrackArt.mini(RACE.track(ti), k));
+    return raceMaps.get(key);
+  }
+  // a track's map on a patch of its own grass, centred on x, with its top at y
+  function raceMapPanel(ti, k, x, y) {
+    const m = raceMap(ti, k), w = m.width / 2, h = m.height / 2;
+    roundBox(x - w / 2 - 4, y - 4, w + 8, h + 8, 3, col.dark);
+    roundBox(x - w / 2 - 3, y - 3, w + 6, h + 6, 2.5, RACE_GRASS[RACE.TRACKS[ti].theme] || RACE_GRASS.lake);
+    ctx.drawImage(m, x - w / 2, y);
+    return h;
+  }
+
+  // What a race looks like, following your car: the track, the skid marks it's picked up, the
+  // cars, the smoke and dust and sparks, the gantry over the start (its lights counting down),
+  // and how you're doing along the top with a map in the corner. tick(g, me) moves the camera and
+  // the bits flying about, hit(events) throws up sparks where cars hit something, and draw(g, me,
+  // o) draws it all: o.cols is each car's colour (its place in TrackArt.COLOURS), o.names what to
+  // call each (null for you), and o.off how far out of place each is drawn (in tiles: LiveRace
+  // sliding them over to where they really are).
+  function raceScreen(ti) {
+    const T = RACE.track(ti), art = TrackArt.paint(T), mini = raceMap(ti, 0.62), snowy = T.theme === 'snow', start = T.at(0, 0);
+    const marks = document.createElement('canvas');
+    marks.width = art.w; marks.height = art.h;
+    const mc = marks.getContext('2d'), fx = [], rears = [];
+    const MARK = [snowy ? 'rgba(96, 106, 128, 0.32)' : 'rgba(24, 24, 30, 0.3)', 'rgba(24, 24, 30, 0.3)', snowy ? 'rgba(150, 162, 186, 0.35)' : 'rgba(70, 52, 28, 0.3)'];
+    let cx = null, cy = null, n = 0;
+    // where a car's back wheels are, in the game's pixels
+    const wheels = (c) => {
+      const fx0 = Math.sin(c.ang), fy0 = Math.cos(c.ang), lx = Math.cos(c.ang), ly = -Math.sin(c.ang), b = c.spec.len * 0.3, w = c.spec.wid * 0.38;
+      return [[(c.x - fx0 * b + lx * w) * 16, (c.y - fy0 * b + ly * w) * 16], [(c.x - fx0 * b - lx * w) * 16, (c.y - fy0 * b - ly * w) * 16]];
+    };
+    const puff = (x, y, o) => fx.push(Object.assign({ x, y, vx: 0, vy: 0, t: 0, life: 24, r0: 1.5, r1: 4, col: '#e8e8ee' }, o));
+    function mark(a, b, colour) {
+      mc.fillStyle = colour;
+      const k = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1])));
+      if (k > 12) return; // (it's been put somewhere else: a new race loaded, say)
+      for (let i = 0; i <= k; i++) mc.fillRect(Math.floor(a[0] + (b[0] - a[0]) * i / k), Math.floor(a[1] + (b[1] - a[1]) * i / k), 1, 1);
+    }
+    return {
+      T,
+      hit(events) {
+        for (const e of events) {
+          if ((e.e !== 'wall' && e.e !== 'bump') || !e.c) continue;
+          for (let k = 0; k < 6; k++) puff(e.c.x * 16, e.c.y * 16, { vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3, life: 10, r0: 1, r1: 0.5, col: k & 1 ? '#f8e070' : '#ffffff' });
+        }
+      },
+      tick(g, me) {
+        n++;
+        const you = g.cars[me];
+        if (you) {
+          const tx = you.x * 16 + you.vx * 16 * 0.42 - SW / 2, ty = you.y * 16 + you.vy * 16 * 0.42 - SH / 2 + 8;
+          if (cx === null) { cx = tx; cy = ty; }
+          cx += (tx - cx) * 0.12; cy += (ty - cy) * 0.12;
+          cx = Math.max(0, Math.min(art.w - SW, cx)); cy = Math.max(0, Math.min(art.h - SH, cy));
+        }
+        g.cars.forEach((c, j) => {
+          if (c.out) { rears[j] = null; return; }
+          const w = wheels(c), f = [Math.sin(c.ang), Math.cos(c.ang)], vf = c.vx * f[0] + c.vy * f[1], vl = c.vx * f[1] - c.vy * f[0], v = Math.hypot(c.vx, c.vy);
+          // marks on the road from a slide, hard braking or the grass
+          const sliding = c.drift || Math.abs(vl) > 2.2 || (c.in.b && vf > 5) || (c.surf === 2 && v > 2);
+          if (sliding && rears[j]) for (let k = 0; k < 2; k++) mark(rears[j][k], w[k], MARK[c.surf] || MARK[0]);
+          rears[j] = w;
+          // smoke from a drift, dust off the grass, flames out of a boost, sparks off a drift that's earned one
+          if (c.drift && n % 3 === 0) for (const p of w) puff(p[0], p[1], { vx: c.vx * 0.05 + (Math.random() - 0.5) * 0.3, vy: c.vy * 0.05 - 0.2, life: 26, col: snowy ? '#ffffff' : '#e4e4ea' });
+          if (c.surf === 2 && v > 3 && n % 4 === 0) puff(w[0][0], w[0][1], { vx: (Math.random() - 0.5) * 0.6, vy: -0.4, life: 18, r0: 1, r1: 2.5, col: RACE_DUST[T.theme] || '#7a9a40' });
+          if (c.boost > 0) puff((c.x - f[0] * c.spec.len * 0.55) * 16, (c.y - f[1] * c.spec.len * 0.55) * 16, { vx: -f[0] * 0.8, vy: -f[1] * 0.8, life: 9, r0: 2, r1: 0.5, col: n & 1 ? '#f8d040' : '#f08020' });
+          if (c.drift && c.dk >= 40 && n % 2 === 0) { const p = w[n & 2 ? 0 : 1]; puff(p[0], p[1], { vx: (Math.random() - 0.5) * 1.6, vy: -Math.random() * 1.2, life: 8, r0: 1, r1: 0.5, col: c.dk >= 100 ? '#f8a030' : '#68b0f8' }); }
+        });
+        for (let i = fx.length - 1; i >= 0; i--) { const p = fx[i]; p.x += p.vx; p.y += p.vy; if (++p.t >= p.life) fx.splice(i, 1); }
+        if (fx.length > 400) fx.splice(0, fx.length - 400);
+      },
+      draw(g, me, o) {
+        const ox = realPx(cx || 0), oy = realPx(cy || 0), X = (v) => realPx(v * 16 - ox), Y = (v) => realPx(v * 16 - oy);
+        ctx.drawImage(art.ground, ox, oy, SW, SH, 0, 0, SW, SH);
+        ctx.drawImage(marks, ox, oy, SW, SH, 0, 0, SW, SH);
+        // the cars, the ones further up the screen first
+        const on = g.cars.map((c, j) => j).filter((j) => !g.cars[j].out).sort((a, b) => g.cars[a].y - g.cars[b].y);
+        const at = (j) => { const c = g.cars[j], d = (o.off && o.off[j]) || [0, 0]; return [c.x + d[0], c.y + d[1]]; };
+        for (const j of on) {
+          const c = g.cars[j], [x, y] = at(j), D = TrackArt.DIRS, pic = TrackArt.car(c.car, o.cols[j] || 0)[((Math.round(c.ang / (Math.PI * 2) * D) % D) + D) % D];
+          ctx.drawImage(pic, X(x) - pic.width / 4, Y(y) - pic.height / 4);
+        }
+        for (const p of fx) {
+          const k = p.t / p.life;
+          ctx.globalAlpha = 1 - k * 0.8;
+          fineDisc(realPx(p.x - ox), realPx(p.y - oy), Math.max(0.5, Math.round((p.r0 + (p.r1 - p.r0) * k) * 2) / 2), p.col);
+        }
+        ctx.globalAlpha = 1;
+        // the gantry over the start, on its posts either side, the lights on it counting down
+        const gx = X(start.x), yN = Y(start.y - RACE.WALL + 0.2), yS = Y(start.y + RACE.WALL - 0.2), H = 20;
+        if (gx > -12 && gx < SW + 12 && yS > 0 && yN - H < SH) {
+          for (const py of [yN, yS]) { fine(gx - 2.5, py - H, 5, H + 1, col.dark); fine(gx - 1.5, py - H, 3, H, '#6a6a76'); fine(gx - 1.5, py - H, 1, H, '#9098a2'); }
+          fine(gx - 5, yN - H - 3, 10, yS - yN + 5, col.dark); fine(gx - 4, yN - H - 2, 8, yS - yN + 3, '#4a4a56'); fine(gx - 4, yN - H - 2, 1.5, yS - yN + 3, '#7a7a86');
+          const lit = g.phase === 'count' ? Math.min(5, Math.ceil(g.t / 36)) : 0, green = g.phase === 'race' && g.clock < 120;
+          for (let i = 0; i < 5; i++) {
+            const ly = yN - H + (i + 1) * (yS - yN) / 6 - 1.5;
+            fineDisc(gx, ly + 1.5, 2.5, col.dark);
+            fineDisc(gx, ly + 1.5, 2, green ? '#48e060' : i < lit ? '#f03828' : '#3a2428');
+            if (green || i < lit) fine(gx - 1, ly + 0.5, 1, 1, '#ffffff');
+          }
+        }
+        // whose car is whose
+        for (const j of on) {
+          const nm = o.names[j];
+          if (!nm) continue;
+          const [x, y] = at(j), tx = X(x) - nm.length * 3, ty = Y(y) - 19;
+          text(nm, tx + 0.5, ty + 0.5, 1, col.dark); text(nm, tx, ty, 1, '#f8f8f8');
+        }
+        const you = g.cars[me];
+        if (!you) return;
+        // yours, at the start: an arrow over it
+        if (g.phase === 'count' || g.clock < 180) {
+          const [x, y] = at(me), ax = X(x), ay = Y(y) - 16 - ((tick >> 3) & 1);
+          for (let i = 0; i < 4; i++) fine(ax - 4 + i, ay + i, 8 - i * 2, 1, i ? '#f8d040' : col.dark);
+          fine(ax - 4.5, ay - 0.5, 9, 0.5, col.dark);
+        }
+        // how you're doing: your place, the lap, the time and your best lap
+        const places = g.places(), pos = places.indexOf(you), total = g.cars.filter((c) => !c.out).length;
+        box(2, 2, 72, 34);
+        text(RACE_PLACES[pos] || '-', 8, 8, 2);
+        text('/' + total, 46, 15);
+        text(you.fin >= 0 ? 'FINISHED' : 'LAP ' + Math.min(RACE.LAPS, you.laps.length + 1) + '/' + RACE.LAPS, 8, 25);
+        const clock = raceClock(you.fin >= 0 ? you.fin : g.clock), lapBest = you.laps.length ? Math.min(...you.laps) : 0, bestLine = 'BEST ' + (lapBest ? raceClock(lapBest) : '-:--.-');
+        box(SW - 84, 2, 82, 34);
+        text(clock, SW - 8 - clock.length * 6, 9);
+        text(bestLine, SW - 8 - bestLine.length * 6, 23, 1, col.mid);
+        // the map in the corner, with everyone on it
+        const mw = mini.width / 2, mh = mini.height / 2, mx = SW - mw - 5, my = SH - mh - 5;
+        ctx.globalAlpha = 0.85; ctx.drawImage(mini, mx, my); ctx.globalAlpha = 1;
+        for (const j of on) {
+          const c = g.cars[j], px = realPx(mx + c.x * 0.62), py = realPx(my + c.y * 0.62);
+          if (j === me) { fine(px - 2, py - 2, 4, 4, (tick >> 3) & 1 ? '#ffffff' : col.dark); }
+          fine(px - 1.5, py - 1.5, 3, 3, TrackArt.COLOURS[o.cols[j] || 0][0]);
+        }
+      },
+    };
+  }
+  // What goes over the middle of a race: the countdown, GO!, the lap you're on, and going the wrong way.
+  // msg: { a (big), b (under it), t (ticks it's been up) }
+  function raceNotes(g, me, msg) {
+    const you = g.cars[me];
+    const big = (str, y, scale, c) => { const x = (SW - str.length * 6 * scale) >> 1; text(str, x + 1, y + 1, scale, col.dark); text(str, x, y, scale, c || '#f8f8f8'); };
+    if (g.phase === 'count') big(String(3 - Math.floor(Math.min(179, g.t) / 60)), 70, 4, '#f8d040');
+    else if (g.clock < 50) big('GO!', 70, 4, '#58e070');
+    else if (msg && msg.t < 130) { big(msg.a, 66, 3); if (msg.b) big(msg.b, 94, 1); }
+    if (you && you.fin < 0 && you.back > 45 && (tick >> 4) & 1) big('WRONG WAY!', 116, 2, '#f05040');
+  }
+  // the results, best first: each row { col, name, fin (ticks, or -1), out, best, you }
+  function raceResults(rows, title, foot) {
+    const h = 44 + rows.length * 16 + (foot ? 14 : 0);
+    box(36, 40, 248, h);
+    ctext(title, 50);
+    rows.forEach((r, i) => {
+      const y = 70 + i * 16, time = r.fin >= 0 ? raceClock(r.fin) : r.out ? 'OUT' : '--';
+      if (r.you) pickBar(42, y - 3, 236, 13, 'rgba(120, 110, 90, 0.16)');
+      fine(48, y + 0.5, 6, 6, col.dark); fine(48.5, y + 1, 5, 5, TrackArt.COLOURS[r.col || 0][0]);
+      text(RACE_PLACES[i] || '', 60, y);
+      text(String(r.name).slice(0, 14), 88, y);
+      text(time, 272 - time.length * 6, y);
+    });
+    if (foot) ctext(foot, 70 + rows.length * 16 + 4, col.mid);
+  }
+
+  // Against three coworkers: the track, then the car, then the race, from the back of the grid.
+  // The coworkers drive a car each, picked at random, some a little quicker than others, and they
+  // keep it close (see think in js/race.js). Your fastest race on each track goes on its board.
+  // startTrack and startCar (from &track= and &car= on a test address) go straight to the race,
+  // and auto (&auto=1) has the computer drive your car too, for trying the end of a race.
+  function RaceGame(startTrack, startCar, auto) {
+    const ME = 3, COLS = [1, 2, 3, 0], nT = RACE.TRACKS.length, nC = RACE.CARS.length;
+    const pick = (v, n, saved) => (Number.isInteger(v) && v >= 0 && v < n ? v : Math.max(0, Math.min(n - 1, Math.floor(+store.get(saved) || 0))));
+    let ti = pick(startTrack, nT, 'race.track'), ci = pick(startCar, nC, 'race.car');
+    // state: 'track', 'car', 'wait' (the screen fading into the race), 'race' and 'done' (the
+    // results, with the race going on underneath until the others are home)
+    let state = 'track', t = 0, g = null, scr = null, msg = null, doneAt = -1, record = false;
+    const best = (i) => +store.get('best.' + RACE_BOARDS[i]) || 0;
+    const quickest = {}; // this visit's quickest race on each track: the board that comes up when you leave is for the last
+    function begin() {
+      const pool = npcs.filter((n) => !n.ghost && !n.extra && !n.guest && !(visit && n === visit.npc)).sort(() => Math.random() - 0.5);
+      const rivals = [0, 1, 2].map((k) => (pool[k] ? pool[k].name : ['Wade', 'Kiki', 'Joe'][k]));
+      g = RACE.create(ti, { seed: (Math.random() * 2 ** 31) | 0, players: rivals.map((name) => ({ name, car: Math.floor(Math.random() * nC), ai: true, pace: 0.94 + Math.random() * 0.045 }))
+        .concat([{ name: playerName || 'You', car: ci, ai: !!auto }]) });
+      scr = raceScreen(ti);
+      state = 'race'; t = 0; msg = null; doneAt = -1; record = false;
+    }
+    function hear(events) {
+      const you = g.cars[ME];
+      for (const e of events) {
+        const mine = !!e.c && e.c.i === ME;
+        if (e.e === 'count') sfx('blip');
+        else if (e.e === 'go') sfx('blip', true);
+        else if (e.e === 'lap' && mine) {
+          sfx('ding');
+          msg = { a: e.n === RACE.LAPS ? 'FINAL LAP!' : 'LAP ' + e.n, b: 'Last lap ' + raceClock(you.laps[you.laps.length - 1]), t: 0 };
+        } else if (e.e === 'finish' && mine) finished(you);
+        else if (e.e === 'wall' && mine) sfx('crash', e.p);
+        else if (e.e === 'bump' && (mine || (e.o && e.o.i === ME))) sfx('clunk', e.p);
+        else if (e.e === 'curb' && mine) sfx('kerb');
+        else if (e.e === 'boost' && mine) sfx('boost');
+      }
+    }
+    // over the line: your time on the board (straight away, as the board that comes up when you
+    // leave is only the last track's) and, if it's your best, here too
+    function finished(you) {
+      const tenths = Math.round(you.fin / 6), key = RACE_BOARDS[ti];
+      record = !best(ti) || tenths < best(ti);
+      if (record) store.set('best.' + key, tenths);
+      quickest[ti] = quickest[ti] ? Math.min(quickest[ti], tenths) : tenths;
+      boardSend(key, playerName || store.get('name') || '', tenths);
+      boardNote(key, quickest[ti]);
+      doneAt = t;
+      sfx(you.place === 1 ? 'cup' : 'ding');
+    }
+    const leave = () => remove(self);
+    function menu(paused) {
+      sfx('menu');
+      const opts = paused ? ['KEEP RACING', 'START AGAIN', 'LEAVE'] : ['RACE AGAIN', 'NEW TRACK OR CAR', 'LEAVE'];
+      ui.push(Choice(opts, 112, 150, (i) => {
+        if (i === 1 && paused) startFade(begin, col.dark);
+        else if (i === 0 && !paused) startFade(begin, col.dark);
+        else if (i === 1) { state = 'track'; t = 0; g = scr = null; }
+        else if (i === 2) leave();
+      }, { startCloses: paused }));
+    }
+    if (Number.isInteger(startTrack) && Number.isInteger(startCar)) begin();
+    const self = {
+      music: 'race', doing: 'race', escStart: true, // (B is the brake: Esc brings up the menu)
+      get stick() { return state === 'race'; }, // steering with the thumbstick, as far as you push it
+      update() {
+        t++;
+        if (state === 'track' || state === 'car') {
+          const n = state === 'track' ? nT : nC;
+          let i = state === 'track' ? ti : ci;
+          if (pressed.has('left')) { i = (i + n - 1) % n; sfx('select'); }
+          if (pressed.has('right')) { i = (i + 1) % n; sfx('select'); }
+          if (state === 'track') ti = i; else ci = i;
+          if (pressed.has('a') || pressed.has('start')) {
+            sfx('menu');
+            if (state === 'track') { store.set('race.track', ti); state = 'car'; t = 0; }
+            else { store.set('race.car', ci); state = 'wait'; startFade(begin, col.dark); }
+          } else if (pressed.has('b')) { sfx('select'); if (state === 'car') { state = 'track'; t = 0; } else leave(); }
+          return;
+        }
+        if (state === 'wait' || !g) return;
+        if (pressed.has('start')) { menu(state === 'race'); return; }
+        if (state === 'done' && t > 40 && pressed.has('a')) { menu(false); return; }
+        const you = g.cars[ME], s = steer();
+        g.step([null, null, null, state === 'race' ? { s: s.x, a: held.a, b: held.b } : {}]);
+        hear(g.events);
+        scr.hit(g.events); scr.tick(g, ME);
+        if (msg) msg.t++;
+        engineHum(Math.hypot(you.vx, you.vy) / you.spec.top, you.fin < 0 ? held.a : true);
+        if (you.drift && t % 5 === 0) sfx('skid');
+        if (state === 'race' && doneAt >= 0 && t - doneAt > 100) { state = 'done'; t = 0; }
+      },
+      draw() {
+        if (state === 'track') { drawTrackPick(); return; }
+        if (state === 'car' || !g) { drawCarPick(); return; }
+        scr.draw(g, ME, { cols: COLS, names: g.cars.map((c, j) => (j === ME ? null : c.name.toUpperCase().slice(0, 9))) });
+        raceNotes(g, ME, msg);
+        if (g.phase === 'count') {
+          box(30, SH - 56, SW - 60, 36);
+          RACE_HINTS.forEach((l, i) => ctext(l, SH - 48 + i * 14));
+        }
+        if (state === 'done') {
+          const you = g.cars[ME], rows = g.places().map((c) => ({ col: COLS[c.i], name: c.i === ME ? 'YOU' : c.name, fin: c.fin, you: c.i === ME }));
+          raceResults(rows, (you.place === 1 ? 'You win! ' : 'You came ' + RACE_PLACES[you.place - 1].toLowerCase() + '. ') + RACE.TRACKS[ti].name,
+            record ? 'Your fastest race here yet!' : 'Your best here: ' + racetime(best(ti)));
+          if (t > 40 && (tick >> 4) & 1) ctext('Space: go on', 196);
+        }
+        text('Enter: menu', 5, SH - 9, 1, col.dark); text('Enter: menu', 4, SH - 10, 1, '#f8f8f8');
+      },
+    };
+    function drawTrackPick() {
+      box(0, 0, SW, SH);
+      ctext('HAAKON GRAND PRIX', 10);
+      ctext('Pick a track', 24, col.mid);
+      const tr = RACE.TRACKS[ti], h = raceMapPanel(ti, 1.45, SW / 2, 44);
+      if ((tick >> 4) & 1) { text('<', 30, 44 + h / 2 - 7, 2); text('>', SW - 42, 44 + h / 2 - 7, 2); }
+      text(tr.name, (SW - tr.name.length * 12) >> 1, 148, 2);
+      ctext(tr.about, 170);
+      ctext(best(ti) ? 'Your best: ' + racetime(best(ti)) : 'No time here yet', 184, col.mid);
+      for (let i = 0; i < nT; i++) fineDisc(SW / 2 - (nT - 1) * 6 + i * 12, 202, i === ti ? 3 : 2, i === ti ? col.dark : col.mid);
+      ctext('Arrows: choose  Space: OK  Esc: leave', SH - 18);
+    }
+    function drawCarPick() {
+      box(0, 0, SW, SH);
+      ctext('HAAKON GRAND PRIX', 10);
+      ctext(RACE.TRACKS[ti].name + ': pick your car', 24, col.mid);
+      const D = TrackArt.DIRS;
+      const gap = Math.min(72, Math.floor((SW - 20) / nC)), x0 = (SW - (nC - 1) * gap) / 2, bw = gap - 6;
+      RACE.CARS.forEach((c, i) => {
+        const x = x0 + i * gap, y = 64, on = i === ci, pic = TrackArt.bigCar(i, 0, on ? Math.floor(t / 5) % D : D / 2);
+        roundBox(x - bw / 2, y - 29, bw, 58, 3, on ? 'rgba(120, 110, 90, 0.2)' : 'rgba(120, 110, 90, 0.07)');
+        ctx.drawImage(pic, x - pic.width / 4, y - pic.height / 4);
+        if (on) pickRing(x - bw / 2, y - 29, bw, 58);
+      });
+      const c = RACE.CARS[ci];
+      text(c.name, (SW - c.name.length * 12) >> 1, 104, 2);
+      ctext(c.about, 126);
+      // how it compares with the others, out of five
+      const STATS = [['SPEED', 'top'], ['ACCELERATION', 'acc'], ['GRIP', 'grip'], ['WEIGHT', 'mass']];
+      STATS.forEach(([label, k], r) => {
+        const vals = RACE.CARS.map((o) => o[k]), lo = Math.min(...vals), hi = Math.max(...vals), pips = 1 + Math.round(4 * (c[k] - lo) / (hi - lo || 1)), y = 146 + r * 13;
+        text(label, 76, y);
+        for (let p = 0; p < 5; p++) { roundBox(166 + p * 15, y - 1, 12, 8, 2, col.dark); if (p < pips) roundBox(167 + p * 15, y, 10, 6, 1.5, '#f0c030'); }
+      });
+      ctext('Arrows: choose  Space: race  Esc: back', SH - 18);
+    }
+    return self;
+  }
+
+  // ---------- live racing: two to four players on the game server ----------
+  // The game server runs it (server/tables/race.js, with js/race.js) and this shows what it says
+  // (mp.table.view, see view() there). First the lobby: everyone picks a car, whoever's been
+  // there longest picks the track, and once there are two or more of you and you've all pressed
+  // start, the lights go on (after a few seconds, unless there are four). Then the race, just
+  // like one against coworkers, run a little ahead of the server on this screen as live hockey
+  // is: your car does what you say straight away, and if anyone else turns out to have done
+  // something different, they slide over to where they really are. table: which race (see
+  // server/tables.js), join: for one picked off the sign-up sheet, which has to still be there,
+  // and track: for a new one, the track it was started for.
+  function LiveRace(table, join, track) {
+    const tb = mp.table = { t: table || 'race', j: !!join, view: null, out: null, asked: false, feed: (v) => got(v) };
+    // snaps: the race's views, oldest first. gn: which race. at: your car. pg: this screen's own copy
+    // of the race, loaded from the newest view and run on with what you've done since (pend: { q,
+    // e ([s, a, b], as sent) }), loaded: the view it was last loaded from, q: your newest tick,
+    // out: ticks not sent yet, off: how far out of place each car is drawn
+    let snaps = [], gn = -1, at = -1, pg = null, loaded = -1, pend = [], q = 0, out = [], off = [], scr = null;
+    // onTrack: showing the race (rather than the lobby); going: fading over to it; menu: the option
+    // picked on the menu (-1 while it's shut); told: the track's been asked for; msg: the lap you're on
+    let t = 0, onTrack = false, going = false, menu = -1, lobby = null, told = false, msg = null;
+    const COLS = [0, 1, 2, 3];
+    function got(v) {
+      if (!v || v.ph === 'lobby' || !Array.isArray(v.who) || !Array.isArray(v.st) || !RACE.TRACKS[v.tr]) return;
+      if (v.gn !== gn) { gn = v.gn; snaps = []; pg = null; loaded = -1; pend = []; q = 0; out = []; off = []; msg = null; }
+      if (snaps.length && v.n <= snaps[snaps.length - 1].n) return;
+      at = Number.isInteger(v.at) ? v.at : -1;
+      snaps.push(v);
+      if (snaps.length > 30) snaps.shift();
+    }
+    // one tick of pg: you doing e, everyone else carrying on as they were. live: this tick is
+    // happening now (not being played again after a view), so it's heard
+    function tickPg(e, live) {
+      pg.step(pg.cars.map((c, j) => (j === at ? { s: e[0], a: !!e[1], b: !!e[2] } : c.in)));
+      if (!live) return;
+      const you = pg.cars[at];
+      for (const ev of pg.events) {
+        const mine = !!ev.c && ev.c.i === at;
+        if (ev.e === 'count') sfx('blip');
+        else if (ev.e === 'go') sfx('blip', true);
+        else if (ev.e === 'lap' && mine) { sfx('ding'); msg = { a: ev.n === RACE.LAPS ? 'FINAL LAP!' : 'LAP ' + ev.n, b: 'Last lap ' + raceClock(you.laps[you.laps.length - 1]), t: 0 }; }
+        else if (ev.e === 'finish' && mine) sfx(ev.place === 1 ? 'cup' : 'ding');
+        else if (ev.e === 'wall' && mine) sfx('crash', ev.p);
+        else if (ev.e === 'bump' && (mine || (ev.o && ev.o.i === at))) sfx('clunk', ev.p);
+        else if (ev.e === 'curb' && mine) sfx('kerb');
+        else if (ev.e === 'boost' && mine) sfx('boost');
+      }
+      scr.hit(pg.events);
+    }
+    // What's on the track now: pg run on a tick with what you're doing (e, or null with the race
+    // not on), and loaded again from each new view, with your ticks it hasn't had played on top.
+    function show(e) {
+      const last = snaps[snaps.length - 1];
+      if (!last) return;
+      if (!pg) pg = RACE.create(last.tr, { players: last.who.map((w) => ({ name: String(w.n), car: raceCar(w.car) })) });
+      for (const o of off) { o[0] *= 0.85; o[1] *= 0.85; }
+      if (e) tickPg(e, true);
+      if (last.n > loaded) {
+        const was = loaded >= 0 ? pg.cars.map((c) => [c.x, c.y]) : null;
+        pend = pend.filter((p) => p.q > last.aq);
+        pg.load(last.st); loaded = last.n;
+        for (const p of pend) tickPg(p.e, false);
+        if (was) off = pg.cars.map((c, j) => {
+          const o = off[j] || [0, 0], x = o[0] + was[j][0] - c.x, y = o[1] + was[j][1] - c.y;
+          return Math.hypot(x, y) > 2.5 ? [0, 0] : [x, y]; // (a long way: straight there)
+        });
+      }
+      scr.tick(pg, at);
+      if (msg) msg.t++;
+    }
+    // A tick of what you're doing, kept until the server's had it, and sent two at a time, or
+    // straight away for a press or a let-go (or if now).
+    function queue(e, now) {
+      pend.push({ q: ++q, e }); out.push(e);
+      if (pend.length > 90) pend.shift(); // (the server's not getting them: don't run ahead forever)
+      const before = pend[pend.length - 2];
+      if (now || out.length >= 2 || !before || e[1] !== before.e[1] || e[2] !== before.e[2]) {
+        wsSend({ k: 'tin', t: tb.t, d: { q: q - out.length + 1, i: out } });
+        out = [];
+      }
+    }
+    // What you're doing this tick (nothing while the menu's open), sent on its way.
+    function act() {
+      const on = menu < 0, s = on ? steer() : { x: 0 }, e = [Math.round(s.x * 100) / 100, on && held.a ? 1 : 0, on && held.b ? 1 : 0];
+      queue(e);
+      return e;
+    }
+    // Switching to another tab or app stops the game here, so let go of everything first, rather
+    // than driving on into the barriers while you're away.
+    const hidden = () => { if (document.visibilityState === 'hidden' && tb.view && tb.view.ph === 'race' && snaps.length) queue([0, 0, 0], true); };
+    document.addEventListener('visibilitychange', hidden);
+    function gone(line) {
+      remove(self);
+      document.removeEventListener('visibilitychange', hidden);
+      if (mp.table === tb) mp.table = null;
+      if (line) say(line);
+    }
+    function leave() {
+      wsSend({ k: 'stand', t: tb.t });
+      sfx('select');
+      gone(onTrack && tb.view && tb.view.ph === 'race' ? 'You pull off the track. You\'re out of that race.' : gn >= 0 ? 'Good racing! The cabinet will be here.' : '');
+    }
+    const self = {
+      music: 'race',
+      get escStart() { return onTrack; }, // Esc opens the menu in a race (B is the brake), and leaves the lobby
+      get stick() { return onTrack && menu < 0; },
+      // over your head for everyone else: waiting in the lobby for more players, or the race
+      get doing() {
+        const v = tb.view;
+        return !v || (v.ph === 'lobby' && v.slots.includes(null)) ? 'racewait' : 'racelive';
+      },
+      get seated() { const v = tb.view; return !v ? 0 : v.ph === 'lobby' ? v.slots.filter(Boolean).length : (v.who || []).filter((w) => w && w.id).length; },
+      update() {
+        t++;
+        if (tb.out) {
+          gone({
+            busy: 'That race started without you. Have another look at the sign-up sheet.',
+            full: 'That race is full now. Have another look at the sign-up sheet.',
+            ended: 'That race has finished. Have another look at the sign-up sheet.',
+            many: 'The track is booked solid right now. Try again in a bit.',
+            off: 'Live racing isn\'t set up on the game server yet. Three coworkers will race you on the cabinet, though.',
+          }[tb.out] || 'You lost your spot. The connection to the game server dropped.');
+          return;
+        }
+        const v = tb.view;
+        if (!v) {
+          // into the lobby once the server's there and knows who you are
+          if (!tb.asked && ws.sock && ws.sock.readyState === 1 && mp.sentKey) { tb.asked = true; wsSend({ k: 'sit', t: tb.t, j: tb.j }); }
+          if (pressed.has('b') || t > 600) {
+            if (tb.asked) wsSend({ k: 'stand', t: tb.t });
+            gone(t > 600 ? 'Nobody\'s answering about live races right now. Try again in a bit.' : '');
+            if (t <= 600) sfx('select');
+          }
+          return;
+        }
+        // (the site's updated and the game server hasn't yet, or the other way round)
+        if (v.rv !== RACE.VERSION) {
+          wsSend({ k: 'stand', t: tb.t });
+          gone('This copy of the game and the game server have different race rules right now. Reload the page, or if you just have, try again in a few minutes.');
+          return;
+        }
+        if (v.ph === 'lobby') {
+          // back from a race: the track fades out to the lobby
+          if (onTrack) { if (!going) { going = true; startFade(() => { onTrack = going = false; menu = -1; }, col.dark); } return; }
+          const mine = v.slots[v.me], nT = RACE.TRACKS.length, host = v.host === v.me;
+          if (!mine) return;
+          // a new race: the track it was started for
+          if (!told && Number.isInteger(track) && host) { told = true; if (track !== v.tr) wsSend({ k: 'tin', t: tb.t, d: { tr: track } }); }
+          if (pressed.has('b')) { leave(); return; }
+          const turn = pressed.has('left') ? -1 : pressed.has('right') ? 1 : 0;
+          if (turn) { wsSend({ k: 'tin', t: tb.t, d: { car: (raceCar(mine.car) + turn + RACE.CARS.length) % RACE.CARS.length } }); sfx('select'); }
+          const way = pressed.has('up') ? -1 : pressed.has('down') ? 1 : 0;
+          if (way && host) { wsSend({ k: 'tin', t: tb.t, d: { tr: (v.tr + way + nT) % nT } }); sfx('select'); }
+          if (pressed.has('a') || pressed.has('start')) { wsSend({ k: 'tin', t: tb.t, d: { go: !mine.r } }); sfx(mine.r ? 'select' : 'menu'); }
+          return;
+        }
+        const last = snaps[snaps.length - 1];
+        if (!last) return;
+        // the lights are about to go on: out onto the track
+        if (!onTrack) {
+          if (!going) { going = true; startFade(() => { scr = raceScreen(last.tr); show(null); onTrack = true; going = false; }, col.dark); }
+          return;
+        }
+        // the menu (Enter): the race carries on underneath
+        if (menu >= 0) {
+          if (pressed.has('up') || pressed.has('down')) { menu = 1 - menu; sfx('select'); }
+          if (pressed.has('a') && menu === 1) { leave(); return; }
+          if (pressed.has('a') || pressed.has('b') || pressed.has('start')) { menu = -1; sfx('select'); }
+        } else if (pressed.has('start')) { menu = 0; sfx('menu'); }
+        const racing = v.ph === 'race' && at >= 0;
+        show(racing ? act() : null);
+        const you = pg && pg.cars[at];
+        if (you && racing) {
+          engineHum(Math.hypot(you.vx, you.vy) / you.spec.top, you.fin < 0 ? held.a && menu < 0 : true);
+          if (you.drift && t % 5 === 0) sfx('skid');
+        }
+      },
+      draw() {
+        const v = tb.view;
+        if (v && v.ph === 'lobby') lobby = v;
+        if (!onTrack || !pg || !scr) { drawLobby(lobby); return; }
+        const last = snaps[snaps.length - 1], names = pg.cars.map((c, j) => (j === at ? null : String((last.who[j] || {}).n || c.name).toUpperCase().slice(0, 9)));
+        scr.draw(pg, at, { cols: COLS, names, off });
+        raceNotes(pg, at, msg);
+        if (pg.phase === 'count') { box(30, SH - 56, SW - 60, 36); RACE_HINTS.forEach((l, i) => ctext(l, SH - 48 + i * 14)); }
+        if (v.ph === 'over' && Array.isArray(v.last)) {
+          const rows = v.last.map((r) => ({ col: Math.max(0, last.who.findIndex((w) => w && w.n === r.n)), name: String(r.n), fin: +r.fin, out: !!r.out, you: r.n === (last.who[at] || {}).n }));
+          raceResults(rows, RACE.TRACKS[last.tr].name + ': the results', (tick >> 4) & 1 ? 'Back to the lobby in a moment' : '');
+        }
+        if (menu >= 0) {
+          box(SW - 118, 40, 118, 40);
+          ['KEEP RACING', 'LEAVE RACE'].forEach((o, i) => { text(o, SW - 102, 48 + i * 16); if (i === menu) text('>', SW - 110, 48 + i * 16); });
+        }
+        text('Enter: menu', 5, SH - 9, 1, col.dark); text('Enter: menu', 4, SH - 10, 1, '#f8f8f8');
+      },
+    };
+    // The lobby: the drivers down the left, each with their car, the track on the right, and
+    // start underneath.
+    function drawLobby(v) {
+      box(0, 0, SW, SH);
+      const dots = '.'.repeat(1 + ((tick >> 4) % 3));
+      if (!v) {
+        ctext('LIVE RACE', 10);
+        ctext('Finding you a spot' + dots, 104);
+        text('Esc: never mind', 10, SH - 18);
+        return;
+      }
+      const tr = RACE.TRACKS[v.tr] || RACE.TRACKS[0], host = v.host === v.me, mine = v.slots[v.me];
+      ctext('LIVE RACE: ' + tr.name, 10);
+      v.slots.forEach((qq, i) => {
+        const y = 26 + i * 34;
+        box(8, y, 192, 30);
+        if (i === v.me && (tick >> 4) & 1) { ctx.fillStyle = TrackArt.COLOURS[i][0]; ring(6, y - 2, 196, 34); ring(7, y - 1, 194, 32); }
+        fine(14, y + 6, 6, 6, col.dark); fine(14.5, y + 6.5, 5, 5, TrackArt.COLOURS[i][0]);
+        text('PLAYER ' + (i + 1), 24, y + 6);
+        if (!qq) { text('Waiting' + dots, 100, y + 12, 1, col.mid); return; }
+        const o = mp.others[qq.id], sheet = i === v.me ? sprites : o ? mpSprites(o) : charSprites.male[0];
+        ctx.drawImage(sheet.down[0], 14, y + 13, 16, 16);
+        text(String(qq.n).slice(0, 12), 34, y + 15);
+        const tags = (i === v.me ? 'YOU  ' : '') + (qq.r ? 'READY' : '');
+        if (tags) text(tags.trim(), 100, y + 6, 1, qq.r ? '#2c8a3c' : col.mid);
+        const pic = TrackArt.bigCar(raceCar(qq.car), i, TrackArt.DIRS / 4);
+        ctx.drawImage(pic, 172 - pic.width / 4, y + 15 - pic.height / 4);
+      });
+      // the track, which whoever's been here longest picks
+      const h = raceMapPanel(v.tr, 0.95, 258, 30);
+      text(tr.name, 258 - tr.name.length * 3, 36 + h);
+      if (host) ctext2('Up/Down: track', 258, 50 + h, col.mid);
+      else ctext2(((v.slots[v.host] || {}).n || 'The host') + ' picks', 258, 50 + h, col.mid);
+      if (mine) ctext2(RACE.CARS[raceCar(mine.car)].name, 258, 66 + h);
+      // start, and what it's waiting for
+      const ready = mine && mine.r, by = 164;
+      box(206, by, 104, 24);
+      const lbl = ready ? 'READY!' : 'START';
+      text(lbl, 258 - lbl.length * 6, by + 6, 2);
+      if (!ready && (tick >> 4) & 1) text('>', 212, by + 9);
+      const here = v.slots.filter(Boolean), slow = here.filter((x) => !x.r), who = slow.length === 1 ? slow[0].n : slow.length + ' players';
+      const note = v.cd ? 'The lights go on in ' + v.cd
+        : here.length < 2 ? 'Waiting for someone to race' + dots
+          : !ready ? 'Pick your car, then press start' : 'Waiting for ' + who + ' to press start';
+      ctext(note, 200);
+      if (Array.isArray(v.last) && v.last[0]) ctext('Last race won by ' + v.last[0].n + ' in ' + (v.last[0].fin >= 0 ? raceClock(v.last[0].fin) : '--'), 212, col.mid);
+      ctext('Left/Right: car  Space: ' + (ready ? 'not yet' : 'start') + '  Esc: leave', SH - 14);
+    }
+    // a line centred on x
+    function ctext2(str, x, y, c) { if (buttonHints()) str = touchHint(str); text(str, x - str.length * 3, y, 1, c); }
+    return self;
+  }
+
   // ---------- player / world ----------
   const S0 = MAPS.start;
   // free, fx, fy, vx, vy, face, dist, stride, glide: going any way (see updatePlayer; free
@@ -22166,6 +22785,9 @@
         ['PLAY SOLO', 'PLAY LIVE'], [() => PokerApp(null, true), () => SignUp('poker')]]
         : ['The poker table. Zin is dealing Texas Hold\'em, and Cody and Dmitriy are already in.', 'TAKE A SEAT', () => PokerApp(null, true)],
       7: ['A slot machine, all lit up. It plays for spring rolls.', 'PULL THE LEVER', SlotsGame],
+      // Haakon Grand Prix: against coworkers, or with a game server, other players
+      6: MP_WS ? ['An arcade racing cabinet: HAAKON GRAND PRIX. Race three coworkers, or other players?', ['RACE COWORKERS', 'LIVE RACE'], [() => RaceGame(), () => SignUp('race')]]
+        : ['An arcade racing cabinet: HAAKON GRAND PRIX. Three coworkers are already on the grid.', 'RACE', () => RaceGame()],
     };
     // the boardroom's everyday games are off while the Halloween party is on
     if (GAMES[t] && hw.state === 'party' && P.floor === hw.floor && roomAt(P.floor, tx, ty) === hw.room) {
@@ -23653,6 +24275,7 @@
       dance: DanceGame, party: PartyTime, nathan: NathanGame, wade: WadeGolfGame, lego: LegoGame, build: () => LegoGame(true), wok: WokGame, carrot: CarrotGame, jar: CandyJarGame, poker: PokerApp, blackjack: BlackjackApp, slots: SlotsGame,
       pokertable: () => PokerApp(null, true), pokerlive: LivePoker, bjtable: () => BlackjackApp(null, true),
       hockey: () => HockeyGame(gateKeeper || npcs.find((n) => !n.ghost && !n.extra)), hockey1: () => LiveHockey(2), hockey2: () => LiveHockey(4), hockey3: () => LiveHockey(6), signhockey: () => SignUp('hockey'), signpoker: () => SignUp('poker'),
+      race: () => RaceGame(q.has('track') ? +q.get('track') : undefined, q.has('car') ? +q.get('car') : undefined, q.has('auto')), racelive: () => LiveRace(null, false, +q.get('track') || 0), signrace: () => SignUp('race'),
       chess: () => ChessGame(null, null, q.get('fen')), checkers: () => CheckersGame(null, null, q.get('fen')),
       deck: () => DeckApp(),
       cards: () => CardsGame(null, { deck: q.get('deck'), foe: q.get('foe'), level: +q.get('level') || 0, seed: +q.get('seed') || 0, first: q.has('first') ? +q.get('first') : undefined }),

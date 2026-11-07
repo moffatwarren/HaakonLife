@@ -33,6 +33,7 @@ Map glyphs
              0 the unit in grey primer in the paint booth (Even Coat)
              P coffee machine (two tiles tall)  C curtain (opened from the game; closes when you leave the room)
              [ blackjack table   ] poker table   7 slot machine (two tiles tall)
+             6 the Haakon Grand Prix racing cabinet (two tiles tall)
   walkable:  j computer parts scattered on the floor
 
 The parking lot (behind the fitness room) is a fifth map, only open for Christmas
@@ -284,6 +285,7 @@ f1.fill(91, 4, 92, 5, '8')  # the first table has a chessboard on it (mini-game)
 f1.fill(91, 8, 92, 9, '9')  # and the one under it has a checkerboard (mini-game)
 f1.fill(106, 6, 106, 9, 'V')  # TV on the right wall
 f1.put(106, 4, 'p'); f1.put(89, 4, 'p')
+f1.put(104, 4, '6'); f1.put(104, 5, '6')  # the racing cabinet, by the corner (mini-game)
 f1.exit((86, 3), (87, 3))
 
 f1.room('Washroom', 74, 12, 77, 15, ':')

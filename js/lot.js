@@ -14,6 +14,8 @@
 //   lot.bulbs, lot.wires // the strings of lights, [x, y, colour number] and [x, y]
 //   lot.gate            // { x, y, img }: the rink's gate, shut, for a hockey game
 //   lot.roof            // how far down the map the lights along the roof run
+//   LotArt.kit          // the painting tools (pen, pic, outline, the noise, a pine...), which
+//                       // js/track.js paints the racing game's tracks with
 //
 // Places in here are in real pixels, 32 to a tile, and each canvas is marked hi: 2, so it's
 // drawn at half that (see js/game.js).
@@ -767,5 +769,7 @@ window.LotArt = (function () {
   function angel() {
     return pic(20, 20, (p) => ANGEL.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '#') p.rect(i, j, 1, 1, '#a8b8d4'); })), { plain: true });
   }
-  return { paint, angel };
+  // The painting tools, for js/track.js to paint the racing game's tracks in the same pixels
+  const kit = { K, hexInt, mix, noise, smooth, rng, canvas, pen, outline, pic, heap, tiers, pine, snowman };
+  return { paint, angel, kit };
 })();

@@ -223,6 +223,8 @@ Walk up to these and press A:
 - **Washer and dryer** (fitness room): catch the load the machine is asking for, let the rest drop
 - **Joe's Lego shelf** (2nd floor, office 146): the same falling bricks as Joe's brick battle, but on your own. Rows of grey bricks push up from the bottom, slowly at first and then faster and faster, so see how many lines you can clear before they reach the top
 - **Elevator**: every ride, a coworker gets in and makes conversation
+- **Haakon Grand Prix** (the arcade cabinet in the lunch room, by the TV): a top-down race, three laps against three
+  coworkers on one of five tracks, or live against other players; see **Haakon Grand Prix** below
 - **Hockey** (the parking lot's rink, at Christmas): one on one against a coworker, or live against other players; see Christmas below
 - **Humbug Sweeper** (any office computer, from Christmas 2026 on): clear a field of snow, in one of three sizes, without digging up a humbug, against the clock, and never having to guess; see Christmas below
 - **Winter games** (around the parking lot, at Christmas): chopping wood, toasting marshmallows, decorating the big spruce, building a snowman, working the hot chocolate stand and a snowball fight; see Christmas below
@@ -246,6 +248,94 @@ Walk up to these and press A:
   each part with paint on it and 2 for each bit of dust (10 at most), and shows you the
   sheet. Paint that's on too thick goes darker (cream, for white) before it runs.
   Afterwards the unit in the booth stays in the colour you painted it
+
+## Haakon Grand Prix
+
+The racing cabinet in the lunch room (two tiles tall, in the corner by the TV, with GP lit up on top
+and a steering wheel). Press A on it: **RACE COWORKERS**, or with a game server, **LIVE RACE** too.
+
+- **Racing coworkers:** pick a track (left and right, with your best time there under it), then a car,
+  and you start at the back of a grid of four. The three coworkers are picked at random, each in a car
+  picked at random, some a little quicker than others. They keep it close: one well ahead of you eases
+  off a touch, and one well behind pushes a touch (`think` in `js/race.js`). Three laps. Once you're
+  over the line the computer drives your car round while the rest finish, and the results come up over
+  the race; Space (A) brings up RACE AGAIN, NEW TRACK OR CAR and LEAVE. Enter (START) pauses, with
+  START AGAIN and LEAVE.
+- **Driving:** A is the gas and B the brake, and reverse from a standstill. Left and right steer, and a
+  thumbstick (on a phone's screen or a controller) steers as far as you push it. The car only turns on
+  the move, a little less at speed. The wide bends you can take flat out, but the tight ones you can't:
+  go in too fast and the tyres can't hold it, and you slide wide onto the kerb, the grass or the
+  barrier. Ease off or brake before them, or drift them. Kerbs (red and white, or yellow and black at the plant) are as good
+  as the road; the grass (or the plant's yard) slows you right down. The barriers (tyres round the lake,
+  hay bales in the fall, snowbanks in winter, square bales on the prairie, concrete at the plant) bounce
+  you off, and catching one or another car off centre spins you a little. The heavier car comes off best
+  in a bump, and the truck is heaviest by far. Going backwards round the track says WRONG WAY.
+- **Drifting:** keep the gas down and turn as hard as you can at speed, and after a moment (about a
+  quarter of a second) the back swings out. It works the same on a phone, a controller or a keyboard,
+  with nothing to press but the gas and the way you're turning. To take a bend on grip instead, turn
+  less hard (a thumbstick pushed part way, or tapping the arrows) or ease off the gas. The car points
+  further into the bend than it's going, up to about a third of a right angle, and gets round a little
+  harder than the tyres could on grip (`DRIFT_GRIP`), keeping most of its speed, but it's still the tyres
+  doing it: drift into a bend much too fast and you'll still slide wide. It lasts as long as you keep turning that way, and ends a
+  moment after you stop (sooner if you steer the other way), or if you slow right down or run onto the
+  grass. Hold one for two thirds of a second or more and you get a burst of speed out of the end of it,
+  more the longer it was: blue sparks off your back wheels once you've earned it, orange once it's big.
+  Smoke comes off the tyres and they leave marks on the track for the rest of the race.
+- **The cars** (the Haakon fleet, each in your colour): the **Service van** (good at everything, and
+  it grips), the **Pickup truck** (quickest off the line, and heavy), the **Sports car** (fast, and loose
+  at the back), the **Hatchback** (small, and it turns on a dime) and the **Flatbed truck** (slow to get
+  going but the fastest of all flat out, and nothing pushes it around), carrying an air handling unit
+  out of the plant. Each has something to tell it by from across the track: the van an amber light bar
+  and a ladder on its roof, the pickup its dark open bed and big tyres, the sports car its pointed nose,
+  white stripes and a wing wider than it is, the hatchback its white roof, short and round, and the truck
+  its length, with the unit's two fans on the back (`SHAPES` in `js/track.js`). The car screen rates each
+  out of five for speed, acceleration, grip and weight, from `CARS` in `js/race.js`. With the computer
+  driving, they're within about 5% of each other round a lap on every track, so the one to pick is the
+  one that suits how you drive.
+- **The tracks**, each with 12 to 18 corners: **Lakeshore** (summer: flowing round a lake, with an S-bend
+  down each side and a dip toward the water at the top, past cabins and pines and a canoe or two),
+  **Maple Hollow** (fall: twisting through the maples, with a barn and hay bales), **Snowbelt** (winter:
+  slippery switchbacks with kinks in the straights, past a frozen pond, with the road packed snow, so
+  drift the hairpins), **Canola Flats** (summer on the prairie: the fastest, with fast S-bends, a
+  hairpin and a loop back through a patchwork of canola, wheat and pasture, past a grain elevator, grain
+  bins and a farmhouse) and **Kingston Plant** (round the plant's yard: square corners you have to brake
+  for, a box chicane and a hairpin, past the loading dock and stacks of air handling units and shipping
+  containers). Each has a
+  grandstand along a straight, gravel on the outside of its tight bends and a
+  gantry over the start line whose lights count you down.
+- **Up on the screen:** your place and lap at the top left, the race clock and your best lap at the
+  top right, and a map of the track at the bottom right with everyone on it. Everyone else has their name
+  over their car, and yours has an arrow over it at the start.
+- **The leaderboards:** your fastest race on each track (all three laps, against coworkers) goes on its
+  own board, **LAKESHORE GP**, **MAPLE HOLLOW GP**, **SNOWBELT GP**, **CANOLA FLATS GP** and **KINGSTON
+  PLANT GP** (`racelake`, `racemaple`, `racesnow`, `raceprairie` and `raceplant`), lowest first, on the
+  Hall of Fame's HAAKON GRAND PRIX page. Each race's time is sent as you
+  finish, and the board that comes up when you leave the cabinet is the last track you raced. Live races
+  don't go on them.
+- **Live racing:** LIVE RACE opens the sign-up sheet (as hockey's booth does): every race with a spot
+  left in its lobby, with its track and who's in it, and START A NEW RACE, which asks which track. Two to
+  four players, with nobody the computer drives. In the lobby left and right pick your car, and whoever's
+  been there longest picks the track with up and down (their name's under the map; it goes to the next
+  one if they leave). Once at least two of you are there and you've all pressed start, the lights go on
+  five seconds later, unless someone else turns up first (straight away with all four). Changing your car
+  takes your start back, and a new track takes everyone's. Nobody can join a race that's on. It's the
+  same race as against coworkers, run a little ahead of the server on your screen, as live hockey is, so
+  your car does what you say straight away and anyone who did something different slides over to where
+  they really are. Enter brings up a menu but doesn't pause. Leave partway (or drop out for too long)
+  and your car is gone, down as OUT. Once everyone left in it is over the line (or 25 seconds after the
+  first, `LATE`), the results come up, and ten seconds later it's back to the lobby with the same cars.
+- **How it's made:** the race itself (the tracks, the cars and how they drive, bumps, laps and how
+  coworkers drive) is `js/race.js`, with no drawing or keys in it, so the game server runs the same file
+  for a live race (`server/tables/race.js`) and `server/test/race.test.js` plays it with no browser. A
+  track is a list of points the middle of the road goes through (`pts`), or straights and bends
+  (`path`); the road's 4.8 tiles wide and the barriers are `WALL` tiles from its middle, and the test
+  checks no bend is tighter than that and no two parts of the road come closer than two `WALL`s (so
+  there's always a barrier between them and no way across). `js/track.js` paints each track once, as you
+  start a race on it, in the parking lot's pixels (using `LotArt.kit` from `js/lot.js`): the road, the
+  kerbs, the barriers and the scenery, which it places by itself round the road. It paints the cars too, a
+  picture for each of 48 ways round, lit from the top left whichever way they point. `RaceGame` and
+  `LiveRace` in `js/game.js` are the screens, with `raceScreen` drawing the race for both. The song is
+  `race` in `js/music.js`, and the engine note rising through the gears is `engineHum`.
 
 ## Morale Madness
 
@@ -495,7 +585,7 @@ The scores live in a free Firebase Realtime Database. To set one up:
         ".indexOn": ["score"],
         "$player": {
           ".write": "newData.exists() && (!data.exists() || newData.child('score').val() > data.child('score').val()) && ($game !== 'humbug26' || (now >= 1795766400000 && now < 1798790400000))",
-          ".validate": "$game.matches(/^(ball|blackjack|bob|cable|candy|cards|cardwins|carrotpct|carve|catchrun|checkers|chess|chop|cocoa|coffee|coil|costume|cpr|damper|dance|dark|desk|engrave|eotm|fan|filter|forklift|forms|galaxy|ghosts|golf9|hockey|humbug|humbug26|jam|laundry|legolines|legosolo|linda|lunch|mallow|mummy|paint|parts|poker|pokerlivelost|pokerlivewon|pong|pulldown|punch5|run|simon|slots|snake|snowball|snowman|spruce|squat|stack|toss|treat|trophy|wokdishes)$/) && $player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['name','score','t']) && newData.child('score').isNumber() && newData.child('score').val() >= -100000 && newData.child('score').val() <= 1000000 && newData.child('t').val() == now",
+          ".validate": "$game.matches(/^(ball|blackjack|bob|cable|candy|cards|cardwins|carrotpct|carve|catchrun|checkers|chess|chop|cocoa|coffee|coil|costume|cpr|damper|dance|dark|desk|engrave|eotm|fan|filter|forklift|forms|galaxy|ghosts|golf9|hockey|humbug|humbug26|jam|laundry|legolines|legosolo|linda|lunch|mallow|mummy|paint|parts|poker|pokerlivelost|pokerlivewon|pong|pulldown|punch5|racelake|racemaple|raceplant|raceprairie|racesnow|run|simon|slots|snake|snowball|snowman|spruce|squat|stack|toss|treat|trophy|wokdishes)$/) && $player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['name','score','t']) && newData.child('score').isNumber() && newData.child('score').val() >= -100000 && newData.child('score').val() <= 1000000 && newData.child('t').val() == now",
           "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12 && newData.val().toLowerCase().replace(' ', '_').replace('.', '_').replace(\"'\", '_').replace('-', '_') === $player" },
           "score": { ".validate": true },
           "t": { ".validate": true },
@@ -607,7 +697,7 @@ Nobody signs in, and the game runs in the browser, so a determined person could 
 made-up score or use somebody else's name. To remove a row (or wipe a whole
 board), delete it on the Data tab in the Firebase console: rows are under
 `scores`, then the game, then the name. The games where lowest wins (golf, Damir's
-lights, mummy wrap, Humbug Sweeper) are stored as negative numbers.
+lights, mummy wrap, Humbug Sweeper, the five Grand Prix tracks) are stored as negative numbers.
 
 The game stops sending scores to the Christmas Cup's board (`scores/humbug26`) after
 December 31 2026 by the device's date. The database holds it to the dates as well, so a phone
@@ -1037,7 +1127,7 @@ which tile they're on (and has them walking from tile to tile).
   The treadmill, Snake, the control panel and mini golf carry on until you're both done.
 
   They get 30 seconds to accept. Someone who's in a game has what they're playing
-  over their head ("Playing Paper Toss", "Playing live poker (3 players)", "Waiting for
+  over their head ("Playing Paper Toss", "Playing live poker (3 players)", "In a live race (2 players)", "Waiting for
   hockey players" in the live hockey lobby) and can't be challenged until they're done.
   Someone in a menu or a conversation has "...", and a challenge to them waits: they hear
   a ding and get a notice in the corner saying who's asking, and when they come out of it
@@ -1252,6 +1342,21 @@ until you do, players get the slower fallback. To try it, open
 (or `hockey2`, or `hockey3`) in two tabs (four for two on two and six for three on three, or
 two and wait for the computer). These all sit down at the one table with the plain name;
 `game=signhockey` and `game=signpoker` open the sign-up sheet instead.
+
+Live racing is one kind of table, `race`, in `server/tables/race.js`: a lobby, then `js/race.js`'s
+race at 60 ticks a second, sent out 30 times a second, with each browser running it ahead just as
+live hockey does (above), every view carrying the whole race (`save()`) and the last of your ticks
+the server had taken. It reads `js/race.js` from the site's files the first time anyone sits down,
+so like hockey it needs the whole repository there; if it can't, live racing is off and players are
+told so. Unlike hockey there's no fallback for a browser whose rules aren't the server's: the
+server's views say which rules it has (`rv`, `RACE.VERSION`), and a browser with different ones says
+so (reload, or try again in a few minutes) rather than racing. So a change to `js/race.js` has to
+redeploy the server: `VERSION` in `server/tables/race.js` is what does that, and
+`tools/check_games.mjs` stops the site deploying until it's the same as the rules say, and tells you
+what to set it to. To try it, open `tools/test.html#play&game=signrace&server=ws://localhost:8080` in
+two tabs, one a few seconds after the other (a sign-up sheet that opens with nothing to join goes
+straight to starting a new race), or `game=racelive&track=1` in both for the one race with the plain
+name.
 
 For what it costs: bots playing every game flat out against a copy of the server on a
 desktop (i7-14700K, November 2026) took about 1 to 2% of a core per game with a few games
@@ -1853,6 +1958,7 @@ pants and their colours.
 | Kingston plant | `forklift`, `paint` (Even Coat) |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`), `fame` (the Hall of Fame) |
 | Halloween | `contest`, `bob`, `mummy`, `carve`, `treat`, `ghosts`, `hsplash` (the closing screen) |
+| Haakon Grand Prix | `race` (add `&track=` 0 to 4 and `&car=` 0 to 4 to go straight into a race, and `&auto=1` to have the computer drive your car too, for trying the end of a race), `signrace` (the live sign-up sheet) and `racelive` (straight into a live race's lobby, `&track=` for a new one's track), both with `&server=` |
 | Christmas | `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `humbug` (Humbug Sweeper: it asks what size, or add `&field=small`, `medium` or `full` to go straight in), `hockey` (against whoever's minding the gate; add `&yard` to see the rink) |
 
 Plain `index.html#play` skips the title screen and drops you at the entrance. `&naming=1` opens the
@@ -1880,7 +1986,7 @@ Best scores are saved in the browser, and sent to the online leaderboards when
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `galaxy`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
-`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `poker`, `pokerlive`, `hockey1`, `hockey2` and `hockey3` (live hockey, with `&yard=1` to be out at the rink), `signhockey` and `signpoker` (the sign-up sheets; all of these from `pokerlive` on need `&server=`), `blackjack`, `build`, `forklift`, `paint`,
+`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `race`, `poker`, `pokerlive`, `hockey1`, `hockey2` and `hockey3` (live hockey, with `&yard=1` to be out at the rink), `racelive`, `signhockey`, `signpoker` and `signrace` (the sign-up sheets; all of these from `pokerlive` on need `&server=`), `blackjack`, `build`, `forklift`, `paint`,
 `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `hockey`, `chess`, `checkers`) opens a game straight away. With `chess`, `&fen=` and a position in the usual chess notation starts from there, which is the quick way to try a checkmate or a promotion. It works with `checkers` too, for trying a double jump or a crowning: the ranks from 8 down to 1 written the same way (`M` a black man, `K` a black king, the same in lower case for red), whose turn (`b` or `r`), a `-` and a count of moves since a jump or a man moved, like `7k/8/5m2/8/3m4/2M5/8/6M1 b - 0`.
 `&dog=Bella` puts that dog right in front of you; `game=catch` plays catch with it
 and `game=dogs` shows the frisbee leaderboard.

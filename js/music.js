@@ -462,4 +462,26 @@ window.MUSIC = {
       { type: 'drums', vol: 0.45, notes: 'k . h . s . h . | k . h k s . h h' },
     ],
   },
+  // Haakon Grand Prix: flat out, the bass pumping away under it
+  race: {
+    bpm: 160,
+    voices: [
+      { type: 'square', vol: 0.028, notes:
+        'D5 - F#5 - A5 - F#5 A5 | E5 - - - A5 - E5 - | F#5 - D5 - B4 - D5 F#5 | G5 - - - F#5 - E5 - |' +
+        'D5 - F#5 - A5 - D6 - | C#6 - A5 - E5 - C#6 - | B5 - A5 - F#5 - D5 - | G5 - F#5 - E5 - - - |' +
+        'B4 - D5 - F#5 - - D5 | G5 - - - D5 - B4 - | A5 - - F#5 D5 - F#5 - | E5 - - - C#5 - E5 - |' +
+        'B4 - D5 - F#5 - B5 - | G5 - - - B5 - G5 - | A5 - F#5 - D5 - F#5 - | E5 - D5 - C#5 - A4 - |' },
+      { type: 'square', vol: 0.012, notes:
+        'D4 F#4 A4 F#4 D4 F#4 A4 F#4 | A3 C#4 E4 C#4 A3 C#4 E4 C#4 | B3 D4 F#4 D4 B3 D4 F#4 D4 | G3 B3 D4 B3 G3 B3 D4 B3 |' +
+        'D4 F#4 A4 F#4 D4 F#4 A4 F#4 | A3 C#4 E4 C#4 A3 C#4 E4 C#4 | B3 D4 F#4 D4 B3 D4 F#4 D4 | A3 C#4 E4 C#4 A3 C#4 E4 G4 |' +
+        'B3 D4 F#4 D4 B3 D4 F#4 D4 | G3 B3 D4 B3 G3 B3 D4 B3 | D4 F#4 A4 F#4 D4 F#4 A4 F#4 | A3 C#4 E4 C#4 A3 C#4 E4 C#4 |' +
+        'B3 D4 F#4 D4 B3 D4 F#4 D4 | G3 B3 D4 B3 G3 B3 D4 B3 | D4 F#4 A4 F#4 D4 F#4 A4 F#4 | A3 C#4 E4 C#4 A3 C#4 E4 C#4 |' },
+      { type: 'triangle', vol: 0.1, notes:
+        'D2 D2 D3 D2 D2 D2 D3 D2 | A1 A1 A2 A1 A1 A1 A2 A1 | B1 B1 B2 B1 B1 B1 B2 B1 | G1 G1 G2 G1 G1 G1 G2 G1 |' +
+        'D2 D2 D3 D2 D2 D2 D3 D2 | A1 A1 A2 A1 A1 A1 A2 A1 | B1 B1 B2 B1 B1 B1 B2 B1 | A1 A1 A2 A1 A1 A1 A2 A1 |' +
+        'B1 B1 B2 B1 B1 B1 B2 B1 | G1 G1 G2 G1 G1 G1 G2 G1 | D2 D2 D3 D2 D2 D2 D3 D2 | A1 A1 A2 A1 A1 A1 A2 A1 |' +
+        'B1 B1 B2 B1 B1 B1 B2 B1 | G1 G1 G2 G1 G1 G1 G2 G1 | D2 D2 D3 D2 D2 D2 D3 D2 | A1 A1 A2 A1 A1 A1 A2 A1 |' },
+      { type: 'drums', vol: 0.45, notes: 'k . h . s . h k | k . h k s . h h' },
+    ],
+  },
 };
