@@ -558,6 +558,27 @@ were put in earlier, and from then on they stay for good. Forcing the holiday on
 (`&christmas=1`) shows them early, on that screen only. When you finish a game and you're 1st on its
 leaderboard, it tells you you hold the crown.
 
+### Since you last came in
+
+As you come in, after anything else you're being told, a screen lists the boards where somebody
+has gone past you since last time. For example: **COFFEE MACHINE 1st ▶ 2nd**, then "Cody took the
+crown, 2h ago" underneath. It shows up to six boards, with lost crowns first, then your best places, and
+says how many more there are. If nobody has gone past you, it doesn't come up at all.
+
+It only covers boards where you were in the top ten, the ones that earn Office Champion points.
+Live Hold'em is left out, since your own losses there move you down it. The game uses the boards
+it already fetches as you come in to see whether you're Office Champion (`crownCheck`), so this
+costs no extra trips to the database.
+
+How it knows: for each of those boards, the browser keeps who was ahead of you, as of when you
+last came in, or when that game's leaderboard last came up after you played it
+(`away.<name>` in its storage, or `test.away.<name>` from a test address). Anybody ahead of you
+now who wasn't then has gone past you. The list is kept when the screen comes up, so it's never
+news twice. It's per browser, so after playing on your phone, your computer may show you
+something you've already seen there. It only starts working from each name's second visit in a
+browser, because the first visit has nothing to compare against. The code is "since you last
+came in" in `js/game.js` (`awaySeen`, `AwayNews`).
+
 Only the name and the score are sent. If the leaderboard can't be reached the game
 says so and carries on, and best scores are still kept in the browser as before.
 
@@ -2007,6 +2028,8 @@ first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gi
 the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
 `&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
 `&crown=1` makes you the Office Champion, in the crown and the star trail.
+`&away=1` brings up "Since you last came in" as if whoever's just above you on each board had
+gone past you since last time (it needs `&name=`, or a name saved in that browser).
 `&have=antlers,sweeper&look=m100b0000020` wears the humbug antlers and the Sweeper (walk a little for
 the humbug to turn up), and `&have=crown,startrail&look=m10090000010` wears the crown and the star trail
 without being the champion. Add `&zoom=2` for a closer look, which is handy for screenshots.

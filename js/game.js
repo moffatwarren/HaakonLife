@@ -4928,6 +4928,7 @@
     let rows = null, mine = null, failed = false, t = 0;
     boardLoad(p.key, name, p.score).then((r) => {
       rows = r.rows; mine = r.mine;
+      awayBoard(p.key, name, rows); // (you've seen where you are on it now)
       // (a quest's board has just been sent to, so this says if that's put you on top)
       if (b.quest && rows.length && name && name !== 'New Hire') setQuestTop(p.key, rows[0].id === id);
       // (and if a game's has just gone up with you in its top ten, it might have made you number 1)
@@ -5172,23 +5173,33 @@
   // (boards[key], best first): points for each top ten, then crowns to break a tie.
   function fameStandings(boards, keys) {
     const pts = {};
-    for (const k of keys) boards[k].slice(0, 10).forEach((r, i) => {
+    for (const k of keys) (boards[k] || []).slice(0, 10).forEach((r, i) => {
       const s = pts[r.id] || (pts[r.id] = { id: r.id, name: r.name, points: 0, crowns: 0 });
       s.points += 10 - i;
       if (!i) s.crowns++;
     });
     return Object.values(pts).sort((a, b) => b.points - a.points || b.crowns - a.crowns || a.name.localeCompare(b.name));
   }
-  // Whether a name is the Office Champion right now, from every board as the Hall of
-  // Fame has them: null if none of the boards can be had. A New Hire never is.
-  function crownCheck(name) {
-    if (!name || name === 'New Hire' || !(BOARD_URL || boardDemo)) return Promise.resolve(false);
+  // Every board in the Hall of Fame (see fameBoards), each best first, as { key: rows }, with
+  // null for one that couldn't be had; or null if none of them could.
+  function fameAll(name) {
     const { keys } = fameBoards();
     return Promise.all(keys.map((k) => boardAll(k, name).catch(() => null))).then((all) => {
       if (all.every((r) => r === null)) return null;
       const boards = {};
-      keys.forEach((k, i) => { boards[k] = all[i] || []; });
-      const top = fameStandings(boards, keys)[0];
+      keys.forEach((k, i) => { boards[k] = all[i]; });
+      return boards;
+    });
+  }
+  // Whether a name is the Office Champion right now, from every board as the Hall of
+  // Fame has them: null if none of the boards can be had. A New Hire never is. seen, if
+  // it's there, gets the boards as well (see awaySeen).
+  function crownCheck(name, seen) {
+    if (!name || name === 'New Hire' || !(BOARD_URL || boardDemo)) return Promise.resolve(false);
+    return fameAll(name).then((boards) => {
+      if (!boards) return null;
+      if (seen) seen(boards);
+      const top = fameStandings(boards, Object.keys(boards))[0];
       return !!top && top.id === boardKey(name);
     }, () => null);
   }
@@ -5902,6 +5913,117 @@
         else if (page === LIVE) drawLive();
         else drawGroup(page[1]);
         ctext(scrollRoom(page) ? 'Arrows: pages, scroll   Esc: close' : typeof page === 'string' ? 'Arrows: pages   Esc: close' : 'Arrows: browse   Space: full board', SH - 16, '#686878');
+      },
+    };
+    return self;
+  }
+
+  // ---------- since you last came in ----------
+  // As you come in, a screen of the boards where somebody has gone past you since last time,
+  // like "COFFEE MACHINE 1st > 2nd" over "Cody took the crown, 2h ago". It only covers boards
+  // where you were in the top ten, the ones that earn Office Champion points. For each of those,
+  // this browser keeps who was ahead of you (their rows' ids) as of when you last came in, or last
+  // saw that game's leaderboard come up after playing it: away.<name>, or test.away.<name> from a
+  // test address. Anybody ahead of you now who wasn't then has gone past you. A board that isn't
+  // being kept yet (your first time in this browser, say) just starts being kept, with nothing to
+  // say. The net board (Live Hold'em) is left out, since your own losses there drop you down it.
+  // &away=1 has it as if whoever's just above you on each board had gone past you, for testing.
+  const AWAY_SHOW = 6;
+  const awayTest = /[#&]away=/.test(location.hash);
+  let awayDue = null; // what there is to tell you, once you're in: { name, list, keep }
+  const awayKey = (name) => (BOARD_POSTS ? '' : 'test.') + 'away.' + boardKey(name);
+  const awayKept = (key) => inTable(BOARDS, key) && !BOARDS[key].net && !BOARDS[key].unlisted;
+  // what this browser has kept for a name, as { key: [ids ahead of you] }, leaving out anything that isn't
+  function awayLoad(name) {
+    let kept = null;
+    try { kept = JSON.parse(store.get(awayKey(name))); } catch (e) { /* nothing kept, or it's not readable */ }
+    const out = {};
+    if (kept && typeof kept === 'object') {
+      for (const key in kept) if (awayKept(key) && Array.isArray(kept[key])) out[key] = kept[key].filter((id) => typeof id === 'string');
+    }
+    return out;
+  }
+  const awaySave = (name, kept) => store.set(awayKey(name), JSON.stringify(kept));
+  // who's ahead of you on a board (its rows, best first), or null if you're not in its top ten
+  function awayAhead(rows, id) {
+    const i = rows.findIndex((r) => r.id === id);
+    return i >= 0 && i < 10 ? rows.slice(0, i).map((r) => r.id) : null;
+  }
+  // You're coming in, and here are the boards (see fameAll). This works out who's gone past you
+  // and gets it ready to tell you (awayTell), or if nobody has, keeps the boards as they are now.
+  function awaySeen(name, boards) {
+    try {
+      if (!name || name === 'New Hire' || (playerName || store.get('name') || '') !== name) return;
+      awayDue = null;
+      const id = boardKey(name), was = awayLoad(name), keep = {}, list = [];
+      for (const key in boards) {
+        if (!awayKept(key)) continue;
+        const rows = boards[key];
+        if (!rows) { if (was[key]) keep[key] = was[key]; continue; } // (it couldn't be had: keep what there was)
+        const ahead = awayAhead(rows, id), now = rows.findIndex((r) => r.id === id);
+        if (ahead) keep[key] = ahead;
+        // (&away=1: as if whoever's just above you in the top ten went past you)
+        const before = !awayTest ? was[key] : now > 0 && now < 10 ? rows.slice(0, now - 1).map((r) => r.id) : null;
+        // (not kept before, you're not on it any more, or you're no lower than you were)
+        if (!before || now <= before.length) continue;
+        const past = rows.slice(0, now).filter((r) => !before.includes(r.id));
+        if (past.length) list.push({ key, from: before.length + 1, to: now + 1, past });
+      }
+      if (!list.length) { awaySave(name, keep); return; }
+      // the crowns you've lost first, then the best places, then the furthest you've dropped
+      list.sort((a, b) => a.from - b.from || (b.to - b.from) - (a.to - a.from));
+      awayDue = { name, list, keep };
+      if (mode === 'play') awayTell(); // (the answer's come after you've already walked in)
+    } catch (e) {
+      console.error(e);
+      if (window.reportProblem) window.reportProblem(e);
+    }
+  }
+  // Once you're in: the screen goes up after anything else you're being told, and what it says is
+  // kept as you see it, so it isn't news next time.
+  function awayTell() {
+    const due = awayDue;
+    if (!due || mode !== 'play') return;
+    awayDue = null;
+    if (due.name !== (playerName || store.get('name') || '')) return;
+    questQueue.push(() => { awaySave(due.name, due.keep); ui.push(AwayNews(due.list)); });
+  }
+  // A game's leaderboard has come up (its top ten): where you are on it now is no longer news.
+  function awayBoard(key, name, rows) {
+    if (!name || name === 'New Hire' || !awayKept(key)) return;
+    const kept = awayLoad(name), ahead = awayAhead(rows, boardKey(name));
+    if (ahead) kept[key] = ahead; else delete kept[key];
+    awaySave(name, kept);
+  }
+  function AwayNews(list) {
+    const GREY = '#686878', n = list.length;
+    const right = (str, x, y, c) => text(str, x - str.length * 6, y, 1, c);
+    // who went past you (best first): one by name and when, two by name, more as a count
+    const who = (e) => {
+      const [a, b] = e.past;
+      if (e.past.length === 1) return a.name + (e.from === 1 ? ' took the crown, ' : ' went past you, ') + ago(a.t);
+      return a.name + ' and ' + (e.past.length === 2 ? b.name : (e.past.length - 1) + ' others') + ' went past you';
+    };
+    let t = 0;
+    const self = {
+      point: anyClick,
+      update() {
+        t++;
+        if (t > 20 && (pressed.has('a') || pressed.has('b'))) { sfx('menu'); remove(self); }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        ctext('SINCE YOU LAST CAME IN', 10);
+        ctext('You\'ve been passed on ' + n + (n === 1 ? ' board. Win it back!' : ' boards. Win them back!'), 23, GREY);
+        list.slice(0, AWAY_SHOW).forEach((e, i) => {
+          const y = 42 + i * 26, title = BOARDS[e.key].title;
+          text(title, 24, y, 1, col.dark);
+          if (e.from === 1) drawCrown(24 + title.length * 6 + 3, y + 1);
+          right(nth(e.from) + ' > ' + nth(e.to), SW - 24, y, col.dark);
+          text(who(e), 32, y + 10, 1, GREY);
+        });
+        if (n > AWAY_SHOW) ctext('...and ' + (n - AWAY_SHOW) + ' more: see the Hall of Fame', 200, GREY);
+        if (t > 20 && (tick >> 4) & 1) ctext('Press Space', SH - 16);
       },
     };
     return self;
@@ -16679,6 +16801,7 @@
     questTell();
     if (HALLOWEEN) questQueue.push('It\'s Halloween at Haakon! When you\'re ready for the party, go and take a seat in the downstairs boardroom.');
     if (CHRISTMAS) questQueue.push('Happy holidays from Haakon! The office is all decked out, and somebody has flooded a rink in the parking lot. Head out through the fitness room\'s side doors.');
+    awayTell(); // (who's gone past you on the boards since last time)
   }
   // a key while a message is up over the name (or the password's being checked): any key puts the
   // message away, as A does, and nothing gets typed
@@ -23621,7 +23744,7 @@
       if (edit.ask !== ask || edit.wait <= 0) return; // (too late: you might have changed something by now)
       if (look) edit.look = look;
     });
-    const crown = crownCheck(name).then((on) => { if (playerName === name) champHeard(name, on, true); return on; });
+    const crown = crownCheck(name, (boards) => awaySeen(name, boards)).then((on) => { if (playerName === name) champHeard(name, on, true); return on; });
     const owned = itemsCheck(name, true);
     Promise.all([saved, owned]).then(() => { if (edit.ask === ask) itemsOff(edit.look); });
     Promise.all([saved, crown, owned]).then(([, on]) => {
@@ -24237,6 +24360,12 @@
     if (q.has('call') && phone) answerPhone();
     // &name=Sam sets your name; &quest=1 hands you Linda's list, &quest=done finishes it
     if (q.has('name')) playerName = q.get('name');
+    // &away=1 shows "Since you last came in" as if whoever's just above you on each board had gone past you
+    // (with &name=, or the name this browser has)
+    if (awayTest) {
+      const who = playerName || store.get('name') || '';
+      if (who) fameAll(who).then((boards) => { if (boards) awaySeen(who, boards); }, () => {});
+    }
     // &unlock=santa,candycane,lights,ghostmask,ribbon,cup,champion brings up the message you get when each of those
     // becomes yours, for this visit only
     const unlocks = { santa: santaTell, candycane: elfTell, lights: presentTell, ghostmask: questTold('ghostmask'), ribbon: questTold('ribbon'), cup: () => cupPrize('You won the Christmas Cup!'), champion: champSay };
