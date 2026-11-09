@@ -154,7 +154,7 @@ window.CARD_LIST = [
   { id: 'eugene', name: 'Eugene', dept: 'engineering', rarity: 'C', cost: 3, power: 2, patience: 3, does: [{ do: 'freeze', who: 'enemy' }] },
   { id: 'hudson', name: 'Hudson', dept: 'engineering', rarity: 'C', cost: 3, power: 2, patience: 3, does: [{ do: 'heal', n: 3, who: 'ally' }] },
   { id: 'carlos', name: 'Carlos', dept: 'engineering', rarity: 'C', cost: 3, power: 3, patience: 4 },
-  { id: 'marcus', name: 'Marcus', dept: 'engineering', rarity: 'U', cost: 3, power: 3, patience: 3, does: [{ team: 'engineering', do: 'boost', p: 1, who: 'others' }] },
+  { id: 'marcus', name: 'Marcus', dept: 'engineering', rarity: 'U', cost: 3, power: 3, patience: 3, does: [{ team: 'engineering', do: 'boost', p: 1, who: 'others', dept: 'engineering' }] },
   { id: 'charles', name: 'Charles', dept: 'engineering', rarity: 'C', cost: 3, power: 2, patience: 4, words: ['gate'] },
   { id: 'gigi', name: 'Gigi', dept: 'engineering', rarity: 'C', cost: 3, power: 3, patience: 3, does: [{ when: 'last', do: 'heal', n: 3, who: 'you' }] },
   { id: 'james', name: 'James', dept: 'engineering', rarity: 'C', cost: 3, power: 2, patience: 3, does: [{ do: 'boost', h: 2, who: 'ally' }] },
