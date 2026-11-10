@@ -8816,23 +8816,81 @@
   function deckSettle() {
     if (deckSaved()) return;
     const name = cardsWho();
-    store.set(cardKey(name, 'carddeck'), cardDeck().join(','));
-    store.set(cardKey(name, 'carddeckat'), String(deckAt(name)));
+    deckWrite(name, cardDeck().join(','), deckStored(name), deckAt(name));
     deckPush(name);
   }
-  // Your deck on every device: the one you built last, wherever you built it. It's kept in the database
-  // at decks/<world>/<name> as { d: its cards with commas between, at: when you built it, by that
-  // device's clock }, and in this browser. The rules only let a deck replace one that was built before
-  // it, so a device that was offline when you built one sends it when it's back, and it only counts if
-  // you haven't built a newer one since. It's asked for as you come in, when you come back to the page,
-  // and just before it's needed (MY CARDS, a coworker's game, a challenge), so a window left open on
-  // another computer still gets it.
+  // Your five decks: you can keep up to DECK_SLOTS, each with a name if you give it one, and pick
+  // which one you play in MY CARDS. It's always a full deck: you can't leave MY CARDS with it half
+  // built (goBack in DeckApp). The one you play is carddeck, as it always was, so everything that wants your deck still asks cardDeck(). All
+  // five are in carddecks, as { u: which one you play (0 to 4), k: [{ n: its name ('' for Deck 1 and
+  // so on), d: its cards with commas between }] }, and whatever k[u] says, the one you play is
+  // carddeck. The others can be half built. Nothing goes in carddecks until you use a second deck or
+  // name one, so for anybody who doesn't, everything is just as it was.
+  const DECK_SLOTS = 5, DECK_NAME_MAX = 12, DECK_NAME_OK = /[A-Za-z0-9 .,!?'\-&#()+]/;
+  const deckLabel = (k, i) => k.n || 'Deck ' + (i + 1);
+  // the cards in a saved list, as far as they can be a deck: real cards, one of each, at most one
+  // legendary and no more than 20 (and with mine, only the ones you have)
+  function deckCards(str, mine) {
+    const out = [];
+    for (const id of String(str || '').split(',')) {
+      const c = CARDS.card(id);
+      if (!c || c.rarity === 'T' || out.includes(id) || out.length >= CARDS.RULES.DECK || (mine && !cardHave(id))) continue;
+      if (c.rarity === 'L' && out.some((x) => CARDS.card(x).rarity === 'L')) continue;
+      out.push(id);
+    }
+    return out;
+  }
+  // five decks from this browser or the database, tidied (anybody could have put anything there)
+  function deckTidy(s) {
+    const o = s && typeof s === 'object' && Array.isArray(s.k) ? s : { k: [] }, k = [];
+    for (let i = 0; i < DECK_SLOTS; i++) {
+      const e = o.k[i] && typeof o.k[i] === 'object' ? o.k[i] : {};
+      const n = typeof e.n === 'string' ? [...e.n].filter((ch) => DECK_NAME_OK.test(ch)).join('').slice(0, DECK_NAME_MAX).trim() : '';
+      k.push({ n, d: deckCards(e.d).join(',') });
+    }
+    return { u: Number.isInteger(o.u) && o.u >= 0 && o.u < DECK_SLOTS ? o.u : 0, k };
+  }
+  const deckParse = (str) => { try { const s = JSON.parse(str); return s && typeof s === 'object' ? deckTidy(s) : null; } catch (e) { return null; } };
+  const deckStored = (name) => deckParse(store.get(cardKey(name, 'carddecks')));
+  // your five, with the one you play as it is now
+  function deckSlots() {
+    const s = deckStored(cardsWho()) || deckTidy(null);
+    s.k[s.u].d = cardDeck().join(',');
+    return s;
+  }
+  // (just the one deck, with no name: nothing to keep in carddecks)
+  const deckPlain = (s) => s.u === 0 && s.k.every((k, i) => !k.n && (!i || !k.d));
+  // one of them in the DECKS list: its name, how many cards it has (n), and whether it's the one you play
+  const deckLine = (s, i, n) => deckLabel(s.k[i], i).padEnd(DECK_NAME_MAX) + ' ' + (n ? (n + '/' + CARDS.RULES.DECK).padStart(5) : 'empty')
+    + (i === s.u ? '  IN USE' : '');
+  // Keeping a name's deck in this browser: the one you play (d), all five (s, or null to leave them as
+  // they are) and when it was built (at).
+  function deckWrite(name, d, s, at) {
+    store.set(cardKey(name, 'carddeck'), d);
+    if (s) {
+      s.k[s.u].d = d;
+      if (!deckPlain(s) || store.get(cardKey(name, 'carddecks'))) store.set(cardKey(name, 'carddecks'), JSON.stringify(s));
+    }
+    store.set(cardKey(name, 'carddeckat'), String(at));
+  }
+  // Your decks on every device: the ones you built last, wherever you built them. They're kept in the
+  // database at decks/<world>/<name> as { d: the one you play, its cards with commas between, at: when
+  // you built it, by that device's clock, s: all five, as carddecks is (only once there's more than the
+  // one) }, and in this browser. The rules only let a deck replace one that was built before it, so a
+  // device that was offline when you built one sends it when it's back, and it only counts if you
+  // haven't built a newer one since. Switching decks or naming one counts as building one. They're
+  // asked for as you come in, when you come back to the page, and just before they're needed (MY CARDS,
+  // a coworker's game, a challenge), so a window left open on another computer still gets them.
   let deckTurn = 0; // (goes up with each ask and each deck you build, so a late answer is ignored)
   let deckNews = 0; // (goes up when the deck you'd get might have changed, so MY CARDS can catch up)
   const deckAt = (name) => +store.get(cardKey(name, 'carddeckat')) || 0; // (0: from before decks were kept)
   function deckPush(name) {
-    const d = store.get(cardKey(name, 'carddeck'));
-    if (d) deckFetch(name, { method: 'PUT', body: JSON.stringify({ d, at: deckAt(name) }) }).catch(() => {});
+    const d = store.get(cardKey(name, 'carddeck')), s = store.get(cardKey(name, 'carddecks')), at = deckAt(name);
+    if (!d) return;
+    const put = (row) => deckFetch(name, { method: 'PUT', body: JSON.stringify(row) });
+    // (the database's rules from before there were five don't take s: until the new ones are
+    // published, the deck you play still goes, by itself)
+    (s ? put({ d, at, s }).then((r) => r.ok || put({ d, at })) : put({ d, at })).catch(() => {});
   }
   function deckPull(name = cardsWho()) {
     const turn = ++deckTurn;
@@ -8842,18 +8900,20 @@
       const there = row && typeof row.d === 'string' && typeof row.at === 'number' ? row : null;
       // (the one here is newer, or the only one: it goes there, in case it didn't get through before)
       if (!there || (mine && deckAt(name) > there.at)) { if (mine) deckPush(name); return; }
-      if (there.d === mine && there.at === deckAt(name)) return;
-      // (a tie goes to the database, so every device ends up with the same one)
-      store.set(cardKey(name, 'carddeck'), there.d);
-      store.set(cardKey(name, 'carddeckat'), String(there.at));
+      const s = typeof there.s === 'string' ? deckParse(there.s) : null;
+      if (there.d === mine && there.at === deckAt(name) && (!s || there.s === store.get(cardKey(name, 'carddecks')))) return;
+      // (a tie goes to the database, so every device ends up with the same one. One with no s, from
+      // before there were five or from rules that don't take them yet, only says which deck you play,
+      // so the other four stay as they are here)
+      deckWrite(name, there.d, s || deckStored(name), there.at);
       deckNews++;
     }).catch(() => {});
   }
-  function deckKeep(ids) {
+  // (s: your five decks, if they might have changed)
+  function deckKeep(ids, s) {
     const name = cardsWho();
     deckTurn++;
-    store.set(cardKey(name, 'carddeck'), ids.join(','));
-    store.set(cardKey(name, 'carddeckat'), String(Date.now()));
+    deckWrite(name, ids.join(','), s || null, Date.now());
     deckPush(name);
   }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') deckPull(); });
@@ -9007,23 +9067,26 @@
     const dept = (d) => (c) => c.dept === d;
     const TABS = [['MY DECK'], ['PLANT', dept('plant')], ['SALES', dept('sales')], ['OFFICE', dept('office')], ['ENGINEERING', dept('engineering')], ['OTHER', (c) => !c.dept && !c.own], ['YOU', (c) => c.own]];
     const YOU = TABS.length - 1;
-    // The FILL button: the first thing on the MY DECK page while your deck isn't full, the size of a card.
-    // In the list of what's on a page it's this, which isn't a card.
-    const FILL = '+fill';
+    // The DECKS button, the first thing on the MY DECK page, and the FILL button after it while your deck
+    // isn't full, each the size of a card. In the list of what's on a page they're these, which aren't cards.
+    const DECKS = '+decks', FILL = '+fill';
     const F = (id) => faceOf(id, { name: cardsWho(), look: wornLook(myLook) });
     const byCost = (a, b) => a.cost - b.cost || a.name.localeCompare(b.name);
     const same = (a, b) => a.slice().sort().join() === b.slice().sort().join();
-    let start = cardDeck(), news = deckNews;
+    // (slots: your five decks, with draft being the one you play. touched: you've switched or named one)
+    let start = cardDeck(), news = deckNews, slots = deckSlots(), touched = false;
     let draft = start.slice(), tab = open === 'you' ? YOU : 0, at = 0, scroll = 0, onTabs = false, t = 0, note = cardsNext(), noteT = note ? 170 : 0;
     const list = () => (TABS[tab][1]
       ? CARDS.LIST.filter((c) => c.rarity !== 'T' && TABS[tab][1](c)).sort(byCost).map((c) => c.id)
-      : (draft.length < SIZE ? [FILL] : []).concat(draft.map(CARDS.card).sort(byCost).map((c) => c.id)));
+      : [DECKS].concat(draft.length < SIZE ? [FILL] : [], draft.map(CARDS.card).sort(byCost).map((c) => c.id)));
+    const label = () => deckLabel(slots.k[slots.u], slots.u);
     const flash = (str) => { note = str; noteT = 170; };
     const step = heldRepeat(); // (hold a direction and the cursor keeps going)
     const legal = () => !CARDS.deckProblem(draft);
     const topUp = () => CARDS.buildDeck([...cardsMine()], { must: draft, seed: t + 1 });
     function toggle(id) {
       if (id === FILL) { fill(); return; }
+      if (id === DECKS) { deckMenu(); return; }
       const c = CARDS.card(id);
       if (!cardHave(id)) { sfx('bump'); flash(cardWhere(id)); return; }
       if (draft.includes(id)) {
@@ -9050,16 +9113,50 @@
       sfx('menu');
       flash('Filled up with the best of what you have.');
     }
+    // DECKS: your five, to pick which you play, and RENAME for the one you do.
+    function deckMenu() {
+      slots.k[slots.u].d = draft.join(',');
+      const lines = slots.k.map((k, i) => deckLine(slots, i, i === slots.u ? draft.length : deckCards(k.d, true).length));
+      ui.push(Choice(lines.concat(['RENAME ' + label().toUpperCase()]), -4, 22, (i) => {
+        if (i < 0) return;
+        if (i < DECK_SLOTS) { switchTo(i); return; }
+        sfx('menu');
+        ui.push(DeckNamer(slots.k[slots.u].n, (n) => {
+          slots.k[slots.u].n = n; touched = true;
+          flash('This deck is called ' + label() + ' now.');
+        }));
+      }, { start: slots.u, taps: true }));
+    }
+    // Playing another of your decks: whatever you've done to this one stays with it, even if it's
+    // half built. An empty one asks whether to start it from nothing or as a copy of this one.
+    function switchTo(i) {
+      if (i === slots.u) return;
+      const was = slots.u, cards = deckCards(slots.k[i].d, true);
+      const go = (ids) => {
+        sfx('menu');
+        slots.k[was].d = draft.join(',');
+        slots.u = i; draft = ids; touched = true; at = 0; scroll = 0;
+        flash('You\'re playing ' + label() + ' now.');
+      };
+      if (cards.length) { go(cards); return; }
+      ask(deckLabel(slots.k[i], i) + ' is empty. Start it from nothing, or as a copy of ' + label() + '?', ['START EMPTY', 'COPY ' + label().toUpperCase()], (k) => {
+        if (k >= 0) go(k ? draft.slice() : []);
+      }, { taps: true });
+    }
     function leave() {
+      // (the deck you play is always a full one: goBack sees to that, and this is in case anything else
+      // ever gets here)
+      if (!legal()) draft = topUp();
       // (only if you changed something: until then it's still the deck you had)
-      if (!same(draft, start)) deckKeep(draft);
+      if (touched || !same(draft, start)) deckKeep(draft, slots);
       remove(self);
     }
-    // Going with a deck that isn't full asks whether you'll finish it or have it filled for you.
+    // Going with a deck that isn't full (the one you play, even if you've only just switched to it) asks
+    // whether you'll finish it or have it filled for you, so you never leave without a full 20.
     function goBack() {
       if (legal()) { sfx('select'); leave(); return; }
-      const short = SIZE - draft.length;
-      ask('Your deck has ' + draft.length + ' of ' + SIZE + ' cards. Do you want to finish it yourself, or have it filled for you?', ['FINISH IT', 'AUTO FILL'], (i) => {
+      const short = SIZE - draft.length, whose = deckPlain(slots) ? 'Your deck' : label();
+      ask(whose + ' has ' + draft.length + ' of ' + SIZE + ' cards. Do you want to finish it yourself, or have it filled for you?', ['FINISH IT', 'AUTO FILL'], (i) => {
         if (i === 1) { draft = topUp(); sfx('menu'); leave(); return; }
         flash('Pick ' + short + ' more card' + (short === 1 ? '' : 's') + ' for your deck.');
       });
@@ -9070,7 +9167,7 @@
         t++;
         if (noteT > 0) noteT--;
         // (a newer deck from another device, or more cards: if you haven't changed anything, it's that)
-        if (news !== deckNews) { news = deckNews; if (same(draft, start)) { start = cardDeck(); draft = start.slice(); } }
+        if (news !== deckNews) { news = deckNews; if (!touched && same(draft, start)) { start = cardDeck(); draft = start.slice(); slots = deckSlots(); } }
         const d = step();
         if (pressed.has('b')) { goBack(); return; }
         if (onTabs) {
@@ -9148,13 +9245,28 @@
         ctx.scale(0.5, 0.5);
         const fr = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
         const say2 = (str, x, y, c = '#f4ecd8', n = 1) => ctx.drawImage(cardWord(str, c, n), x, y);
-        // the FILL button, at a card's size (n: 1 on the page, 3 for the big one on the left): a raised
-        // panel with a plus on it, lit from the top left
-        const fillButton = (x, y, w, h, n) => {
+        // the FILL and DECKS buttons, at a card's size (n: 1 on the page, 3 for the big one on the left):
+        // a raised panel, lit from the top left
+        const panel = (x, y, w, h, n) => {
           fr(x + 2, y, w - 4, h, '#1a1622'); fr(x, y + 2, w, h - 4, '#1a1622');
           fr(x + 2, y + 2, w - 4, h - 4, '#4c4058');
           fr(x + 2, y + 2, w - 4, 2 * n, '#6c5c80'); fr(x + 2, y + 2, 2 * n, h - 4, '#6c5c80');
           fr(x + 2, y + h - 2 - 2 * n, w - 4, 2 * n, '#382e44'); fr(x + w - 2 - 2 * n, y + 2, 2 * n, h - 4, '#382e44');
+        };
+        // DECKS has a little pile of your card backs on it, and the big one has the name of the deck you
+        // play and which of the five it is
+        const decksButton = (x, y, w, h, n) => {
+          panel(x, y, w, h, n);
+          const back = backOfCard(items.goldbacks === 1), bw = n > 1 ? 88 : 44, bh = n > 1 ? 116 : 58, step = n > 1 ? 24 : 8;
+          for (let i = 0; i < 3; i++) ctx.drawImage(back, Math.round(x + (w - bw) / 2) + (i - 1) * step, y + (n > 1 ? 30 : 4) + i * step * 0.75, bw, bh);
+          if (n === 1) { const word = cardWord('DECKS', '#f4ecd8'); ctx.drawImage(word, Math.round(x + w / 2 - word.width / 2), Math.round(y + h * 0.68)); return; }
+          const big = label().length * 24 <= w - 20, name = cardWord(label(), '#f8d850', big ? 2 : 1), which = cardWord((slots.u + 1) + ' of your ' + DECK_SLOTS + ' decks', '#a89cb8');
+          ctx.drawImage(name, Math.round(x + w / 2 - name.width / 2), y + 222);
+          ctx.drawImage(which, Math.round(x + w / 2 - which.width / 2), y + 274);
+        };
+        // FILL has a plus on it
+        const fillButton = (x, y, w, h, n) => {
+          panel(x, y, w, h, n);
           const cx = Math.round(x + w / 2), cy = Math.round(y + h * 0.4), arm = 14 * n, th = 6 * n;
           for (const [o, c] of [[2 * n, '#1a1622'], [0, '#f8d850']]) {
             fr(cx - arm + o, cy - th / 2 + o, arm * 2, th, c);
@@ -9176,6 +9288,7 @@
         const ids = list(), id = ids[Math.min(at, ids.length - 1)];
         const c = id && CARDS.card(id), yours = id && cardHave(id);
         if (id === FILL) fillButton(6, 40, 260, 364, 3);
+        else if (id === DECKS) decksButton(6, 40, 260, 364, 3);
         else if (id) {
           ctx.drawImage(yours ? bigCard(F(id)) : backOfCard(), 6, 40, 260, 364);
           if (yours && c.rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(F(id), t)), 18, 84, 236, 150);
@@ -9190,6 +9303,7 @@
         ids.slice(scroll * COLS, (scroll + ROWS) * COLS).forEach((cid, i) => {
           const x = GX + (i % COLS) * 92, y = GY + Math.floor(i / COLS) * 120, k = CARDS.card(cid), have = cardHave(cid), sel = !onTabs && scroll * COLS + i === at;
           if (cid === FILL) fillButton(x, y, 88, 116, 1);
+          else if (cid === DECKS) decksButton(x, y, 88, 116, 1);
           else if (have) {
             ctx.drawImage(smallCard(F(cid), { cost: true }), x, y);
             if (k.rarity === 'L') { const [cx, cy] = A.cropOf(F(cid)); ctx.drawImage(A.canvasOf(A.artFrame(F(cid), t)), cx, cy, 72, 72, x + 8, y + 8, 72, 72); }
@@ -9205,7 +9319,8 @@
         // what A does, or how to get it
         const wrapped = [];
         const line = noteT > 0 ? note : onTabs ? 'Left and Right: another page. Down: its cards.'
-          : !id ? '' : id === FILL ? 'A: fill up your deck with the best of what you have.' : !yours ? cardWhere(id) : draft.includes(id) ? 'In your deck. A: take it out.' : c.own ? 'A: use this one in your deck.' : 'A: put it in your deck.';
+          : !id ? '' : id === FILL ? 'A: fill up your deck with the best of what you have.'
+          : id === DECKS ? 'A: play another of your ' + DECK_SLOTS + ' decks, or rename this one.' : !yours ? cardWhere(id) : draft.includes(id) ? 'In your deck. A: take it out.' : c.own ? 'A: use this one in your deck.' : 'A: put it in your deck.';
         let cur = '';
         for (const word of line.split(' ')) { if ((cur + ' ' + word).trim().length > 21) { wrapped.push(cur); cur = word; } else cur = (cur + ' ' + word).trim(); }
         wrapped.push(cur);
@@ -9226,6 +9341,25 @@
         say2(coll, 636 - coll.length * 12, 458, '#a89cb8');
         ctx.restore();
       },
+    };
+    return self;
+  }
+  // Naming one of your decks in MY CARDS, typed into the bar along the top (see "typing", and
+  // drawSayBar). Enter (or A, or START, or a phone's Done) keeps it, and B (or Esc) leaves it as it was.
+  // done(name) gets what's typed: nothing at all puts it back to Deck 1 and so on.
+  const DECK_TYPE = { max: DECK_NAME_MAX, ok: DECK_NAME_OK, caps: 'words', enter: 'done', label: 'Name this deck' };
+  function DeckNamer(was, done) {
+    const field = typeOpen({}, DECK_TYPE, was);
+    let hover = -1;
+    const close = () => { remove(self); typeClose(field.owner); sfx('select'); };
+    const self = {
+      overlay: true,
+      update() {
+        if (pressed.has('a') || pressed.has('start')) { close(); done(field.text.trim()); }
+        else if (pressed.has('b')) close();
+      },
+      point(x, y, button) { let k; [hover, k] = pointSayBar(x, y, button); return k; },
+      draw() { drawSayBar(field, 'Name this deck:', top() === self, hover, { max: DECK_NAME_MAX, ok: 'OK', enter: 'Done' }); },
     };
     return self;
   }
@@ -9250,7 +9384,8 @@
     const next = (k) => { if (k < LINES.length) say(LINES[k], () => next(k + 1)); };
     next(0);
   }
-  // Talking to a coworker: how good they are and what they're playing for, then the game.
+  // Talking to a coworker: how good they are and what they're playing for, then the game, with the
+  // deck you picked in MY CARDS.
   function cardOffer(npc) {
     const foe = npc.name, level = tableLevel(foe), all = CARDS.prizes(foe), next = all.find((id) => !cardHave(id));
     const str = foe + ' at cards: ' + TABLE_SKILL[level] + '. ' + (!next ? 'You have everything they play for, so this one\'s just for fun.'
@@ -18257,21 +18392,24 @@
   // The bar along the top of the screen that a line to say is typed into, for MpType and for chat at a
   // live game (GameChat), clear of a phone's keyboard: label, how many letters are left, the box, and
   // under it what to press, with SAY IT and CANCEL to click on a computer. here: nothing's over it, so
-  // it's taking the typing. hover: the button the mouse is on (0 or 1), or -1.
+  // it's taking the typing. hover: the button the mouse is on (0 or 1), or -1. o, for typing something
+  // else (a deck's name, in DeckNamer): max, the most letters, and what the first button and a phone's
+  // Enter key say (ok, enter).
   const SAY_H = 58, SAY_BTNS = [[SW - 136, 'SAY IT'], [SW - 70, 'CANCEL']]; // (for the mouse: [x, label], 60 x 15 at y 38)
-  function drawSayBar(field, label, here, hover) {
+  function drawSayBar(field, label, here, hover, o = {}) {
     box(0, 0, SW, SAY_H);
     text(label, 10, 8);
-    const n = MP_TYPE_MAX - field.text.length + '';
+    const n = (o.max || MP_TYPE_MAX) - field.text.length + '';
     text(n, SW - 10 - n.length * 6, 8, 1, '#686878');
     ctx.fillStyle = col.dark; ctx.fillRect(8, 19, SW - 16, 15);
     ctx.fillStyle = '#f8f8f8'; ctx.fillRect(9, 20, SW - 18, 13);
     if (here) typeBox(field, { x: 8, y: 19, w: SW - 16, h: 15, tx: 12, adv: 6, cy: 22, ch: 9 });
     text(field.text, 12, 23);
-    if (isTouch) text('Tap the box to type, then Send.  B: back', 10, 42, 1, '#686878');
+    if (isTouch) text('Tap the box to type, then ' + (o.enter || 'Send') + '.  B: back', 10, 42, 1, '#686878');
     else {
       text(usingController ? 'Type, then press A' : 'Type, then press Enter', 10, 42, 1, '#686878');
       SAY_BTNS.forEach(([x, str], i) => {
+        if (!i && o.ok) str = o.ok;
         if (hover === i) pickBar(x, 38, 60, 15, col.dark); else pickRing(x, 38, 60, 15);
         text(str, x + 30 - str.length * 3, 42, 1, hover === i ? col.light : col.dark);
       });

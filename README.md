@@ -376,7 +376,7 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
 - **Your deck:** any 20 of your cards, one of each and at most one legendary. In MY CARDS the D-pad moves
   round the page (hold a direction and it keeps going, though going up to the tabs takes a press of its
   own) and Up reaches the tabs, and A puts a card in or takes it out. While your deck isn't full, the
-  first thing on the MY DECK page is a FILL button, which tops it up with the best of what you have. Go
+  MY DECK page has a FILL button after DECKS, which tops it up with the best of what you have. Go
   with a deck that isn't full and you're asked whether to finish it yourself or fill it. With the mouse,
   point at a card to see it big, click it (or FILL) to put it in or take it out, click a tab for its page,
   and scroll the page with the wheel. On a phone, tap a tab for its page, tap a card to see it big and
@@ -384,6 +384,17 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   you win never goes in your deck by itself: it's only there once you put it there. Until you build a
   deck yourself, you play the best one the cards you had could make, and winning a card keeps that one
   as yours (`deckSettle`).
+- **Five decks:** you can keep up to 5 decks and switch between them between games. The first thing on the
+  MY DECK page is the DECKS button, and with the cursor on it the name of the deck you're playing shows big
+  on the left. Press A on it (or click it, or tap it twice) for the list of all five, with how many cards
+  each has and which is IN USE: pick one to play it, or RENAME at the bottom to name the one you're playing
+  (up to 12 letters, typed into the bar along the top, as saying something is; an empty name puts it back
+  to Deck 1 and so on). The deck you're playing is the one MY DECK shows and the other pages put cards in,
+  so to change another deck, switch to it first. A deck you switch away from keeps whatever's in it, even
+  half built. An empty deck asks whether to start from nothing or as a copy of the one you were playing.
+  The one you're playing is always a full 20: going with it half built asks you to finish it or have it
+  filled, as above, even if you've only just switched to it. Coworkers and other players always get the
+  one you picked here: there's no switching anywhere else.
 - **Classes:** where people really work, which is also how their cards tend to play. Plant is everybody
   at a plant, whatever their job (big and tough). Sales is sales (fast, and straight at the other player).
   Office is the front office, accounting, purchasing and IT (clever). Engineering is designers, programmers
@@ -417,8 +428,8 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
 - **Against a player:** see **Playing together**. Your deck goes with you. The server checks that it's
   legal, not that you own the cards, the same honour system as scores and items.
 - **Saved:** your cards go in the database with your special items, at `items/<world>/<name>/c_<id>`, so
-  there's nothing to set up (see "Special items"), and in the browser. Your deck goes with your name too,
-  so the one you built last, on any device, is the one you play everywhere (see "Saved decks").
+  there's nothing to set up (see "Special items"), and in the browser. Your decks go with your name too,
+  so the ones you built last, on any device, are the ones you have everywhere (see "Saved decks").
 - **Leaderboards:** cards collected, and wins against other players.
 
 ## Cody's casino
@@ -675,6 +686,7 @@ The scores live in a free Firebase Realtime Database. To set one up:
           ".validate": "$player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['d','at'])",
           "d": { ".validate": "newData.isString() && newData.val().length <= 500 && newData.val().matches(/^[a-z0-9,]+$/)" },
           "at": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= now + 600000" },
+          "s": { ".validate": "newData.isString() && newData.val().length <= 2500" },
           "$other": { ".validate": false }
         }
       }
@@ -938,11 +950,15 @@ under `decks/live` or `decks/test` and the name, like a character. So the deck y
 whichever phone or computer, is the one you play on all of them:
 
 ```
-decks/live/warren: { d: "markv,steve,...", at: 1793750400000 }
+decks/live/warren: { d: "markv,steve,...", at: 1793750400000, s: "{\"u\":1,\"k\":[{\"n\":\"Plant rush\",\"d\":\"...\"},...]}" }
 ```
 
-`d` is the deck's 20 cards with commas between them, and `at` is when it was built, in milliseconds,
-by the clock of the device that built it. The rules only let a deck replace one with an earlier `at`,
+`d` is the deck you play, its 20 cards with commas between them, and `at` is when it was built, in
+milliseconds, by the clock of the device that built it. `s` is all five of your decks (see "Five decks"),
+as text: `u` is which one you play, counting from 0, and `k` the five, each with its name `n` (empty for
+Deck 1 and so on) and its cards `d`, which can be fewer than 20 for any but the one you play. Whatever `k`
+says, the one you play is `d`. `s` is only there once you've used a second deck or named one, so a row for
+somebody who hasn't looks just as it did before. Switching decks and naming one count as building one. The rules only let a deck replace one with an earlier `at`,
 and not one that says it's more than 10 minutes in the future. So a device that was offline when you
 built a deck sends it the next time it can, and it only counts if you haven't built a newer one since.
 A deck saved before this has an `at` of 0, so any deck built since beats it, and if two devices both
@@ -959,7 +975,11 @@ newer `at`. Deleting a row on the Data tab doesn't reset a deck: the next device
 back.
 
 If the database's rules were set up before decks were saved, add the `decks` part above and press
-Publish again. Until then each browser keeps its own deck.
+Publish again. Until then each browser keeps its own deck. If they were set up before there were five
+decks, add the `"s"` line and publish again. Until then the database turns down a row with `s` in it, so
+the game sends `d` and `at` by themselves instead (`deckPush`): the deck you play still goes everywhere,
+but the other four and the names stay in the browser you made them in. A device that gets a row with no
+`s` takes the deck you play from it and keeps its own other four.
 
 ### Play time
 
