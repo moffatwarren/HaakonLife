@@ -2670,6 +2670,108 @@ window.CARD_ART = (function () {
     },
   });
 
+  // ---------- Max, Jack, Jill and the Epoxy Coat ----------
+  Object.assign(ART, {
+    // HR, on somebody's first day: here's your badge, and off you go
+    max(p) {
+      room(p, '#c8bca8', '#7c6c5c', 62);
+      // the banner, and the bunting
+      fig(p, M(p).box(54, 3, 60, 13), '#f8f8f0', { sh: [1, 1], hi: 0 });
+      words(p, 'WELCOME', 63, 4, '#d84848');
+      for (let i = 0; i < 9; i++) flat(p, M(p).poly([[2 + i * 6, 3], [7 + i * 6, 3], [4.5 + i * 6, 9]]), ['#d84848', '#3868c8', '#f0b030', '#58a848'][i % 4]);
+      p.box(0, 2, 54, 1, '#5a4c40');
+      const cx = 32, cy = 32, top = '#40a0a0', skin = '#f8d0a8';
+      person(p, cx, cy, { skin, hair: '#181010', top, hairdo: 'short', mouth: 'grin', brow: 'raised', clothes(q, x, y) { tie(q, x, y, '#f8e070'); } });
+      // the badge, held up on its lanyard
+      flat(p, M(p).line(60, 26, 65, 39, 1).line(61, 26, 81, 39, 1), '#3868c8');
+      fig(p, M(p).rbox(62, 39, 22, 17, 1), '#f8f8f0', { sh: [1, 1], hi: 0 });
+      p.box(63, 40, 20, 4, '#40a0a0');
+      words(p, 'NEW', 64, 45, '#26222c');
+      arm(p, cx + 24, 76, 58, 28, top, skin, 9);
+      // and the new hire, already off and running
+      little(p, 106, 42, { top: '#f0b030', skin: '#d8a070', hair: '#5a3420', pants: '#303040', run: true });
+      p.box(104, 47, 5, 6, '#f8f8f0'); p.box(104, 47, 5, 2, '#40a0a0');
+      for (const y of [44, 50, 56]) p.box(89, y, 8, 1, '#ffffff');
+    },
+    // Runs an air handling company of his own, and he's the one with the keys
+    jack(p) {
+      room(p, '#98a4b4', '#5c6474', 60);
+      unitBox(p, 62, 6, 54, 22); unitBox(p, 70, 32, 46, 20, '#a8b4c0');
+      fig(p, M(p).ell(108, 17, 6), '#3c4450', { sh: 0, hi: 0 });
+      for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3; flat(p, M(p).line(108, 17, 108 + Math.cos(a) * 5, 17 + Math.sin(a) * 5, 2), '#c8d0d8'); }
+      const cx = 36, cy = 30, top = '#58a848', skin = '#8a5838';
+      person(p, cx, cy, { skin, hair: '#6a3c20', top, hairdo: 'sidepart', mouth: 'smile', brow: 'raised', clothes(q, x, y) { tie(q, x, y, '#d03868', top); } });
+      // the desk, and whose it is
+      fig(p, M(p).box(-2, 62, ART_W + 4, 14), '#6c4830', { sh: 0, hi: [0, 1] });
+      fig(p, M(p).rbox(4, 54, 24, 9, 1), '#2c2c3c', { sh: 0, hi: [1, 1] });
+      words(p, 'CEO', 7, 55, '#f0c040');
+      // the keys to the place, for somebody he trusts
+      const key = M(p).box(76, 6, 4, 30).box(80, 9, 6, 3).box(80, 15, 4, 3);
+      key.ell(78, 40, 7).ell(78, 40, 3, 3, 0);
+      fig(p, key, '#e8b830', { sh: [1, 1], hi: [1, 1] });
+      arm(p, cx + 24, 76, 77, 48, top, skin, 9);
+      spark(p, 90, 6, '#fff8d8', 3); spark(p, 70, 18, '#fff8d8', 2);
+    },
+    // Visiting from out of town: in through the portal, and out again at the end of the week
+    jill(p) {
+      room(p, '#a8a0c0', '#686080', 62);
+      // the portal in the corner, going round
+      const px = 22, py = 30;
+      for (let y = 0; y < ART_H; y++) for (let x = 0; x < 50; x++) {
+        const dx = x + 0.5 - px, dy = (y + 0.5 - py) * 1.15, r = Math.hypot(dx, dy);
+        if (r > 22) continue;
+        const a = Math.atan2(dy, dx);
+        p.set(x, y, r > 20 ? '#181030' : r < 3 ? '#f8f8f8' : ['#281850', '#7b2ff7', '#05d9e8', '#7b2ff7'][((Math.floor((a * 2 + r * 0.22) * 4 / Math.PI * 2) % 4) + 4) % 4]);
+      }
+      const cx = 64, cy = 30, top = '#9868c8', skin = '#f8d8b8';
+      person(p, cx, cy, {
+        skin, hair: '#e8c050', top, hairdo: 'long', mouth: 'grin', brow: 'raised',
+        clothes(q, x, y) {
+          fig(q, M(q).rbox(x + 8, y + 28, 12, 9, 1), '#f8f8f0', { sh: [1, 1], hi: 0 });
+          q.box(x + 9, y + 29, 10, 3, '#d84848');
+        },
+      });
+      // waving hello (or goodbye)
+      arm(p, cx - 25, 76, cx - 33, 36, top, skin, 9);
+      // and the case, with everywhere she's been on it
+      flat(p, M(p).box(100, 28, 2, 18).box(110, 28, 2, 18).box(100, 26, 12, 2), '#3c3c48');
+      fig(p, M(p).rbox(94, 44, 22, 24, 2), '#d84848', { sh: [2, 2], hi: [1, 1] });
+      for (const [x, y, w, h, c] of [[97, 48, 7, 5, '#f0b030'], [106, 52, 7, 6, '#40a0a0'], [98, 58, 6, 5, '#f8f8f0']]) fig(p, M(p).rbox(x, y, w, h, 1), c, { sh: 0, hi: 0, line: '#7c2830' });
+      for (const x of [97, 111]) fig(p, M(p).ell(x, 69, 2), '#26222c', { sh: 0, hi: 0 });
+    },
+    // A coil, half done: the bare fins, then the coat that'll take whatever's thrown at it
+    epoxycoat(p) {
+      p.box(0, 0, ART_W, ART_H, '#34303c');
+      rays(p, 50, 38, 14, '#3e3a48', 0.2, 0, 64);
+      p.box(0, 64, ART_W, 11, '#5c5864'); p.box(0, 64, ART_W, 1, '#1c1820');
+      // the frame
+      fig(p, M(p).rbox(6, 12, 86, 50, 2), '#9098a8', { sh: [3, 3], hi: [1, 1] });
+      // bare fins on the left, coated on the right
+      for (let x = 10; x < 88; x++) {
+        const coat = x >= 52, odd = x % 2;
+        p.box(x, 16, 1, 42, coat ? (odd ? '#d8a040' : '#a87428') : (odd ? '#d8dce4' : '#a8b0bc'));
+      }
+      // a wet shine across the coat
+      for (let i = 0; i < 30; i++) { p.set(58 + i, 52 - i, '#fff0b8'); p.set(59 + i, 52 - i, '#f8d878'); }
+      for (let i = 0; i < 14; i++) p.set(72 + i, 56 - i, '#f8d878');
+      // the edge of what's done, still dripping
+      for (const [x, n] of [[52, 4], [53, 7], [54, 3]]) p.box(x, 58, 1, n, '#c08830');
+      fig(p, M(p).ell(53, 66, 1.5, 2), '#c08830', { sh: 0, hi: 0, line: null });
+      // the spray gun, and the mist coming off it
+      for (let i = 0; i < 90; i++) {
+        const t = 0.15 + (i * 37 % 90) / 90 * 0.85, s = (i * 53 % 29) / 29 - 0.5;
+        p.set(Math.round(84 - t * 30), Math.round(16 + t * 14 + s * t * 24), i % 3 ? '#f8f4e8' : '#f8d878');
+      }
+      fig(p, M(p).rbox(99, 1, 11, 9, 2), '#c8d0d8', { sh: [1, 1], hi: [1, 1] });
+      fig(p, M(p).box(102, 10, 5, 3), '#9098a8', { sh: 0, hi: 0 });
+      fig(p, M(p).poly([[90, 13], [114, 13], [116, 20], [92, 20]]), '#3868c8', { sh: [1, 1], hi: [1, 1] });
+      fig(p, M(p).rbox(84, 14, 7, 5, 1), '#c8d0d8', { sh: 0, hi: [1, 0] });
+      fig(p, M(p).poly([[104, 20], [112, 20], [111, 38], [103, 38]]), '#2c2c3c', { sh: [1, 0], hi: [1, 0] });
+      flat(p, M(p).line(100, 21, 98, 29, 2), '#c8d0d8');
+      spark(p, 70, 26, '#fff8d8', 3); spark(p, 84, 46, '#fff8d8', 2);
+    },
+  });
+
   // ---------- for any deck ----------
   Object.assign(ART, {
     // "I'll sneak some cokes on the way out."
@@ -3501,6 +3603,7 @@ window.CARD_ART = (function () {
     markv: [59, 37], steve: [50, 37], justin: [62, 37], graham: [76, 37], brian: [42, 37], jillian: [42, 37], kylebullock: [59, 37], miked: [62, 37], bigcoil: [59, 37], crane: [59, 37],
     alex: [50, 37], courtney: [50, 37], amelia: [62, 37], fleur: [50, 37], ashley: [58, 37], samantha: [62, 37], william: [50, 37], cedric: [72, 37], stephanie: [42, 37], josh: [64, 37], johnk: [64, 37], markl: [60, 37], mikeb: [50, 37], scott: [60, 37], caleb: [64, 37], nick: [50, 37], jay: [50, 37],
     howard: [50, 37], mikeh: [60, 37], jp: [50, 37], mikefriesen: [60, 37], coldcall: [59, 37], clientlunch: [59, 37], tradeshow: [59, 37], bigorder: [59, 37], demounit: [59, 37],
+    max: [52, 37], jack: [48, 37], jill: [62, 37], epoxycoat: [56, 37],
     alyssa: [68, 37], rob: [50, 37], warren: [50, 37], bob: [59, 37], leon: [72, 37], kim: [62, 37], john: [66, 37], mayaj: [60, 37], diane: [76, 37], expense: [59, 37], allhands: [59, 37],
     avery: [60, 37], carlos: [50, 37], charles: [50, 37], cody: [50, 37], dalia: [68, 37], damir: [59, 37], daphne: [59, 37], dave: [50, 37], derek: [59, 37], eric: [52, 37], eugene: [58, 37], gigi: [57, 37], hudson: [70, 37], james: [64, 37], jimmy: [44, 37], jonathan: [50, 37], jordan: [50, 37], jules: [60, 37], kyle: [50, 37], lauren: [60, 37], lia: [50, 37], marcus: [50, 37], mayaw: [50, 37], michaeltam: [50, 37], muhammad: [50, 37], nicholas: [50, 37], raymond: [64, 37], reagan: [64, 37], romano: [50, 37], sharon: [60, 37], sidney: [50, 37], troy: [50, 37], walker: [60, 37], yeunie: [60, 37], zin: [59, 37],
     sneakycoke: [64, 37], morningpaper: [50, 37], dumbbells: [59, 37], candyjar: [59, 37], granfondo: [60, 37], xmasparty: [40, 37], firstaid: [59, 37], roofcurb: [59, 37], revisiond: [59, 37], heatwheel: [59, 37], airhandler: [70, 37], springroll: [59, 37],

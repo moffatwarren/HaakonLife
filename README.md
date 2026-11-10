@@ -400,17 +400,19 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   Office is the front office, accounting, purchasing and IT (clever). Engineering is designers, programmers
   and R&D (keeps everything running). Team-up cards reward sticking to one or two, and things that belong
   to everyone, like Pizza Friday, go in any deck.
-- **The cards:** everyone who works in the game has one, plus the things they're known for, 155 in all, and 6
-  versions of your own legendary. 7 of the 155 are legendaries, which keep moving and land in their own way (`LANDS` in `CardsGame`). Max, Jack and
-  the visitor Jill don't have one yet, so they don't offer a game.
+- **The cards:** everyone who works in the game has one, plus the things they're known for, 159 in all, and 6
+  versions of your own legendary. 7 of the 159 are legendaries, which keep moving and land in their own way (`LANDS` in `CardsGame`).
+  A card that asks you to pick can be kept to one department, as Jack's is: he makes another Office worker a
+  Gatekeeper (`dept` on the pick in `js/cardlist.js`). Giving a worker Keen lets it attack this turn even if it
+  already has, so Max and Gran Fondo can give a worker a second go.
 - **Where to find them:** most people are at their desks in Richmond. Plant people are at the Kingston plant
-  (see "Eugene's phone and the Kingston plant"). Ali, Garrett and Ryan are only ever in the visitor office
+  (see "Eugene's phone and the Kingston plant"). Ali, Garrett, Jill and Ryan are only ever in the visitor office
   (182), where people take turns of about 45 seconds. In MY CARDS a card you haven't won is face down, and
   picking it says who to beat for it and where.
-- **Rewards:** winning cards earns you these, out of the 131 you can win (`CARD_PRIZES`). A quarter, 33, gives
-  your cards sparkling gold backs, for you and whoever you play (`goldOf`, `sparkle`). Half, 66, gives you the card
-  crown. Three quarters, 99, gives you the card storm, a flair of five cards going round you that other players
-  see too (`deckOrbit`). All 131 gives you your own legendary. MY CARDS and each new card say how far off the next one is.
+- **Rewards:** winning cards earns you these, out of the 135 you can win (`CARD_PRIZES`). A quarter, 34, gives
+  your cards sparkling gold backs, for you and whoever you play (`goldOf`, `sparkle`). Half, 68, gives you the card
+  crown. Three quarters, 102, gives you the card storm, a flair of five cards going round you that other players
+  see too (`deckOrbit`). All 135 gives you your own legendary. MY CARDS and each new card say how far off the next one is.
   They're special items (see "Special items"), so adding cards later moves where they come but doesn't take any away.
 - **Your own legendary:** it has your name on it and your character in it, as you look now, big head things and all
   (`faceOf`, `ownFrames`), and other players see it that way too. Your picture is made from your look's pixels
@@ -2044,7 +2046,7 @@ or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
 and `&stapler=near` puts it right in front of you. `&helped=5` counts the
 first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gives you Kiki's list, and
 `game=kiki` opens it.
-`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=32` makes the first 32 you can win yours, so that winning one more earns the gold backs (65 for the card crown, 98 for the card storm, 130 for your own legendary). `&have=owncard&game=deck` makes your own legendary yours, under YOU. `&have=cardcrown&look=m100e0000000` wears the card crown, `&have=cardstorm&look=m10000000030` wears the card storm, and with `&have=goldbacks&game=cards` your cards have gold backs. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
+`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=33` makes the first 33 you can win yours, so that winning one more earns the gold backs (67 for the card crown, 101 for the card storm, 134 for your own legendary). `&have=owncard&game=deck` makes your own legendary yours, under YOU. `&have=cardcrown&look=m100e0000000` wears the card crown, `&have=cardstorm&look=m10000000030` wears the card storm, and with `&have=goldbacks&game=cards` your cards have gold backs. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
 the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
 `&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
 `&crown=1` makes you the Office Champion, in the crown and the star trail.

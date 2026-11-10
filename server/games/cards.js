@@ -28,7 +28,7 @@ const FULL = 2 * hz; // ticks between whole views when nothing's happening, in c
 // here so that a change to the rules or the cards has to touch this folder too, because Render only
 // redeploys the server when something in server/ changes. A browser that has different rules from
 // the server is told so and doesn't start.
-export const VERSION = '6kxgx1';
+export const VERSION = '11sz63';
 
 let rules;
 // the rules, or null if they can't be loaded

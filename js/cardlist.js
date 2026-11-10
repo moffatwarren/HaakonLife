@@ -29,7 +29,8 @@
 //             morning can't ask at all.
 //             Or it just happens to:  self, enemies, others (your other workers), allies (all
 //             yours), all (everyone on the table), them (the other player), you, random (a random
-//             enemy worker). others and allies can have dept, to mean just that department's.
+//             enemy worker). A pick, or enemies, others, allies or all, can have dept, to mean
+//             just that department's workers.
 //   said      something they say. Only ever something they already say in the game, unless it's been
 //             checked with the person.
 window.CARD_LIST = [
@@ -118,11 +119,14 @@ window.CARD_LIST = [
   { id: 'john', name: 'John', dept: 'office', rarity: 'C', cost: 2, power: 2, patience: 2, does: [{ when: 'last', do: 'draw', n: 1 }], said: 'I\'ll sneak some cokes on the way out.' },
   { id: 'diane', name: 'Diane', dept: 'office', rarity: 'C', cost: 2, power: 1, patience: 4, words: ['gate'] },
   { id: 'leon', name: 'Leon', dept: 'office', rarity: 'C', cost: 2, power: 2, patience: 2, does: [{ team: 'office', do: 'boost', p: 1, h: 1, who: 'self' }] },
+  { id: 'max', name: 'Max', dept: 'office', rarity: 'C', cost: 2, power: 2, patience: 2, does: [{ do: 'give', word: 'keen', who: 'ally' }] },
+  { id: 'jill', name: 'Jill', dept: 'office', rarity: 'C', cost: 2, power: 2, patience: 3, does: [{ do: 'back', who: 'ally' }], said: 'I\'ll be here all week!' },
   { id: 'jhonna', name: 'Jhonna', dept: 'office', rarity: 'C', cost: 3, power: 2, patience: 4, words: ['gate'] },
   { id: 'tainah', name: 'Tainah', dept: 'office', rarity: 'C', cost: 3, power: 3, patience: 3, does: [{ team: 'office', do: 'draw', n: 1 }] },
   { id: 'jenn', name: 'Jenn', dept: 'office', rarity: 'C', cost: 3, power: 3, patience: 3, does: [{ do: 'heal', n: 3, who: 'you' }], said: 'Baking is where it\'s really at.' },
   { id: 'mayaj', name: 'Maya J', dept: 'office', rarity: 'C', cost: 3, power: 2, patience: 3, does: [{ do: 'draw', n: 1 }] },
   { id: 'kim', name: 'Kim', dept: 'office', rarity: 'U', cost: 3, power: 2, patience: 3, does: [{ when: 'last', do: 'back', who: 'random' }] },
+  { id: 'jack', name: 'Jack', dept: 'office', rarity: 'U', cost: 3, power: 3, patience: 4, does: [{ team: 'office', do: 'give', word: 'gate', who: 'ally', dept: 'office' }] },
   { id: 'rob', name: 'Rob', dept: 'office', rarity: 'U', cost: 4, power: 3, patience: 4, does: [{ do: 'freeze', who: 'enemy' }] },
   { id: 'warren', name: 'Warren', dept: 'office', rarity: 'U', cost: 4, power: 4, patience: 3, words: ['skin'], said: 'The dumbbell rack is my legacy.' },
   { id: 'bob', name: 'Bob', dept: 'office', rarity: 'U', cost: 5, power: 3, patience: 4, does: [{ do: 'draw', n: 2 }], said: 'Have you read the Globe & Mail today?' },
@@ -191,6 +195,7 @@ window.CARD_LIST = [
   // ---------- for any deck ----------
   { id: 'sneakycoke', name: 'Sneaky Coke', rarity: 'U', heldBy: 'John', kind: 'task', cost: 0, does: [{ do: 'coffee', n: 1 }] },
   { id: 'morningpaper', name: 'Morning Paper', rarity: 'U', heldBy: 'Bob', kind: 'task', cost: 1, does: [{ do: 'draw', n: 1 }] },
+  { id: 'epoxycoat', name: 'Epoxy Coat', rarity: 'U', heldBy: 'Jack', kind: 'task', cost: 1, does: [{ do: 'give', word: 'skin', who: 'ally' }, { do: 'draw', n: 1 }] },
   { id: 'dumbbells', name: 'Dumbbells', rarity: 'U', heldBy: 'Warren', kind: 'task', cost: 1, does: [{ do: 'boost', p: 2, who: 'ally' }] },
   { id: 'candyjar', name: 'Candy Jar', rarity: 'U', heldBy: 'Kiki', kind: 'task', cost: 2, does: [{ do: 'heal', n: 2, who: 'allies' }] },
   { id: 'potluck', name: 'Potluck', rarity: 'U', heldBy: 'Jenn', kind: 'task', cost: 3, does: [{ do: 'summon', id: 'leftovers', n: 2 }] },

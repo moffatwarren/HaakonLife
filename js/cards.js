@@ -69,8 +69,8 @@ window.CARDS = (function engine() {
     const n = e.n, name = e.id && CARD.get(e.id) ? CARD.get(e.id) : null;
     const dept = e.dept ? DEPTS[e.dept] + ' ' : '';
     const stats = () => [e.p ? (e.p > 0 ? '+' : '') + e.p + ' Power' : '', e.h ? (e.h > 0 ? '+' : '') + e.h + ' Patience' : ''].filter(Boolean).join(' and ');
-    const worker = { worker: 'a worker', enemy: 'an enemy worker', ally: 'another worker', random: 'a random enemy worker' };
-    const those = { enemies: 'all enemy workers', others: 'your other ' + dept + 'workers', allies: 'all your ' + dept + 'workers', all: 'every worker' };
+    const worker = { worker: (/^[AEIOU]/.test(dept) ? 'an ' : 'a ') + dept + 'worker', enemy: 'an enemy ' + dept + 'worker', ally: 'another ' + dept + 'worker', random: 'a random enemy worker' };
+    const those = { enemies: 'all enemy ' + dept + 'workers', others: 'your other ' + dept + 'workers', allies: 'all your ' + dept + 'workers', all: 'every ' + dept + 'worker' };
     switch (e.do) {
       case 'hit':
         if (e.who === 'them') return 'the other player loses ' + n + ' Morale';
@@ -92,7 +92,7 @@ window.CARDS = (function engine() {
         return 'send ' + (worker[e.who] || those[e.who]) + ' home';
       case 'back':
         if (e.who === 'self') return 'come back to your hand';
-        return 'send ' + (worker[e.who] || those[e.who]) + ' back to their hand';
+        return 'send ' + (worker[e.who] || those[e.who]) + ' back to ' + (['ally', 'others', 'allies'].includes(e.who) ? 'your' : 'their') + ' hand';
       case 'freeze': {
         const who = worker[e.who] || those[e.who];
         return who + ' can\'t attack next turn';
@@ -168,6 +168,7 @@ window.CARDS = (function engine() {
         if (!named(e.team)) say(c, 'no such department to team up with as ' + e.team);
         if (e.team && (e.when || 'play') !== 'play') say(c, 'a Team-up can only be when it\'s played');
         if (!named(e.dept)) say(c, 'no such department as ' + e.dept);
+        if (e.dept && !PICKS.has(e.who) && !['enemies', 'others', 'allies', 'all'].includes(e.who)) say(c, 'only a pick or a group of workers can be just one department');
         if (e.do === 'summon') {
           const t = CARD.get(e.id);
           if (!t || t.kind === 'task') say(c, 'it brings in ' + e.id + ', which isn\'t a worker');
@@ -505,7 +506,8 @@ window.CARDS = (function engine() {
     function picksFor(seat, c) {
       for (const e of c.does || []) {
         if (whenOf(e) !== 'play' || !PICKS.has(e.who) || !teamUp(e, seat, -1)) continue;
-        const mine = st.p[seat].table.map((x) => x.u), theirs = st.p[1 - seat].table.map((x) => x.u);
+        const of = (list) => list.filter((x) => !e.dept || CARD.get(x.id).dept === e.dept).map((x) => x.u); // (just one department's, if it says)
+        const mine = of(st.p[seat].table), theirs = of(st.p[1 - seat].table);
         if (e.who === 'enemy') return theirs;
         if (e.who === 'ally') return mine;
         if (e.who === 'any') return mine.concat(theirs, [0, 1]);

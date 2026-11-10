@@ -55,6 +55,8 @@ test('the words on a card are written from what it does', () => {
   assert.equal(says('firedrill'), 'Everyone on both sides goes home.');
   assert.equal(says('dmitriy'), 'On play: 2 damage to a worker.');
   assert.equal(says('felix'), 'Gatekeeper.');
+  assert.equal(says('jack'), 'Team-up Office: give another Office worker Gatekeeper.');
+  assert.equal(says('jill'), 'On play: send another worker back to your hand.');
   assert.equal(says('student'), '');
 });
 
@@ -370,6 +372,53 @@ test('Team-up only counts with somebody from that department already there', () 
   assert.equal(me(h, 1).morale, MORALE);
   play(h, 0, 'tho');
   assert.equal(me(h, 1).morale, MORALE - 2);
+});
+test('Jack makes another Office worker a Gatekeeper, and only an Office worker', () => {
+  const g = game();
+  const other = g.give(0, 'foreman');
+  coffee(g, 0);
+  const jack = g.give(0, 'jack', 'hand');
+  assert.equal(plain(g.view(0).can.play[jack]), null, 'with no Office worker there, there\'s nobody to pick');
+  const office = g.give(0, 'bob');
+  g.give(1, 'kiki');
+  assert.deepEqual(plain(g.view(0).can.play[jack]), [office], 'only your Office worker can be picked');
+  assert.ok(!g.act(0, { do: 'play', card: jack, target: other }));
+  assert.ok(g.act(0, { do: 'play', card: jack, target: office }));
+  assert.equal(worker(g, 0, office).gate, true);
+  assert.equal(worker(g, 0, other).gate, false);
+  assert.equal(me(g, 0).table.find((x) => x.id === 'jack').gate, false, 'Jack isn\'t one himself');
+});
+test('Max gets a new worker going the turn it comes in', () => {
+  const g = game();
+  play(g, 0, 'assembler');
+  const fresh = me(g, 0).table[0].u;
+  assert.ok(!g.act(0, { do: 'attack', from: fresh, target: 1 }), 'not yet');
+  play(g, 0, 'max', fresh);
+  assert.ok(g.act(0, { do: 'attack', from: fresh, target: 1 }), 'straight away');
+  assert.equal(me(g, 1).morale, MORALE - 3);
+  const max = me(g, 0).table.find((x) => x.id === 'max').u;
+  assert.ok(!g.act(0, { do: 'attack', from: max, target: 1 }), 'but Max isn\'t Keen himself');
+});
+test('Jill sends one of yours back to your hand, to play again', () => {
+  const g = game();
+  const bob = g.give(0, 'bob'), theirs = g.give(1, 'student');
+  const s = g.save(); s.p[0].hand = []; g.load(s);
+  coffee(g, 0);
+  const jill = g.give(0, 'jill', 'hand');
+  assert.ok(!g.act(0, { do: 'play', card: jill, target: theirs }), 'not one of theirs');
+  assert.ok(g.act(0, { do: 'play', card: jill, target: bob }));
+  assert.deepEqual(plain(me(g, 0).table.map((x) => x.id)), ['jill']);
+  assert.deepEqual(plain(me(g, 0).hand.map((c) => c.id)), ['bob']);
+  assert.equal(me(g, 1).table.length, 1);
+});
+test('Epoxy Coat gives one of yours Thick Skin', () => {
+  const g = game();
+  const a = g.give(0, 'foreman'), b = g.give(1, 'nightshift');
+  play(g, 0, 'epoxycoat', a);
+  assert.equal(worker(g, 0, a).skin, true);
+  wake(g, 0);
+  assert.ok(g.act(0, { do: 'attack', from: a, target: b }));
+  assert.equal(worker(g, 0, a).pa, 4, 'the hit back comes off the coat');
 });
 test('The worker that can\'t attack next turn really can\'t, and then it can', () => {
   const g = game();
@@ -880,6 +929,7 @@ test('you win a coworker\'s own card first, then what they\'re holding', () => {
   assert.deepEqual(plain(CARDS.prizes('Jillian')), ['jillian', 'bigcoil']);
   assert.deepEqual(plain(CARDS.prizes('Jhonna')), ['jhonna', 'officedog']);
   assert.deepEqual(plain(CARDS.prizes('Patrick')), ['patrick']);
+  assert.deepEqual(plain(CARDS.prizes('Jack')), ['jack', 'epoxycoat']);
   assert.deepEqual(plain(CARDS.prizes('Nobody At All')), []);
 });
 
