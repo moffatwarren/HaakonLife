@@ -4801,19 +4801,25 @@
     stack: { title: 'PHOTOCOPIER' }, simon: { title: 'CONTROL PANEL' }, lunch: { title: 'FIND MY LUNCH' },
     candy: { title: 'CANDY TABLE' }, squat: { title: 'SQUAT RACK', unit: ' lb' }, fan: { title: 'FAN BALANCING' },
     coil: { title: 'COOLING COIL', unit: 's' }, damper: { title: 'DAMPERS' }, filter: { title: 'FILTER CHANGE' },
-    snake: { title: 'SNAKE' }, galaxy: { title: 'GALAXY GUARD' }, pong: { title: 'BEAT THE TV AT PONG', unit: times, count: true }, chess: { title: 'CHESS CHECKMATES', unit: times, count: true }, checkers: { title: 'CHECKERS WINS', unit: times, count: true }, parts: { title: 'PARTS SORTING' }, cable: { title: 'CABLE TIDY' }, cpr: { title: 'CPR' },
-    engrave: { title: 'ENGRAVER', unit: '%' }, pulldown: { title: 'LAT PULLDOWN' }, ball: { title: 'EXERCISE BALL', unit: 's' },
+    snake: { title: 'SNAKE' }, galaxy: { title: 'GALAXY GUARD' }, pong: { title: 'BEAT THE TV AT PONG', unit: times, count: true }, chess: { title: 'CHESS CHECKMATES', unit: times, count: true }, checkers: { title: 'CHECKERS WINS', unit: times, count: true }, parts: { title: 'PARTS SORTING' }, cable: { title: 'CABLE TIDY' },
+    engrave: { title: 'ENGRAVER', unit: '%' }, ball: { title: 'EXERCISE BALL', unit: 's' },
     desk: { title: 'FRONT DESK' }, jam: { title: 'PAPER JAM' }, laundry: { title: 'LAUNDRY' },
     forms: { title: 'JHONNA\'S FORMS' }, trophy: { title: 'NATHAN\'S TROPHIES' }, legolines: { title: 'JOE\'S BRICK BATTLE' },
     legosolo: { title: 'LEGO BUILDING', unit: ' lines' },
-    wokdishes: { title: 'NIK\'S WOK' }, carrotpct: { title: 'DMITRIY\'S CARROTS', unit: '%' }, dance: { title: 'PATRICK\'S DANCE-OFF', unit: '%' },
+    // These six once had a most you could score, so the best players all tied on it: the old
+    // boards (cpr, pulldown, wokdishes, carrotpct, dance, costume) were 30 perfect compressions,
+    // 20 reps, dishes in a minute, two percentages and 30 from the judges. Now they go on until
+    // you've made too many mistakes, or for the wok, count every piece you plate.
+    cprpts: { title: 'CPR' }, pullreps: { title: 'LAT PULLDOWN', unit: (n) => n + (n === 1 ? ' rep' : ' reps') },
+    wokpieces: { title: 'NIK\'S WOK', unit: (n) => n + (n === 1 ? ' piece' : ' pieces') }, carrotpts: { title: 'DMITRIY\'S CARROTS' },
+    dancepts: { title: 'PATRICK\'S DANCE-OFF' }, costumepts: { title: 'COSTUME CONTEST' },
     poker: { title: 'SPRING ROLL HOLD\'EM' }, blackjack: { title: 'SPRING ROLL BLACKJACK' }, slots: { title: 'SPRING ROLL SLOTS' },
     // the live table: spring rolls won less spring rolls lost there, all told (see netNote)
     pokerlive: { title: 'LIVE HOLD\'EM', unit: ' rolls', net: true },
     // most catches in a row (the old `catch` board was out of 10 throws, in an easier game)
     catchrun: { title: 'FRISBEE CATCH' },
     bob: { title: 'BOBBING FOR APPLES' }, carve: { title: 'PUMPKIN CARVING' }, treat: { title: 'TRICK-OR-TREAT' },
-    ghosts: { title: 'GHOST IN THE CUPBOARD' }, costume: { title: 'COSTUME CONTEST' },
+    ghosts: { title: 'GHOST IN THE CUPBOARD' },
     // (the old `golf` board was over 5 holes, before you got all 9 on your own)
     golf9: { title: 'WADE\'S PUTTING GREEN', low: true }, dark: { title: 'DAMIR\'S LIGHTS', unit: 's', low: true },
     mummy: { title: 'MUMMY WRAP', unit: tenths, low: true }, humbug: { title: 'HUMBUG SWEEPER', unit: tenths, low: true },
@@ -5096,14 +5102,14 @@
   // listing everyone who has done them.
   const FAME_GROUPS = [
     ['OFFICE', ['coffee', 'toss', 'lunch', 'candy', 'stack', 'simon', 'desk', 'jam', 'filter']],
-    ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pulldown', 'ball', 'laundry']],
+    ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pullreps', 'ball', 'laundry']],
     ['SCREENS AND CODY\'S CASINO', ['pong', 'snake', 'galaxy', 'poker', 'pokerlive', 'blackjack', 'slots']],
-    ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cpr', 'engrave', 'golf9', 'legosolo']],
-    ['COWORKERS AND DOGS', ['dark', 'dance', 'trophy', 'forms', 'wokdishes', 'carrotpct', 'legolines', 'catchrun']],
+    ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cprpts', 'engrave', 'golf9', 'legosolo']],
+    ['COWORKERS AND DOGS', ['dark', 'dancepts', 'trophy', 'forms', 'wokpieces', 'carrotpts', 'legolines', 'catchrun']],
     ['BOARD AND CARD GAMES', ['chess', 'checkers', 'cards', 'cardwins']],
     ['HAAKON GRAND PRIX', ['racelake', 'racemaple', 'racesnow', 'raceprairie', 'raceplant']],
     ['KINGSTON PLANT', ['forklift', 'paint']],
-    ['HALLOWEEN', ['bob', 'mummy', 'carve', 'treat', 'ghosts', 'costume']],
+    ['HALLOWEEN', ['bob', 'mummy', 'carve', 'treat', 'ghosts', 'costumepts']],
     ['CHRISTMAS', ['chop', 'mallow', 'spruce', 'snowman', 'cocoa', 'snowball', 'hockey', 'humbug']],
   ];
   // The holidays' games stay out of the Hall of Fame altogether (their page, the champions'
@@ -6038,6 +6044,20 @@
     box(40, 72, 240, 84);
     lines.forEach((l, i) => ctext(l, 86 + i * 16));
     if (t > 30 && (tick >> 4) & 1) ctext('Press Space', 136);
+  }
+  // The mistakes you have to spare in a game that ends on the last of them: `of` little
+  // tiles from (x, y) rightwards, the first `used` of them crossed out in red. (The Halloween
+  // games show pumpkins instead.)
+  function drawStrikes(x, y, used, of) {
+    for (let i = 0; i < of; i++) {
+      const sx = x + i * 13, gone = i < used;
+      roundBox(sx, y, 11, 11, 2.5, col.dark); roundBox(sx + 1, y + 1, 9, 9, 2, gone ? '#f8d8d0' : '#e8e8e8');
+      fine(sx + 2, y + 1.5, 7, 0.5, '#ffffff');
+      if (!gone) continue;
+      ctx.strokeStyle = '#b83028'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(sx + 3, y + 3); ctx.lineTo(sx + 8, y + 8); ctx.moveTo(sx + 8, y + 3); ctx.lineTo(sx + 3, y + 8); ctx.stroke();
+      ctx.lineCap = 'butt';
+    }
   }
 
   // ---------- score races against another player ----------
@@ -10871,16 +10891,27 @@
   }
 
   // ---------- air handling fan: hold the wheel inside the target CFM band ----------
-  // Hold A to spin up, let go to coast. Push too hard and the motor amps redline.
+  // Hold A to spin up, let go to coast. Push too hard and the motor amps redline. Hold the
+  // airflow in each branch's band long enough to balance it, and the next branch comes. The
+  // bands get narrower, and from the 4th branch the load shifts, so the band drifts up and down
+  // (quicker each branch) and you have to follow it. It goes on till a branch runs out of time
+  // or the motor trips, so there's no most you can balance. The first three are as they always
+  // were, so a 3 from before still means the same.
   function FanGame() {
     const GAUGE = { x: 212, y: 40, w: 30, h: 160 }, AMP = { x: 262, y: 40, w: 20, h: 160 };
-    const WHEEL = { x: 100, y: 118, r: 50 }, BRANCHES = 3, HOLD_NEED = 90, TIME = 540;
+    const WHEEL = { x: 100, y: 118, r: 50 }, HOLD_NEED = 90, TIME = 540;
     let state = 'ready', t = 0, rpm = 0, amps = 0, spin = 0;
     let branch = 0, band = null, hold = 0, left = TIME, done = 0, record = false;
     function newBand() {
-      const w = 16 - branch * 3, lo = 26 + Math.random() * (62 - w);
-      band = { lo, hi: lo + w };
+      // w wide; from the 4th branch, swinging amp either side of where it starts, om radians a tick
+      const w = Math.max(6, 16 - branch * 3), amp = branch < 3 ? 0 : 10, om = 0.012 * Math.max(0, branch - 2);
+      band = { w, amp, om, base: 26 + amp + Math.random() * (62 - w - 2 * amp), ph: Math.random() * Math.PI * 2, f: 0 };
+      bandMove();
       hold = 0; left = TIME;
+    }
+    function bandMove() {
+      band.lo = band.base + band.amp * Math.sin(band.ph + band.f++ * band.om);
+      band.hi = band.lo + band.w;
     }
     newBand();
     const self = {
@@ -10891,8 +10922,8 @@
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
-            say(done === BRANCHES ? 'Every branch balanced. The unit runs sweet!'
-              : done ? 'You balanced ' + done + ' of ' + BRANCHES + ' branches.'
+            say(done >= 6 ? 'You balanced ' + done + ' branches, shifting load and all. The unit runs sweet!'
+              : done ? 'You balanced ' + done + (done === 1 ? ' branch.' : ' branches.')
                 : 'Not a single branch balanced. The fan wins this round.');
           }
           return;
@@ -10904,12 +10935,12 @@
         // amps chase the speed, with an inrush kick whenever you are on the throttle
         amps += ((rpm * 0.95 + (held.a ? 20 : 0)) - amps) * 0.07;
         if (amps > 100) { state = 'done'; t = 0; record = saveBest('fan', done); sfx('buzz'); return; }
+        bandMove();
         if (rpm >= band.lo && rpm <= band.hi) {
           hold++;
           if (hold % 12 === 0) sfx('blip', true);
           if (hold >= HOLD_NEED) {
-            done++; sfx('ding');
-            if (++branch >= BRANCHES) { state = 'done'; t = 0; record = saveBest('fan', done); return; }
+            done++; branch++; sfx('ding');
             newBand();
           }
         } else hold = Math.max(0, hold - 2);
@@ -10917,7 +10948,7 @@
       },
       draw() {
         box(0, 0, SW, SH);
-        text('Branch ' + Math.min(branch + 1, BRANCHES) + ' of ' + BRANCHES, 16, 10);
+        text('Branch ' + (branch + 1), 16, 10);
         const b = 'Best ' + getBest('fan');
         text(b, SW - 16 - b.length * 6, 10);
         // time left
@@ -10972,9 +11003,12 @@
         ctx.fillRect(A.x + 2, A.y + A.h - 2 - ah, A.w - 4, ah);
         ctx.fillStyle = '#c03030'; ctx.fillRect(A.x, A.y + 4, A.w, 1);
         if (state === 'ready') readyBox(t, 'Hold Space: spin up');
-        else if (state === 'done') doneBox([amps > 100 ? 'The motor tripped!' : done === BRANCHES ? 'All branches balanced!' : 'Out of time!',
-          'Branches: ' + done, record ? 'New record!' : 'Best ' + getBest('fan')], t);
-        else text('Esc: give up', 16, SH - 14);
+        else if (state === 'done') doneBox([amps > 100 ? 'The motor tripped!' : 'Out of time!',
+          'Branches balanced: ' + done, record ? 'New record!' : 'Best ' + getBest('fan')], t);
+        else {
+          text('Esc: give up', 16, SH - 14);
+          if (band.amp) text('The load is shifting!', 100, SH - 14, 1, '#b83028');
+        }
       },
     };
     return self;
@@ -11669,48 +11703,81 @@
     return self;
   }
 
-  // ---------- First Aid Station: compressions at the right tempo ----------
-  // 110 bpm is about 33 frames at 60fps. You are scored on how close each press lands.
+  // ---------- First Aid Station: compressions on the beat, for as long as you can keep it up ----------
+  // The beat is the CPR song's, 110 bpm (counted out at 110 bpm if the music's off). Press
+  // once for each beat: close to it is PERFECT (2 points), near it GOOD (1). Off the beat, a
+  // second press for the same beat, or a beat you let go by, is a strike. Every 10 beats the
+  // instructor gets fussier and the green narrows, so it always ends: on the third strike
+  // the paramedics take over, and there's no most you can score.
   function CprGame() {
-    const BEAT = 33, REPS = 30, GOOD = 7, PERFECT = 3;
+    const STRIKES = 3, MS = 60000 / 110; // a beat, in ms
+    // how far either side of a beat (in ms) is GOOD and PERFECT, after `b` beats
+    const fussier = (b) => Math.pow(0.88, Math.floor(b / 10));
+    const goodOf = (b) => 117 * fussier(b), perfectOf = (b) => 50 * fussier(b);
     const CX = 150, CY = 118;
-    let state = 'ready', t = 0, beat = 0, n = 0, perfect = 0, good = 0, last = null, push = 0, record = false;
+    // pos: where you are, in beats from the first (it starts a beat or two before it);
+    // next: the first beat that hasn't been pressed for or let go by
+    let state = 'ready', t = 0, pos = -1, lastMp = null, next = 0, pts = 0, perfect = 0, strikes = 0, last = null, push = 0, record = false;
+    function judge(s, c, sound, n) { last = { s, c, t: 0 }; sfx(sound, n); }
+    function strike(s) {
+      judge(s, '#b83028', 'bump');
+      if (++strikes >= STRIKES) { state = 'done'; t = 0; record = saveBest('cprpts', pts); sfx('ding'); }
+    }
     const self = {
       music: 'cpr', doing: 'cpr',
       update() {
         t++;
-        if (state === 'ready') { if (t > 75) { state = 'play'; t = 0; beat = 0; } return; }
+        const mp = musicPos('cpr');
+        if (state === 'ready') {
+          if (t > 75) {
+            state = 'play'; t = 0;
+            // the first beat is on one of the song's, a beat or two from now
+            pos = mp === null ? -1 : (mp - Math.ceil(mp / 2) * 2) / 2 - 1;
+            lastMp = mp;
+          }
+          return;
+        }
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
-            say(perfect >= 20 ? 'Textbook compressions. The dummy would like to thank you.'
-              : perfect + good >= 15 ? 'Not bad. Keep practising on the dummy, not on people.'
+            say(pts >= 100 ? 'Textbook compressions. The dummy would like to thank you.'
+              : pts >= 35 ? 'Not bad. Keep practising on the dummy, not on people.'
                 : 'Your timing needs work. Good thing it was a dummy.');
           }
           return;
         }
         if (pressed.has('b')) { remove(self); say('You leave the first aid dummy in peace.'); return; }
         if (push > 0) push--;
-        beat++;
-        if (beat >= BEAT) { beat = 0; sfx('blip'); }
-        if (pressed.has('a')) {
-          // distance to the nearest beat, before or after
-          const off = Math.min(beat, BEAT - beat);
-          push = 8; n++;
-          if (off <= PERFECT) { perfect++; last = { s: 'PERFECT', c: '#2c6a34', t: 0 }; sfx('note', 3); }
-          else if (off <= GOOD) { good++; last = { s: 'GOOD', c: '#f0b030', t: 0 }; sfx('note', 1); }
-          else { last = { s: 'OFF BEAT', c: '#b83028', t: 0 }; sfx('bump'); }
-          if (n >= REPS) { state = 'done'; t = 0; record = saveBest('cpr', perfect); sfx('ding'); }
-        }
         if (last) last.t++;
+        // follow the song (once it's playing: if it starts partway, carry on from here)
+        const was = pos;
+        if (mp === null) pos += 110 / 3600;
+        else if (lastMp !== null) pos += (mp - lastMp) / 2;
+        lastMp = mp;
+        if (Math.floor(pos) > Math.floor(was) && pos >= 0) sfx('blip');
+        if (pressed.has('a')) {
+          push = 8;
+          const k = Math.round(pos), off = Math.abs(pos - k) * MS; // the nearest beat, and how far off it (ms)
+          if (k >= 0 && k < next) strike('TOO FAST');
+          else if (k >= 0) {
+            next = k + 1;
+            if (off <= perfectOf(k)) { pts += 2; perfect++; judge('PERFECT', '#2c6a34', 'note', 3); }
+            else if (off <= goodOf(k)) { pts++; judge('GOOD', '#f0b030', 'note', 1); }
+            else strike('OFF BEAT');
+          }
+          if (state === 'done') return;
+        }
+        // a beat that's half a beat gone without a press is one you missed
+        while (pos > next + 0.5 && state === 'play') { next++; strike('MISSED'); }
       },
       draw() {
         box(0, 0, SW, SH);
         text('Compressions!', 16, 10);
-        const b = 'Best ' + getBest('cpr');
+        const b = 'Best ' + getBest('cprpts');
         text(b, SW - 16 - b.length * 6, 10);
-        text('Rep ' + Math.min(n + 1, REPS) + '/' + REPS, 16, 24);
-        text('Perfect ' + perfect, 150, 24);
+        text('Score ' + pts, 16, 24);
+        text('Level ' + (1 + Math.floor(next / 10)), 110, 24);
+        drawStrikes(SW - 16 - STRIKES * 13 + 2, 22, strikes, STRIKES);
         // the dummy on the stretcher, chest dipping under each compression
         const dip = push > 4 ? 4 : push > 0 ? 2 : 0;
         ctx.fillStyle = col.dark; ctx.fillRect(40, CY + 34, 240, 10);
@@ -11736,21 +11803,22 @@
         fine(CX - 13, hy + 15, 26, 4, '#e8b890');
         for (const ax of [CX - 10, CX + 2]) { fine(ax, hy - 7, 8, 8, col.dark); fine(ax + 1.5, hy - 7, 5, 8, '#f8d0a8'); fine(ax + 1.5, hy - 7, 1, 8, '#ffe8d0'); }
         // the metronome: a bar that sweeps and a ring that pulses on the beat
-        const p = ((beat + BEAT / 2) % BEAT) / BEAT;   // beat 0 sits dead centre
+        // (one beat across the bar, the beat itself dead centre; the green is the next beat's)
+        const frac = pos - Math.floor(pos), p = (frac + 0.5) % 1;
         ctx.fillStyle = col.dark; ctx.fillRect(40, 56, 240, 14);
         ctx.fillStyle = '#e8e8e8'; ctx.fillRect(41, 57, 238, 12);
-        const gw = Math.round(238 * GOOD / BEAT), pw = Math.round(238 * PERFECT / BEAT);
+        const gw = Math.max(1, Math.round(238 * goodOf(next) / MS)), pw = Math.max(0.5, Math.round(238 * perfectOf(next) / MS * 2) / 2);
         ctx.fillStyle = '#b8e8b8'; ctx.fillRect(160 - gw, 57, gw * 2, 12);
         ctx.fillStyle = '#58b058'; ctx.fillRect(160 - pw, 57, pw * 2, 12);
         fine(41, 57, 238, 1, 'rgba(255,255,255,0.5)'); fine(41, 67.5, 238, 1.5, 'rgba(0,0,0,0.1)');
         ctx.fillStyle = col.dark; ctx.fillRect(40 + Math.round(238 * p), 54, 3, 18);
         fine(40.5 + Math.round(238 * p), 55, 0.5, 16, '#888898');
-        if (beat < 5) { ctx.fillStyle = '#f0b030'; ring(150, 50, 20, 26); }
+        if (state === 'play' && pos >= 0 && frac < 5 / 33) { ctx.fillStyle = '#f0b030'; ring(150, 50, 20, 26); }
         text('PUSH ON THE BEAT', 70, 38);
         if (last && last.t < 40) text(last.s, (SW - last.s.length * 6) >> 1, 200, 1, last.c);
         if (state === 'ready') readyBox(t, 'Space: compress, on the beat');
-        else if (state === 'done') doneBox(['Thirty compressions!', 'Perfect ' + perfect + '  Good ' + good,
-          record ? 'New record!' : 'Best ' + getBest('cpr')], t);
+        else if (state === 'done') doneBox(['The paramedics take over!', 'Score ' + pts + '  (' + perfect + ' perfect)',
+          record ? 'New record!' : 'Best ' + getBest('cprpts')], t);
         else text('Esc: give up', 16, SH - 14);
       },
     };
@@ -11847,14 +11915,24 @@
   }
 
   // ---------- lat pulldown: pull on the beat, let it back up on the off-beat ----------
-  // The marker sweeps back and forth across the meter, 20 times. Each sweep you get
-  // one press: the right direction while it's in the sweet spot moves the bar and
-  // switches you to the other direction; anything else is a miss and nothing moves.
+  // The marker sweeps back and forth across the meter. Each sweep you get one press: the
+  // right direction while it's in the sweet spot moves the bar and switches you to the other
+  // direction; anything else is a miss and nothing moves. The set goes on until your third
+  // miss, and every clean rep makes the sweeps after it quicker (the sweet spot starts wide
+  // and closes in over the first 10), so there's no most you can do: only further than
+  // anyone else. The score is your clean reps.
   function PulldownGame() {
-    const SWEEP = 42, SWEEPS = 20, SPOT = 0.11; // frames per sweep; sweet spot is the middle +-SPOT
-    let state = 'ready', t = 0, beat = 0, sweep = 0, want = 'down', bar = 0, clean = 0, tried = false, last = null, record = false;
+    const MISSES = 3;
+    const sweepOf = (reps) => Math.max(10, Math.round(50 * Math.pow(0.97, reps))); // frames a sweep takes
+    const spotOf = (reps) => 0.11 + 0.05 * Math.max(0, 1 - reps / 10); // the sweet spot: the middle +- this
+    let state = 'ready', t = 0, beat = 0, sweep = 0, want = 'down', bar = 0, clean = 0, misses = 0, tried = false, last = null, record = false;
+    // (a sweep keeps its speed to the end, so the marker never jumps)
+    let SWEEP = sweepOf(0), SPOT = spotOf(0);
     const markerAt = () => (sweep & 1 ? 1 - beat / SWEEP : beat / SWEEP);
-    function finish() { state = 'done'; t = 0; record = saveBest('pulldown', clean); sfx('ding'); }
+    function miss() {
+      last = { s: 'MISSED', c: '#b83028', t: 0 }; sfx('bump');
+      if (++misses >= MISSES) { state = 'done'; t = 0; record = saveBest('pullreps', clean); sfx('ding'); }
+    }
     const self = {
       music: 'squat', doing: 'pulldown',
       update() {
@@ -11863,8 +11941,8 @@
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
-            say(clean >= 16 ? 'Smooth reps all the way through. Lats are burning!'
-              : clean >= 8 ? clean + ' clean reps out of ' + SWEEPS + '. Not bad.'
+            say(clean >= 30 ? clean + ' clean reps, and the machine was flying by the end. Lats are burning!'
+              : clean >= 12 ? clean + ' clean reps before your arms gave out. Not bad.'
                 : 'You fought the machine and the machine won.');
           }
           return;
@@ -11878,21 +11956,22 @@
           if (pressed.has(want) && Math.abs(markerAt() - 0.5) <= SPOT) {
             clean++; last = { s: 'CLEAN', c: '#2c6a34', t: 0 }; sfx('lift', 0.8);
             want = other;
-          } else { last = { s: 'MISSED', c: '#b83028', t: 0 }; sfx('bump'); }
+          } else { miss(); if (state === 'done') return; }
         }
         if (++beat >= SWEEP) {
-          if (!tried) { last = { s: 'MISSED', c: '#b83028', t: 0 }; sfx('bump'); }
-          beat = 0; tried = false;
-          if (++sweep >= SWEEPS) finish();
+          beat = 0;
+          if (!tried) { miss(); if (state === 'done') return; }
+          tried = false; sweep++;
+          SWEEP = sweepOf(clean); SPOT = spotOf(clean);
         }
       },
       draw() {
         box(0, 0, SW, SH);
         text('Lat pulldown!', 16, 10);
-        const b = 'Best ' + getBest('pulldown');
+        const b = 'Best ' + getBest('pullreps');
         text(b, SW - 16 - b.length * 6, 10);
-        text('Sweep ' + Math.min(sweep + 1, SWEEPS) + '/' + SWEEPS, 16, 24);
-        text('Clean ' + clean + '/' + SWEEPS, 160, 24);
+        text('Clean reps ' + clean, 16, 24);
+        drawStrikes(SW - 16 - MISSES * 13 + 2, 22, misses, MISSES);
         // frame and cable
         ctx.fillStyle = col.dark; ctx.fillRect(60, 44, 200, 8); ctx.fillRect(66, 52, 8, 150); ctx.fillRect(246, 52, 8, 150);
         ctx.fillStyle = '#8890a0'; ctx.fillRect(68, 54, 4, 146); ctx.fillRect(248, 54, 4, 146);
@@ -11935,8 +12014,8 @@
         text(want === 'down' ? 'PULL (Down)' : 'RELEASE (Up)', 100, 192);
         if (last && last.t < 30) text(last.s, (SW - last.s.length * 6) >> 1, 38, 1, last.c);
         if (state === 'ready') readyBox(t, 'Down, Up, in the green');
-        else if (state === 'done') doneBox(['Set finished!', 'Clean reps: ' + clean + '/' + SWEEPS,
-          record ? 'New record!' : 'Best ' + getBest('pulldown')], t);
+        else if (state === 'done') doneBox(['Your arms give out!', 'Clean reps: ' + clean,
+          record ? 'New record!' : 'Best ' + getBest('pullreps')], t);
         else text('Esc: give up', 16, SH - 14);
       },
     };
@@ -13359,7 +13438,10 @@
   // Toss the food up with A and slide the wok under it to catch it. Food in the wok
   // cooks (faster over the flame) but scorches if you leave it sitting, and a toss
   // knocks the scorch back down. Cook a dish through and it's served; scorch it and
-  // it's binned. Serve more dishes than Nik in a minute to win.
+  // it's binned. Serve more dishes than Nik in a minute to win. The score is the pieces of
+  // food you plate, so every piece you drop counts against you. The most there could be is
+  // 6 a dish, but even playing perfectly you can't catch all six from most tosses (about 1
+  // in 5 at the first dish, 1 in 100 from the seventh), so nobody gets near it.
   function WokGame() {
     const WOK_Y = 186, FLOOR = 232, HALF = 28, GRAV = 0.18, TIME = 60 * 60, NIK = 4;
     const FLAME = { x: 120, w: 80 };
@@ -13375,7 +13457,7 @@
     ];
     const nik = spritesFor('Nik');
     let state = 'ready', t = 0, left = TIME, wx = 160, dish = 0, food = [], cook = 0, scorch = 0;
-    let served = 0, perfect = 0, dropped = 0, cool = 0, msg = null, record = false;
+    let served = 0, plated = 0, dropped = 0, cool = 0, msg = null, record = false;
     function newDish() {
       const [, items] = DISHES[dish % DISHES.length];
       food = items.map((kind, i) => ({ kind, inWok: true, off: (i - 2.5) * 8, x: 0, y: WOK_Y, vx: 0, vy: 0 }));
@@ -13411,7 +13493,7 @@
         if (--left <= 0) {
           state = 'done'; t = 0;
           questNote('wok', served > NIK ? 1 : 0);
-          record = saveBest('wokdishes', served);
+          record = saveBest('wokpieces', plated);
           sfx(served > NIK ? 'cup' : 'buzz');
           return;
         }
@@ -13448,9 +13530,8 @@
         } else scorch = Math.max(0, scorch - 0.5);
         if (scorch >= 100) { endDish('Burnt! Into the bin.', false); return; }
         if (cook >= 100) {
-          served++;
-          if (!dropped) perfect++;
-          endDish(dropped ? DISHES[dish % DISHES.length][0] + ' served!' : 'Perfect ' + DISHES[dish % DISHES.length][0] + '!', true);
+          served++; plated += food.length;
+          endDish((dropped ? DISHES[dish % DISHES.length][0] + ' served!' : 'Perfect ' + DISHES[dish % DISHES.length][0] + '!') + ' +' + food.length, true);
         }
       },
       draw() {
@@ -13458,8 +13539,8 @@
         text(DISHES[dish % DISHES.length][0], 16, 10);
         const tm = 'Time ' + Math.ceil(left / 60);
         text(tm, SW - 16 - tm.length * 6, 10);
-        text('Served ' + served + '   Nik ' + NIK, 16, 22);
-        const b = 'Best ' + getBest('wokdishes');
+        text('Served ' + served + '  Nik ' + NIK + '   Plated ' + plated, 16, 22);
+        const b = 'Best ' + getBest('wokpieces');
         text(b, SW - 16 - b.length * 6, 22);
         // the two meters
         const meter = (x, label, v, c) => {
@@ -13524,8 +13605,8 @@
         if (msg) { box(60, 100, 200, 30); ctext(msg.s, 112); }
         if (state === 'ready') readyBox(t, 'Space: toss  Arrows: catch');
         else if (state === 'done') doneBox([served > NIK ? 'You out-cooked Nik!' : 'Nik\'s still the chef.',
-          'Served ' + served + ' (' + perfect + ' perfect)  Nik ' + NIK,
-          record ? 'New record!' : 'Best ' + getBest('wokdishes') + ' dishes'], t);
+          'Served ' + served + '  Nik ' + NIK + '  Plated ' + plated,
+          record ? 'New record!' : 'Best ' + getBest('wokpieces') + ' pieces'], t);
         else text('Space: toss  Arrows: move  Esc: quit', 16, SH - 12, 1, '#f8f8f8');
       },
     };
@@ -13534,27 +13615,43 @@
 
   // ---------- Dmitriy's knife skills: chop the carrot on the marked lines ----------
   // Each carrot slides under the knife with dashed lines marked along it. Press A to
-  // bring the knife down; the closer to a line, the better the cut. Lines you miss
-  // and extra cuts both count against you. Beat Dmitriy's evenness to win.
+  // bring the knife down: the closer to a line, the more the cut is worth (Perfect 3,
+  // Good 2, Sloppy 1). A line you miss or a cut with no line under it is a botch. The
+  // carrots keep coming, faster and with more lines up to the fifth, and after that
+  // Dmitriy wants each one neater than the last, until your third botch, when he takes the
+  // knife back. So there's no most you can score. Beat his 70 to win.
   function CarrotGame() {
-    const KNIFE = 120, CY = 128, CH = 16, DMITRIY = 75;
-    // [lines, gap between them in px, speed in px a frame]
+    const KNIFE = 120, CY = 128, CH = 16, DMITRIY = 70, BOTCHES = 3;
+    // [lines, gap between them in px, speed in px a frame] for the first five; after
+    // that, like the fifth, a little quicker and further apart (so the same time between
+    // lines), with less leeway each carrot
     const CARROTS = [[5, 26, 0.9], [6, 24, 1.05], [6, 22, 1.2], [7, 20, 1.3], [8, 18, 1.4]];
-    const REMARKS = [[90, 'Clean. Very clean.'], [75, 'Not bad. Not Nik bad, either.'], [50, 'Hmm. Rustic.'], [0, 'Chunks? Really?']];
+    const carrotAt = (r) => {
+      if (r < CARROTS.length) return CARROTS[r];
+      const sp = Math.min(1.8, 1.4 + (r - 4) * 0.04);
+      return [8, Math.round(18 * sp / 1.4), sp];
+    };
+    const neatness = (r) => Math.pow(0.88, Math.max(0, r - 4)); // how much of the leeway is left
+    const REMARKS = [[2.7, 'Clean. Very clean.'], [2.2, 'Not bad. Not Nik bad, either.'], [1.5, 'Hmm. Rustic.'], [0, 'Chunks? Really?']];
     const dima = spritesFor('Dmitriy');
-    let state = 'ready', t = 0, round = 0, cx = 0, lines = [], cuts = [], len = 0, speed = 0;
-    let total = 0, count = 0, roundSum = 0, roundN = 0, chop = 0, pop = null, remark = 'Watch the lines, then chop.', record = false;
+    let state = 'ready', t = 0, round = 0, cx = 0, lines = [], cuts = [], len = 0, speed = 0, gap = 0;
+    let pts = 0, botches = 0, roundSum = 0, roundN = 0, chop = 0, pop = null, remark = 'Watch the lines, then chop.', record = false;
     function newCarrot() {
-      const [n, gap, sp] = CARROTS[round];
-      len = gap * (n + 1); speed = sp;
+      let n;
+      [n, gap, speed] = carrotAt(round);
+      len = gap * (n + 1);
       lines = Array.from({ length: n }, (_, i) => ({ at: gap * (i + 1), cut: false }));
       cuts = []; cx = SW + 10; roundSum = 0; roundN = 0;
     }
     newCarrot();
-    const pct = () => (count ? Math.round(total / count) : 0);
-    function score(pts, label) {
-      total += pts; count++; roundSum += pts; roundN++;
+    function score(p, label) {
+      pts += p; roundSum += p; roundN++;
       if (label) pop = { s: label, t: 0 };
+      if (p || ++botches < BOTCHES) return;
+      state = 'done'; t = 0;
+      questNote('carrot', pts > DMITRIY ? 1 : 0);
+      record = saveBest('carrotpts', pts);
+      sfx(pts > DMITRIY ? 'cup' : 'buzz');
     }
     const self = {
       music: 'kitchen', doing: 'carrot',
@@ -13566,7 +13663,7 @@
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
-            say(pct() > DMITRIY ? 'Dmitriy: "...Fine. You could work my line. Don\'t tell Nik."'
+            say(pts > DMITRIY ? 'Dmitriy: "...Fine. You could work my line. Don\'t tell Nik."'
               : 'Dmitriy: "Back to peeling potatoes with you."');
           }
           return;
@@ -13575,38 +13672,33 @@
         cx -= speed;
         const at = KNIFE - cx; // where on the carrot the knife is right now
         // the windows are about the same number of frames whatever the speed
-        const reach = Math.max(8, CARROTS[round][1] / 2), perfect = 1.5 + speed * 1.5, good = 3 + speed * 3;
+        const neat = neatness(round), reach = Math.max(8, gap / 2) * neat, perfect = (1.5 + speed * 1.5) * neat, good = (3 + speed * 3) * neat;
         // a line that's gone past the knife without a cut counts as a miss
-        for (const l of lines) if (!l.cut && at > l.at + reach) { l.cut = true; score(0, 'Missed one!'); }
-        if (pressed.has('a') && !chop && at > 0 && at < len) {
+        for (const l of lines) if (!l.cut && at > l.at + reach && state === 'play') { l.cut = true; score(0, 'Missed one!'); }
+        if (pressed.has('a') && !chop && at > 0 && at < len && state === 'play') {
           chop = 10; cuts.push(at); sfx('chop');
           let best = null;
           for (const l of lines) if (!l.cut && (!best || Math.abs(l.at - at) < Math.abs(best.at - at))) best = l;
           const err = best ? Math.abs(best.at - at) : 99;
           if (err <= reach) {
             best.cut = true;
-            score(err <= perfect ? 100 : err <= good ? 75 : 40, err <= perfect ? 'Perfect!' : err <= good ? 'Good' : 'Sloppy');
+            score(err <= perfect ? 3 : err <= good ? 2 : 1, err <= perfect ? 'Perfect!' : err <= good ? 'Good' : 'Sloppy');
           } else score(0, 'Extra cut!');
         }
-        if (cx + len < KNIFE - 20) {
+        if (state === 'play' && cx + len < KNIFE - 20) {
           const avg = roundN ? roundSum / roundN : 0;
           remark = REMARKS.find(([min]) => avg >= min)[1];
-          if (++round >= CARROTS.length) {
-            state = 'done'; t = 0;
-            questNote('carrot', pct() > DMITRIY ? 1 : 0);
-            record = saveBest('carrotpct', pct());
-            sfx(pct() > DMITRIY ? 'cup' : 'buzz');
-            return;
-          }
+          round++;
           newCarrot();
         }
       },
       draw() {
         box(0, 0, SW, SH);
-        text('Carrot ' + Math.min(round + 1, CARROTS.length) + '/' + CARROTS.length, 16, 10);
-        const e = 'Even ' + pct() + '%   Dmitriy ' + DMITRIY + '%';
+        text('Carrot ' + (round + 1), 16, 10);
+        drawStrikes(70, 8, botches, BOTCHES);
+        const e = 'Score ' + pts + '   Dmitriy ' + DMITRIY;
         text(e, SW - 16 - e.length * 6, 10);
-        const b = 'Best ' + getBest('carrotpct') + '%';
+        const b = 'Best ' + getBest('carrotpts');
         text(b, SW - 16 - b.length * 6, 22);
         // Dmitriy, with what he thought of the last carrot
         ctx.drawImage(dima.down[0], 14, 30, 36, 36);
@@ -13676,9 +13768,9 @@
         if (!chop) { ctx.fillStyle = 'rgba(24,24,32,0.25)'; ctx.fillRect(KNIFE, 92, 0.5, 84); }
         if (pop) text(pop.s, KNIFE + 14, 98, 1, pop.s === 'Perfect!' ? '#2c6a34' : pop.s === 'Good' ? '#3050a8' : '#b83028');
         if (state === 'ready') readyBox(t, 'Space: chop on the line');
-        else if (state === 'done') doneBox([pct() > DMITRIY ? 'Dmitriy is impressed!' : 'Dmitriy shakes his head.',
-          'Evenness ' + pct() + '%  Dmitriy ' + DMITRIY + '%',
-          record ? 'New record!' : 'Best ' + getBest('carrotpct') + '%'], t);
+        else if (state === 'done') doneBox([pts > DMITRIY ? 'Dmitriy is impressed!' : 'Dmitriy shakes his head.',
+          'Score ' + pts + '  Dmitriy ' + DMITRIY,
+          record ? 'New record!' : 'Best ' + getBest('carrotpts')], t);
         else text('Space: chop   Esc: put the knife down', 16, SH - 14);
       },
     };
@@ -13688,70 +13780,65 @@
   // ---------- Patrick's dance-off: hit the arrows on the beat of the rave song ----------
   // Arrows rise up their lanes and you press each one as it reaches the targets at the
   // top. Timing follows the rave song itself (or a steady 140bpm with the music off),
-  // counted in eighth-note steps like the song is. Out-score Patrick to win.
+  // counted in eighth-note steps like the song is. A PERFECT is 2 points and a GOOD 1. It
+  // goes on until your fifth miss: the arrows come thicker, and every 4 bars from the 4th
+  // the timing gets stricter, so there's no most you can score. Out-score Patrick to win.
   // With `vs` (a match with another player) you both get the same arrows, from the match's
   // shared random numbers, and each of you sees the other's score as they dance. The
-  // higher score when you've both finished the song wins.
+  // higher score once you're both off the floor wins (see scoreRace).
   function DanceGame(vs) {
     const LANES = ['left', 'down', 'up', 'right'], LANE_COLS = ['#ff2a6d', '#05d9e8', '#39ff14', '#f9f871'];
     const LX = 104, LW = 28, TY = 34, PX = 9; // first lane, lane width, target row, pixels per step
-    // Timing windows and lengths, in steps. On a touch screen the D-pad is slower to hit than
-    // a key, so the windows are wider and the chart is gentler (see below). Against a
-    // player, that's whenever either of you is on touch, so you both get the same.
+    // Timing windows, in steps. On a touch screen the D-pad is slower to hit than a key, so
+    // the windows are wider and the chart is gentler (see below). Against a player, that's
+    // whenever either of you is on touch, so you both get the same.
     const soft = vs ? vs.soft : isTouch, rnd = vs ? vs.rng : Math.random;
-    const PERFECT = soft ? 0.7 : 0.5, GOOD = soft ? 1.4 : 1, LEN = 128, LEAD = 16;
+    const PERFECT = soft ? 0.7 : 0.5, GOOD = soft ? 1.4 : 1, LEAD = 16, BARS4 = 32, MISSES = 5;
+    // how much of those windows is left at step s: all of it for the first 3 sections of
+    // 4 bars, then an eighth less each section
+    const strict = (s) => Math.pow(0.88, Math.max(0, Math.floor(s / BARS4) - 2));
     const foe = vs ? vs.name : 'Patrick';
     const patrick = vs ? vs.sprites : spritesFor('Patrick');
-    // The chart: half notes to warm up, then every beat, then some off-beats to finish.
-    // On touch it stays on the beat at the end, and never asks for the same arrow twice
+    // The chart, made as it's needed: half notes to warm up, then every beat, then more and
+    // more off-beats. On touch it stays on the beat, and never asks for the same arrow twice
     // in a row (that means lifting your thumb off the pad and pressing again).
     const notes = [];
-    for (let s = 0; s < LEN; s += s < 32 ? 4 : s < 96 || soft ? 2 : rnd() < 0.45 ? 1 : 2) {
-      let lane;
-      do lane = Math.floor(rnd() * 4);
-      while (notes.length && notes[notes.length - 1].lane === lane && (soft || (notes.length > 1 && notes[notes.length - 2].lane === lane)));
-      notes.push({ s, lane, hit: null });
+    let charted = 0, lanes = []; // the step of the next arrow, and the last two arrows' lanes
+    function chartTo(step) {
+      while (charted < step) {
+        let lane;
+        do lane = Math.floor(rnd() * 4);
+        while (lanes[0] === lane && (soft || lanes[1] === lane));
+        notes.push({ s: charted, lane, hit: null });
+        lanes = [lane, lanes[0]];
+        const sec = Math.floor(charted / BARS4);
+        charted += sec === 0 ? 4 : sec < 3 || soft ? 2 : rnd() < Math.min(0.7, 0.3 + sec * 0.05) ? 1 : 2;
+      }
     }
-    // Patrick is good, not perfect; a player's score is whatever they last sent
-    let PATRICK = vs ? 0 : 62 + Math.floor(Math.random() * 14);
-    let state = 'play', t = 0, pos = -LEAD, lastMp = null, synced = false;
+    // Patrick is good, not perfect: his score shows, dimmed, under him
+    const PATRICK = vs ? 0 : 25 + Math.floor(Math.random() * 40);
+    const race = vs && scoreRace(vs, { what: 'the dance-off', fmt: (n) => n + (n === 1 ? ' point' : ' points') });
+    let state = 'play', t = 0, pos = -LEAD, lastMp = null, synced = false, misses = 0;
     let pts = 0, combo = 0, maxCombo = 0, judge = null, flash = [0, 0, 0, 0], move = 'down', record = false;
-    let theirsDone = false, sentPct = 0, sendT = 0;
-    const pct = () => Math.round(100 * pts / (notes.length * 2));
+    const theirs = () => (race ? race.now : PATRICK);
     function rate(word, color, lane) { judge = { word, color, t: 0 }; if (lane >= 0) flash[lane] = 10; }
     const self = {
       music: 'rave', doing: 'dance',
       update() {
         t++;
-        if (vs) {
-          for (let m; (m = vs.take());) {
-            PATRICK = Math.max(0, Math.min(100, Math.round(+m.p) || 0));
-            if (m.e === 'f') theirsDone = true;
-          }
-          // your score as you go, at most every 10 ticks
-          if (++sendT >= 10 && pct() !== sentPct && state === 'play') { vs.send({ e: 's', p: pct() }); sentPct = pct(); sendT = 0; }
-          if (vs.gone && !theirsDone && state !== 'gone') { state = 'gone'; t = 0; }
-          if (state === 'wait' && theirsDone) { state = 'done'; t = 0; sfx(pct() > PATRICK ? 'cup' : 'bump'); }
-          if (state === 'wait' && t % 90 === 89) vs.send({ e: 'f', p: pct() }); // (in case it went astray)
-          if (state === 'done' || state === 'gone') {
-            if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
-              remove(self); vs.end();
-              say(state === 'gone' ? whoLeft(vs, foe, ' left the dance floor.') + ' Nobody wins this one.'
-                : pct() > PATRICK ? 'You out-danced ' + foe + ', ' + pct() + '% to ' + PATRICK + '%!'
-                  : pct() < PATRICK ? foe + ' out-danced you, ' + PATRICK + '% to ' + pct() + '%.'
-                    : 'A dead heat: ' + pct() + '% each.');
-            }
-            return;
-          }
+        if (race) {
+          if (race.update() && state !== 'over') { state = 'over'; t = 0; sfx(race.outcome === 'win' ? 'cup' : 'bump'); }
+          if (state === 'over') { if (t > 30 && (pressed.has('a') || pressed.has('b'))) { remove(self); vs.end(); race.say(); } return; }
           if (state === 'wait') { if (pressed.has('b')) { remove(self); vs.end(); say('You leave the dance floor.'); } return; }
+          race.send({ s: pts }, String(pts));
         }
         if (state === 'done') {
           if (t > 30 && (pressed.has('a') || pressed.has('b'))) {
             remove(self);
-            if (pct() > PATRICK && MAPS.floors[P.floor].rooms.some((r) => r.rave)) {
-              say('Patrick: ' + pct() + '% to my ' + PATRICK + '%? You can actually dance! EVERYBODY IN HERE!', () => ui.push(PartyTime()));
-            } else say(pct() > PATRICK ? 'Patrick: You can actually dance! Respect. ' + pct() + '% to my ' + PATRICK + '%.'
-              : 'Patrick: ' + PATRICK + '% to your ' + pct() + '%. Come back when you\'ve warmed up!');
+            if (pts > PATRICK && MAPS.floors[P.floor].rooms.some((r) => r.rave)) {
+              say('Patrick: ' + pts + ' to my ' + PATRICK + '? You can actually dance! EVERYBODY IN HERE!', () => ui.push(PartyTime()));
+            } else say(pts > PATRICK ? 'Patrick: You can actually dance! Respect. ' + pts + ' to my ' + PATRICK + '.'
+              : 'Patrick: ' + PATRICK + ' to your ' + pts + '. Come back when you\'ve warmed up!');
           }
           return;
         }
@@ -13765,6 +13852,9 @@
           pos = mp - (Math.ceil(mp / 8) * 8 + LEAD);
         } else pos += mp - lastMp;
         lastMp = mp;
+        // enough chart to fill the screen, and nothing that's long gone
+        chartTo(pos + (SH - TY) / PX + 4);
+        while (notes.length && notes[0].hit && notes[0].s < pos - 16) notes.shift();
         if (judge) judge.t++;
         flash = flash.map((f) => Math.max(0, f - 1));
         // arrows pressed: take the closest unhit note in that lane
@@ -13772,22 +13862,22 @@
           if (!pressed.has(k)) return;
           move = k;
           let best = null;
-          for (const n of notes) if (n.lane === lane && !n.hit && Math.abs(n.s - pos) <= GOOD && (!best || Math.abs(n.s - pos) < Math.abs(best.s - pos))) best = n;
+          for (const n of notes) if (n.lane === lane && !n.hit && Math.abs(n.s - pos) <= GOOD * strict(n.s) && (!best || Math.abs(n.s - pos) < Math.abs(best.s - pos))) best = n;
           if (!best) return; // a stray press costs nothing
-          const d = Math.abs(best.s - pos);
-          best.hit = d <= PERFECT ? 'perfect' : 'good';
-          pts += d <= PERFECT ? 2 : 1;
+          const d = Math.abs(best.s - pos), spot = d <= PERFECT * strict(best.s);
+          best.hit = spot ? 'perfect' : 'good';
+          pts += spot ? 2 : 1;
           maxCombo = Math.max(maxCombo, ++combo);
-          rate(d <= PERFECT ? 'PERFECT' : 'GOOD', d <= PERFECT ? '#f9f871' : '#05d9e8', lane);
+          rate(spot ? 'PERFECT' : 'GOOD', spot ? '#f9f871' : '#05d9e8', lane);
         });
         // anything that's slipped past the targets is a miss
-        for (const n of notes) if (!n.hit && pos - n.s > GOOD) { n.hit = 'miss'; combo = 0; rate('MISS', '#ff2a6d', -1); }
-        if (pos > LEN + 4) {
+        for (const n of notes) if (!n.hit && pos - n.s > GOOD * strict(n.s)) { n.hit = 'miss'; combo = 0; misses++; rate('MISS', '#ff2a6d', -1); }
+        if (misses >= MISSES) {
           // against a player: send your final score, then wait for theirs
-          if (vs) { vs.send({ e: 'f', p: pct() }); state = 'wait'; t = 0; return; }
+          if (race) { race.finish(pts); state = 'wait'; t = 0; sfx('bump'); return; }
           state = 'done'; t = 0;
-          record = saveBest('dance', pct());
-          if (pct() > PATRICK) { questNote('danceoff', 1); sfx('cup'); } else sfx('bump');
+          record = saveBest('dancepts', pts);
+          if (pts > PATRICK) { questNote('danceoff', 1); sfx('cup'); } else sfx('bump');
         }
       },
       draw() {
@@ -13820,9 +13910,12 @@
         ctx.drawImage(patrick[pDir][1 + (beat & 1)], 242, 100 - bop, 56, 56);
         text('You', 41, 162, 1, '#f8f8f8');
         text(foe, 270 - foe.length * 3, 162, 1, '#f8f8f8');
-        text(pct() + '%', 50 - String(pct()).length * 3 - 3, 176, 1, '#f9f871');
+        text(String(pts), 50 - String(pts).length * 3 - 3, 176, 1, '#f9f871');
         // Patrick's score is a surprise until the end; a player's goes up as they dance
-        text(PATRICK + '%', 270 - String(PATRICK).length * 3 - 3, 176, 1, state === 'done' || vs ? '#f9f871' : '#606080');
+        const them = theirs();
+        text(String(them), 270 - String(them).length * 3 - 3, 176, 1, state === 'done' || vs ? '#f9f871' : '#606080');
+        // the misses you have left, under your score
+        drawStrikes(19, 188, misses, MISSES);
         // targets, then the arrows on their way up
         LANES.forEach((k, lane) => {
           arrow(k, LX + lane * LW + 4, TY, flash[lane] ? '#ffffff' : '#505070', true);
@@ -13836,19 +13929,17 @@
         if (judge && judge.t < 30) text(judge.word, 160 - judge.word.length * 6, 70 - (judge.t >> 3), 2, judge.color);
         if (combo > 4) text(combo + ' combo', 160 - (String(combo).length + 6) * 3, 92, 1, '#f8f8f8');
         text('DANCE-OFF', 4, 4, 1, '#f8f8f8');
-        const b = 'Best ' + getBest('dance') + '%';
+        const b = 'Best ' + getBest('dancepts');
         if (!vs) text(b, SW - 4 - b.length * 6, 4, 1, '#a0a0c8');
         if (pos < 0) {
           box(60, 120, 200, 48);
           ctext(pos < -8 ? (vs ? 'Dance-off with ' + foe + '!' : 'Patrick wants a dance-off!') : 'Get ready... ' + Math.ceil(-pos / 2), 132);
           ctext('Arrows on the beat', 148);
         }
-        if (state === 'wait') { box(60, 100, 200, 40); ctext('Waiting for ' + foe + '...', 108); ctext('to finish the song', 122); }
-        else if (state === 'gone') doneBox([whoLeft(vs, foe, ' left the floor.'), 'Nobody wins this one.'], t);
-        else if (state === 'done' && vs) doneBox([pct() > PATRICK ? 'You out-danced ' + foe + '!' : pct() < PATRICK ? foe + ' wins!' : 'A dead heat!',
-          'You ' + pct() + '%  ' + foe + ' ' + PATRICK + '%', 'Your best combo ' + maxCombo], t);
-        else if (state === 'done') doneBox([pct() > PATRICK ? 'You out-danced Patrick!' : 'Patrick wins!',
-          'You ' + pct() + '%  Patrick ' + PATRICK + '%  Combo ' + maxCombo, record ? 'New record!' : 'Best ' + getBest('dance') + '%'], t);
+        if (state === 'wait') race.waitBox();
+        else if (state === 'over') race.box(t);
+        else if (state === 'done') doneBox([pts > PATRICK ? 'You out-danced Patrick!' : 'Patrick wins!',
+          'You ' + pts + '  Patrick ' + PATRICK + '  Combo ' + maxCombo, record ? 'New record!' : 'Best ' + getBest('dancepts')], t);
       },
     };
     // At double resolution the arrow is a smooth one, made once for each way and colour: its
@@ -14335,7 +14426,8 @@
       for (let x = r.x1; x <= r.x2; x++) if (f.tiles[y][x] === 'r' && (!at || y > at.y)) at = { floor: 0, x, y };
     return HALLOWEEN ? null : at;
   })();
-  const DESK_GAMES = [['bob', BobGame], ['mummy', MummyGame], ['carve', CarveGame], ['treat', TreatGame], ['ghosts', GhostGame], ['costume', () => CostumeContest(true)]];
+  // (each by its leaderboard's name in BOARDS, which is where the list gets its titles)
+  const DESK_GAMES = [['bob', BobGame], ['mummy', MummyGame], ['carve', CarveGame], ['treat', TreatGame], ['ghosts', GhostGame], ['costumepts', () => CostumeContest(true)]];
   // The little picture beside each of those in the list (see listIcon).
   const PARTY_ICONS = {
     bob: (r, o) => { // an apple bobbing in the tub
@@ -14367,7 +14459,7 @@
       o(12, 11, 5, '#f4f8fc'); r(7, 11, 10, 7, '#f4f8fc'); r(7, 18, 2, 1, '#f4f8fc'); r(11, 18, 2, 1, '#f4f8fc'); r(15, 18, 2, 1, '#f4f8fc');
       r(9, 10, 2, 3, '#181820'); r(13, 10, 2, 3, '#181820');
     },
-    costume: (r) => { // a witch's hat
+    costumepts: (r) => { // a witch's hat
       for (let y = 3; y < 17; y++) {
         const half = Math.ceil((y - 2) / 2);
         r(12 - half, y, half * 2, 1, '#7b3fb8'); r(12 - half, y, 1, 1, '#a878e0'); r(12 + half - 2, y, 2, 1, '#54288c');
@@ -14492,11 +14584,14 @@
   }
 
   // Mummy wrap: alternate left and right to wind the paper round, quicker than the other
-  // team. Wind faster than the paper can take and it tears.
+  // team. Wind faster than the paper can take and it tears. Each wrap in a row loosens the paper
+  // up, so it takes a faster pace (from 6 wraps a second at the start to 12 after 20 and more
+  // after that, beyond anyone's hands), and a tear starts it stiff again. So the quickest time
+  // comes down to how fast and how steadily you can go, and there's no fastest there could be.
   function MummyGame() {
     const NEED = 70, pool = shuffled(hw.guests.filter((g) => !g.ghost && g.name !== 'Lam'));
     const mine = pool[0] || { name: 'Kiki', sprites: spritesFor('Kiki') }, theirs = pool[1] || { name: 'Nathan', sprites: spritesFor('Nathan') };
-    let state = 'ready', t = 0, me = 0, them = 0, last = null, strain = 0, torn = 0, ticks = 0, won = false, record = false;
+    let state = 'ready', t = 0, me = 0, them = 0, last = null, strain = 0, torn = 0, ticks = 0, run = 0, won = false, record = false;
     const best = () => +store.get('best.mummy') || 0; // quickest wrap, in tenths of a second
     const secs = (n) => (n / 10).toFixed(1) + 's';
     function finish(w) {
@@ -14543,14 +14638,15 @@
         if (pressed.has('b')) { remove(self); say(mine.name + ' unwinds, looking relieved.'); return; }
         ticks++;
         them += 0.068 + Math.random() * 0.012;
-        strain = Math.max(0, strain - 0.02);
+        // (each wrap adds 0.2 and it eases off 0.02 a tick, more the longer your run: see above)
+        strain = Math.max(0, strain - Math.min(0.1, 0.02 + 0.001 * run));
         if (torn > 0) torn--;
         else {
           const d = pressed.has('left') ? 'left' : pressed.has('right') ? 'right' : null;
           if (d && d === last) sfx('bump');
           else if (d) {
-            last = d; me++; strain += 0.2; sfx('blip', me & 1);
-            if (strain > 1) { torn = 50; strain = 0.3; sfx('buzz'); }
+            last = d; me++; run++; strain += 0.2; sfx('blip', me & 1);
+            if (strain > 1) { torn = 50; strain = 0.3; run = 0; sfx('buzz'); }
           }
         }
         if (me >= NEED) finish(true); else if (them >= NEED) finish(false);
@@ -14580,6 +14676,7 @@
         ctx.fillRect(78, 185, Math.round(200 * Math.min(1, strain)), 6);
         if (strain > 0) { const w = Math.round(200 * Math.min(1, strain)); fine(78, 185, w, 1, 'rgba(255,255,255,0.45)'); fine(78, 190, w, 1, 'rgba(0,0,0,0.15)'); }
         if (torn > 0) ctext('RIP! The paper tore!', 200, '#f05040');
+        else if (run >= 10 && state === 'play') ctext(run + ' in a row: the paper\'s loosening up', 200, '#c8ccd8');
         if (state === 'ready') readyBox(t, 'Left, Right, Left, Right...');
         else if (state === 'done') doneBox([won ? 'Fully wrapped!' : theirs.name + '\'s team wins!', won ? 'Your time: ' + secs(Math.round(ticks / 6)) : 'You got ' + Math.round(100 * me / NEED) + '% done',
           record ? 'New record!' : 'Best ' + (best() ? secs(best()) : '-')], t);
@@ -14914,8 +15011,11 @@
   }
 
   // Lam's costume contest. Three coworkers walk the catwalk and get their scorecards, then
-  // it's your turn: ten poses, each an arrow with a ring closing in on it, faster every
-  // time. Hit that arrow as the ring meets the mark. The three judges' cards come from how well you timed them.
+  // it's your turn: pose after pose, each an arrow with a ring closing in on it, faster every
+  // time. Hit that arrow as the ring meets the mark (5 spot on, 4 close, 2 near). A wrong
+  // arrow or a late one is a miss, and the third miss ends your turn, so there's no most you
+  // can score. The three judges' cards (out of 10) come from your score: about 60 for a 10.
+  // The contest goes by the cards, and your score goes on the leaderboard.
   function CostumeContest(desk) {
     // from the reception jack-o'-lantern: you change into your costume for it, and back after
     const before = desk && { sprites, worn: hw.worn };
@@ -14924,7 +15024,10 @@
     const mc = pool.find((g) => g.name === 'Lam'), linda = pool.find((g) => g.name === 'Linda');
     const rest = shuffled(pool.filter((g) => g !== mc && g !== linda));
     const judges = [rest[3], linda, rest[4]];
-    const POSES = 10, GAP = 23, CX = 144, RUN_Y = 92, STOPS = (k) => 50 + k * GAP;
+    const STRIKES = 3, GAP = 23, CX = 144, RUN_Y = 92, STOPS = (k) => 50 + k * GAP;
+    // where you stand for pose p: along the catwalk's ten marks and back, and back again
+    // (p -1 is just before the first)
+    const stopAt = (p) => (p < 0 ? STOPS(0) - GAP : STOPS(p % 18 < 10 ? p % 18 : 18 - p % 18));
     const acts = rest.slice(0, 3).map((g) => ({ name: g.name, outfit: g.outfit, sprites: g.sprites, cards: [0, 1, 2].map(() => 5 + Math.floor(Math.random() * 5)) }));
     const me = { name: playerName || 'You', outfit: Art.COSTUMES[hw.costume].name, sprites, cards: null, me: true };
     acts.push(me);
@@ -14932,7 +15035,7 @@
     const QUIPS = ['Give it up for {n} the {o}!', 'Next on the catwalk: {n} the {o}. Health and Safety has questions.',
       'And here comes {n} the {o}! Ten minutes and a glue gun, I\'m told.'];
     const DIR_LIST = ['up', 'right', 'down', 'left'];
-    let state = 'intro', t = 0, ai = 0, pose = 0, pts = 0, want = null, need = 0, got = null, label = '', record = false, order = null;
+    let state = 'intro', t = 0, ai = 0, pose = 0, pts = 0, strikes = 0, want = null, need = 0, got = null, label = '', record = false, order = null;
     let quip = 'Welcome to the Haakon Halloween costume contest! I\'m Lam, your MC.';
     const intro = (a) => (a.me ? 'And finally... ' + a.name + ' the ' + a.outfit + '! Strike a pose!' : QUIPS[ai % QUIPS.length].replace('{n}', a.name).replace('{o}', a.outfit));
     function nextAct() {
@@ -14942,14 +15045,16 @@
     }
     function nextPose() {
       want = DIR_LIST[Math.floor(Math.random() * 4)];
-      // the ring closes faster every pose: 56 ticks down to 20
-      need = 56 - pose * 4; got = null; state = 'pose'; t = 0;
+      // the ring closes faster every pose: 56 ticks, 4 less each pose down to 20, then 1
+      // less each pose till it's shut as the arrow shows
+      need = pose < 10 ? 56 - pose * 4 : Math.max(0, 30 - pose); got = null; state = 'pose'; t = 0;
     }
     function judge(dir) {
       const err = Math.abs(t - need);
       const p = dir !== want || err > 13 ? 0 : err <= 3 ? 5 : err <= 7 ? 4 : 2;
       label = p === 5 ? 'PERFECT!' : p === 4 ? 'GREAT!' : p === 2 ? 'OK' : dir && dir !== want ? 'WRONG WAY!' : 'MISSED!';
       pts += p; got = p ? want : null;
+      if (!p) strikes++;
       sfx(p === 5 ? 'cup' : p ? 'ding' : 'buzz');
       state = 'judged'; t = 0;
     }
@@ -14965,7 +15070,7 @@
           if (t > 110 || (t > 30 && pressed.has('a'))) {
             if (a.me) {
               order = acts.slice().sort((p, q) => sum(q) - sum(p) || (q.me ? 1 : 0) - (p.me ? 1 : 0));
-              record = saveBest('costume', sum(me));
+              record = saveBest('costumepts', pts);
               state = 'done'; t = 0; sfx(order[0] === me ? 'cup' : 'ding');
             } else { state = 'exit'; t = 0; }
           }
@@ -14981,9 +15086,9 @@
         }
         if (state === 'judged') {
           if (t > 30) {
-            if (++pose < POSES) { state = 'step'; t = 0; return; }
-            // the judges mark you out of 10 each, on how well you hit your poses
-            me.cards = [0.3, -0.3, 0].map((d) => Math.max(1, Math.min(10, Math.round(pts * 2 / POSES + d))));
+            if (strikes < STRIKES) { pose++; state = 'step'; t = 0; return; }
+            // the judges mark you out of 10 each, on your points
+            me.cards = [0.3, -0.3, 0].map((d) => Math.max(1, Math.min(10, Math.round(pts / 6 + d))));
             quip = 'Judges, your scores please!';
             state = 'cards'; t = 0; sfx('ding');
           }
@@ -15045,9 +15150,12 @@
         else if (state === 'spin') { img = a.sprites[['down', 'left', 'up', 'right'][(t / 12 | 0) & 3]][0]; lift = (t / 12 | 0) & 1 ? 2 : 0; }
         else if (state === 'exit') { x = CX + (SW - CX + 8) * Math.min(1, t / 50); img = a.sprites.right[(t >> 3) & 1 ? 1 : 0]; }
         else if (a.me) {
-          x = STOPS(Math.min(pose, POSES - 1));
-          if (state === 'ready') x = STOPS(0) - GAP;
-          else if (state === 'step') { x -= GAP * (1 - Math.min(1, t / 16)); img = sprites.right[(t >> 3) & 1 ? 1 : 0]; }
+          x = stopAt(pose);
+          if (state === 'ready') x = stopAt(-1);
+          else if (state === 'step') {
+            const from = stopAt(pose - 1);
+            img = sprites[x < from ? 'left' : 'right'][(t >> 3) & 1 ? 1 : 0]; x = from + (x - from) * Math.min(1, t / 16);
+          }
           else if (state === 'judged' && got) { img = sprites[got][1 + ((t >> 3) & 1)]; lift = Math.max(0, 6 - Math.abs(t - 8)); }
           else if (state === 'cards' || state === 'done') { x = CX; lift = (tick >> 4) & 1; }
         }
@@ -15088,9 +15196,11 @@
             text(n, jx + 16 - n.length * 6, 155, 2, '#181820');
           }
         });
+        // your misses to spare, as pumpkins, while it's your turn
+        if (a.me && ['ready', 'step', 'pose', 'judged'].includes(state)) for (let i = 0; i < STRIKES; i++) drawPumpkinAt(SW - 22 - i * 14, 22, i >= strikes);
         if (state === 'cards' && t > 42) ctext(a.name + ': ' + sum(a) + ' points', 224, '#f8e040');
         else if (a.me && state !== 'intro' && state !== 'done') {
-          text('Pose ' + Math.min(pose + 1, POSES) + '/' + POSES, 8, 224, 1, '#c8ccd8');
+          text('Pose ' + (pose + 1) + '  Score ' + pts, 8, 224, 1, '#c8ccd8');
           const hint = 'Arrows: strike the pose';
           text(hint, SW - 8 - hint.length * 6, 224, 1, '#c8ccd8');
         } else if (state !== 'intro' && state !== 'done') ctext(a.name + ' the ' + a.outfit, 224, '#c8ccd8');
@@ -15107,7 +15217,7 @@
             text(sc, SW - 38 - sc.length * 6, y);
           });
           ctext(order[0] === me ? 'BEST COSTUME! You win!' : 'Best costume: ' + order[0].name, 160, '#c05810');
-          ctext(record ? 'New record!' : 'Your best: ' + getBest('costume'), 174);
+          ctext('Your poses scored ' + pts + (record ? '  New record!' : '  Best ' + getBest('costumepts')), 174);
           if (t > 40 && (tick >> 4) & 1) ctext('Press Space', 190);
         }
       },
@@ -16281,7 +16391,7 @@
     { key: 'punch5', need: 300, text: 'Punch the bag for 300 points' },
     { key: 'squat', need: 175, text: 'Squat 175 lb' },
     { key: 'run', need: 150, text: 'Run 150m on the treadmill' },
-    { key: 'pulldown', need: 10, text: 'Do 10 clean lat pulldowns' },
+    { key: 'pullreps', need: 5, text: 'Do 5 clean lat pulldowns' },
     { key: 'jam', need: 6, text: 'Unjam 6 sheets from the printer' },
     { key: 'blackjack', need: 300, text: 'Win 100 spring rolls off Cody' }, // you start with 200
     { key: 'battle', need: 1, text: 'Beat Richard in his silly duel' },
@@ -16294,7 +16404,7 @@
     { key: 'candy', need: 5, text: 'Sneak 5 candies off the table' },
     { key: 'desk', need: 7, text: 'Send 7 visitors the right way' },
     { key: 'forms', need: 1, text: 'Help Jhonna with her forms' },
-    { key: 'cpr', need: 15, text: 'Get 15 perfect CPR compressions' },
+    { key: 'cprpts', need: 20, text: 'Score 20 on the CPR dummy' },
     { key: 'engrave', need: 70, text: 'Engrave a nameplate (70% on)' },
     { key: 'golf', need: 1, text: 'Play a round on Wade\'s green' },
     { key: 'legosolo', need: 5, text: 'Clear 5 rows at Joe\'s Lego shelf' },
@@ -17602,7 +17712,7 @@
   const MP_ON = !!(MP_WS || MP_URL);
   // Bump this whenever a player's record or a message changes shape: copies on different
   // numbers don't see each other at all, rather than seeing each other wrong.
-  const MP_PROTO = 1;
+  const MP_PROTO = 2;
   // when this copy was published (see index.html): two players can only play a match on
   // the same version, and an older copy is told to reload when a newer one turns up
   const MP_VER = window.GAME_VERSION ? +window.GAME_VERSION : 0;

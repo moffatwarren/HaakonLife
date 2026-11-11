@@ -207,16 +207,16 @@ Walk up to these and press A:
 - **Treadmill** (fitness room): jump over the gym clutter (hold A to jump higher) and duck under hanging stuff with Down
 - **Big TVs**: play Pong against the TV, first to 5
 - **Wade's putting green** (2nd floor, office 137): 9 holes of top-down mini golf with sand and water (you can challenge another player to it too; see **Playing together**)
-- **Air handling fan** (Boardroom 114): hold the wheel inside the target CFM band without tripping the motor
+- **Air handling fan** (Boardroom 114): hold the wheel inside the target CFM band without tripping the motor, for long enough to balance the branch, then the next. The bands narrow, and from the 4th branch the load shifts and the band drifts, quicker each branch, until a branch runs out of time or the motor trips
 - **Cooling coil** (Boardroom 114): hold the superheat in the green while the load wanders; frost it or flood it and you lose
 - **Dampers** (Boardroom 114): three branches share one fan, so balancing them is a puzzle, not three dials
 - **Supply cupboard**: match filter sizes before the pressure-drop alarm tops out
 - **The other TVs** (the left-hand sets): Snake, so they aren't all Pong
 - **Parts on the floor** (2nd floor): sort them into bins as they come past on the belt
 - **Server racks**: patch every port to its matching colour
-- **First aid dummy** (170 First Aid Station): compressions at 110 bpm, scored on timing
+- **First aid dummy** (170 First Aid Station): one compression on each beat of the 110 bpm song, 2 points close to it and 1 near it. Off the beat, twice for one beat, or a beat let go by is a strike, and every 10 beats the green narrows, until the third strike
 - **Engraver** (2nd floor, room 193): trace the nameplate without straying off the line
-- **Lat pulldown** (fitness room): pull, then release, as the marker sweeps through the sweet spot; 20 sweeps, scored out of 20
+- **Lat pulldown** (fitness room): pull, then release, as the marker sweeps through the sweet spot. Each clean rep makes the next sweep quicker (and the sweet spot starts wide and closes in over the first 10), until your third miss; the score is your clean reps
 - **Exercise ball** (fitness room): shift your weight and stay on it
 - **Front desk** (Reception): send each visitor to the right office; you have to know the building
 - **Printer**: 90 seconds to ease out as many jammed sheets as you can without tearing them: the harder you pull the quicker a sheet comes, so ride close to the red, watch for snags on the rollers, keep each sheet straight, and read whatever somebody printed if you've got the time
@@ -513,6 +513,22 @@ boards (on the Hall of Fame's Board Games page) count the same way: each checkma
 each game of checkers you win by taking everything or leaving them no move, against a coworker
 or another player, adds one. Winning because someone resigned, left or ran out of time doesn't.
 
+CPR, the lat pulldown, Dmitriy's carrots, Patrick's dance-off, the costume contest and Nik's wok
+used to have a most you could score (30 perfect compressions, 20 clean reps, 100%, 30 from the
+judges, or as many dishes as can be cooked in a minute), so the best players all tied on it. Now
+the first five go on, getting harder, until you've made too many mistakes, and the wok counts
+every piece of food you plate, so a better player can always get further. Since the old scores
+don't compare, those six moved to new boards on 10 November 2026 and started again: `cprpts`,
+`pullreps`, `carrotpts`, `dancepts`, `costumepts` and `wokpieces`. The old rows are still in the
+database under `cpr`, `pulldown`, `carrotpct`, `dance`, `costume` and `wokdishes`, which nothing
+shows any more, and they can be deleted on the Data tab.
+
+The air handling fan and Mummy Wrap had the same trouble (3 branches; and the paper tore if you
+went faster than 6 wraps a second, so nobody could beat about 10.8s). The fan's branches now keep
+coming, and the paper loosens as you keep a run going, so your own hands set the pace. They kept
+their boards, `fan` and `mummy`: the fan's first three branches are just as they were, and an old
+Mummy Wrap time is still a real time, it's only easier to beat now.
+
 The live poker table's board (**Live Hold'em**) is a running tally rather than a best
 score. Every hand you're dealt into counts: if you end it with more spring rolls than you
 were dealt in with, the difference goes on your total won, and if you end it with fewer
@@ -620,7 +636,7 @@ The scores live in a free Firebase Realtime Database. To set one up:
         ".indexOn": ["score"],
         "$player": {
           ".write": "newData.exists() && (!data.exists() || newData.child('score').val() > data.child('score').val()) && ($game !== 'humbug26' || (now >= 1795766400000 && now < 1798790400000))",
-          ".validate": "$game.matches(/^(ball|blackjack|bob|cable|candy|cards|cardwins|carrotpct|carve|catchrun|checkers|chess|chop|cocoa|coffee|coil|costume|cpr|damper|dance|dark|desk|engrave|eotm|fan|filter|forklift|forms|galaxy|ghosts|golf9|hockey|humbug|humbug26|jam|laundry|legolines|legosolo|linda|lunch|mallow|mummy|paint|parts|poker|pokerlivelost|pokerlivewon|pong|pulldown|punch5|racelake|racemaple|raceplant|raceprairie|racesnow|run|simon|slots|snake|snowball|snowman|spruce|squat|stack|toss|treat|trophy|wokdishes)$/) && $player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['name','score','t']) && newData.child('score').isNumber() && newData.child('score').val() >= -100000 && newData.child('score').val() <= 1000000 && newData.child('t').val() == now",
+          ".validate": "$game.matches(/^(ball|blackjack|bob|cable|candy|cards|cardwins|carrotpts|carve|catchrun|checkers|chess|chop|cocoa|coffee|coil|costumepts|cprpts|damper|dancepts|dark|desk|engrave|eotm|fan|filter|forklift|forms|galaxy|ghosts|golf9|hockey|humbug|humbug26|jam|laundry|legolines|legosolo|linda|lunch|mallow|mummy|paint|parts|poker|pokerlivelost|pokerlivewon|pong|pullreps|punch5|racelake|racemaple|raceplant|raceprairie|racesnow|run|simon|slots|snake|snowball|snowman|spruce|squat|stack|toss|treat|trophy|wokpieces)$/) && $player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['name','score','t']) && newData.child('score').isNumber() && newData.child('score').val() >= -100000 && newData.child('score').val() <= 1000000 && newData.child('t').val() == now",
           "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12 && newData.val().toLowerCase().replace(' ', '_').replace('.', '_').replace(\"'\", '_').replace('-', '_') === $player" },
           "score": { ".validate": true },
           "t": { ".validate": true },
@@ -1089,9 +1105,9 @@ table (`interact` and `clickUse` in `js/game.js`).
     build, and clearing 2 or more rows sends grey bricks up under them. First to reach
     the top loses.
   - **Dance-off**: Patrick's dance-off, against each other. You both get the same
-    arrows and see each other's score go up as you dance; the higher score once you've
-    both finished the song wins. If either of you is on a phone, you both get the
-    gentler phone version, so it's fair.
+    arrows and see each other's score go up as you dance; the higher score once you're
+    both off the floor (five misses each) wins. If either of you is on a phone, you both
+    get the gentler phone version, so it's fair.
   - **Forklift Rush**: the plant's forklift game, both of you in the same warehouse
     (yours is the orange forklift, theirs is blue with their name on it). There's one
     truck and one call at a time, so you race for the same pallets: whoever gets the
@@ -1468,8 +1484,10 @@ Some coworkers have a game for you. Walk up to them and press A:
   Block, and Damper Block beats Fan Gust.
 - **Patrick** (office 171, the one with the disco floor): a dance-off. Arrows
   rise up four lanes in time with the office's rave tune, and you hit each one
-  as it reaches the top. Beat Patrick's score and he calls the whole office in
-  for a few seconds of dance party.
+  as it reaches the top: 2 points spot on, 1 close. It goes on until your fifth
+  miss, the arrows coming thicker and, from the fourth set of 4 bars, the timing
+  stricter each set. Patrick's score, somewhere from 25 to 64, shows dimmed under
+  him. Beat it and he calls the whole office in for a few seconds of dance party.
 - **Nathan** (office 115): grab the trophy he names off his crowded shelf
   before the sweeping hand runs away with you.
 - **Wade** (2nd floor, office 137): a nine-hole putting grudge match.
@@ -1482,10 +1500,13 @@ Some coworkers have a game for you. Walk up to them and press A:
   everything about being a chef, and shows you at the wok. Toss the stir-fry
   with Space and slide the wok to catch it. Food cooks in the wok (faster over
   the flame) but scorches if you don't keep it moving. Serve more than Nik's 4
-  dishes in a minute.
+  dishes in a minute. The leaderboard counts the pieces of food you plate, so
+  every piece you drop counts against you there.
 - **Dmitriy** (2nd floor, cubicle 173): says he ran the line, not Nik, and
-  tests your knife skills. Five carrots slide under the knife, each faster with
-  more lines; chop on the dotted lines. Beat his 75% evenness.
+  tests your knife skills. Carrots slide under the knife, the first five each
+  faster with more lines; chop on the dotted lines, for 3 points spot on, 2 close
+  and 1 sloppy. A missed line or a cut with no line is a botch, and after the
+  fifth carrot each one gives you less leeway, until your third botch. Beat his 70.
 - **Joe** (2nd floor, office 146, with the Lego shelf): a Lego brick battle.
   Falling bricks on two baseplates, you against Joe, with the same bricks in
   the same order. Clear 2 or more rows at once to push grey bricks up under
@@ -1560,7 +1581,8 @@ All through October (by your device's date) the office does Halloween:
   - **Tub of water** (bottom-left corner): bobbing for apples. Slide along the tub and
     dunk when an apple is under you. Golden apples are worth 3; a rubber duck costs 2 seconds.
   - **Toilet rolls** (top-left corner): mummy wrap. Alternate left and right to wrap a
-    coworker faster than the other team, but mash too fast and the paper tears.
+    coworker faster than the other team, but mash too fast and the paper tears. Every wrap
+    in a row loosens the paper so it takes a faster pace, and a tear starts it stiff again.
   - **Pumpkin on the counter**: pumpkin carving. Remember the face, then carve it one
     feature at a time. One wrong cut and the knife slips.
   - **Candy bowl** (on the table, door side): trick-or-treat catch. Sweets in the bag;
@@ -1568,8 +1590,11 @@ All through October (by your device's date) the office does Halloween:
   - **Bookshelves** (by the doors): ghost in the cupboard. Press the arrow for the
     cupboard a ghost pops out of, before it floats off. Leave Linda alone.
 - Talk to **Lam** when you're ready for the **costume contest**: three coworkers walk
-  the catwalk, then you strike ten poses, the ring closing faster each time. Press the arrow
-  shown as the ring closes onto the mark; three judges score you out of 10 each.
+  the catwalk, then you strike pose after pose, the ring closing faster each time. Press the
+  arrow shown as the ring closes onto the mark (5 spot on, 4 close, 2 near); a wrong arrow or
+  a late one is a miss, and your turn ends on the third (the pumpkins top right). Three judges
+  then score you out of 10 each, from your score (about 60 gets a 10), and the cards decide the
+  contest. Your score goes on the leaderboard.
 - Then it's "Happy Haakon Halloween", and you're back by your chair with the office
   as it was. Sit down again to run the party again.
 
