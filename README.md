@@ -485,8 +485,9 @@ with any furniture you've already earned for it.
 with a cursor on it, and along the top is what's under the cursor:
 
 - The arrows move the cursor (hold one to keep going).
-- A on an empty tile opens the **catalogue**: first the floor, then everything there is for a
-  lair, what you have first. Pick one of yours and you're carrying it. The ones you don't have
+- A on an empty tile opens the **catalogue**: first the floor and the lights, each showing what
+  it's set to now with an arrow at the end, since each opens a list of its own, then (below a line)
+  everything there is for a lair, what you have first. Pick one of yours and you're carrying it. The ones you don't have
   yet are greyed out, with what earns each one. Everything you have can go in as many times as
   you like.
 - **The floor** is carpet, wood, dark wood, parquet, tiles, a checkerboard, stone, concrete or
@@ -503,8 +504,11 @@ with a cursor on it, and along the top is what's under the cursor:
 - Carrying something, START turns it (so does the scroll wheel). A chair faces any of the four
   ways, and the desk, the table and the red and plaid rugs run either way. Everything else is only
   drawn facing you, so it only goes one way, and the top of the screen says so.
+- **The lights** are on or low. With them low, the room's dark except where the lamps light it.
+  Picking them from the catalogue lists the two, shown in the room as you go past each one, the
+  same as the floors, and the catalogue's picture of them is your floor with two lamps on it.
 - START with nothing in your hand has **ADD SOMETHING** (the catalogue), **FLOOR**, **LIGHTS**
-  and **DONE**. With the lights low, the room's dark except where the lamps light it.
+  and **DONE**. There, A on LIGHTS switches them straight over.
 - B with nothing in your hand is done, and it's saved.
 - With the mouse, the cursor goes where you point, a click is A and the right button is B.
 
@@ -576,7 +580,8 @@ the piece's id, so they can be given out in any order. A rug (`rug`) isn't
 a tile: the map has a list of them (`rugs`) that `renderFloorPart` lays on the floor before
 anything standing there (`RUGS32` and `rug32` in `js/art.js`), so it never gets in the way. The
 lamps (`floorLamp`, `tableLamp` and `lavaLamp` in `OBJ32`, on the map as `(`, `)` and `|`) are
-lit by `lairLight`, which also puts the lights down. The floors only for lairs are `W` (dark
+lit by `lairLight`, which also puts the lights down (each lamp's light is `lampGlow`, which the
+catalogue's picture of the lights uses too). The floors only for lairs are `W` (dark
 wood), `H` (parquet) and `X` (the checkerboard) in `floor32`. Games report results
 through `questNote`, `boardNote` and `questBoard` as before, and `lairNote` checks them
 against the pieces. A piece you've earned is a special item named `f_` and its id, like

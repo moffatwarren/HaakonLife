@@ -24162,8 +24162,8 @@
   // ---------- the lamps and the lights ----------
   // A lamp lights up a pool of the floor round it, warm (a lava lamp's is orange, and it swells and
   // fades), and its shade glows. Press A at one to switch it off or on again (only for now: they're
-  // all on each time you come in). With the lights down (LIGHTS in DECORATE's menu, kept with your
-  // lair), the room is dark but for the lamps.
+  // all on each time you come in). With the lights down (Lights in the catalogue, or LIGHTS in
+  // DECORATE's menu, kept with your lair), the room is dark but for the lamps.
   let lairLamps = []; // the lamps in your lair: { x, y, lamp }
   const lairOff = new Set(); // the ones you've switched off, as "x,y"
   function lairSwitch(x, y) {
@@ -24171,6 +24171,7 @@
     if (lairOff.has(k)) lairOff.delete(k); else lairOff.add(k);
     sfx('blip');
   }
+  const LAIR_DARK = 'rgba(10, 8, 30, 0.66)'; // over the room, with the lights low
   function lairLight(cx, cy) {
     const low = lair.low;
     // (all of it inside the room's walls)
@@ -24179,28 +24180,28 @@
     ctx.rect((LR.x1 - 1) * 16 - cx, (LR.y1 - 1) * 16 - cy, (LR.x2 - LR.x1 + 3) * 16, (LR.y2 - LR.y1 + 3) * 16);
     ctx.clip();
     if (low) {
-      ctx.fillStyle = 'rgba(10, 8, 30, 0.66)';
+      ctx.fillStyle = LAIR_DARK;
       ctx.fillRect((LR.x1 - 1) * 16 - cx, (LR.y1 - 1) * 16 - cy, (LR.x2 - LR.x1 + 3) * 16, (LR.y2 - LR.y1 + 3) * 16);
     }
     ctx.globalCompositeOperation = 'lighter';
-    for (const l of lairLamps) {
-      if (lairOff.has(l.x + ',' + l.y)) continue;
-      const lava = l.lamp.lava, pulse = lava ? 0.8 + Math.sin(tick / 40) * 0.2 : 1;
-      const rgb = lava ? '255, 110, 50' : '255, 196, 110';
-      const glow = (x, y, r, a, flat) => {
-        ctx.save();
-        ctx.translate(x, y); ctx.scale(1, flat);
-        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-        g.addColorStop(0, 'rgba(' + rgb + ', ' + a + ')'); g.addColorStop(1, 'rgba(' + rgb + ', 0)');
-        ctx.fillStyle = g; ctx.fillRect(-r, -r, r * 2, r * 2);
-        ctx.restore();
-      };
-      const sx = l.x * 16 - cx, sy = l.y * 16 - cy;
-      // the pool on the floor, then the shade itself
-      glow(sx + 8, sy + 14, low ? 46 : 30, (low ? 0.5 : 0.16) * pulse, 0.62);
-      glow(sx + l.lamp.x, sy + l.lamp.y, low ? 14 : 9, (low ? 0.75 : 0.45) * pulse, 1);
-    }
+    for (const l of lairLamps) if (!lairOff.has(l.x + ',' + l.y)) lampGlow(l.x * 16 - cx, l.y * 16 - cy, l.lamp, low);
     ctx.restore();
+  }
+  // One lamp's light, on the tile at sx, sy (z times as big, for the catalogue's picture): the pool
+  // on the floor, then the shade itself. It goes on with 'lighter'.
+  function lampGlow(sx, sy, lamp, low, z = 1) {
+    const pulse = lamp.lava ? 0.8 + Math.sin(tick / 40) * 0.2 : 1;
+    const rgb = lamp.lava ? '255, 110, 50' : '255, 196, 110';
+    const glow = (x, y, r, a, flat) => {
+      ctx.save();
+      ctx.translate(x, y); ctx.scale(1, flat);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+      g.addColorStop(0, 'rgba(' + rgb + ', ' + a + ')'); g.addColorStop(1, 'rgba(' + rgb + ', 0)');
+      ctx.fillStyle = g; ctx.fillRect(-r, -r, r * 2, r * 2);
+      ctx.restore();
+    };
+    glow(sx + 8 * z, sy + 14 * z, (low ? 46 : 30) * z, (low ? 0.5 : 0.16) * pulse, 0.62);
+    glow(sx + lamp.x * z, sy + lamp.y * z, (low ? 14 : 9) * z, (low ? 0.75 : 0.45) * pulse, 1);
   }
 
   // keeping it: in this browser, and under your name in the database (see "Your Secret Lair" in the README)
@@ -24380,7 +24381,7 @@
     function catalogue() {
       if (lair.pieces.length >= LAIR_MAX) { why = 'Your lair can\'t hold any more.'; whyT = 150; sfx('bump'); return; }
       sfx('menu');
-      ui.push(LairCatalogue((p) => { if (p === 'floor') floors(); else if (p) { carry = { p, t: 0, gx: 0, gy: 0 }; moveTo(cx, cy); } }));
+      ui.push(LairCatalogue((p) => { if (p === 'floor') floors(); else if (p === 'lights') lights(); else if (p) { carry = { p, t: 0, gx: 0, gy: 0 }; moveTo(cx, cy); } }));
     }
     function close() {
       remove(self); lairEdit = null;
@@ -24399,23 +24400,28 @@
         } else if (i === 3) { remove(m); close(); }
       }, { keepOpen: true, startCloses: true, minChars: 13 }));
     }
-    // The floors, each laid in the room as you go past it: A keeps the one you're on, B goes back to
-    // the one you had.
-    function floors() {
+    // A list to pick from, each one shown in the room as you go past it (show(i) puts number i in):
+    // A keeps the one you're on, B goes back to the one you had (number start).
+    function tryOn(names, start, show) {
       sfx('menu');
-      const was = lair.floor, at = LAIR_FLOORS.findIndex((f) => f[0] === was);
-      let shown = at;
-      const list = Choice(LAIR_FLOORS.map((f) => f[2]), -1, 0, (i) => {
-        lair.floor = i >= 0 ? LAIR_FLOORS[i][0] : was;
-        lairBuild();
-        if (lair.floor !== was) lairKeep();
-      }, { start: at });
+      let shown = start;
+      const list = Choice(names, -1, 0, (i) => {
+        show(i >= 0 ? i : start);
+        if (i >= 0 && i !== start) lairKeep();
+      }, { start });
       const step = list.update;
       list.update = () => {
         step();
-        if (ui.includes(list) && list.at !== shown) { shown = list.at; lair.floor = LAIR_FLOORS[shown][0]; lairBuild(); }
+        if (ui.includes(list) && list.at !== shown) { shown = list.at; show(shown); }
       };
       ui.push(list);
+    }
+    // the floors, and the lights on or low
+    function floors() {
+      tryOn(LAIR_FLOORS.map((f) => f[2]), LAIR_FLOORS.findIndex((f) => f[0] === lair.floor), (i) => { lair.floor = LAIR_FLOORS[i][0]; lairBuild(); });
+    }
+    function lights() {
+      tryOn(['ON', 'LOW'], lair.low ? 1 : 0, (i) => { lair.low = i === 1; });
     }
     const self = {
       update() {
@@ -24482,28 +24488,54 @@
     lairEdit = self;
     return self;
   }
-  // The catalogue: the floor first (done('floor') to pick another), then everything there is for a
-  // lair, what you have first. Pick one of yours to put in, or see what earns the rest.
+  // The catalogue: the floor and the lights first, each opening a list of its own to pick from
+  // (done('floor') or done('lights')), then everything there is for a lair, what you have first.
+  // Pick one of yours to put in, or see what earns the rest.
   function LairCatalogue(done) {
-    const FLOOR = { floorRow: true, name: 'Floor' };
-    const list = [FLOOR].concat(LAIR_PIECES.filter(lairHas), LAIR_PIECES.filter((p) => !lairHas(p)));
-    const mine = LAIR_PIECES.filter(lairHas).length, ROWS = 12, X = 8, Y = 30, RW = 140;
+    const FLOOR = { set: 'floor', name: 'Floor' }, LIGHTS = { set: 'lights', name: 'Lights' }, SETS = 2;
+    const list = [FLOOR, LIGHTS].concat(LAIR_PIECES.filter(lairHas), LAIR_PIECES.filter((p) => !lairHas(p)));
+    const mine = LAIR_PIECES.filter(lairHas).length, ROWS = 12, X = 8, Y = 30, RW = 140, GAP = 6;
     let cur = 0, first = 0;
     const pick = (i) => { cur = clamp(i, 0, list.length - 1); first = Math.max(cur - ROWS + 1, Math.min(first, cur)); };
+    // where row i is on the screen, with a gap between the floor and the lights and the furniture
+    const rowY = (i) => Y + (i - first) * 15 + (i >= SETS && first < SETS ? GAP : 0);
+    const shown = () => Math.min(list.length, first + ROWS);
+    // the floor and the lights: what they are now, and an arrow, since each opens a list
+    const setTo = (p) => (p === FLOOR ? LAIR_FLOORS.find((f) => f[0] === lair.floor)[2].toLowerCase() : lair.low ? 'low' : 'on');
+    function arrow(x, y, c) {
+      for (let j = 0; j < 7; j += 0.5) fine(x + Math.round(Math.min(j, 6.5 - j) * 1.4) / 2, y + j, 1.5, 0.5, c);
+    }
+    // the lights' picture: a bit of your floor with a floor lamp and a lava lamp on it, lit as the room is
+    const LAMPS = ['floorlamp', 'lavalamp'].map((id) => LAIR_BY_ID[id]);
+    function lightsPic(x, y) {
+      const ch = lairFloorCh(), k = 'lights' + ch;
+      const pic = lairPics[k] || (lairPics[k] = Art.renderFloor({ tiles: ['....', LAMPS[0].rows[0] + '..' + LAMPS[1].rows[0], '....'], floor: [ch.repeat(4), ch.repeat(4), ch.repeat(4)] }));
+      const w = pic.width, h = pic.height, z = w / 4 / 16;
+      ctx.drawImage(pic, x - w / 2, y - h / 2, w, h); // (twice as big as in the room, like the other pictures here)
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x - w / 2, y - h / 2, w, h); ctx.clip();
+      if (lair.low) { ctx.fillStyle = LAIR_DARK; ctx.fillRect(x - w / 2, y - h / 2, w, h); }
+      ctx.globalCompositeOperation = 'lighter';
+      LAMPS.forEach((p, i) => lampGlow(x - w / 2 + i * 3 * 16 * z, y - h / 2 + 16 * z, p.lamp, lair.low, z));
+      ctx.restore();
+    }
     const self = {
       point(px, py, button) {
         if (button === 'b') return 'b';
-        const i = first + Math.floor((py - Y + 3) / 15);
-        if (!inBox(px, py, X, Y - 3, RW, ROWS * 15) || i >= list.length) return null;
-        pick(i);
-        return lairHas(list[i]) ? 'a' : null;
+        if (px < X || px >= X + RW) return null;
+        for (let i = first; i < shown(); i++) {
+          if (py < rowY(i) - 3 || py >= rowY(i) + 12) continue;
+          pick(i);
+          return lairHas(list[i]) ? 'a' : null;
+        }
+        return null;
       },
       wheel(d) { first = clamp(first + d, 0, Math.max(0, list.length - ROWS)); cur = clamp(cur, first, first + ROWS - 1); },
       update() {
         if (pressed.has('up')) { pick((cur + list.length - 1) % list.length); sfx('select'); }
         if (pressed.has('down')) { pick((cur + 1) % list.length); sfx('select'); }
         if (pressed.has('a')) {
-          if (list[cur] === FLOOR) { remove(self); done('floor'); } else if (lairHas(list[cur])) { remove(self); done(list[cur]); } else sfx('bump');
+          if (list[cur].set) { remove(self); done(list[cur].set); } else if (lairHas(list[cur])) { remove(self); done(list[cur]); } else sfx('bump');
         } else if (pressed.has('b')) { sfx('select'); remove(self); done(null); }
       },
       draw() {
@@ -24511,23 +24543,33 @@
         text('CATALOGUE', X + 4, 10);
         const have = mine + ' OF ' + LAIR_PIECES.length + ' YOURS';
         text(have, SW - 12 - have.length * 6, 10, 1, '#686878');
-        for (let i = first; i < Math.min(list.length, first + ROWS); i++) {
-          const y = Y + (i - first) * 15, p = list[i], c = i === cur ? col.light : lairHas(p) ? col.dark : '#9898a8';
-          if (i === cur) pickBar(X, y - 3, RW, 14, col.dark);
-          const name = p === FLOOR ? 'Floor: ' + LAIR_FLOORS.find((f) => f[0] === lair.floor)[2].toLowerCase() : p.name;
-          text(name.length > 21 ? name.slice(0, 20) + '.' : name, X + 6, y, 1, c);
+        for (let i = first; i < shown(); i++) {
+          const y = rowY(i), p = list[i], on = i === cur, c = on ? col.light : lairHas(p) ? col.dark : '#9898a8';
+          if (on) pickBar(X, y - 3, RW, 14, col.dark);
+          if (p.set) {
+            const now = setTo(p);
+            text(p.name, X + 6, y, 1, c);
+            text(now, X + RW - 17 - now.length * 6, y, 1, on ? '#b8b8c8' : '#787888');
+            arrow(X + RW - 10, y, c);
+          } else text(p.name.length > 21 ? p.name.slice(0, 20) + '.' : p.name, X + 6, y, 1, c);
         }
+        if (first < SETS) fine(X + 4, rowY(SETS) - 3 - GAP / 2 - 0.5, RW - 8, 1, 'rgba(40, 40, 60, 0.22)');
         if (first) text('^', X + RW - 8, Y - 14, 1, '#686878');
-        if (first + ROWS < list.length) text('v', X + RW - 8, Y + ROWS * 15 - 2, 1, '#686878');
+        if (first + ROWS < list.length) text('v', X + RW - 8, SH - 18, 1, '#686878');
         // the one that's picked: its picture, as big as fits, and how you get it if it isn't yours
-        const p = list[cur], pic = p === FLOOR ? lairFloorPic(lairFloorCh()) : lairPic(p), PX = 156, PW = SW - PX - 12;
-        const k = pic.width <= PW && pic.height <= 104 ? 1 : 0.5, pw = pic.width * k, ph = pic.height * k;
+        const p = list[cur], PX = 156, PW = SW - PX - 12;
         roundBox(PX, Y - 4, PW, 112, 3, 'rgba(120, 110, 90, 0.12)');
-        if (!lairHas(p)) ctx.globalAlpha = 0.35;
-        ctx.drawImage(pic, PX + ((PW - pw) >> 1), Y - 4 + ((112 - ph) >> 1), pw, ph);
-        ctx.globalAlpha = 1;
-        text(p.name, PX, Y + 116);
-        const say = p === FLOOR ? ['Space: pick another.'] : wrap(lairHas(p) ? 'Yours' + (lairTurns(p) > 1 ? ', and it turns.' : '.') + ' Space: put one in.' : 'To get it: ' + p.earn.text + '.', Math.floor(PW / 6));
+        if (p === LIGHTS) lightsPic(PX + PW / 2, Y - 4 + 56);
+        else {
+          const pic = p === FLOOR ? lairFloorPic(lairFloorCh()) : lairPic(p);
+          const k = pic.width <= PW && pic.height <= 104 ? 1 : 0.5, pw = pic.width * k, ph = pic.height * k;
+          if (!lairHas(p)) ctx.globalAlpha = 0.35;
+          ctx.drawImage(pic, PX + ((PW - pw) >> 1), Y - 4 + ((112 - ph) >> 1), pw, ph);
+          ctx.globalAlpha = 1;
+        }
+        text(p.set ? p.name + ': ' + setTo(p) : p.name, PX, Y + 116);
+        const say = p === FLOOR ? ['Space: pick another.'] : p === LIGHTS ? wrap('With them low, it\'s dark but for the lamps. Space: pick on or low.', Math.floor(PW / 6))
+          : wrap(lairHas(p) ? 'Yours' + (lairTurns(p) > 1 ? ', and it turns.' : '.') + ' Space: put one in.' : 'To get it: ' + p.earn.text + '.', Math.floor(PW / 6));
         say.forEach((l, i) => text(l, PX, Y + 132 + i * 13, 1, lairHas(p) ? col.dark : '#686878'));
         text('Esc: back', X + 4, SH - 18);
       },
