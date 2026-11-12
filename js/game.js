@@ -174,8 +174,13 @@
   // you back in the office (see onArrive).
   const CASINO = MAPS.floors.findIndex((f) => f.casino);
   const CASINO_AT = CASINO >= 0 ? MAPS.floors[CASINO].casino : null;
+  // Your Secret Lair: the empty room by the ground floor's elevator is bigger on the inside in
+  // the same way (LAIR_AT says which floor and room), and everybody has their own (see "your
+  // Secret Lair" further down).
+  const LAIR = MAPS.floors.findIndex((f) => f.lair);
+  const LAIR_AT = LAIR >= 0 ? MAPS.floors[LAIR].lair : null;
   // the floor someone on floor f shows up on, on the map
-  const mapFloor = (f) => (f === CASINO ? CASINO_AT.floor : f);
+  const mapFloor = (f) => (f === CASINO ? CASINO_AT.floor : f === LAIR ? LAIR_AT.floor : f);
   // Christmas: from Nov 27 to Dec 31 (by your device's date) the office is decorated and
   // the fitness room's side doors open onto the parking lot, a map of its own with a rink
   // on it (see "Christmas" further down). Adding &christmas=1 (or =0) to a #play link
@@ -1411,12 +1416,19 @@
     }), x, y);
   }
 
+  // Where someone at x, y on floor f goes on the map. A lair is bigger than the room it opens
+  // off, so anybody in one is somewhere in that room.
+  function mapSpot(f, x, y) {
+    if (f !== LAIR) return [x, y];
+    const r = MAPS.floors[LAIR_AT.floor].rooms.find((rm) => rm.name === LAIR_AT.room);
+    return r ? [clamp(x, r.x1, r.x2), clamp(y, r.y1, r.y2)] : [x, y];
+  }
   function MapView() {
     const here = mapFloor(P.floor);
     let fi = here;
     // the office floors flip between each other; the plant and the parking lot are maps on their own
     const own = (i) => (i === PLANT || i === YARD ? i : -1);
-    const floors = MAPS.floors.map((f, i) => i).filter((i) => i !== CASINO && own(i) === own(here));
+    const floors = MAPS.floors.map((f, i) => i).filter((i) => i !== CASINO && i !== LAIR && own(i) === own(here));
     const self = {
       point: anyClick,
       wheel(d) { if (floors.length > 1) { fi = floors[(floors.indexOf(fi) + d + floors.length * 4) % floors.length]; sfx('select'); } }, // (the wheel goes through the floors)
@@ -1437,8 +1449,8 @@
         fine(mx - 1, my + m.height * k + 0.5, m.width * k + 2, 0.5, col.mid); fine(mx + m.width * k + 0.5, my - 1, 0.5, m.height * k + 2, col.mid);
         // (round dots, each with a light on it)
         const dot = (x, y, c) => { fineDisc(mx + x * k + k / 2, my + y * k + k / 2, k / 2 + 1, c); fine(mx + x * k + k / 2 - 1, my + y * k + k / 2 - 1, 0.5, 0.5, 'rgba(255, 255, 255, 0.7)'); };
-        for (const o of mpHere()) if (mapFloor(o.f) === fi) dot(o.x, o.y, '#d83040');
-        if (fi === here && (tick >> 3) & 1) dot(P.x, P.y, col.dark);
+        for (const o of mpHere()) if (mapFloor(o.f) === fi) dot(...mapSpot(o.f, o.x, o.y), '#d83040');
+        if (fi === here && (tick >> 3) & 1) dot(...mapSpot(P.floor, P.x, P.y), col.dark);
         const r = fi === here ? roomAt(P.floor, P.x, P.y) : null;
         const ty = my + m.height * k + 12;
         text(r ? r.name : fi !== here ? '' : fi === PLANT ? 'Plant floor' : 'Hallway', 10, ty);
@@ -4844,6 +4856,7 @@
   let pendingBoard = null;
   // Called with every result; the board itself goes up once the game on top has closed (see update).
   function boardNote(key, score) {
+    lairNote(key, score);
     if (key.startsWith('dogrun.')) key = 'catchrun';
     if (!BOARDS[key] || !(BOARD_URL || boardDemo)) return;
     pendingBoard = { key, score, owner: top() };
@@ -4852,6 +4865,7 @@
   // board. The count goes up from what the database already holds for the name, so playing
   // on a phone and a computer adds up. The board goes up once everything that was being said is done.
   function questBoard(key) {
+    lairNote(key, 1);
     if (!(BOARD_URL || boardDemo)) return;
     const name = playerName || store.get('name') || '';
     const mine = !name || boardDemo || !BOARD_POSTS ? Promise.resolve(null)
@@ -5270,7 +5284,8 @@
       }
     };
     if (wornLook(myLook).flair === Art.STAR_TRAIL && !out(P.floor)) drop(GLOW.me, P.floor, ...mePx());
-    for (const o of mpHere()) if (o.look.flair === Art.STAR_TRAIL && !out(o.f)) drop(o.glow || (o.glow = {}), o.f, o.px, o.py);
+    // (nobody else's trail in a Secret Lair: they're in their own)
+    for (const o of mpHere()) if (o.look.flair === Art.STAR_TRAIL && !out(o.f) && o.f !== LAIR) drop(o.glow || (o.glow = {}), o.f, o.px, o.py);
     while (GLOW.pts.length && tick - GLOW.pts[0].t >= GLOW_LIFE) GLOW.pts.shift();
   }
   // a four-point twinkle reaching r either side of the real pixel at (x, y), white at its heart
@@ -5589,11 +5604,11 @@
     const sc = hockey && hockey.scene(), out = (f) => f === YARD && sc;
     const worn = wornLook(myLook), [mx, my] = mePx();
     followOne(WALKS.me, hw.worn ? -1 : worn.hat, worn.flair === Art.SWEEPER && !out(P.floor), P.floor, mx, my, P.dir, !hw.worn && worn.shirt === Art.LIGHTS && !out(P.floor));
-    for (const o of mpHere()) followOne(o.walks || (o.walks = {}), o.c ? -1 : o.look.hat, o.look.flair === Art.SWEEPER && !out(o.f), o.f, o.px, o.py, o.dir, !o.c && o.look.shirt === Art.LIGHTS && !out(o.f));
+    for (const o of mpHere()) if (o.f !== LAIR) followOne(o.walks || (o.walks = {}), o.c ? -1 : o.look.hat, o.look.flair === Art.SWEEPER && !out(o.f), o.f, o.px, o.py, o.dir, !o.c && o.look.shirt === Art.LIGHTS && !out(o.f));
     while (SWEEP_DUST.length && (tick - SWEEP_DUST[0].t >= SWEEP_DUST[0].life || SWEEP_DUST.length > 200)) SWEEP_DUST.shift();
   }
   // every Sweeper with somebody on this floor
-  const sweepersOn = (f) => [WALKS.me].concat(mpHere().map((o) => o.walks)).filter((m) => m && m.at && m.f === f);
+  const sweepersOn = (f) => [WALKS.me].concat(mpHere().filter((o) => o.f !== LAIR).map((o) => o.walks)).filter((m) => m && m.at && m.f === f);
   // (the snow off a Santa hat goes in with the Sweeper's dust: a flake, big or small, with a blue
   // edge to show on the snow outside, drifting from side to side as it falls)
   const FLAKES = [['...b...', '.b.b.b.', '..bwb..', 'bbwwwbb', '..bwb..', '.b.b.b.', '...b...'], ['..b..', '.bwb.', 'bwwwb', '.bwb.', '..b..']], FLAKE_COLS = { b: '#74aee8', w: '#ffffff' };
@@ -16352,6 +16367,7 @@
     sfx('menu');
     // Linda's and Kiki's lists show up in the menu once you've got them
     const items = () => (P.floor === PLANT ? [['LEAVE PLANT', (self) => { remove(self); leavePlant(); }]] : [])
+      .concat(P.floor === LAIR ? [['DECORATE', (self) => { remove(self); ui.push(LairEdit()); }]] : [])
       .concat([['MAP', () => ui.push(MapView())]])
       .concat(MP_ON ? [['WHO\'S HERE', (self) => { remove(self); mpWho(); }], ['SAY SOMETHING', (self) => { remove(self); mpSayMenu(); }]] : [])
       .concat(mp.newer ? [['UPDATE GAME', () => location.reload()]] : [])
@@ -16622,6 +16638,7 @@
   // don't keep a best score).
   function questNote(key, value) {
     coworkerNote(key, value);
+    lairNote(key, value);
     if (!quest || quest.complete) return;
     for (const task of quest.tasks) {
       if (task.done || task.key !== key || !(value >= task.need)) continue;
@@ -17136,6 +17153,8 @@
   const INFO = {
     d: ['A desk buried in sticky notes.', 'A tidy desk. Suspiciously tidy.', 'Someone left a half-finished coffee here.'],
     c: ['An office chair. It spins!'],
+    // (the chair turned the other ways, in a Secret Lair)
+    '<': ['An office chair. It spins!'], '>': ['An office chair. It spins!'], '"': ['An office chair. It spins!'],
     p: ['A potted plant. Someone waters it every Monday.'],
     b: ['Binders, manuals and old catalogues.'],
     k: ['A clean countertop.'],
@@ -17712,7 +17731,7 @@
   const MP_ON = !!(MP_WS || MP_URL);
   // Bump this whenever a player's record or a message changes shape: copies on different
   // numbers don't see each other at all, rather than seeing each other wrong.
-  const MP_PROTO = 2;
+  const MP_PROTO = 3;
   // when this copy was published (see index.html): two players can only play a match on
   // the same version, and an older copy is told to reload when a newer one turns up
   const MP_VER = window.GAME_VERSION ? +window.GAME_VERSION : 0;
@@ -17909,13 +17928,17 @@
   // what a game says when it's over early: they left, or it was you who was gone too long
   const whoLeft = (vs, foe, str = ' left.') => (vs.lost ? 'You dropped out.' : foe + str);
   const mpHere = () => Object.values(mp.others).filter(mpLive);
+  // whether you can see them where you are: on your floor, and not in a Secret Lair, where everybody
+  // is in their own (anybody else in one is in theirs, not yours)
+  const mpWithMe = (o) => o.f === P.floor && P.floor !== LAIR;
   // where someone is, in pixels: exactly (from a copy that says), or the tile they're on
   const mpTarget = (o) => (typeof o.fx === 'number' && typeof o.fy === 'number' ? [o.fx, o.fy] : [o.x * 16, o.y * 16]);
   function mpAt(fi, x, y) {
-    return mpHere().find((o) => o.f === fi && ((o.x === x && o.y === y) || (Math.round(o.px / 16) === x && Math.round(o.py / 16) === y))) || null;
+    return mpHere().find((o) => o.f === fi && fi !== LAIR && ((o.x === x && o.y === y) || (Math.round(o.px / 16) === x && Math.round(o.py / 16) === y))) || null;
   }
   // where someone is, for the who's-here list
   function mpWhere(o) {
+    if (o.f === LAIR) return 'Their Secret Lair';
     const r = roomAt(o.f, o.x, o.y);
     return r ? (o.f === PLANT ? 'Kingston ' : '') + r.name : MAPS.floors[o.f].name;
   }
@@ -18405,7 +18428,7 @@
   function mpDrawTags(cx, cy, px, py) {
     const now = Date.now(), at = zoomOff();
     for (const o of mpHere()) {
-      if (o.f !== P.floor) continue;
+      if (!mpWithMe(o)) continue;
       const [sx, sy] = at(Math.round(o.px - cx + 8), Math.round(o.py - cy - 4 - tagLift(mpWorn(o))));
       if (sx < -40 || sx > SW + 40 || sy < -30 || sy > SH + 10) continue;
       mpTag(o.n, sx, sy);
@@ -22491,6 +22514,7 @@
       quickest[ti] = quickest[ti] ? Math.min(quickest[ti], tenths) : tenths;
       boardSend(key, playerName || store.get('name') || '', tenths);
       boardNote(key, quickest[ti]);
+      if (you.place === 1) lairNote('racewin', 1); // (the racing cabinet, for your Secret Lair)
       doneAt = t;
       sfx(you.place === 1 ? 'cup' : 'ding');
     }
@@ -22886,6 +22910,12 @@
       if (P.floor === CASINO_AT.floor && r && r.name === CASINO_AT.room) { P.floor = CASINO; sfx('ding'); }
       else if (P.floor === CASINO && !r) P.floor = CASINO_AT.floor;
     }
+    // and the same for your Secret Lair
+    if (LAIR_AT) {
+      const r = roomAt(P.floor, P.x, P.y);
+      if (P.floor === LAIR_AT.floor && r && r.name === LAIR_AT.room) { P.floor = LAIR; sfx('ding'); lairArrive(); }
+      else if (P.floor === LAIR && !r) P.floor = LAIR_AT.floor;
+    }
     if (tileAt(P.floor, P.x, P.y) === 'S') {
       const ends = findLink(P.floor, P.x, P.y);
       const other = ends && ends.find((e) => e.floor !== P.floor);
@@ -22926,7 +22956,7 @@
       if (!(d < 0.5 || (along > 0 && along < 1.5 && side < 0.8)) || d + side >= least) return;
       best = { ...who, dx, dy }; least = d + side;
     };
-    for (const o of mpHere()) if (o.f === P.floor) consider({ other: o }, o.px / 16, o.py / 16);
+    for (const o of mpHere()) if (mpWithMe(o)) consider({ other: o }, o.px / 16, o.py / 16);
     for (const n of npcs.concat(dogs, critters)) {
       if (n.floor !== P.floor || (visit && n === visit.npc && visit.a < 1)) continue; // (halfway through the portal)
       consider({ npc: n }, n.x + (n.moving ? n.mdx * n.prog / 16 : 0), n.y + (n.moving ? n.mdy * n.prog / 16 : 0));
@@ -23061,6 +23091,10 @@
     }
     if (t === 'X' && sideDoor(P.floor, tx, ty)) return;
     if (P.floor === YARD) return yardTalk(t, tx, ty);
+    // a lamp in your Secret Lair switches off, and on again, and a keepsake says what it is
+    if (P.floor === LAIR && lairLamps.some((l) => l.x === tx && l.y === ty)) { lairSwitch(tx, ty); return; }
+    const keepsake = P.floor === LAIR && LAIR_PIECES.find((p) => p.say && p.rows[0] === t);
+    if (keepsake) { sfx(keepsake.sound || 'select'); say(keepsake.say); return; }
     const tree = CHRISTMAS && xmas.trees.find((tr) => propAt(P.floor, tx, ty) === tr);
     if (tree) { treeTalk(tree); return; }
     const partyGame = partyGameAt(tx, ty, t);
@@ -23092,7 +23126,7 @@
     if (t === '*') { sfx('menu'); ui.push(HallOfFame()); return; }
     if (t === 'E') {
       const ends = findLink(P.floor, tx, ty);
-      const names = MAPS.floors.filter((f) => !f.plant && !f.casino && !f.outdoor).map((f, i) => (i === 0 ? 'GROUND' : i + 1 + 'F'));
+      const names = MAPS.floors.filter((f) => !f.plant && !f.casino && !f.outdoor && !f.lair).map((f, i) => (i === 0 ? 'GROUND' : i + 1 + 'F'));
       sfx('select');
       ask('The elevator. Which floor?', names.concat(['CANCEL']), (i) => {
         if (i < 0 || i >= names.length) return;
@@ -23319,7 +23353,7 @@
   // where somebody is now, in tiles, or null if they've gone from this floor
   function whereIs(who) {
     if (who.npc) { const n = who.npc; return n.floor === P.floor ? [n.x + (n.moving ? n.mdx * n.prog / 16 : 0), n.y + (n.moving ? n.mdy * n.prog / 16 : 0)] : null; }
-    const o = mpHere().find((p) => p.id === who.other.id && p.f === P.floor);
+    const o = mpHere().find((p) => p.id === who.other.id && mpWithMe(p));
     return o ? [o.px / 16, o.py / 16] : null;
   }
   // (how near a spruce's trunk you can be and use it: up against its branches, as with A in tilesAhead)
@@ -23413,7 +23447,7 @@
   function personAtPx(wx, wy) {
     let best = null, least = 11;
     const near = (who, x, y) => { const d = Math.hypot(wx - (x * 16 + 8), (wy - (y * 16 + 4)) * 0.8); if (d < least) { least = d; best = who; } };
-    for (const o of mpHere()) if (o.f === P.floor) near({ other: o }, o.px / 16, o.py / 16);
+    for (const o of mpHere()) if (mpWithMe(o)) near({ other: o }, o.px / 16, o.py / 16);
     for (const n of npcs.concat(dogs, critters)) {
       if (n.floor !== P.floor || (visit && n === visit.npc && visit.a < 1)) continue;
       near({ npc: n }, ...whereIs({ npc: n }));
@@ -23768,6 +23802,7 @@
     items = {}; itemsTold = {}; itemsHeard = false;
     cardsRead(name || 'New Hire');
     deckPull(name || 'New Hire');
+    lairPull(name || 'New Hire');
     for (const item in ITEMS) {
       const v = store.get(itemKey(name, item));
       if (v) items[item] = +v;
@@ -23800,6 +23835,7 @@
       questAward(name, quests);
       // (&have=ghostmask,ribbon: as if these were yours, for testing)
       for (const item of (/[#&]have=([a-z,]+)/.exec(location.hash) || ['', ''])[1].split(',')) if (inTable(ITEMS, item)) items[item] = 1;
+      lairBuild(); // (anything in your lair that's been taken away comes out)
     });
   }
   // your look's changed outside the editor: keep it, in this browser and under your name
@@ -23890,6 +23926,613 @@
       const { part, i } = ITEMS[item];
       if (part && look[part] === i && (itemsHeard ? items[item] !== 1 : items[item] === 0)) look[part] = 0;
     }
+  }
+
+  // ---------- your Secret Lair ----------
+  // The empty room below the ground floor's washroom, by the elevator, is bigger on the inside, like
+  // Cody's cubicle: step in and it opens out into your Secret Lair, twelve tiles by nine with nothing
+  // but black round it (LAIR, a map of its own: see tools/build_maps.py). Everybody has their own, so
+  // nobody else is ever in yours: anybody else who walks in is in theirs (see mpWithMe).
+  //
+  // You furnish it with DECORATE in the Start menu while you're in there (LairEdit). The furniture is
+  // the office's own tiles, the letters on the map, so each piece looks just as it does in the office
+  // and does what it does there: the racing cabinet races, the TV plays Pong, a coworker waits at the
+  // chess table. A few pieces everybody has. The rest are earned in the games they come from (earn, in
+  // LAIR_PIECES), and each of those is a special item, f_<id> (see "special items"), so it can be given
+  // or taken away on the Data tab like the rest. As you come in, anything you did before there was a
+  // lair counts, going by your best scores on the boards and in this browser (lairAward). Nothing ever
+  // tells you there's a lair: you find it by going in (see "earning the furniture").
+  //
+  // What's where is kept as text: the floor, then each piece and where its top left is, counted from
+  // the room's top left (lairText). It's kept in this browser and under your name in the database, at
+  // lairs/<world>/<name> as { r, at }, and the newer one wins, as for decks (see lairPull).
+  //
+  // Every piece: id (10 letters at most, so its item's name and the Told mark after it fit the
+  // database's 16), name, rows (the map's letters, top row first: see tools/build_maps.py), and what
+  // earns it: a result in a game, as questNote and the boards have it (key; need, the least that does
+  // it, or for a game where lower is better (low), the most; text, what to do). No earn: everybody has
+  // it. What everybody has is the office's own furniture, and works as it does there (the computer
+  // has its desktop). What a game earns you is a keepsake that stands for it, a picture of its own
+  // (DECOR32 in js/art.js, on the map as Art.DECOR_CH: decor), with what's said about it when you
+  // press A at it (say, with a sound if it makes one).
+  // turns: the other ways it can go, in the order START turns it, each as its rows. Most things in
+  // the office are only drawn one way, facing you, so only these turn: a chair faces any way (its own
+  // pictures, '<', '"' and '>' in js/art.js), and a desk, a table or a long rug can run either way. A
+  // saved lair says which way a piece is turned by its place in this list, so only ever add a turn to
+  // the end.
+  // rug: it's a rug of that kind (RUGS32 in js/art.js): it lies on the floor, so you walk on it and
+  // furniture goes on top of it, and its rows are only its size. lamp: it lights up (see lairLight),
+  // with where its light comes from in its tile, in pixels on the view.
+  // proper: its name keeps its capital in the middle of a sentence.
+  const decor = (id) => [Art.DECOR_CH[id]];
+  const LAIR_PIECES = [
+    { id: 'desk', name: 'Desk', rows: ['dd'], turns: [['d', 'd']] },
+    { id: 'computer', name: 'Computer', rows: ['m'] },
+    { id: 'chair', name: 'Chair', rows: ['c'], turns: [['<'], ['"'], ['>']] },
+    { id: 'plant', name: 'Plant', rows: ['p'] },
+    { id: 'bookshelf', name: 'Bookshelf', rows: ['b'] },
+    { id: 'table', name: 'Table', rows: ['TT'], turns: [['T', 'T']] },
+    { id: 'box', name: 'Cardboard box', rows: ['B'] },
+    { id: 'redrug', name: 'Red rug', rows: ['...', '...'], turns: [['..', '..', '..']], rug: 'red' },
+    { id: 'plaidrug', name: 'Plaid rug', rows: ['....', '....', '....'], turns: [['...', '...', '...', '...']], rug: 'plaid' },
+    { id: 'roundrug', name: 'Round rug', rows: ['..', '..'], rug: 'round' },
+    { id: 'floorlamp', name: 'Floor lamp', rows: ['('], lamp: { x: 8, y: 4 } },
+    { id: 'tablelamp', name: 'Table lamp', rows: [')'], lamp: { x: 8, y: 3 } },
+    { id: 'lavalamp', name: 'Lava lamp', rows: ['|'], lamp: { x: 8, y: 4, lava: true } },
+    { id: 'mug', name: 'Giant coffee mug', rows: decor('mug'), earn: { key: 'coffee', need: 75, text: 'Catch 75 drops of coffee' },
+      say: 'A coffee mug the size of a bucket. It would take the machine all morning to fill.' },
+    { id: 'paddle', name: 'Ping pong paddle', rows: decor('paddle'), earn: { key: 'pong', need: 1, text: 'Beat the TV at Pong' },
+      say: 'A paddle and a ball on a stand, for beating the TV at its own game.' },
+    { id: 'plushsnake', name: 'Toy snake', rows: decor('plushsnake'), earn: { key: 'snake', need: 20, text: 'Score 20 at Snake' },
+      say: 'A stuffed snake, all coiled up. It\'s eaten a lot of dots.' },
+    { id: 'gloves', name: 'Boxing gloves', rows: decor('gloves'), earn: { key: 'punch5', need: 350, text: 'Punch the bag for 350 points' },
+      say: 'A pair of red boxing gloves, hung up by their laces. The punching bag remembers them.' },
+    { id: 'sneakers', name: 'Running shoes', rows: decor('sneakers'), earn: { key: 'run', need: 300, text: 'Run 300 m on the treadmill' },
+      say: 'Running shoes, a little worn. Good for 300 metres and counting.' },
+    { id: 'kettlebell', name: 'Kettlebell', rows: decor('kettlebell'), earn: { key: 'squat', need: 175, text: 'Squat 175 lb' },
+      say: 'A very heavy kettlebell. It\'s mostly for show now.' },
+    { id: 'dumbbells', name: 'Dumbbells', rows: decor('dumbbells'), earn: { key: 'pullreps', need: 10, text: 'Do 10 clean lat pulldowns' },
+      say: 'A pair of dumbbells. Ten clean reps, and not one more.' },
+    { id: 'yogamat', name: 'Yoga mat', rows: decor('yogamat'), earn: { key: 'ball', need: 30, text: 'Stay on the exercise ball for 30 seconds' },
+      say: 'A rolled-up yoga mat. Balance is everything.' },
+    { id: 'basket', name: 'Laundry basket', rows: decor('basket'), earn: { key: 'laundry', need: 8, text: 'Sort 8 things in the laundry' },
+      say: 'A basket of clean coveralls, folded and sorted.' },
+    { id: 'papers', name: 'Paper tower', rows: decor('papers'), earn: { key: 'stack', need: 15, text: 'Stack 15 copies at the photocopier' },
+      say: 'A tower of fresh copies, every sheet lined up.' },
+    { id: 'paperclip', name: 'Giant paper clip', rows: decor('paperclip'), earn: { key: 'jam', need: 6, text: 'Unjam 6 sheets from the printer' },
+      say: 'A paper clip as tall as your knee. It has never jammed a thing.' },
+    { id: 'hoop', name: 'Desk hoop', rows: decor('hoop'), earn: { key: 'toss', need: 3, text: 'Get 3 of your 10 throws in the recycling bin' },
+      say: 'A little basketball hoop, with a ball of paper in the net. Swish.' },
+    { id: 'lunchbox', name: 'Lunch box', rows: decor('lunchbox'), earn: { key: 'lunch', need: 4, text: 'Find the right lunch 4 times' },
+      say: 'A red lunch box. The label says DO NOT EAT, and this time it\'s yours.' },
+    { id: 'gumball', name: 'Gumball machine', rows: decor('gumball'), earn: { key: 'candy', need: 15, text: 'Sneak 15 candies off the candy table' },
+      say: 'A gumball machine, full to the top. Nobody is watching...' },
+    { id: 'button', name: 'Big red button', rows: decor('button'), earn: { key: 'simon', need: 8, text: 'Get 8 rounds on a control panel' },
+      say: 'You press the big red button. Nothing happens. Probably.', sound: 'buzz' },
+    { id: 'bell', name: 'Service bell', rows: decor('bell'), earn: { key: 'desk', need: 6, text: 'Send 6 visitors the right way at the front desk' },
+      say: 'Ding! Nobody comes. It\'s your front desk now.', sound: 'ding' },
+    { id: 'firstaid', name: 'First aid kit', rows: decor('firstaid'), earn: { key: 'cprpts', need: 50, text: 'Score 50 on the CPR dummy' },
+      say: 'A first aid kit, fully stocked. You know what to do.' },
+    { id: 'plaque', name: 'Nameplate', rows: decor('plaque'), earn: { key: 'engrave', need: 70, text: 'Engrave a nameplate 70% on the line' },
+      say: 'A brass nameplate on a stand, engraved dead straight.' },
+    { id: 'trophy', name: 'Gold trophy', rows: decor('trophy'), earn: { key: 'trophy', need: 12, text: 'Grab 12 of Nathan\'s trophies' },
+      say: 'A big gold trophy. Nathan would like it back.' },
+    { id: 'golfbag', name: 'Golf bag', rows: decor('golfbag'), earn: { key: 'golf9', need: 30, low: true, text: 'Go round Wade\'s green in 30 strokes or fewer' },
+      say: 'A bag of golf clubs. Wade says you can borrow them any time.' },
+    { id: 'chessking', name: 'Chess king', rows: decor('chessking'), earn: { key: 'chess', need: 1, text: 'Checkmate a coworker at chess' },
+      say: 'A king as big as a fire hydrant. Checkmate.' },
+    { id: 'checkers', name: 'Stack of checkers', rows: decor('checkers'), earn: { key: 'checkers', need: 1, text: 'Beat a coworker at checkers' },
+      say: 'A tall stack of red and black checkers, with a crown on top. King me.' },
+    { id: 'lucky7', name: 'Lucky seven', rows: decor('lucky7'), earn: { key: 'slots', need: 400, text: 'Win 200 spring rolls at the slots' },
+      say: 'A gold seven off a slot machine. It\'s been lucky so far.' },
+    { id: 'acecard', name: 'Giant ace', rows: decor('acecard'), earn: { key: 'blackjack', need: 400, text: 'Win 200 spring rolls off Cody at blackjack' },
+      say: 'The ace of spades, as big as a tray. Blackjack!' },
+    { id: 'chips', name: 'Poker chips', rows: decor('chips'), earn: { key: 'poker', need: 600, text: 'Win every spring roll at a game of Hold\'em' },
+      say: 'Stacks of poker chips. Every one of them used to be Cody\'s.' },
+    { id: 'helmet', name: 'Racing helmet', rows: decor('helmet'), earn: { key: 'racewin', need: 1, text: 'Win a race at Haakon Grand Prix' },
+      say: 'A racing helmet on a stand, with a chequered stripe. First across the line.' },
+    { id: 'brick', name: 'Giant Lego brick', rows: decor('brick'), proper: true, earn: { key: 'legosolo', need: 8, text: 'Clear 8 rows at Joe\'s Lego shelf' },
+      say: 'A Lego brick the size of a footstool. Don\'t step on it.' },
+    { id: 'cablereel', name: 'Cable reel', rows: decor('cablereel'), earn: { key: 'cable', need: 5, text: 'Patch 5 panels tidying the cables' },
+      say: 'A reel of network cable, wound up neatly. For once.' },
+    { id: 'deskfan', name: 'Desk fan', rows: decor('deskfan'), earn: { key: 'fan', need: 3, text: 'Balance 3 branches on the fan' },
+      say: 'A little desk fan, perfectly balanced. It barely hums.' },
+    { id: 'iceblock', name: 'Block of ice', rows: decor('iceblock'), earn: { key: 'coil', need: 45, text: 'Watch the cooling coil for 45 seconds' },
+      say: 'A block of ice with a snowflake frozen in it. It never melts.' },
+    { id: 'ducttape', name: 'Duct tape', rows: decor('ducttape'), earn: { key: 'damper', need: 3, text: 'Solve 3 duct layouts at the dampers' },
+      say: 'A giant roll of duct tape. It fixes ducts, and everything else.' },
+    { id: 'airfilter', name: 'Air filter', rows: decor('airfilter'), earn: { key: 'filter', need: 20, text: 'Fit 20 filters' },
+      say: 'A brand new air filter in a gold frame, like a painting.' },
+  ];
+  const LAIR_BY_ID = Object.fromEntries(LAIR_PIECES.map((p) => [p.id, p]));
+  for (const p of LAIR_PIECES) if (p.earn) ITEMS['f_' + p.id] = {};
+  // the floors you can pick: [id in the saved text, its letter in the map's floor (see floor32 in
+  // js/art.js: dark wood, parquet and the checkerboard are only for lairs), what DECORATE calls it]
+  const LAIR_FLOORS = [['carpet', '.', 'CARPET'], ['wood', '_', 'WOOD'], ['darkwood', 'W', 'DARK WOOD'], ['parquet', 'H', 'PARQUET'],
+    ['tiles', ':', 'TILES'], ['checks', 'X', 'CHECKERBOARD'], ['stone', ',', 'STONE'], ['concrete', ';', 'CONCRETE'], ['casino', '-', 'CASINO CARPET']];
+  const lairFloorCh = () => LAIR_FLOORS.find((fl) => fl[0] === lair.floor)[1];
+  const LAIR_MAX = 80; // pieces in a lair, at most (a lot more than fits, so it's only ever a limit on a save that's been tampered with)
+  const LR = LAIR >= 0 ? MAPS.floors[LAIR].rooms[0] : null; // the room, inside its walls
+  // the map as tools/build_maps.py made it: walls and bare floor
+  const LAIR_BASE = LAIR >= 0 ? { tiles: MAPS.floors[LAIR].tiles.slice(), floor: MAPS.floors[LAIR].floor.slice() } : null;
+  // the tile just inside the doorway in the right-hand wall: where you come in, and kept clear
+  const LAIR_DOOR = LR ? { x: LR.x2, y: LAIR_BASE.tiles.findIndex((row, y) => y >= LR.y1 && y <= LR.y2 && WALKABLE.includes(row[LR.x2 + 1])) } : null;
+  let lair = { floor: 'carpet', low: false, pieces: [] }; // yours: the floor, whether the lights are down, and each piece is { p (from LAIR_PIECES), x, y, t }: its top left on the map, and which way it's turned
+  let lairWho = null, lairAt = 0; // whose it is, and when it was last changed (by the clock of the device that changed it)
+  const lairAll = /[#&]lair=all/.test(location.hash); // (&lair=all: every piece is yours, for testing)
+  const lairHas = (p) => !p.earn || lairAll || items['f_' + p.id] === 1;
+  // a piece's rows as it's turned (t: 0 the way it's listed, then each of its turns)
+  const lairForm = (p, t) => (t ? p.turns[t - 1] : p.rows);
+  const lairTurns = (p) => 1 + (p.turns ? p.turns.length : 0); // how many ways it goes
+  const lairRows = (q) => lairForm(q.p, q.t);
+  const lairSize = (q) => { const r = lairRows(q); return [r[0].length, r.length]; };
+  const lairName = (p) => (p.proper || /^[A-Z]{2}/.test(p.name) ? p.name : p.name[0].toLowerCase() + p.name.slice(1));
+  // "a, b and c"
+  const andList = (list) => (list.length < 2 ? list.join('') : list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1]);
+  const lairText = (l) => [l.floor + (l.low ? ',low' : '')].concat(l.pieces.map((q) => q.p.id + ':' + (q.x - LR.x1) + ',' + (q.y - LR.y1) + (q.t ? ',' + q.t : ''))).join(';');
+  // A lair from its text (from this browser or the database, so it might have been tampered with):
+  // anything that isn't a piece, or doesn't fit where it says, is left out.
+  function lairRead(str) {
+    const out = { floor: 'carpet', low: false, pieces: [] };
+    if (typeof str !== 'string' || str.length > 2000) return out;
+    const parts = str.split(';'), [floor, light] = parts[0].split(',');
+    if (LAIR_FLOORS.some((f) => f[0] === floor)) out.floor = floor;
+    out.low = light === 'low';
+    for (const part of parts.slice(1, LAIR_MAX + 1)) {
+      const m = /^([a-z0-9]{1,10}):(\d{1,2}),(\d{1,2})(?:,(\d))?$/.exec(part);
+      if (!m || !inTable(LAIR_BY_ID, m[1]) || +(m[4] || 0) >= lairTurns(LAIR_BY_ID[m[1]])) continue;
+      const q = { p: LAIR_BY_ID[m[1]], x: LR.x1 + +m[2], y: LR.y1 + +m[3], t: +(m[4] || 0) };
+      if (!lairWhy(out.pieces, q, true)) out.pieces.push(q);
+    }
+    return out;
+  }
+  // the tiles each piece standing on the floor covers (not the rugs), as "x,y": the piece and its letter there
+  function lairTaken(pieces) {
+    const taken = new Map();
+    for (const q of pieces) if (!q.p.rug) lairRows(q).forEach((row, j) => [...row].forEach((ch, i) => taken.set((q.x + i) + ',' + (q.y + j), { q, ch })));
+    return taken;
+  }
+  // every tile you can walk to from the doorway with these pieces in, as "x,y"
+  function lairReach(pieces) {
+    const taken = lairTaken(pieces), seen = new Set(), todo = [[LAIR_DOOR.x, LAIR_DOOR.y]];
+    while (todo.length) {
+      const [x, y] = todo.pop(), k = x + ',' + y;
+      if (seen.has(k) || x < LR.x1 || x > LR.x2 || y < LR.y1 || y > LR.y2 || taken.has(k)) continue;
+      seen.add(k);
+      todo.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+    }
+    return seen;
+  }
+  // Why piece q can't go where it says among the others, or '' if it can. (loading: from a save,
+  // when where you're standing doesn't come into it)
+  function lairWhy(pieces, q, loading) {
+    const { p, x, y } = q, [w, h] = lairSize(q);
+    if (x < LR.x1 || y < LR.y1 || x + w - 1 > LR.x2 || y + h - 1 > LR.y2) return 'It won\'t fit there.';
+    // (a rug only can't go on another rug)
+    if (p.rug) return pieces.some((o) => o.p.rug && o.x < x + w && x < o.x + lairSize(o)[0] && o.y < y + h && y < o.y + lairSize(o)[1]) ? 'There\'s a rug there already.' : '';
+    const covers = (tx, ty) => tx >= x && tx < x + w && ty >= y && ty < y + h;
+    if (covers(LAIR_DOOR.x, LAIR_DOOR.y)) return 'Keep the doorway clear.';
+    const taken = lairTaken(pieces);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if (taken.has((x + i) + ',' + (y + j))) return 'There\'s something in the way.';
+    if (!loading && P.floor === LAIR) {
+      if (covers(P.x, P.y)) return 'You\'re standing there.';
+      if (!lairReach(pieces.concat([q])).has(P.x + ',' + P.y)) return 'That would shut you in!';
+    }
+    return '';
+  }
+  // what's at x, y in your lair, if anything: what's standing there before any rug under it
+  const lairCovers = (q, x, y) => { const [w, h] = lairSize(q); return x >= q.x && x < q.x + w && y >= q.y && y < q.y + h; };
+  const lairPieceAt = (x, y) => lair.pieces.find((q) => !q.p.rug && lairCovers(q, x, y)) || lair.pieces.find((q) => q.p.rug && lairCovers(q, x, y)) || null;
+  // Lay your floor and furniture over the bare map and paint that part of it again. Anything that's
+  // been taken away (a 0 on the Data tab) is left out.
+  function lairBuild() {
+    if (!LR) return;
+    const f = MAPS.floors[LAIR], ch = lairFloorCh();
+    const tiles = LAIR_BASE.tiles.map((r) => [...r]), floor = LAIR_BASE.floor.map((r) => [...r]);
+    // (the floor's picture goes in the floor under the walls too: on the casino's carpet they're the
+    // casino's walls. What you walk on is plain floor whatever it looks like.)
+    for (let y = LR.y1 - 1; y <= LR.y2 + 1; y++) for (let x = LR.x1 - 1; x <= LR.x2 + 1; x++) floor[y][x] = ch;
+    const shown = lair.pieces.filter((q) => !q.p.earn || items['f_' + q.p.id] !== 0);
+    for (const q of shown) if (!q.p.rug) lairRows(q).forEach((row, j) => [...row].forEach((c, i) => { tiles[q.y + j][q.x + i] = c; }));
+    f.tiles = tiles.map((r) => r.join(''));
+    f.floor = floor.map((r) => r.join(''));
+    f.rugs = shown.filter((q) => q.p.rug).map((q) => { const [w, h] = lairSize(q); return { x1: q.x, y1: q.y, x2: q.x + w - 1, y2: q.y + h - 1, kind: q.p.rug }; });
+    lairLamps = shown.filter((q) => q.p.lamp).map((q) => ({ x: q.x, y: q.y, lamp: q.p.lamp }));
+    Art.renderFloorPart(f, floorCanvas[LAIR], LR.x1 - 1, LR.y1 - 1, LR.x2 + 1, LR.y2 + 1);
+    // (a control panel's lights blink)
+    panels[LAIR] = [];
+    f.tiles.forEach((row, y) => [...row].forEach((c, x) => { if (c === 'K') panels[LAIR].push({ x, y }); }));
+    // (somebody standing where something's just gone, which only happens when your lair has just
+    // come in from another device: back to the doorway)
+    if (P.floor === LAIR && !walkable(LAIR, P.x, P.y)) placePlayer(LAIR, LAIR_DOOR.x, LAIR_DOOR.y, 'left');
+  }
+  // a piece on its own, turned t, on your floor, as it is in the lair (a canvas marked hi: 2)
+  const lairPics = {};
+  function lairPic(p, t = 0) {
+    const ch = lairFloorCh(), k = p.id + t + ch, rows = lairForm(p, t), [w, h] = [rows[0].length, rows.length];
+    const rugs = p.rug ? [{ x1: 0, y1: 0, x2: w - 1, y2: h - 1, kind: p.rug }] : null;
+    return lairPics[k] || (lairPics[k] = Art.renderFloor({ tiles: p.rug ? rows.map((r) => '.'.repeat(r.length)) : rows, floor: rows.map((r) => ch.repeat(r.length)), rugs }));
+  }
+  // a bit of a floor on its own, for picking one
+  function lairFloorPic(ch) {
+    const k = 'floor' + ch;
+    return lairPics[k] || (lairPics[k] = Art.renderFloor({ tiles: ['....', '....', '....'], floor: [ch.repeat(4), ch.repeat(4), ch.repeat(4)] }));
+  }
+
+  // ---------- the lamps and the lights ----------
+  // A lamp lights up a pool of the floor round it, warm (a lava lamp's is orange, and it swells and
+  // fades), and its shade glows. Press A at one to switch it off or on again (only for now: they're
+  // all on each time you come in). With the lights down (LIGHTS in DECORATE's menu, kept with your
+  // lair), the room is dark but for the lamps.
+  let lairLamps = []; // the lamps in your lair: { x, y, lamp }
+  const lairOff = new Set(); // the ones you've switched off, as "x,y"
+  function lairSwitch(x, y) {
+    const k = x + ',' + y;
+    if (lairOff.has(k)) lairOff.delete(k); else lairOff.add(k);
+    sfx('blip');
+  }
+  function lairLight(cx, cy) {
+    const low = lair.low;
+    // (all of it inside the room's walls)
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect((LR.x1 - 1) * 16 - cx, (LR.y1 - 1) * 16 - cy, (LR.x2 - LR.x1 + 3) * 16, (LR.y2 - LR.y1 + 3) * 16);
+    ctx.clip();
+    if (low) {
+      ctx.fillStyle = 'rgba(10, 8, 30, 0.66)';
+      ctx.fillRect((LR.x1 - 1) * 16 - cx, (LR.y1 - 1) * 16 - cy, (LR.x2 - LR.x1 + 3) * 16, (LR.y2 - LR.y1 + 3) * 16);
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    for (const l of lairLamps) {
+      if (lairOff.has(l.x + ',' + l.y)) continue;
+      const lava = l.lamp.lava, pulse = lava ? 0.8 + Math.sin(tick / 40) * 0.2 : 1;
+      const rgb = lava ? '255, 110, 50' : '255, 196, 110';
+      const glow = (x, y, r, a, flat) => {
+        ctx.save();
+        ctx.translate(x, y); ctx.scale(1, flat);
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+        g.addColorStop(0, 'rgba(' + rgb + ', ' + a + ')'); g.addColorStop(1, 'rgba(' + rgb + ', 0)');
+        ctx.fillStyle = g; ctx.fillRect(-r, -r, r * 2, r * 2);
+        ctx.restore();
+      };
+      const sx = l.x * 16 - cx, sy = l.y * 16 - cy;
+      // the pool on the floor, then the shade itself
+      glow(sx + 8, sy + 14, low ? 46 : 30, (low ? 0.5 : 0.16) * pulse, 0.62);
+      glow(sx + l.lamp.x, sy + l.lamp.y, low ? 14 : 9, (low ? 0.75 : 0.45) * pulse, 1);
+    }
+    ctx.restore();
+  }
+
+  // keeping it: in this browser, and under your name in the database (see "Your Secret Lair" in the README)
+  const LAIR_URL = LOOK_URL.replace('/looks/', '/lairs/');
+  const lairKey = (name) => 'lair.' + (BOARD_POSTS ? '' : 'test.') + boardKey(name || 'New Hire');
+  const lairFetch = (name, opts) => nameFetch(LAIR_URL, name, '', opts);
+  function lairSet(row) {
+    lair = lairRead(row && row.r);
+    lairOff.clear();
+    lairAt = row && Number.isFinite(+row.at) ? +row.at : 0;
+    lairBuild();
+  }
+  // Yours as this browser has it, then from the database if the one there is newer (as you come in).
+  function lairPull(name) {
+    lairWho = name;
+    let kept = null;
+    try { kept = JSON.parse(store.get(lairKey(name))); } catch (e) { /* nothing kept, or it's not readable */ }
+    lairSet(kept && typeof kept === 'object' ? kept : null);
+    lairFetch(name).then((r) => (r.ok ? r.json() : Promise.reject())).then((row) => {
+      if (lairWho !== name || lairEditing()) return;
+      if (row && typeof row === 'object' && typeof row.r === 'string' && +row.at > lairAt) {
+        lairSet(row);
+        store.set(lairKey(name), JSON.stringify({ r: row.r, at: lairAt }));
+      } else if (lairAt && !(row && +row.at >= lairAt)) lairPush(name); // (this one didn't get there before)
+    }).catch(() => {});
+  }
+  function lairPush(name) {
+    lairFetch(name, { method: 'PUT', body: JSON.stringify({ r: lairText(lair), at: lairAt }) }).catch(() => {});
+  }
+  // Kept in this browser as you go (so closing the page halfway through loses nothing), and sent
+  // to the database when you're done. If that send doesn't happen, lairPull sends it next time.
+  function lairKeep() {
+    lairAt = Math.max(Date.now(), lairAt + 1);
+    store.set(lairKey(lairWho || playerName || 'New Hire'), JSON.stringify({ r: lairText(lair), at: lairAt }));
+  }
+
+  // earning the furniture
+  // Nothing tells you there's a lair: you find it by going in. Until you have (in this browser, or you
+  // have a lair saved from another device), earning a piece is quiet, and it's just there in the
+  // catalogue. The first time you step in, you're told what the place is, along with whatever you've
+  // earned for it already (lairWelcome). After that, each piece gets its message as you earn it (lairTell).
+  const lairDue = new Set(); // pieces you've earned and haven't been told about yet
+  let lairTelling = false; // the message is on its way
+  const lairSeenKey = (name) => 'lairseen.' + (BOARD_POSTS ? '' : 'test.') + boardKey(name || 'New Hire');
+  const lairFound = () => !!store.get(lairSeenKey(playerName)) || lairAt > 0;
+  const lairMeets = (e, v) => typeof v === 'number' && (e.low ? v > 0 && v <= e.need : v >= e.need);
+  function lairGot(p) {
+    const tell = itemEarned(playerName || 'New Hire', 'f_' + p.id);
+    if (tell && lairFound()) lairDue.add(p.id);
+  }
+  // the message on its way, once you're back walking round (or as you come in)
+  function lairQueue() {
+    if (lairTelling || !lairDue.size) return;
+    lairTelling = true;
+    if (mode === 'play') questQueue.push(lairTell);
+    else questEarned.push({ what: 'Furniture for your lair', told: lairTell });
+  }
+  // Called with every result a game reports (from questNote, boardNote and questBoard).
+  function lairNote(key, value) {
+    for (const p of LAIR_PIECES) if (p.earn && p.earn.key === key && lairMeets(p.earn, value)) lairGot(p);
+    lairQueue();
+  }
+  // As you come in: whatever your best scores already earn you, on the boards (the Hall of Fame's,
+  // if they could be had) and in this browser.
+  function lairAward(name, boards) {
+    if (!LR) return;
+    const id = boardKey(name || 'New Hire');
+    for (const p of LAIR_PIECES) {
+      const e = p.earn;
+      if (!e) continue;
+      const rows = boards && boards[e.key], row = rows && rows.find((r) => r.id === id);
+      const there = row ? (BOARDS[e.key].low ? -row.score : row.score) : null;
+      if (lairMeets(e, there) || (!e.low && lairMeets(e, getBest(e.key)))) lairGot(p);
+    }
+    lairQueue();
+  }
+  // "the coffee machine, the slot machine and the racing cabinet", or "12 pieces of furniture"
+  const lairNames = (list) => (list.length > 5 ? list.length + ' pieces of furniture' : andList(list.map((p) => 'the ' + lairName(p))));
+  function lairTell() {
+    lairTelling = false;
+    const list = LAIR_PIECES.filter((p) => lairDue.has(p.id) && items['f_' + p.id] !== 0);
+    lairDue.clear();
+    if (!list.length) return;
+    list.forEach((p) => itemToldMark('f_' + p.id));
+    sfx('ding');
+    const names = lairNames(list), one = list.length === 1;
+    ui.push(Dialog(names[0].toUpperCase() + names.slice(1) + (one ? ' is' : ' are') + ' yours, for your Secret Lair! Pick DECORATE in the Start menu there to put '
+      + (one ? 'it' : 'them') + ' in.', { above: lairPanel(list) }));
+  }
+  // The picture above that message: NEW! and up to four of the pieces, side by side.
+  function lairPanel(list, intro) {
+    const pics = [];
+    let w = 0;
+    for (const p of list) {
+      const pic = lairPic(p), pw = pic.width / 2;
+      if (pics.length === 4 || w + pw + 12 > SW - 40) break;
+      pics.push(pic); w += pw + (pics.length > 1 ? 12 : 0);
+    }
+    const title = intro ? 'YOUR SECRET LAIR' : 'FOR YOUR SECRET LAIR';
+    const bw = Math.max(w, title.length * 6) + 32, bh = pics.length ? 40 + Math.max(...pics.map((c) => c.height / 2)) : 48, bx = (SW - bw) >> 1, by = 24;
+    return () => {
+      box(bx, by, bw, bh);
+      ctext('NEW!', by + 9, GOLD);
+      ctext(title, by + 21);
+      let x = (SW - w) >> 1;
+      for (const pic of pics) { ctx.drawImage(pic, x, by + 34); x += pic.width / 2 + 12; }
+    };
+  }
+  // The first time you step in (in this browser), what it's for.
+  function lairArrive() {
+    const k = lairSeenKey(playerName);
+    if (store.get(k)) return;
+    store.set(k, '1');
+    questQueue.push(() => lairWelcome());
+  }
+  // ...and what you've earned for it already, that you haven't been told about (list: these, for testing)
+  function lairWelcome(list = LAIR_PIECES.filter((p) => p.earn && items['f_' + p.id] === 1 && !itemsTold['f_' + p.id])) {
+    list.forEach((p) => itemToldMark('f_' + p.id));
+    lairDue.clear();
+    const str = 'This is your Secret Lair, and nobody else\'s. Pick DECORATE in the Start menu to furnish it. '
+      + (list.length ? 'What you\'ve done in the office\'s games has already earned you ' + lairNames(list) + ' for it.' : 'The office\'s games earn you more to put in it.');
+    if (list.length) sfx('ding');
+    ui.push(Dialog(str, list.length ? { above: lairPanel(list, true) } : {}));
+  }
+
+  // ---------- DECORATE: furnishing your lair ----------
+  // A cursor on the room's tiles, with the whole room in view (lairCam). A or a click on a piece picks
+  // it up and on an empty tile opens the catalogue; carrying something, A puts it down if it fits there
+  // and B puts it away (it's still in the catalogue, as everything you have is, as many times as you
+  // like). START turns what you're carrying, if it turns (so does the scroll wheel), and with nothing in
+  // hand has the floor. B with nothing in hand is done. Each change is kept in this
+  // browser as you make it (lairKeep), and it all goes to the database as DECORATE closes.
+  let lairEdit = null; // DECORATE, while it's open
+  const lairEditing = () => !!lairEdit && ui.includes(lairEdit) && P.floor === LAIR;
+  // where drawWorld centres on while you decorate (as mePx would be): the room, a little high, to
+  // leave the bottom of the screen for what the buttons do
+  const lairCam = () => [(LR.x1 + LR.x2 + 1) * 8 - 8, (LR.y1 + LR.y2 + 1) * 8];
+  function LairEdit() {
+    const before = lairText(lair);
+    let [cx, cy] = DIRS[P.dir];
+    cx = clamp(P.x + cx, LR.x1, LR.x2); cy = clamp(P.y + cy, LR.y1, LR.y2);
+    let carry = null; // what you're carrying: { p, t, gx, gy }: which way it's turned, and where you've got hold of it
+    let why = '', whyT = 0, rep = { k: null, t: 0 };
+    // where what you're carrying would go, with the cursor where it is
+    const spot = () => ({ p: carry.p, t: carry.t, x: cx - carry.gx, y: cy - carry.gy });
+    // the cursor on a tile, kept where what you're carrying stays in the room (and on its wall)
+    function moveTo(x, y) {
+      if (!carry) { cx = clamp(x, LR.x1, LR.x2); cy = clamp(y, LR.y1, LR.y2); return; }
+      const [w, h] = lairSize(carry);
+      cx = clamp(x - carry.gx, LR.x1, LR.x2 - w + 1) + carry.gx; cy = clamp(y - carry.gy, LR.y1, LR.y2 - h + 1) + carry.gy;
+    }
+    function pickUp(q) {
+      lair.pieces = lair.pieces.filter((o) => o !== q);
+      lairBuild();
+      carry = { p: q.p, t: q.t, gx: cx - q.x, gy: cy - q.y };
+      sfx('select');
+    }
+    // what you're carrying, turned the next way (keeping hold of it where you had it, as near as it goes)
+    function turn() {
+      if (lairTurns(carry.p) < 2) { why = 'That only goes one way.'; whyT = 90; sfx('bump'); return; }
+      carry.t = (carry.t + 1) % lairTurns(carry.p);
+      const [w, h] = lairSize(carry);
+      carry.gx = Math.min(carry.gx, w - 1); carry.gy = Math.min(carry.gy, h - 1);
+      moveTo(cx, cy);
+      whyT = 0;
+      sfx('select');
+    }
+    function putDown() {
+      const q = spot();
+      why = lairWhy(lair.pieces, q);
+      if (why) { whyT = 150; sfx('bump'); return; }
+      lair.pieces.push(q);
+      lairBuild(); lairKeep();
+      carry = null; whyT = 0;
+      sfx('menu');
+    }
+    function catalogue() {
+      if (lair.pieces.length >= LAIR_MAX) { why = 'Your lair can\'t hold any more.'; whyT = 150; sfx('bump'); return; }
+      sfx('menu');
+      ui.push(LairCatalogue((p) => { if (p === 'floor') floors(); else if (p) { carry = { p, t: 0, gx: 0, gy: 0 }; moveTo(cx, cy); } }));
+    }
+    function close() {
+      remove(self); lairEdit = null;
+      sfx('menu');
+      if (lairText(lair) !== before) lairPush(lairWho || playerName || 'New Hire');
+    }
+    function menu() {
+      sfx('menu');
+      const opts = () => ['ADD SOMETHING', 'FLOOR', 'LIGHTS: ' + (lair.low ? 'LOW' : 'ON'), 'DONE'];
+      ui.push(Choice(opts(), -1, 0, (i, m) => {
+        if (i === 0) { remove(m); catalogue(); } else if (i === 1) { remove(m); floors(); } else if (i === 2) {
+          lair.low = !lair.low;
+          lairKeep();
+          m.options = opts();
+          sfx('select');
+        } else if (i === 3) { remove(m); close(); }
+      }, { keepOpen: true, startCloses: true, minChars: 13 }));
+    }
+    // The floors, each laid in the room as you go past it: A keeps the one you're on, B goes back to
+    // the one you had.
+    function floors() {
+      sfx('menu');
+      const was = lair.floor, at = LAIR_FLOORS.findIndex((f) => f[0] === was);
+      let shown = at;
+      const list = Choice(LAIR_FLOORS.map((f) => f[2]), -1, 0, (i) => {
+        lair.floor = i >= 0 ? LAIR_FLOORS[i][0] : was;
+        lairBuild();
+        if (lair.floor !== was) lairKeep();
+      }, { start: at });
+      const step = list.update;
+      list.update = () => {
+        step();
+        if (ui.includes(list) && list.at !== shown) { shown = list.at; lair.floor = LAIR_FLOORS[shown][0]; lairBuild(); }
+      };
+      ui.push(list);
+    }
+    const self = {
+      update() {
+        if (whyT > 0) whyT--;
+        let dx = 0, dy = 0;
+        for (const [k, ax, ay] of [['left', -1, 0], ['right', 1, 0], ['up', 0, -1], ['down', 0, 1]]) {
+          if (pressed.has(k)) { rep = { k, t: 0 }; dx = ax; dy = ay; } else if (rep.k === k && held[k] && ++rep.t > 14 && rep.t % 5 === 0) { dx = ax; dy = ay; }
+        }
+        if (dx || dy) { const was = cx + ',' + cy; moveTo(cx + dx, cy + dy); if (was !== cx + ',' + cy) sfx('select'); }
+        if (pressed.has('a')) {
+          if (carry) putDown();
+          else { const q = lairPieceAt(cx, cy); if (q) pickUp(q); else catalogue(); }
+        } else if (pressed.has('b')) {
+          if (carry) { carry = null; whyT = 0; lairKeep(); sfx('select'); } else close();
+        } else if (pressed.has('start')) { if (carry) turn(); else menu(); }
+      },
+      // (the scroll wheel turns what you're carrying, as START does)
+      wheel() { if (carry) turn(); },
+      // (the mouse: the cursor goes where it points, a click is A, and the right button B)
+      point(px, py, button) {
+        if (button === 'b') return 'b';
+        const v = viewAt;
+        if (!v || v.floor !== LAIR) return null;
+        const tx = Math.floor((px / v.z + v.vx + v.cx) / 16), ty = Math.floor((py / v.z + v.vy + v.cy) / 16);
+        if (tx < LR.x1 || tx > LR.x2 || ty < LR.y1 || ty > LR.y2) return null;
+        moveTo(tx, ty);
+        return 'a';
+      },
+      draw() {
+        const v = viewAt;
+        if (!v || v.floor !== LAIR) return;
+        const sx = (x) => x * 16 - v.cx, sy = (y) => y * 16 - v.cy;
+        // the room's tiles, faintly
+        for (let y = LR.y1; y <= LR.y2; y++) for (let x = LR.x1; x <= LR.x2; x++) {
+          fine(sx(x), sy(y), 16, 0.5, 'rgba(40, 40, 60, 0.16)'); fine(sx(x), sy(y), 0.5, 16, 'rgba(40, 40, 60, 0.16)');
+        }
+        // what you're carrying, see-through, and a frame round where it'd go (red where it can't)
+        const flash = (tick >> 4) & 1;
+        let fx, fy, fw, fh, bad = false;
+        if (carry) {
+          const q = spot();
+          [fw, fh] = lairSize(q); fx = q.x; fy = q.y;
+          bad = !!lairWhy(lair.pieces, q);
+          ctx.globalAlpha = 0.8;
+          ctx.drawImage(lairPic(q.p, q.t), sx(fx), sy(fy));
+          ctx.globalAlpha = 1;
+        } else {
+          const q = lairPieceAt(cx, cy);
+          [fx, fy] = q ? [q.x, q.y] : [cx, cy];
+          [fw, fh] = q ? lairSize(q) : [1, 1];
+        }
+        ctx.fillStyle = bad ? '#e03030' : flash ? '#f8f8f8' : col.dark;
+        ring(sx(fx), sy(fy), fw * 16, fh * 16); ring(sx(fx) + 1, sy(fy) + 1, fw * 16 - 2, fh * 16 - 2);
+        // what's under the cursor (or why it won't go there), and what the buttons do
+        const under = carry ? carry.p : (lairPieceAt(cx, cy) || {}).p;
+        const label = whyT > 0 ? why : under ? under.name : 'DECORATE';
+        box(0, 0, label.length * 6 + 16, 22);
+        text(label, 8, 7, 1, whyT > 0 ? '#c03030' : col.dark);
+        const hint = carry ? (lairTurns(carry.p) > 1 ? 'Space: put down   Esc: put away   Enter: turn it' : 'Space: put it down   Esc: put it away') : under ? 'Space: pick it up   Esc: done   Enter: more' : 'Space: add something   Esc: done   Enter: more';
+        box(0, SH - 22, SW, 22);
+        text(hint, 8, SH - 15);
+      },
+    };
+    lairEdit = self;
+    return self;
+  }
+  // The catalogue: the floor first (done('floor') to pick another), then everything there is for a
+  // lair, what you have first. Pick one of yours to put in, or see what earns the rest.
+  function LairCatalogue(done) {
+    const FLOOR = { floorRow: true, name: 'Floor' };
+    const list = [FLOOR].concat(LAIR_PIECES.filter(lairHas), LAIR_PIECES.filter((p) => !lairHas(p)));
+    const mine = LAIR_PIECES.filter(lairHas).length, ROWS = 12, X = 8, Y = 30, RW = 140;
+    let cur = 0, first = 0;
+    const pick = (i) => { cur = clamp(i, 0, list.length - 1); first = Math.max(cur - ROWS + 1, Math.min(first, cur)); };
+    const self = {
+      point(px, py, button) {
+        if (button === 'b') return 'b';
+        const i = first + Math.floor((py - Y + 3) / 15);
+        if (!inBox(px, py, X, Y - 3, RW, ROWS * 15) || i >= list.length) return null;
+        pick(i);
+        return lairHas(list[i]) ? 'a' : null;
+      },
+      wheel(d) { first = clamp(first + d, 0, Math.max(0, list.length - ROWS)); cur = clamp(cur, first, first + ROWS - 1); },
+      update() {
+        if (pressed.has('up')) { pick((cur + list.length - 1) % list.length); sfx('select'); }
+        if (pressed.has('down')) { pick((cur + 1) % list.length); sfx('select'); }
+        if (pressed.has('a')) {
+          if (list[cur] === FLOOR) { remove(self); done('floor'); } else if (lairHas(list[cur])) { remove(self); done(list[cur]); } else sfx('bump');
+        } else if (pressed.has('b')) { sfx('select'); remove(self); done(null); }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('CATALOGUE', X + 4, 10);
+        const have = mine + ' OF ' + LAIR_PIECES.length + ' YOURS';
+        text(have, SW - 12 - have.length * 6, 10, 1, '#686878');
+        for (let i = first; i < Math.min(list.length, first + ROWS); i++) {
+          const y = Y + (i - first) * 15, p = list[i], c = i === cur ? col.light : lairHas(p) ? col.dark : '#9898a8';
+          if (i === cur) pickBar(X, y - 3, RW, 14, col.dark);
+          const name = p === FLOOR ? 'Floor: ' + LAIR_FLOORS.find((f) => f[0] === lair.floor)[2].toLowerCase() : p.name;
+          text(name.length > 21 ? name.slice(0, 20) + '.' : name, X + 6, y, 1, c);
+        }
+        if (first) text('^', X + RW - 8, Y - 14, 1, '#686878');
+        if (first + ROWS < list.length) text('v', X + RW - 8, Y + ROWS * 15 - 2, 1, '#686878');
+        // the one that's picked: its picture, as big as fits, and how you get it if it isn't yours
+        const p = list[cur], pic = p === FLOOR ? lairFloorPic(lairFloorCh()) : lairPic(p), PX = 156, PW = SW - PX - 12;
+        const k = pic.width <= PW && pic.height <= 104 ? 1 : 0.5, pw = pic.width * k, ph = pic.height * k;
+        roundBox(PX, Y - 4, PW, 112, 3, 'rgba(120, 110, 90, 0.12)');
+        if (!lairHas(p)) ctx.globalAlpha = 0.35;
+        ctx.drawImage(pic, PX + ((PW - pw) >> 1), Y - 4 + ((112 - ph) >> 1), pw, ph);
+        ctx.globalAlpha = 1;
+        text(p.name, PX, Y + 116);
+        const say = p === FLOOR ? ['Space: pick another.'] : wrap(lairHas(p) ? 'Yours' + (lairTurns(p) > 1 ? ', and it turns.' : '.') + ' Space: put one in.' : 'To get it: ' + p.earn.text + '.', Math.floor(PW / 6));
+        say.forEach((l, i) => text(l, PX, Y + 132 + i * 13, 1, lairHas(p) ? col.dark : '#686878'));
+        text('Esc: back', X + 4, SH - 18);
+      },
+    };
+    return self;
   }
 
   // ---------- the quests' wearables ----------
@@ -23992,11 +24635,13 @@
       if (edit.ask !== ask || edit.wait <= 0) return; // (too late: you might have changed something by now)
       if (look) edit.look = look;
     });
-    const crown = crownCheck(name, (boards) => awaySeen(name, boards)).then((on) => { if (playerName === name) champHeard(name, on, true); return on; });
+    let boards = null;
+    const crown = crownCheck(name, (all) => { awaySeen(name, all); boards = all; }).then((on) => { if (playerName === name) champHeard(name, on, true); return on; });
     const owned = itemsCheck(name, true);
     Promise.all([saved, owned]).then(() => { if (edit.ask === ask) itemsOff(edit.look); });
     Promise.all([saved, crown, owned]).then(([, on]) => {
       if (edit.ask !== ask) return;
+      lairAward(name, boards); // (what your best scores already earn you for your Secret Lair)
       if (edit.wait > 0) { // (if it's too late, you might have changed something by now)
         if (on === false) edit.look.champOff = 0; // (you've lost the title, so next time you start in both)
         edit.under = Object.assign({}, edit.look);
@@ -24311,7 +24956,8 @@
     const snap = realPx;
     const [mx, my] = mePx(), px = snap(mx), py = snap(my);
     const ox = (SW - 16) >> 1, oy = (SH - 16) >> 1;
-    const cx = px - ox, cy = py - oy;
+    // (looking at you, or while you decorate your lair, the whole room)
+    const [lx, ly] = lairEditing() ? lairCam() : [px, py], cx = snap(lx) - ox, cy = snap(ly) - oy;
     zoomOn(px - cx + 8, py - cy + 4);
     viewAt = { floor: P.floor, cx, cy, z: zoomed ? zoomed.z : 1, vx: zoomed ? zoomed.vx : 0, vy: zoomed ? zoomed.vy : 0 };
     const cv = floorCanvas[P.floor];
@@ -24380,7 +25026,7 @@
         alpha: visit && visit.npc === n ? visit.a : 1 });
     }
     actors[0].worn = meWorn(); actors[0].walk = WALKS.me;
-    for (const o of mpHere()) if (o.f === P.floor) actors.push({ x: o.px, y: o.py, img: mpSprites(o)[o.dir][mpFrame(o)], dir: o.dir, worn: mpWorn(o), walk: o.walks });
+    for (const o of mpHere()) if (mpWithMe(o)) actors.push({ x: o.px, y: o.py, img: mpSprites(o)[o.dir][mpFrame(o)], dir: o.dir, worn: mpWorn(o), walk: o.walks });
     for (const m of sweepersOn(P.floor)) actors.push({ x: m.at.x, y: m.at.y, img: sweeperPic('down', 0), sweeper: m });
     // a Christmas tree sorts in by the row it stands on (z), not by its top
     if (CHRISTMAS) for (const tr of xmas.trees) if (P.floor === tr.floor)
@@ -24409,6 +25055,7 @@
     }
     drawSweepDust(cx, cy);
     for (const n of dogs) if (n.dog.cat && n.floor === P.floor) drawZzz(n.x * 16 - cx + 10, n.y * 16 - cy - 2, 1);
+    if (P.floor === LAIR) lairLight(cx, cy); // (your lair's lamps, and the lights down if you've put them down)
     // rooms with the lights off (drawn over the player too)
     ctx.fillStyle = 'rgba(8, 8, 28, 0.78)';
     for (const r of MAPS.floors[P.floor].rooms)
@@ -24595,6 +25242,9 @@
     // &yard=1 stands you outside the parking lot's doors (at Christmas, or with &christmas=1)
     if (q.has('yard') && CHRISTMAS) placePlayer(YARD, MAPS.yard.x, MAPS.yard.y + 1, 'down');
     if ((q.has('phone') || q.has('call')) && phone) placePlayer(phone.floor, ...phoneSpot());
+    // &lair=1 stands you in your Secret Lair, just inside its doorway, or with &x=&y= there (&lair=all:
+    // with every piece yours, for this visit), and &decorate=1 opens DECORATE there
+    if (q.has('lair') && LR) placePlayer(LAIR, q.has('x') ? P.x : LAIR_DOOR.x - 1, q.has('x') ? P.y : LAIR_DOOR.y, q.get('dir') || 'left');
     mode = q.has('title') ? 'title' : q.has('naming') ? 'name' : 'play';
     // &editor=1 opens the character editor
     if (q.has('editor') || q.has('select')) { editStart(); mode = 'edit'; }
@@ -24605,6 +25255,7 @@
     if (q.has('say')) ask('The elevator. Which floor?', ['GROUND', '2F', 'CANCEL'], () => {});
     if (q.has('menu')) openStartMenu();
     if (q.has('map')) ui.push(MapView());
+    if (q.has('decorate') && P.floor === LAIR) ui.push(LairEdit());
     if (q.has('call') && phone) answerPhone();
     // &name=Sam sets your name; &quest=1 hands you Linda's list, &quest=done finishes it
     if (q.has('name')) playerName = q.get('name');
@@ -24614,9 +25265,12 @@
       const who = playerName || store.get('name') || '';
       if (who) fameAll(who).then((boards) => { if (boards) awaySeen(who, boards); }, () => {});
     }
-    // &unlock=santa,candycane,lights,ghostmask,ribbon,cup,champion brings up the message you get when each of those
-    // becomes yours, for this visit only
-    const unlocks = { santa: santaTell, candycane: elfTell, lights: presentTell, ghostmask: questTold('ghostmask'), ribbon: questTold('ribbon'), cup: () => cupPrize('You won the Christmas Cup!'), champion: champSay };
+    // &unlock=santa,candycane,lights,ghostmask,ribbon,cup,champion,lair,lairpiece brings up the message you get when
+    // each of those becomes yours, for this visit only
+    const unlocks = { santa: santaTell, candycane: elfTell, lights: presentTell, ghostmask: questTold('ghostmask'), ribbon: questTold('ribbon'), cup: () => cupPrize('You won the Christmas Cup!'), champion: champSay,
+      // (stepping into your Secret Lair the first time, with three pieces you've earned, and one piece on its own)
+      lair: () => lairWelcome(['mug', 'lucky7', 'helmet'].map((id) => LAIR_BY_ID[id])),
+      lairpiece: () => { lairDue.add('chessking'); lairTell(); } };
     for (const key of (q.get('unlock') || '').split(',')) if (inTable(unlocks, key)) questQueue.push(unlocks[key]);
     if (q.has('quest')) {
       startQuest();
@@ -24784,5 +25438,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo, npcs, critters, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get cards() { return cardsNow; }, get playtime() { return { unsent: playUnsent(), since: playSince, part: playPart }; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, cardWhere, get myCards() { return [...cardsMine()]; } };
+  window.GAME = { P, MAPS, warpTo, npcs, critters, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get cards() { return cardsNow; }, get playtime() { return { unsent: playUnsent(), since: playSince, part: playPart }; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, cardWhere, get myCards() { return [...cardsMine()]; }, get lair() { return lairText(lair); } };
 })();

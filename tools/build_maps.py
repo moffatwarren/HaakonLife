@@ -55,6 +55,10 @@ desk) brings you back.
 Cody's casino is a fourth map, the same size as the second floor and lined up with it
 tile for tile. Stepping into Cody's cubicle swaps you onto it in the same spot, and
 stepping out of its doorway swaps you back (its 'casino' says which floor and room).
+Your Secret Lair is a sixth map that works the same way off the ground floor's Secret
+Lair room ('lair' says which floor and room). It's only bare walls and floor here: the
+game puts in the floor and the furniture you've picked (see "your Secret Lair" in
+js/game.js).
 
 Room options: 'dark': True draws the room with the lights off,
 'rave': True fills the room with strobing party lights and dance music,
@@ -83,6 +87,7 @@ class Floor:
         self.rooms = []
         self.plant = False
         self.casino = None
+        self.lair = None
         self.outdoor = False
 
     # --- primitives (all coordinates inclusive) ---
@@ -170,6 +175,8 @@ class Floor:
             d['plant'] = True
         if self.casino:
             d['casino'] = self.casino
+        if self.lair:
+            d['lair'] = self.lair
         if self.outdoor:
             d['outdoor'] = True
         return d
@@ -291,9 +298,9 @@ f1.exit((86, 3), (87, 3))
 f1.room('Washroom', 74, 12, 77, 15, ':')
 f1.vline(78, 11, 20); f1.hline(73, 78, 20); f1.door((78, 13), (78, 14))
 f1.put(74, 12, 'w'); f1.put(74, 14, 'n')
-# empty room below the washroom
+# an empty room below the washroom, bigger on the inside: your Secret Lair (see the end)
 f1.hline(73, 78, 16)
-f1.room('Empty Room', 74, 17, 77, 19); f1.door((78, 18))
+f1.room('Secret Lair', 74, 17, 77, 19); f1.door((78, 18))
 
 # elevator
 f1.fill(74, 21, 77, 26, '#'); f1.put(77, 23, 'E'); f1.put(77, 24, 'E')
@@ -937,6 +944,21 @@ fc.rooms.append({'name': 'Poker Table', 'x1': 87, 'y1': 20, 'x2': 87, 'y2': 20, 
                  'people': ['Zin'], 'lines': ["Pull up a chair. Zin deals, and Zin always wins."]})
 
 # =====================================================================
+# YOUR SECRET LAIR: the empty room below the ground floor's washroom is bigger on
+# the inside, like Cody's cubicle. Step in and you're on this map instead, in the
+# same spot: a room of your own, twelve tiles by nine, with nothing but black
+# around it. Its doorway is in the middle of the east wall, where the room's door
+# is, and stepping out of it puts you back in the office. Everybody has their own:
+# the game lays your floor and your furniture over this (see js/game.js).
+# =====================================================================
+fl = Floor('Your Secret Lair')
+fl.lair = {'floor': 0, 'room': 'Secret Lair'}
+fl.fill(65, 13, 78, 23, '.')                    # floor under the walls too (the game picks which)
+fl.hline(65, 78, 13); fl.hline(65, 78, 23); fl.vline(65, 13, 23); fl.vline(78, 13, 23)
+fl.put(78, 18, '.')                             # the doorway: the room's door in the office
+fl.rooms.append({'name': 'Your Secret Lair', 'x1': 66, 'y1': 14, 'x2': 77, 'y2': 22})
+
+# =====================================================================
 # PARKING LOT: out through the fitness room's side doors, only at Christmas. The
 # office is the wall along the top, its doors opening onto the sidewalk; the rink
 # runs north to south down the lot, its nets at either end, with cars parked along
@@ -983,7 +1005,7 @@ for f in (f1, f2, fp):
             if f.fl[y][x] == ' ' and f.g[y][x] not in '# X':
                 f.fl[y][x] = ','
 
-data = {'floors': [f1.out(), f2.out(), fp.out(), fc.out(), fy.out()], 'links': links, 'start': {'floor': 0, 'x': 27, 'y': 36, 'dir': 'up'},
+data = {'floors': [f1.out(), f2.out(), fp.out(), fc.out(), fy.out(), fl.out()], 'links': links, 'start': {'floor': 0, 'x': 27, 'y': 36, 'dir': 'up'},
         'plant': {'floor': 2, 'x': 24, 'y': 9, 'dir': 'down'},
         # the parking lot's doors (x, y and the one to its right) and the fitness room's
         # (x, y and the one below)
@@ -997,7 +1019,7 @@ with open(out, 'w') as fh:
     fh.write('window.OFFICE_MAPS = ' + json.dumps(data, indent=1) + ';\n')
 
 if __name__ == '__main__':
-    for f in (f1, f2, fp, fc, fy):
+    for f in (f1, f2, fp, fc, fy, fl):
         print(f.name)
         for i, r in enumerate(f.g):
             print(f'{i:2d} ' + ''.join(r))

@@ -194,6 +194,7 @@ Walk up to these and press A:
     `ggGlow`. Its songs are `galaxy` and `galaxyboss` (the mothership) in `js/music.js`
 - **Zin's computer** (office 126): Spring Roll Hold'em, no-limit Texas Hold'em against Cody and Dmitriy, played for spring rolls. The arrows pick Fold, Call, Raise or All in and A does it; or click, or tap, the button (see **The mouse** and **Tapping the screen**)
 - **Cody's casino** (cubicle 142): see below
+- **Your Secret Lair** (the empty room by the ground floor's elevator): see below
 - **Coffee machine** (lunch room): catch the coffee in your cup. It pours 150 drops, and the nozzle gets quicker and twitchier as it goes; you're scored on how many you catch
 - **Recycling bin** (lunch room): toss crumpled paper into the bin; watch the wind
 - **Chess** (the lunch room table with the board on it): a whole game against whichever coworker happens to be looking for one. Pick white or black first. Each coworker always plays the same way, from Beginner to Shark, as it says under their name. The arrows move the cursor, A picks a piece up and puts it down, and B lets go of it, or with nothing in your hand opens the menu (keep playing or leave). With the mouse or a finger, click or tap the piece and then where it goes (see **The mouse** and **Tapping the screen**). A pawn reaching the far end asks what it should become. Stalemate, not enough pieces left, the same position three times and fifty moves with no capture or pawn move are all draws. Every piece is the shape you'd expect, so you can always tell which is which, with some air handling on top: a pawn's head is a little fan, a rook's walls are damper blades, the queen's collar is a copper coil and the king has the supply fan in his crown. Can also be played against another player (see **Playing together**)
@@ -469,6 +470,136 @@ instead of a computer screen, and they share the computers' leaderboards. The ca
 is its own map (the end of `tools/build_maps.py`), the same size as the second floor
 and lined up with it, so walking in keeps you in the same spot.
 
+## Your Secret Lair
+
+The empty room below the ground floor's washroom, by the elevator, is bigger on the inside,
+like Cody's cubicle: step through its door and it opens out into your Secret Lair, a room
+twelve tiles by nine with nothing but black around it. Walk back out of its doorway and
+you're in the office again. Everybody has their own, and nobody else is ever in yours: other
+players who walk in are in theirs, so you don't see them in there and they don't see you
+(they show as being in "Their Secret Lair" in WHO'S HERE). Nothing in the game tells you it's
+there: you find it by going in. The first time you step in, it tells you what it's for, along
+with any furniture you've already earned for it.
+
+**Decorating.** In your lair the Start menu has **DECORATE**. The whole room comes into view
+with a cursor on it, and along the top is what's under the cursor:
+
+- The arrows move the cursor (hold one to keep going).
+- A on an empty tile opens the **catalogue**: first the floor, then everything there is for a
+  lair, what you have first. Pick one of yours and you're carrying it. The ones you don't have
+  yet are greyed out, with what earns each one. Everything you have can go in as many times as
+  you like.
+- **The floor** is carpet, wood, dark wood, parquet, tiles, a checkerboard, stone, concrete or
+  the casino's carpet (which gives you the casino's walls too). Picking it from the catalogue or
+  the menu lists them all, and each one is laid in the room as you go past it: A keeps it, and B
+  goes back to the one you had.
+- A on a piece picks it up (what's standing on a rug before the rug). Carrying something, A puts
+  it down if it fits, and B puts it away (it's still in the catalogue). If it won't go there, the
+  top of the screen says why: it's in the way of something, it would block the doorway, you're
+  standing there, or it would shut you in.
+- **Rugs** lie on the floor: you walk over them, furniture goes on top of them, and they can go
+  over the doorway. The only thing a rug can't go on is another rug. To put something on a rug,
+  carry it over and put it down.
+- Carrying something, START turns it (so does the scroll wheel). A chair faces any of the four
+  ways, and the desk, the table and the red and plaid rugs run either way. Everything else is only
+  drawn facing you, so it only goes one way, and the top of the screen says so.
+- START with nothing in your hand has **ADD SOMETHING** (the catalogue), **FLOOR**, **LIGHTS**
+  and **DONE**. With the lights low, the room's dark except where the lamps light it.
+- B with nothing in your hand is done, and it's saved.
+- With the mouse, the cursor goes where you point, a click is A and the right button is B.
+
+**Lamps** light up a pool of the floor round them and their shades glow (a lava lamp's light is
+orange, and swells and fades). Walking round, A at a lamp switches it off, and again on. That's
+only until you leave: they're all on each time you come in.
+
+**The furniture.** Everybody has a desk, a computer (with its desktop, like the office's), a
+chair, a plant, a bookshelf, a table, a cardboard box, three rugs (a red one with a gold border
+and a fringe, a red and black flannel plaid and a round braided blue one) and three lamps (a
+floor lamp, a table lamp and a lava lamp, the last two on little side tables). Everything else is
+a keepsake you earn in a game: not the game's own machine but something that stands for it, to
+show off. They don't play anything. Press A at one and it says something about itself (the
+service bell dings, and the big red button buzzes).
+
+| Keepsake | From | How you get it |
+| --- | --- | --- |
+| Giant coffee mug | Coffee machine | Catch 75 drops of coffee |
+| Ping pong paddle | Pong | Beat the TV at Pong |
+| Toy snake | Snake | Score 20 at Snake |
+| Boxing gloves | Punching bag | Punch the bag for 350 points |
+| Running shoes | Treadmill | Run 300 m on the treadmill |
+| Kettlebell | Squat rack | Squat 175 lb |
+| Dumbbells | Lat pulldown | Do 10 clean lat pulldowns |
+| Yoga mat | Exercise ball | Stay on the exercise ball for 30 seconds |
+| Laundry basket | Laundry | Sort 8 things in the laundry |
+| Paper tower | Photocopier | Stack 15 copies at the photocopier |
+| Giant paper clip | Printer | Unjam 6 sheets from the printer |
+| Desk hoop | Recycling bin | Get 3 of your 10 throws in the recycling bin |
+| Lunch box | Fridge | Find the right lunch 4 times |
+| Gumball machine | Candy table | Sneak 15 candies off the candy table |
+| Big red button | Control panel | Get 8 rounds on a control panel |
+| Service bell | Front desk | Send 6 visitors the right way at the front desk |
+| First aid kit | CPR dummy | Score 50 on the CPR dummy |
+| Nameplate | Engraving machine | Engrave a nameplate 70% on the line |
+| Gold trophy | Nathan's trophies | Grab 12 of Nathan's trophies |
+| Golf bag | Wade's putting green | Go round Wade's green in 30 strokes or fewer |
+| Chess king | Chess | Checkmate a coworker at chess |
+| Stack of checkers | Checkers | Beat a coworker at checkers |
+| Lucky seven | Slot machines | Win 200 spring rolls at the slots (400 or more) |
+| Giant ace | Blackjack | Win 200 spring rolls off Cody at blackjack (400 or more) |
+| Poker chips | Hold'em | Win every spring roll at a game of Hold'em (600) |
+| Racing helmet | Haakon Grand Prix | Win a race |
+| Giant Lego brick | Joe's Lego shelf | Clear 8 rows |
+| Cable reel | Server room cables | Patch 5 panels tidying the cables |
+| Desk fan | Fan balancing | Balance 3 branches on the fan |
+| Block of ice | Cooling coil | Watch the cooling coil for 45 seconds |
+| Duct tape | Dampers | Solve 3 duct layouts at the dampers |
+| Air filter, in a gold frame | Filter change | Fit 20 filters |
+
+The targets were picked from the real leaderboards in November 2026: about what half the
+players had already done. What you did before there was a lair counts too: as you come in, your
+best on each game's board (and in this browser) gives you whatever it's already earned. Until
+you've found your lair (in that browser, or you have one saved from another), earning a piece is
+quiet, so nothing gives the lair away: it's just there in the catalogue, and the message as you
+first step in shows you what you've got. After that, a piece's message comes up once you're back
+walking round, with a picture of it.
+
+**How it works.** It's "your Secret Lair" in `js/game.js`. The lair is a map of its own (the
+end of `tools/build_maps.py`), the same size as the ground floor and lined up with it like the
+casino, with bare walls and floor. The game lays your floor and furniture over it
+(`lairBuild`) and paints that part of the map again (`Art.renderFloorPart` in `js/art.js`).
+The pieces are `LAIR_PIECES`: each one's letters on the map, what earns it, what it says, and
+the other ways it can turn (`turns`). A chair turned is a tile of its own, with its own picture
+(`<`, `"` and `>`, and `chairLeft`, `chairUp` and `chairRight` in `OBJ32` in `js/art.js`). The
+keepsakes are pictures in `DECOR32` in `js/art.js`, each a tile of its own on the lair's map, a
+character from U+0100 on (`Art.DECOR_CH`): only the lair's map has them, and a saved lair goes by
+the piece's id, so they can be given out in any order. A rug (`rug`) isn't
+a tile: the map has a list of them (`rugs`) that `renderFloorPart` lays on the floor before
+anything standing there (`RUGS32` and `rug32` in `js/art.js`), so it never gets in the way. The
+lamps (`floorLamp`, `tableLamp` and `lavaLamp` in `OBJ32`, on the map as `(`, `)` and `|`) are
+lit by `lairLight`, which also puts the lights down. The floors only for lairs are `W` (dark
+wood), `H` (parquet) and `X` (the checkerboard) in `floor32`. Games report results
+through `questNote`, `boardNote` and `questBoard` as before, and `lairNote` checks them
+against the pieces. A piece you've earned is a special item named `f_` and its id, like
+`f_mug` (see "Special items"), so you can give it to somebody or take it away on the Data
+tab. One that's taken away comes out of their lair the next time they come in.
+
+What's in your lair is kept as a line of text, the floor (with `,low` if the lights are down) and
+then each piece with where its top left corner is from the room's, and which way it's turned if
+it isn't the first way, like `wood,low;mug:9,1;redrug:3,3;chair:4,4,2`. It's kept in the browser
+and under your name in the database, as `lairs/live/<name>` with `r` (the text) and `at`
+(when it was changed). The newer one wins, the same as for decks, so your lair is the same on
+every phone and computer. Until the database's rules have the `lairs` part (see
+"Leaderboards"), each browser keeps its own. A lair that comes in from somewhere else is
+checked piece by piece, and anything that isn't a piece or doesn't fit where it says is left
+out.
+
+To add a piece, put it in `LAIR_PIECES` with an id of 10 letters at most (the database's item
+names stop at 16, with `f_` in front and `Told` after). A keepsake for a game gets a picture at
+the end of `DECOR32`, 32 x 32 in the office's style (a 2-pixel outline, the light from the top
+left), and `rows: decor('itsid')`. Give a piece `turns` if its picture works the other way round
+too, or if you draw it facing the other ways. Only ever add a turn to the end of a piece's
+`turns`, since saved lairs say which way a piece is turned by its place in that list.
+
 ## Eugene's phone and the Kingston plant
 
 The phone on Eugene's desk (office 163) never stops ringing: you can hear it from
@@ -709,6 +840,19 @@ The scores live in a free Firebase Realtime Database. To set one up:
         }
       }
     },
+    "lairs": {
+      "$world": {
+        ".validate": "$world === 'live' || $world === 'test'",
+        "$player": {
+          ".read": true,
+          ".write": "newData.exists() && (!data.exists() || newData.child('at').val() > data.child('at').val())",
+          ".validate": "$player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['r','at'])",
+          "r": { ".validate": "newData.isString() && newData.val().length <= 2000 && newData.val().matches(/^[a-z0-9:;,]*$/)" },
+          "at": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= now + 600000" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
     "playtime": {
       "$world": {
         ".read": true,
@@ -738,8 +882,12 @@ lower or delete one. Each row has to be under the name it holds, squashed the wa
 does it (`boardKey`: lower case, with each space, `.`, `'` and `-` made `_`). So "Warren" can only
 go under `warren`, nobody can add a second "Warren" under another key, and nothing a name
 can't have gets in. A score can only go to a board in the `$game.matches` list. Saved
-characters, special items, decks and play time work the same way: each one is under the
+characters, special items, decks, Secret Lairs and play time work the same way: each one is under the
 name's own key, with nothing in it the game wouldn't send.
+
+If your rules were published before the Secret Lair (November 11 2026), add the `lairs` part
+and press Publish again. Until then the database turns lairs down, and each browser keeps its
+own (see **Your Secret Lair**). The furniture you earn needs nothing new: it's special items.
 
 If your rules were published before November 6 2026, publish these ones instead. The game works
 with either, but the old ones take anything under any key, and leave the `live` world of `mp`
@@ -853,6 +1001,10 @@ items/live/warren/antlers: 0
 `startrail` the star trail, `ghostmask` the ghost mask, `ribbon` the ribbon, `goldbacks` the gold card backs, `cardcrown` the card crown, `cardstorm` the card storm and `owncard` your own legendary. 1 means it's theirs, so it's one of their choices in the character editor (gold backs and your own legendary aren't worn: the backs are simply on, and the card goes in your deck). 0 means it
 isn't, and the game won't offer it to them, even at Christmas, from the elf, the present, the cup or a quest. No number
 means they've never been given it.
+
+The furniture for the Secret Lair is kept the same way, as `f_` and the piece's id: `f_mug` is the
+giant coffee mug, `f_helmet` the racing helmet, and so on (the ids are in `LAIR_PIECES` in `js/game.js`).
+A 1 puts it in their catalogue, and a 0 takes it out, and out of their lair (see **Your Secret Lair**).
 
 In the game the Santa hat comes from coming in over Christmas, the candy cane from the elf in the
 parking lot, the tangled lights from opening the present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, the gold backs, card crown, card storm and your own legendary from winning cards in
@@ -1205,7 +1357,8 @@ table (`interact` and `clickUse` in `js/game.js`).
   on the leaderboards or count towards Linda's or Kiki's lists.
 
 Mini-games, conversations and the Halloween party are still just yours: other people
-see you standing at the coffee machine, not your game.
+see you standing at the coffee machine, not your game. So is your Secret Lair: in there you
+don't see anybody, and nobody sees you (see **Your Secret Lair**).
 
 **Updates.** Players on different versions can still see each other, but they can only
 play a match on the same version, and the game says which of you needs to reload. When
@@ -1954,7 +2107,7 @@ nothing gets saved for real, and you're in the `test` world, away from live play
   `&santahat=1` to have the Santa hat for this visit. Add `&look=m100a00000000` to be wearing it,
   and walk around to see the tail swing. A `#play` address skips the name screen, so it's never
   given the hat by itself: to see that for real, use `#christmas=1` and come in through the title.
-- Add `&unlock=santa` (or `candycane`, `lights`, `ghostmask`, `ribbon`, `cup`, `champion`, or several with commas) to a
+- Add `&unlock=santa` (or `candycane`, `lights`, `ghostmask`, `ribbon`, `cup`, `champion`, `lair`, `lairpiece`, or several with commas) to a
   `#play` link to bring up the message you get when that becomes yours, with the picture of you in it.
   Add `&have=candycane&look=m20000000300` to be holding the candy cane, and `&have=lights&look=m20008200000`
   to be in the tangled lights.
@@ -1985,7 +2138,8 @@ printer, fridge, sink, toilet, recycling, shelves, cupboards, the microwave, the
 machine, candy and boxes; the fitness room's treadmill, punching bag, washer, dryer, lockers,
 lat pulldown, dumbbells, ball, trophies and showers; the HVAC kit and tech: the fan, coil,
 dampers, electrical panels, server and computer racks, engraver, parts shelves, junk and
-floor parts, and the plant's forklift; the casino's slot machines) and the things drawn by
+floor parts, and the plant's forklift; the casino's slot machines; the Secret Lair's lamps and the chair
+turned the other ways), the Secret Lair's keepsakes (`DECOR32`) and rugs (`RUGS32`), and the things drawn by
 code (`PAINT32`: exits, the elevator, stairs, TVs, the Hall of Fame, the putting green, the
 squat rack, railings, curtains, the stretcher and Joe's Lego shelf and desk; the plant's
 work tables are drawn as desks; the plant's finished units, keeping their layouts, with the
@@ -2044,6 +2198,16 @@ the title screen.
 
 - `index.html#play&phone=1`: stand at Eugene's phone (`&call=1` answers it too).
 - `index.html#play&plant=1`: wake up in the Kingston plant.
+
+**Your Secret Lair**
+
+- `index.html#play&lair=1`: stand just inside your Secret Lair (add `&dir=up` to face another way,
+  or `&x=` and `&y=` to stand somewhere else in it).
+- `&lair=all` instead has every piece of furniture yours, for this visit, and `&decorate=1` opens
+  DECORATE straight away.
+- `&unlock=lair` brings up the message you get stepping into your lair for the first time, as if
+  you'd already earned three pieces, and `&unlock=lairpiece` the message for one piece earned in
+  a game once you've found it.
 
 ## Testing
 
@@ -2164,6 +2328,8 @@ python3 tools/check_maps.py   # make sure every room is still reachable
 The Kingston plant is a third map in the same file. It isn't linked to the office
 floors, so the checker also starts from where you wake up in the plant. The parking
 lot (Christmas) is a fifth, with glyphs of its own (listed in the legend); the
-checker starts from its doors too.
+checker starts from its doors too. Cody's casino (the fourth) and your Secret Lair (the
+sixth) are lined up with the floor each opens off, and the checker walks into them the way
+you do.
 
 1 tile is about 0.1" on the printed plan (roughly half a metre).

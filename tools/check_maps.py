@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Flood-fills js/maps.js from the start point (following stairs + elevator) and
 from where you wake up in the Kingston plant and the parking lot's doors (walking
-into Cody's cubicle takes you into his casino), and reports any walkable tiles or named rooms that can't be reached."""
+into Cody's cubicle takes you into his casino, and into the Secret Lair room into your
+lair), and reports any walkable tiles or named rooms that can't be reached."""
 import json, os
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -23,19 +24,18 @@ def room_at(f, x, y):
     return min(rooms, key=lambda r: (r['x2'] - r['x1'] + 1) * (r['y2'] - r['y1'] + 1))['name'] if rooms else None
 
 
-# the casino's map lines up with the floor it opens off, so you keep your x and y
-casino = next(((i, f['casino']) for i, f in enumerate(d['floors']) if 'casino' in f), None)
+# the casino's map and the lair's line up with the floor each opens off, so you keep your x and y
+insides = [(i, f.get('casino') or f.get('lair')) for i, f in enumerate(d['floors']) if 'casino' in f or 'lair' in f]
 
 
 def swap(f, x, y):
-    if not casino:
-        return []
-    ci, c = casino
-    if f == c['floor'] and room_at(f, x, y) == c['room']:
-        return [(ci, x, y)]
-    if f == ci and not room_at(f, x, y):
-        return [(c['floor'], x, y)]
-    return []
+    out = []
+    for ci, c in insides:
+        if f == c['floor'] and room_at(f, x, y) == c['room']:
+            out.append((ci, x, y))
+        if f == ci and not room_at(f, x, y):
+            out.append((c['floor'], x, y))
+    return out
 
 
 seen, q = set(), [(p['floor'], p['x'], p['y']) for p in (d['start'], d['plant'])]
