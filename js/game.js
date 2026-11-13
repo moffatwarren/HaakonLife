@@ -4,7 +4,7 @@
   // only whatever uses that script would break, much later on. Stop here instead: with no
   // window.GAME, index.html reloads the page, and a reload always asks for the newest index.html.
   // (tools/check_games.mjs makes sure every script has a name in this list.)
-  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'RACE', 'TrackArt', 'CHESS', 'CHECKERS', 'SWEEPER', 'CARD_LIST', 'CARDS', 'CARD_ART'].some((name) => !window[name])) return;
+  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'RACE', 'TrackArt', 'BRAWL', 'CHESS', 'CHECKERS', 'SWEEPER', 'CARD_LIST', 'CARDS', 'CARD_ART'].some((name) => !window[name])) return;
 
   // View: 20 x 15 tiles of 16px.
   const SW = 320, SH = 240;
@@ -626,6 +626,10 @@
     crash: (p) => { noise(0.18, 320, 0.06 + 0.08 * (p || 0)); tone(80, 0.14, 'square', 0.05 + 0.04 * (p || 0), -40); },
     clunk: (p) => { noise(0.08, 900, 0.05 + 0.05 * (p || 0)); tone(160, 0.08, 'square', 0.04, -60); },
     boost: () => { noise(0.4, 2400, 0.05); tone(300, 0.35, 'sawtooth', 0.025, 500); },
+    // Haakon Brawl: a punch through the air (a hit is `hit`)
+    whiff: () => noise(0.07, 2600, 0.035),
+    // ...and charging one up: a blip that climbs as it builds (k 0 to 1, a little over at full)
+    charge: (k) => tone(260 + (k || 0) * 520, 0.05, 'square', 0.018),
     // the bell on the Santa hat, which goes with every other stride, so it's very quiet
     bell: () => {
       const k = 1 + Math.random() * 0.05;
@@ -3727,18 +3731,18 @@
   }
 
   // ---------- the sign-up sheet: which live game to join, or start a new one ----------
-  // At the booth by the rink's gate (g: 'hockey'), the casino's poker table ('poker') or the
-  // lunch room's racing cabinet ('race'). The game server has as many games going at once as
+  // At the booth by the rink's gate (g: 'hockey'), the casino's poker table ('poker'), the
+  // lunch room's racing cabinet ('race') or the fighting cabinet beside it ('brawl'). The game server has as many games going at once as
   // people start (see server/tables.js), so this asks it what's on, every second while it's up,
   // and lists the ones with room: a lobby still filling up, a game on with a skater the
   // computer's playing (see sit in server/tables/hockey.js), or a table with a seat free, each
   // with who's there. Or you start a new one, which comes straight up if there's nothing to join:
-  // for hockey it asks what size of game first, and for a race which track, and then you're in
-  // its lobby.
+  // for hockey it asks what size of game first, for a race which track and for a fight which
+  // stage, and then you're in its lobby.
   const newTable = (kind) => kind + ':' + Math.random().toString(36).slice(2, 10);
   function SignUp(g) {
-    const hk = g === 'hockey', rc = g === 'race', sheet = mp.sheet = { g, list: null }, SHOWN = 5;
-    const SIZES = rc ? RACE.TRACKS.map((tr) => [tr.name, tr.about])
+    const hk = g === 'hockey', rc = g === 'race', br = g === 'brawl', sheet = mp.sheet = { g, list: null }, SHOWN = 5;
+    const SIZES = rc ? RACE.TRACKS.map((tr) => [tr.name, tr.about]) : br ? BRAWL.STAGES.map((st) => [st.name, st.about])
       : [['1 ON 1', 'You and one other player'], ['2 ON 2', '2 to 4 players, and the computer fills in'], ['3 ON 3', '2 to 6 players, and the computer fills in']];
     // t: ticks it's been up; pick: the game picked (null for starting a new one); at: where that
     // is in the list, for when it's gone; first: the top game showing; sizes: asking what size
@@ -3748,7 +3752,7 @@
     const close = () => { remove(self); if (mp.sheet === sheet) mp.sheet = null; };
     const go = (Game) => { close(); sfx('menu'); if (hk) startFade(() => ui.push(Game()), '#f8f8f8'); else ui.push(Game()); };
     const startNew = () => {
-      if (hk || rc) { sizes = true; sfx('select'); } else go(() => LivePoker(newTable('poker')));
+      if (hk || rc || br) { sizes = true; sfx('select'); } else go(() => LivePoker(newTable('poker')));
     };
     const self = {
       update() {
@@ -3765,7 +3769,7 @@
         if (!begun) {
           begun = true;
           if (games.length) pick = games[0].t;
-          else if (hk || rc) sizes = true;
+          else if (hk || rc || br) sizes = true;
           else { go(() => LivePoker(newTable('poker'))); return; }
         }
         if (sizes) {
@@ -3773,7 +3777,7 @@
           if (pressed.has('down')) { size = (size + 1) % SIZES.length; sfx('select'); }
           if (pressed.has('a')) {
             const n = (size + 1) * 2, tr = size;
-            go(rc ? () => LiveRace(newTable('race'), false, tr) : () => LiveHockey(n, newTable('hockey' + (size + 1))));
+            go(rc ? () => LiveRace(newTable('race'), false, tr) : br ? () => LiveBrawl(newTable('brawl'), false, size) : () => LiveHockey(n, newTable('hockey' + (size + 1))));
           } else if (pressed.has('b')) {
             sfx('select');
             if (games.length) sizes = false; else close();
@@ -3791,7 +3795,7 @@
         if (pressed.has('a')) {
           const x = games[i];
           if (!x) startNew();
-          else go(() => (hk ? LiveHockey(x.size, x.t, true) : rc ? LiveRace(x.t, true) : LivePoker(x.t, true)));
+          else go(() => (hk ? LiveHockey(x.size, x.t, true) : rc ? LiveRace(x.t, true) : br ? LiveBrawl(x.t, true) : LivePoker(x.t, true)));
         } else if (pressed.has('b')) { sfx('select'); close(); }
       },
       // the mouse: point at a size, a game or START A NEW one to pick it, and click to go
@@ -3815,7 +3819,7 @@
       wheel(d) { pressed.add(d > 0 ? 'down' : 'up'); },
       draw() {
         box(0, 0, SW, SH);
-        const title = hk ? 'LIVE HOCKEY SIGN-UP' : rc ? 'LIVE RACE SIGN-UP' : 'LIVE HOLD\'EM TABLES';
+        const title = hk ? 'LIVE HOCKEY SIGN-UP' : rc ? 'LIVE RACE SIGN-UP' : br ? 'LIVE FIGHT SIGN-UP' : 'LIVE HOLD\'EM TABLES';
         text(title, (SW - title.length * 6) >> 1, 10);
         if (!sheet.list || !begun) {
           ctext('Checking the sheet' + '.'.repeat(1 + ((tick >> 4) % 3)), 104);
@@ -3831,25 +3835,25 @@
           if (b) text(b, 24, y + 11, 1, col.mid);
         };
         if (sizes) {
-          const what = rc ? 'Which track?' : 'What size of game?';
-          ctext(sheet.list.length ? what : (rc ? 'Nobody\'s racing yet. ' : 'Nobody\'s playing yet. ') + what, 30);
+          const what = rc ? 'Which track?' : br ? 'Which stage?' : 'What size of game?';
+          ctext(sheet.list.length ? what : (rc ? 'Nobody\'s racing yet. ' : br ? 'Nobody\'s fighting yet. ' : 'Nobody\'s playing yet. ') + what, 30);
           SIZES.forEach(([a, b], i) => row(56 + i * (SIZES.length > 4 ? 30 : 32), i === size, a, b));
           text('Arrows: choose  Space: OK  Esc: back', 10, SH - 18);
           return;
         }
-        ctext(hk ? 'Join a game, or start a new one' : rc ? 'Join a race, or start a new one' : 'Pull up a chair, or start a new table', 26);
+        ctext(hk ? 'Join a game, or start a new one' : rc ? 'Join a race, or start a new one' : br ? 'Join a fight, or start a new one' : 'Pull up a chair, or start a new table', 26);
         // (with more than fit, the scroll bar goes down the right, beside them)
         const lots = games.length > SHOWN;
-        games.slice(first, first + SHOWN).forEach((x, i) => row(44 + i * 28, x.t === pick, rc ? raceLine(x) : sheetLine(x, hk), sheetNames(x.who), SW - 24 - (lots ? 8 : 0)));
+        games.slice(first, first + SHOWN).forEach((x, i) => row(44 + i * 28, x.t === pick, rc ? raceLine(x) : br ? brawlLine(x) : sheetLine(x, hk), sheetNames(x.who), SW - 24 - (lots ? 8 : 0)));
         scrollBar(SW - 13, 41, 44 + (SHOWN - 1) * 28 + 22, first, SHOWN, games.length);
         if (lots) {
           const more = first + 1 + '-' + (first + SHOWN) + ' of ' + games.length;
           text(more, SW - 12 - more.length * 6, 10, 1, col.mid);
         }
         const y = 44 + Math.min(SHOWN, games.length) * 28 + 2, full = sheet.list.length - games.length;
-        row(y, !pick, hk ? 'START A NEW GAME' : rc ? 'START A NEW RACE' : 'START A NEW TABLE');
+        row(y, !pick, hk ? 'START A NEW GAME' : rc ? 'START A NEW RACE' : br ? 'START A NEW FIGHT' : 'START A NEW TABLE');
         if (!games.length) ctext('Nothing to join right now.', y + 20, col.mid);
-        else if (full) ctext(full + ' more ' + (hk ? (full > 1 ? 'games are' : 'game is') : rc ? (full > 1 ? 'races are' : 'race is') : (full > 1 ? 'tables are' : 'table is')) + ' going, with no room.', y + 20, col.mid);
+        else if (full) ctext(full + ' more ' + (hk ? (full > 1 ? 'games are' : 'game is') : rc ? (full > 1 ? 'races are' : 'race is') : br ? (full > 1 ? 'fights are' : 'fight is') : (full > 1 ? 'tables are' : 'table is')) + ' going, with no room.', y + 20, col.mid);
         text('Arrows: choose  Space: OK  Esc: back', 10, SH - 18);
       },
     };
@@ -3868,6 +3872,11 @@
   function raceLine(x) {
     const tr = RACE.TRACKS[x.tr] || RACE.TRACKS[0];
     return tr.name + '  In the lobby: ' + x.open + ' spot' + (x.open > 1 ? 's' : '') + ' open';
+  }
+  // ...or for a fight: which stage, and how many spots are left in its lobby
+  function brawlLine(x) {
+    const st = BRAWL.STAGES[x.st] || BRAWL.STAGES[0];
+    return st.name + '  In the lobby: ' + x.open + ' spot' + (x.open > 1 ? 's' : '') + ' open';
   }
   // and its second: who's there, as many as fit
   function sheetNames(who) {
@@ -4876,6 +4885,8 @@
     racelake: { title: 'LAKESHORE GP', unit: racetime, low: true }, racemaple: { title: 'MAPLE HOLLOW GP', unit: racetime, low: true },
     racesnow: { title: 'SNOWBELT GP', unit: racetime, low: true }, raceprairie: { title: 'CANOLA FLATS GP', unit: racetime, low: true },
     raceplant: { title: 'KINGSTON PLANT GP', unit: racetime, low: true },
+    // Haakon Brawl: the most coworkers you've knocked out in one run of the gauntlet
+    brawl: { title: 'HAAKON BRAWL', unit: (n) => n + (n === 1 ? ' KO' : ' KOs') },
     // the most you've scored in one game of hockey against a coworker (played to the end)
     hockey: { title: 'HOCKEY GOALS', unit: goals },
     // Morale Madness: how many cards you have, starter cards and all, and how many times you've beaten another player
@@ -5148,7 +5159,7 @@
   const FAME_GROUPS = [
     ['OFFICE', ['coffee', 'toss', 'lunch', 'candy', 'stack', 'simon', 'desk', 'jam', 'filter']],
     ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pullreps', 'ball', 'laundry']],
-    ['SCREENS AND CODY\'S CASINO', ['pong', 'snake', 'galaxy', 'poker', 'pokerlive', 'blackjack', 'slots']],
+    ['SCREENS AND CODY\'S CASINO', ['pong', 'snake', 'galaxy', 'brawl', 'poker', 'pokerlive', 'blackjack', 'slots']],
     ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cprpts', 'engrave', 'golf9', 'legosolo']],
     ['COWORKERS AND DOGS', ['dark', 'dancepts', 'trophy', 'forms', 'wokpieces', 'carrotpts', 'legolines', 'catchrun']],
     ['BOARD AND CARD GAMES', ['chess', 'checkers', 'cards', 'cardwins']],
@@ -17805,6 +17816,7 @@
     hockey: 'Playing hockey', hockey1v1: 'Playing live hockey (1 on 1)', hockey2v2: 'Playing live hockey (2 on 2)', hockey3v3: 'Playing live hockey (3 on 3)',
     hockeywait: 'Waiting for hockey players',
     race: 'Playing Haakon Grand Prix', racelive: (n) => 'In a live race (' + n + ' players)', racewait: 'Waiting for racers',
+    brawl: 'Playing Haakon Brawl', brawllive: (n) => 'In a live fight (' + n + ' players)', brawlwait: 'Waiting for fighters',
     coffee: 'Playing Coffee Machine', catch: 'Playing Frisbee Catch', punch: 'Playing Punching Bag', run: 'Playing Treadmill',
     pong: 'Playing Pong', toss: 'Playing Paper Toss', stack: 'Playing Photocopier', simon: 'Playing Control Panel',
     lunch: 'Playing Find My Lunch', candy: 'Playing Candy Table', squat: 'Playing Squat Rack', golf: 'Playing mini golf',
@@ -22898,6 +22910,821 @@
     return self;
   }
 
+  // ---------- Haakon Brawl: the fighting game on the lunch room's second arcade cabinet ----------
+  // The fight itself (the stages, the moves, the hits and how coworkers fight) is js/brawl.js.
+  // BrawlGame is the gauntlet: coworkers one after another, one life each, with you on three
+  // lives for the whole run, and more of them and better ones the further you get. LiveBrawl
+  // fights other players on the game server (server/tables/brawl.js), picked from the sign-up
+  // sheet (SignUp). Both draw the fight with brawlScreen. A jumps (again in the air, and down + A
+  // drops through a platform) and B attacks, the way you're holding picking the move.
+  const BRAWL_HINTS = ['Space: jump  X: punch  Arrows + X: other moves', 'Knocked off? Jump, then Up + X: back up'];
+  const BRAWL_HELP = ['Space: jump (and again). Down + Space: drop down', 'Left/Right: walk. Hold it, or tap twice, to run', 'X: jab   Left/Right + X: side punch',
+    'Up + X: uppercut. In the air it lifts you', 'Down + X: low sweep. In the air, a stomp', 'Running + X: a sliding lunge'];
+  // each fighter's colour, by their place: red, blue, yellow and green, with a darker one
+  const BRAWL_COLS = [['#e84838', '#a02018'], ['#3c80f0', '#1c48a0'], ['#f0c020', '#a07808'], ['#48c050', '#1c7a28']];
+  const BRAWL_KOS = (n) => n + (n === 1 ? ' KO' : ' KOs');
+  const brawlWay = (v) => (v > 0.5 ? 1 : v < -0.5 ? -1 : 0); // (the stick pushed at least half way)
+  const brawlStageOf = (i) => (Number.isInteger(i) && BRAWL.STAGES[i] ? i : 0);
+  // the damage, darker red the more there is
+  let brawlNow = null; // the fight on the screen (js/brawl.js's), for testing: window.GAME.brawl
+  const brawlPctCol = (p) => (p < 40 ? col.dark : p < 80 ? '#a86818' : p < 130 ? '#d04818' : '#c01010');
+
+  // Each stage painted once at the screen's full resolution (a tile is 32 of its pixels), at the
+  // places js/brawl.js has them: what's behind, the stage itself and the platforms.
+  const brawlPics = [];
+  function brawlStage(st) {
+    st = brawlStageOf(st);
+    if (brawlPics[st]) return brawlPics[st];
+    const cv = document.createElement('canvas');
+    cv.width = SW * 2; cv.height = SH * 2; cv.hi = 2;
+    const c = cv.getContext('2d'), S = BRAWL.STAGES[st], M = S.main, T = 32, K = '#181820';
+    const r = (x, y, w, h, colr) => { c.fillStyle = colr; c.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+    const disc = (x, y, rad, colr) => { c.fillStyle = colr; c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.fill(); };
+    const poly = (pts, colr) => { c.fillStyle = colr; c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.closePath(); c.fill(); };
+    // a block with a 2-pixel outline, lit along its top and left, with a shade along its bottom
+    const slab = (x, y, w, h, fill, hi, lo) => {
+      r(x, y, w, h, K); r(x + 2, y + 2, w - 4, h - 4, fill);
+      if (hi) { r(x + 2, y + 2, w - 4, 2, hi); r(x + 2, y + 2, 2, h - 4, hi); }
+      if (lo && h > 8) r(x + 4, y + h - 4, w - 6, 2, lo);
+    };
+    const bands = (list) => list.forEach(([colr, y0, y1]) => r(0, y0, SW * 2, y1 - y0, colr));
+    const sun = (x, y) => { disc(x, y, 31, '#f8e070'); disc(x, y, 25, '#fff4b0'); disc(x - 7, y - 7, 7, '#ffffff'); };
+    const cloud = (x, y, s) => {
+      const puffs = [[0, 0, 1], [0.9, -0.4, 1.15], [1.9, 0, 0.9], [1, 0.3, 1]];
+      puffs.forEach(([dx, dy, k]) => disc(x + dx * 16 * s, y + dy * 16 * s + 4, 14 * s * k, '#c8dcee'));
+      puffs.slice(0, 3).forEach(([dx, dy, k]) => disc(x + dx * 16 * s, y + dy * 16 * s, 14 * s * k, '#ffffff'));
+    };
+    // a row of pines along a line, dark with their left sides lit
+    const pines = (y, x0, x1, hi, dark, lit, seed) => {
+      for (let x = x0, k = seed; x < x1; k++) {
+        const h = hi * (0.7 + ((k * 37) % 10) / 22), w = h * 0.42;
+        poly([[x, y - h], [x + w, y], [x - w, y]], dark);
+        poly([[x, y - h], [x, y], [x - w, y]], lit);
+        x += 10 + ((k * 53) % 9);
+      }
+    };
+    // writing in the game's font, `scale` times the size, centred on cx
+    const word = (str, cx, y, scale, colr) => {
+      let x = cx - str.length * FONT.ADV * scale;
+      for (const ch of str) { const gp = glyphPic(ch, colr); c.drawImage(gp, x, y, gp.width * scale, gp.height * scale); x += FONT.ADV * 2 * scale; }
+    };
+    const P = S.soft.map((p) => ({ x0: p.x0 * T, x1: p.x1 * T, y: p.y * T, w: (p.x1 - p.x0) * T }));
+    const mx0 = M.x0 * T, mx1 = M.x1 * T, my = M.y * T;
+    if (S.key === 'roof') {
+      // The roof of the office: a summer sky, the treeline far off, the building's wall running
+      // down off the bottom of the screen, catwalks either side and the HAAKON sign up top.
+      bands([['#5c9ce0', 0, 90], ['#6aa8e6', 90, 170], ['#7ab4ec', 170, 240], ['#8cc0f0', 240, 300], ['#a2ccf2', 300, 480]]);
+      sun(84, 70);
+      cloud(220, 56, 1); cloud(470, 96, 1.2); cloud(568, 36, 0.8); cloud(40, 170, 0.7);
+      poly([[0, 330], [0, 292], [90, 270], [200, 290], [330, 262], [460, 288], [560, 266], [640, 284], [640, 330]], '#7aa6c8');
+      pines(334, 0, 640, 34, '#2c5a48', '#3c7a5c', 1);
+      r(0, 330, 640, 150, '#5a8a6a');
+      // the wall, with two rows of windows
+      r(mx0 - 2, my, mx1 - mx0 + 4, 480 - my, K);
+      r(mx0, my, mx1 - mx0, 480 - my, '#c8b898');
+      r(mx0, my, 4, 480 - my, '#dccfb0'); r(mx1 - 6, my, 6, 480 - my, '#a89878');
+      for (let y = my + 18; y < 480; y += 12) r(mx0 + 4, y, mx1 - mx0 - 10, 2, '#b8a888');
+      for (const wy of [my + 34, my + 104]) for (let x = mx0 + 22; x + 44 < mx1; x += 76) {
+        slab(x, wy, 44, 40, '#5a88c8', null, null);
+        poly([[x + 6, wy + 30], [x + 20, wy + 4], [x + 28, wy + 4], [x + 14, wy + 30]], '#9cc4ec');
+        r(x - 2, wy + 38, 48, 4, '#e4e4ec');
+      }
+      // on the roof, behind you: a vent stack and a rooftop unit
+      slab(150, my - 34, 14, 36, '#a4acc4', '#d8dce8', null); slab(144, my - 42, 26, 10, '#8890a0', '#c8ccd8', null);
+      slab(404, my - 50, 104, 52, '#b8bcc8', '#e0e2ea', '#8890a0');
+      for (let x = 414; x < 446; x += 6) r(x, my - 40, 3, 32, '#8890a0');
+      disc(476, my - 24, 16, K); disc(476, my - 24, 13, '#5a6070');
+      for (let a = 0; a < 4; a++) { const an = a * Math.PI / 2 + 0.4; poly([[476, my - 24], [476 + Math.cos(an) * 12, my - 24 + Math.sin(an) * 12], [476 + Math.cos(an + 0.5) * 12, my - 24 + Math.sin(an + 0.5) * 12]], '#a4acc4'); }
+      disc(476, my - 24, 3, K);
+      // the parapet along the top of the wall
+      slab(mx0 - 6, my, mx1 - mx0 + 12, 14, '#c8ccd8', '#f0f0f6', '#8890a0');
+      // the catwalks on their posts, and the sign
+      P.forEach((p, i) => {
+        if (i === 2) {
+          slab(p.x0 + 18, p.y + 50, 8, my - p.y - 50, '#6a7080', '#9098a8'); slab(p.x1 - 26, p.y + 50, 8, my - p.y - 50, '#6a7080', '#9098a8');
+          slab(p.x0 + 6, p.y + 8, p.w - 12, 44, '#2f62d8', '#5a88f0', '#1c3a94');
+          word('HAAKON', (p.x0 + p.x1) / 2, p.y + 22, 1, '#ffffff');
+        } else {
+          slab(p.x0 + 10, p.y + 8, 8, my - p.y - 8, '#6a7080', '#9098a8'); slab(p.x1 - 18, p.y + 8, 8, my - p.y - 8, '#6a7080', '#9098a8');
+        }
+        slab(p.x0, p.y, p.w, 10, '#8890a0', '#c8ccd8', null);
+        for (let x = p.x0 + 6; x < p.x1 - 6; x += 8) r(x, p.y + 5, 4, 2, '#4a5060');
+      });
+    } else if (S.key === 'plant') {
+      // The Kingston plant's warehouse: steel walls and trusses, light through the high windows,
+      // a mezzanine over the dark floor far below, and pallet racks to climb.
+      r(0, 0, 640, 480, '#465066');
+      for (let x = 0; x < 640; x += 24) { r(x, 40, 6, 440, '#525e76'); r(x + 6, 40, 2, 440, '#3a4258'); }
+      r(0, 0, 640, 40, '#2a303e');
+      c.strokeStyle = '#5a6478'; c.lineWidth = 4; c.beginPath();
+      for (let x = 0; x <= 640; x += 40) { c.moveTo(x, 34); c.lineTo(x + 20, 6); c.lineTo(x + 40, 34); }
+      c.stroke();
+      r(0, 4, 640, 4, '#5a6478'); r(0, 34, 640, 6, '#5a6478');
+      for (let x = 40; x < 640; x += 128) {
+        poly([[x + 4, 100], [x + 68, 100], [x + 168, 380], [x + 60, 380]], 'rgba(255, 248, 210, 0.07)');
+        slab(x, 56, 72, 44, '#bce0f8', '#f0f8ff', '#8cb8dc'); r(x + 34, 58, 4, 40, K);
+      }
+      r(0, 392, 640, 88, '#262c38'); r(0, 440, 640, 40, '#1c2028');
+      for (const x of [20, 250, 600]) slab(x, 420, 40, 30, '#3a3226', '#4a4030', null);
+      // the mezzanine on its columns: diamond plate, the hazard stripe along its edge, the beam
+      for (const x of [mx0 + 40, (mx0 + mx1) / 2 - 9, mx1 - 58]) slab(x, my + 46, 18, 480 - my - 46, '#d07028', '#f0a058', null);
+      slab(mx0, my, mx1 - mx0, 16, '#a4acc4', '#d8dce8', null);
+      for (let x = mx0 + 6; x < mx1 - 8; x += 12) { r(x, my + 7, 4, 2, '#c8ccd8'); r(x + 6, my + 10, 4, 2, '#c8ccd8'); }
+      r(mx0, my + 14, mx1 - mx0, 12, K);
+      for (let x = mx0 + 2; x < mx1 - 10; x += 16) poly([[x, my + 24], [x + 6, my + 16], [x + 12, my + 16], [x + 6, my + 24]], '#f0c030');
+      slab(mx0 + 8, my + 24, mx1 - mx0 - 16, 24, '#6a7080', '#9098a8', '#4a5060');
+      // the racks, the high ones first (their uprights go down behind the low ones)
+      P.slice().sort((a, b) => a.y - b.y).forEach((p, k) => {
+        slab(p.x0 + 2, p.y + 26, 8, my - p.y - 26, '#3050a8', '#6890e0'); slab(p.x1 - 10, p.y + 26, 8, my - p.y - 26, '#3050a8', '#6890e0');
+        // a load on each pallet: boxes, or an air handling unit's coil in its crate
+        let x = p.x0 + 2;
+        const sizes = [[34, 18], [26, 14], [30, 18], [24, 12], [32, 16]];
+        for (let i = k; x < p.x1 - 20; i++) {
+          const [w, h] = sizes[i % sizes.length], ww = Math.min(w, p.x1 - 2 - x);
+          slab(x, p.y + 18 - h, ww, h + 2, '#c89058', '#f0d0a0', '#9a6434');
+          r(x + ww / 2 - 2, p.y + 20 - h, 4, h - 2, '#e8c890');
+          x += ww;
+        }
+        slab(p.x0, p.y + 18, p.w, 8, '#a87838', '#d0a060', null);
+        for (let xx = p.x0 + 14; xx < p.x1 - 8; xx += 22) r(xx, p.y + 22, 8, 3, K);
+        slab(p.x0 - 2, p.y + 24, p.w + 4, 8, '#e06828', '#f8a060', null);
+      });
+    } else {
+      // A cottage dock out on the lake in summer: the far shore with its pines and a cottage, the
+      // water, the dock on its posts, a sun deck on it, and a piling either side to land on.
+      bands([['#68b0e8', 0, 80], ['#7cbcec', 80, 150], ['#90c8f0', 150, 200], ['#a8d4f4', 200, 246]]);
+      sun(84, 66);
+      cloud(260, 50, 1.1); cloud(520, 84, 0.9); cloud(400, 30, 0.7);
+      poly([[0, 250], [0, 214], [120, 196], [240, 214], [380, 192], [520, 212], [640, 200], [640, 250]], '#4a8a5a');
+      pines(240, 0, 640, 40, '#2c5a40', '#3c7a52', 3);
+      // the cottage on the far shore
+      slab(470, 210, 50, 32, '#c89058', '#e8b880', null);
+      poly([[462, 212], [495, 186], [528, 212]], K); poly([[467, 210], [495, 190], [523, 210]], '#b83028');
+      r(480, 222, 10, 18, '#6a4424'); r(500, 220, 12, 10, '#5a88c8');
+      bands([['#3c88c8', 246, 280], ['#3478b8', 280, 330], ['#2c68a8', 330, 400], ['#245898', 400, 480]]);
+      for (let k = 0; k < 40; k++) { const x = (k * 157) % 620, y = 252 + ((k * 89) % 220); r(x, y, 10 + (k % 3) * 6, 2, y < 330 ? '#78b0e8' : '#4a88c8'); }
+      // a canoe, far out
+      poly([[86, 262], [146, 262], [138, 268], [94, 268]], '#b83028'); r(112, 256, 3, 7, '#6a4424');
+      // the pilings either side, and the dock's posts, down into the water
+      for (const p of [P[1], P[2]]) {
+        for (const x of [p.x0 + 10, p.x1 - 22]) { slab(x, p.y + 8, 12, 480 - p.y - 8, '#6a4424', '#8a5c34'); r(x - 4, 370, 20, 3, '#78b0e8'); }
+        slab(p.x0, p.y, p.w, 10, '#c89058', '#f0d0a0', null);
+      }
+      for (let x = mx0 + 8; x < mx1 - 8; x += 84) { slab(x, my + 36, 14, 480 - my - 36, '#6a4424', '#8a5c34'); r(x - 4, 370, 22, 3, '#78b0e8'); }
+      slab(mx1 - 22, my + 36, 14, 480 - my - 36, '#6a4424', '#8a5c34');
+      // the dock: its boards seen from just above, and its front
+      slab(mx0, my, mx1 - mx0, 40, '#a87040', null, null);
+      r(mx0 + 2, my + 2, mx1 - mx0 - 4, 14, '#c89058'); r(mx0 + 2, my + 2, mx1 - mx0 - 4, 2, '#f0d0a0');
+      for (let x = mx0 + 22; x < mx1 - 4; x += 22) r(x, my + 4, 2, 12, '#9a6434');
+      r(mx0 + 2, my + 16, mx1 - mx0 - 4, 2, K);
+      for (let x = mx0 + 40; x < mx1 - 10; x += 44) { disc(x, my + 28, 2, '#5c4c3a'); }
+      // the sun deck on its posts, with a life ring hung on one
+      const d = P[0];
+      for (const x of [d.x0 + 8, d.x1 - 20]) slab(x, d.y + 8, 12, my - d.y - 8, '#8a5c34', '#a87040');
+      slab(d.x0, d.y, d.w, 10, '#c89058', '#f0d0a0', null);
+      for (let x = d.x0 + 20; x < d.x1 - 4; x += 22) r(x, d.y + 3, 2, 5, '#9a6434');
+      disc(d.x1 - 14, d.y + 40, 11, K); disc(d.x1 - 14, d.y + 40, 9, '#f8f8f8');
+      for (let a = 0; a < 4; a++) { c.fillStyle = '#e04838'; c.beginPath(); c.arc(d.x1 - 14, d.y + 40, 9, a * Math.PI / 2, a * Math.PI / 2 + 0.6); c.arc(d.x1 - 14, d.y + 40, 5, a * Math.PI / 2 + 0.6, a * Math.PI / 2, true); c.fill(); }
+      disc(d.x1 - 14, d.y + 40, 5, K); disc(d.x1 - 14, d.y + 40, 4, '#c89058');
+    }
+    brawlPics[st] = cv;
+    return cv;
+  }
+
+  // Where someone's punching hand goes, from their shoulder, facing right (flip x for left), as
+  // the move goes on (ph: 's' winding up, 'a' hitting, 'r' coming back): one hand, or both for the
+  // sweep, the spin and the stomp (arms up, feet first). With no move, none: their arms are in
+  // their picture as usual.
+  function brawlHands(f, ph) {
+    if (f.chg) return { side: [[-6, 1]], up: [[2, 5]], low: [[-5, 3]] }[f.cmv] || []; // (charging: drawn right back)
+    switch (f.mv + ph) {
+      case 'jabs': return [[2, 1]];
+      case 'jaba': return [[9, -0.5]];
+      case 'jabr': return [[5, 0.5]];
+      case 'sides': case 'fairs': return [[-4, 2]];
+      case 'sidea': case 'faira': return [[12, -0.5]];
+      case 'sider': case 'fairr': return [[7, 1]];
+      case 'ups': case 'uairs': return [[3, 3]];
+      case 'upa': case 'uaira': return [[9, -11]];
+      case 'upr': case 'uairr': return [[7, -8]];
+      case 'lows': return [[3, 3]];
+      case 'lowa': return [[11, 4.5], [-11, 4.5]];
+      case 'lowr': return [[6, 4]];
+      case 'nairs': return [[5, -2]];
+      case 'naira': case 'nairr': { const a = f.mt * 0.9; return [[Math.cos(a) * 8, Math.sin(a) * 8], [-Math.cos(a) * 8, -Math.sin(a) * 8]]; }
+      case 'dairs': return [[5, -7], [-5, -7]];
+      case 'daira': return [[7, -9], [-6, -9]];
+      case 'dairr': return [[4, -5]];
+      case 'dashs': return [[-3, 2]];
+      case 'dasha': return [[11, 1]];
+      case 'dashr': return [[7, 2]];
+    }
+    return [];
+  }
+  // Their own arm (lifted off their picture, sleeve, cuff and hand: see limbsOf), reaching from
+  // the shoulder at x, y to the hand at hx, hy (from the shoulder, facing right; D flips it).
+  function brawlArm(sheet, x, y, hx, hy, D) {
+    const arm = limbsOf(sheet).arms[0], tx = hx * D, d = Math.hypot(tx, hy);
+    if (!arm) { pixLine(x, y, x + tx, y + hy, 2.5, col.dark); pixLine(x, y, x + tx, y + hy, 1.5, '#c8ccd8'); return; } // (a costume with no arm to lift)
+    const pic = armPic(arm, Math.max(arm.rows.length, Math.round(d * arm.k) - arm.k));
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.atan2(-tx, hy)); // (the picture hangs straight down: turned to point at the hand)
+    ctx.drawImage(pic, -pic.width / 2 / arm.k, -1);
+    ctx.restore();
+  }
+  // The swoosh each move leaves through where it hits: an arc round [x, y] from the shoulder,
+  // [across, down] in size, from one angle to another (degrees: 0 straight ahead, 90 down), and
+  // how thick it is in the middle (it tapers to nothing at each end).
+  const BRAWL_SWOOSH = {
+    jab: [0, 0, 9, 9, -22, 22, 2.5], side: [0, 0, 12, 12, -40, 30, 4], fair: [0, 0, 12, 12, -40, 30, 4],
+    up: [0, 0, 11, 11, 40, -110, 4], uair: [0, 0, 11, 11, 40, -110, 4], low: [0, 4, 13, 4, 180, 360, 2.5],
+    nair: [0, 0, 9, 9, 0, 360, 2.5], dair: [0, 2, 9, 9, 20, 160, 4], dash: [0, 1, 12, 6, -25, 35, 3.5],
+  };
+  // ...drawn from the shoulder at x, y facing D, faded by k (0 to 1), white with a pale blue
+  // inside edge
+  function brawlSwoosh(x, y, D, sw, k, alpha) {
+    const [cx, cy, rx, ry, a0, a1, w] = sw;
+    const band = (inset, thick, colr) => {
+      const N = 20, outer = [], inner = [];
+      for (let i = 0; i <= N; i++) {
+        const t = i / N, a = (a0 + (a1 - a0) * t) * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a);
+        const th = (w * Math.sin(Math.PI * t) + 0.2) * thick, mx = cx + ux * (rx - inset * th), my = cy + uy * (ry - inset * th);
+        outer.push([x + (mx + ux * th / 2) * D, y + my + uy * th / 2]);
+        inner.push([x + (mx - ux * th / 2) * D, y + my - uy * th / 2]);
+      }
+      ctx.fillStyle = colr;
+      ctx.beginPath();
+      outer.concat(inner.reverse()).forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+      ctx.closePath();
+      ctx.fill();
+    };
+    ctx.globalAlpha = alpha * (1 - k) * 0.9;
+    band(0, 1, '#ffffff');
+    band(0.35, 0.35, '#a8d8f8');
+    ctx.globalAlpha = alpha;
+  }
+
+  // What a fight looks like: the stage, the fighters throwing punches, the sparks and the dust, a
+  // blast of colour where someone goes off the screen, the damage along the bottom, and anyone
+  // off the edge shown in a bubble at it. hear(events, cols) starts the sparks and the rest for
+  // what just happened, tick() moves them on, and draw(g, me, o) draws it all: o.cols is each
+  // fighter's colour (from BRAWL_COLS), o.sheets their pictures, o.names what to call each over
+  // their head (null for you), and o.off how far out of place each is drawn (in tiles: LiveBrawl
+  // sliding them over to where they really are).
+  function brawlScreen(st) {
+    const pic = brawlStage(st), fx = [], jig = [];
+    let shake = 0, n = 0;
+    const add = (o) => fx.push(Object.assign({ t: 0, vx: 0 }, o));
+    const self = {
+      hear(events, cols) {
+        for (const e of events) {
+          if (e.e === 'hit') {
+            add({ k: 'spark', x: e.x * 16, y: e.y * 16, life: 8 + Math.round(e.p * 8), s: 5 + e.p * 12 });
+            jig[e.o.i] = 10;
+            if (e.p > 0.45) shake = Math.max(shake, Math.round(3 + e.p * 6));
+          } else if (e.e === 'ko') {
+            const x = Math.max(4, Math.min(SW - 4, e.x * 16)), y = Math.max(4, Math.min(SH - 4, e.y * 16));
+            add({ k: 'blast', x, y, ang: Math.atan2(SH / 2 - y, SW / 2 - x), life: 50, c: (cols[e.f.i] || BRAWL_COLS[0])[0] });
+            shake = 14;
+          } else if (e.e === 'jump' || e.e === 'land' || e.e === 'ledge') {
+            for (const s of [-1, 1]) add({ k: 'dust', x: e.f.x * 16 + s * 3, y: e.f.y * 16 - 1, vx: s * (e.e === 'jump' ? 0.3 : 0.6), life: 14 });
+          } else if (e.e === 'bounce') add({ k: 'spark', x: e.f.x * 16, y: e.f.y * 16, life: 8, s: 6 });
+          else if (e.e === 'run') for (let k = 0; k < 3; k++) add({ k: 'dust', x: e.f.x * 16 - e.f.face * (2 + k * 2), y: e.f.y * 16 - 1, vx: -e.f.face * (0.3 + k * 0.2), life: 12 + k * 3 });
+        }
+      },
+      // (g: the fight, for the dust kicked up behind anyone running, and all along a lunge)
+      tick(g) {
+        n++;
+        if (g) for (const f of g.fighters) {
+          if (f.out || f.gone || f.ground < 0) continue;
+          const lunging = f.mv === 'dash' && Math.abs(f.vx) > 2, running = f.run && !f.mv && Math.abs(f.vx) > 5;
+          if ((lunging && n % 3 === 0) || (running && n % 9 === 0)) add({ k: 'dust', x: f.x * 16 - f.face * 4, y: f.y * 16 - 1, vx: -f.face * 0.3, life: lunging ? 14 : 10 });
+        }
+        for (let i = fx.length - 1; i >= 0; i--) { const p = fx[i]; p.x += p.vx; if (++p.t >= p.life) fx.splice(i, 1); }
+        if (shake) shake--;
+        for (let i = 0; i < jig.length; i++) if (jig[i]) jig[i]--;
+      },
+      draw(g, me, o) {
+        const sx = shake ? (shake & 2 ? 1 : -1) * Math.min(3, Math.ceil(shake / 3)) : 0, sy = shake ? (shake & 1 ? 1 : -1) * Math.min(2, Math.ceil(shake / 4)) : 0;
+        fine(0, 0, SW, SH, col.dark);
+        ctx.drawImage(pic, sx, sy);
+        // the dust behind everyone
+        for (const p of fx) if (p.k === 'dust') { ctx.globalAlpha = 1 - p.t / p.life; fineDisc(realPx(p.x + sx), realPx(p.y + sy - p.t * 0.15), 1 + p.t * 0.15, '#e8e4dc'); }
+        ctx.globalAlpha = 1;
+        // the fighters, yours last so it's on top
+        const order = g.fighters.map((f, j) => j).filter((j) => j !== me).concat(me >= 0 && g.fighters[me] ? [me] : []);
+        const where = (j) => { const f = g.fighters[j], d = (o.off && o.off[j]) || [0, 0]; return [realPx((f.x + d[0]) * 16 + sx), realPx((f.y + d[1]) * 16 + sy)]; };
+        for (const j of order) {
+          const f = g.fighters[j];
+          if (f.out || f.gone) continue;
+          let [px, py] = where(j);
+          const D = f.face, sheet = o.sheets[j] || charSprites.male[0], m = f.mv && BRAWL.MOVES[f.mv];
+          const ph = !m ? '' : f.mt < m.start ? 's' : f.mt < m.start + m.act ? 'a' : 'r';
+          const step = f.ground < 0 ? 1 : Math.abs(f.vx) > 0.6 && !f.mv ? 1 + (Math.floor(f.x * 2.5) & 1) : 0;
+          // charging one up: shaking with it once it's well on, more at full
+          const charged = f.chg ? Math.min(1, (f.chg - 1) / BRAWL.CHARGE) : 0, jx = charged > 0.4 ? ((tick >> 1) & 1 ? 0.5 : -0.5) * (charged >= 1 ? 2 : 1) : 0;
+          px += jx;
+          const img = sheet[D > 0 ? 'right' : 'left'][step], hands = f.stun ? [] : brawlHands(f, ph), hx = px + D * 0.5, hy = py - 5.5;
+          const alpha = f.safe > 0 && (tick >> 2) & 1 ? 0.45 : 1, behind = (h, i) => i === 1 || h[0] < -1 || h[1] < -4;
+          ctx.globalAlpha = alpha;
+          // an arm drawn back to wind up, the far one of two, or one going up (past their head) goes
+          // behind them
+          hands.forEach((h, i) => { if (behind(h, i)) brawlArm(sheet, hx, hy, h[0], h[1], D); });
+          // tumbling after a hard hit, knocked back by a light one, leaning into a punch
+          let rot = 0;
+          if (f.stun > 0) rot = f.launch >= 8 && f.ground < 0 ? f.stun * 0.35 * -D : -D * 0.3;
+          else if (ph === 'a' && (f.mv === 'side' || f.mv === 'fair')) rot = D * 0.15;
+          else if (f.mv === 'dash' && ph !== 'r') rot = D * 0.25;
+          else if (f.run && !f.mv && f.ground >= 0 && Math.abs(f.vx) > 5) rot = D * 0.1;
+          else if (ph === 'a' && (f.mv === 'up' || f.mv === 'uair')) rot = -D * 0.12;
+          if (rot) { ctx.save(); ctx.translate(px, py - 8); ctx.rotate(rot); ctx.drawImage(img, -8, -8); ctx.restore(); }
+          else ctx.drawImage(img, px - 8, py - 16);
+          hands.forEach((h, i) => { if (!behind(h, i)) brawlArm(sheet, hx, hy, h[0], h[1], D); });
+          // the charge building at their fist: a glow that grows, flickering white once it's full
+          if (charged > 0 && hands[0]) {
+            const gx = hx + hands[0][0] * D, gy = hy + hands[0][1], full = charged >= 1;
+            ctx.globalAlpha = alpha * (0.35 + 0.3 * charged);
+            fineDisc(realPx(gx), realPx(gy), 1.5 + charged * 3.5 + (full && (tick >> 2) & 1 ? 1 : 0), full && (tick >> 1) & 1 ? '#ffffff' : '#f8d040');
+            ctx.globalAlpha = alpha;
+            fineDisc(realPx(gx), realPx(gy), 1 + charged, '#fff8c0');
+          }
+          // speed lines streaming off the back of a lunge
+          if (f.mv === 'dash' && ph === 'a') {
+            ctx.globalAlpha = alpha * 0.6;
+            for (const [dy, len] of [[-9, 7], [-5, 10], [-1.5, 6]]) fine(realPx(D > 0 ? px - 6 - len : px + 6), realPx(py + dy), len, 1, '#ffffff');
+            ctx.globalAlpha = alpha;
+          }
+          // the swoosh through where it hits, fading as they come back
+          const sw = m && BRAWL_SWOOSH[f.mv], after = m ? f.mt - m.start - m.act : 0;
+          if (sw && !f.stun && (ph === 'a' || (ph === 'r' && after < 4))) brawlSwoosh(hx, hy, D, sw, ph === 'a' ? 0 : (after + 1) / 5, alpha);
+          ctx.globalAlpha = 1;
+          // whose is whose: a marker in their colour over their head, with their name
+          const c = (o.cols[j] || BRAWL_COLS[0])[0], my = py - 21 - (j === me ? (tick >> 3) & 1 : 0);
+          fine(px - 3.5, my - 0.5, 7, 1, col.dark);
+          for (let i = 0; i < 3; i++) { fine(px - 3 + i, my + i, 6 - i * 2, 1, c); fine(px - 3.5 + i, my + i, 0.5, 1, col.dark); fine(px + 2.5 - i, my + i, 0.5, 1, col.dark); }
+          const nm = o.names[j];
+          if (nm) { const tx = px - nm.length * 3, ty = my - 9; text(nm, tx + 0.5, ty + 0.5, 1, col.dark); text(nm, tx, ty, 1, '#f8f8f8'); }
+          // off the screen (or down behind the damage along the bottom): a bubble at the edge with them in it
+          if (px < 0 || px > SW || py - 8 < 0 || py - 8 > SH - 40) {
+            const bx = Math.max(12, Math.min(SW - 12, px)), by = Math.max(12, Math.min(SH - 52, py - 8));
+            fineDisc(bx, by, 10, col.dark); fineDisc(bx, by, 9, c); fineDisc(bx, by, 7.5, '#f8f8f8');
+            ctx.drawImage(sheet.down[0], bx - 6, by - 7, 12, 12);
+          }
+        }
+        // the sparks and blasts over everyone
+        for (const p of fx) {
+          const k = p.t / p.life;
+          if (p.k === 'spark') {
+            const s = p.s * (0.5 + k), x = realPx(p.x + sx), y = realPx(p.y + sy);
+            ctx.globalAlpha = 1 - k * 0.7;
+            for (let a = 0; a < 8; a++) {
+              const an = a * Math.PI / 4 + 0.3, len = a & 1 ? s * 0.6 : s;
+              for (let q = 0.3; q <= 1; q += 0.14) fine(x + Math.cos(an) * len * q - 0.75, y + Math.sin(an) * len * q - 0.75, 1.5, 1.5, a & 1 ? '#f8d040' : '#ffffff');
+            }
+            fineDisc(x, y, Math.max(1, s * 0.35 * (1 - k)), '#ffffff');
+          } else if (p.k === 'blast') {
+            ctx.globalAlpha = 1 - k;
+            ctx.save(); ctx.translate(p.x + sx, p.y + sy); ctx.rotate(p.ang);
+            const w = 18 * (1 - k * 0.5);
+            ctx.fillStyle = p.c; ctx.fillRect(-4, -w, 90 + k * 60, w * 2);
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(-4, -w * 0.45, 80 + k * 60, w * 0.9);
+            ctx.restore();
+          }
+        }
+        ctx.globalAlpha = 1;
+        hud(g, o);
+      },
+    };
+    // along the bottom: each fighter's face, name, damage and lives
+    function hud(g, o) {
+        const n = g.fighters.length, w = Math.min(78, Math.floor((SW - 4) / n)), x0 = Math.floor((SW - w * n) / 2), y = SH - 37;
+        g.fighters.forEach((f, j) => {
+          const x = x0 + j * w, c = o.cols[j] || BRAWL_COLS[0], sheet = o.sheets[j] || charSprites.male[0];
+          box(x + 1, y, w - 2, 36);
+          roundBox(x + 6, y + 6, 3, 24, 1, c[0]);
+          ctx.drawImage(sheet.down[0], x + 11, y + 4, 16, 16);
+          const name = String(o.label ? o.label(j) : f.name).toUpperCase().slice(0, Math.floor((w - 34) / 6));
+          text(name, x + 29, y + 6, 1, j === o.me ? c[1] : col.dark);
+          if (f.out) text(f.left ? 'LEFT' : 'OUT', x + 29, y + 19, 1, col.mid);
+          else {
+            const s = Math.floor(f.pct) + '%', jx = jig[j] ? (jig[j] & 2 ? 1 : -1) : 0;
+            text(s, x + 29 + jx, y + 16, 2, brawlPctCol(f.pct));
+          }
+          for (let k = 0; k < (f.out ? 0 : f.lives); k++) { fineDisc(x + 14 + k * 6, y + 28, 2.5, col.dark); fineDisc(x + 14 + k * 6, y + 28, 1.75, c[0]); }
+        });
+    }
+    return self;
+  }
+  // What goes over the middle of a fight: the countdown, FIGHT!, and anything else that's
+  // happened (msg: { a (big), b (under it), t (ticks it's been up) }).
+  function brawlNotes(g, msg) {
+    const big = (str, y, scale, c) => { const x = (SW - str.length * 6 * scale) >> 1; text(str, x + 1, y + 1, scale, col.dark); text(str, x, y, scale, c || '#f8f8f8'); };
+    if (g.phase === 'ready') big(String(3 - Math.floor(Math.min(179, g.t) / 60)), 70, 4, '#f8d040');
+    else if (g.phase === 'fight' && g.t < 50) big('FIGHT!', 70, 4, '#f05040');
+    else if (msg && msg.t < 150) { big(msg.a, 62, 3, msg.c); if (msg.b) big(msg.b, 90, 1); }
+  }
+  // what to hear of a fight's events: hits, swings, jumps (yours) and knockouts
+  function brawlSounds(events, me) {
+    for (const e of events) {
+      if (e.e === 'count') sfx('blip');
+      else if (e.e === 'go') sfx('blip', true);
+      else if (e.e === 'hit') sfx('hit', Math.round(e.dmg * 5 + e.p * 40));
+      else if (e.e === 'swing' && e.f.i === me) sfx('whiff');
+      else if ((e.e === 'charge' || e.e === 'charging') && e.f.i === me) sfx('charge', e.c || 0);
+      else if (e.e === 'full' && e.f.i === me) sfx('charge', 1.3);
+      else if (e.e === 'jump' && e.f.i === me) sfx('jump');
+      else if (e.e === 'run' && e.f.i === me) sfx('dash');
+      else if (e.e === 'ko') sfx('boom');
+      else if (e.e === 'spawn' && e.f.i === me) sfx('power');
+    }
+  }
+
+  // The gauntlet: coworkers come at you one after another, each with one life, and you have
+  // three for the whole run (and one back for every 5th round cleared, up to three). Your damage
+  // goes back to nothing each round. They get better each round, two at once from the 6th and
+  // three from the 11th, and from the 16th they hit harder every round, so there's always a
+  // round you don't get past. You're scored on how many you knock out. startRound (from &round=
+  // on a test address) starts the run at that round.
+  function BrawlGame(startRound) {
+    const ME = 0, nS = BRAWL.STAGES.length;
+    // state: 'title', 'wait' (fading in), 'fight', 'won' (the round's won: the next comes in a
+    // moment), 'next' (fading to it) and 'done' (out of lives: the results)
+    let state = 'title', t = 0, g = null, scr = null, run = null, msg = null, record = false, cast = [], sheets = [], sitting = 0;
+    const first = Number.isInteger(startRound) && startRound > 1 ? startRound : 1;
+    // round r: how many coworkers, how good they are (0 to 1), and how hard they hit
+    function lineup(r) {
+      const n = r <= 5 ? 1 : r <= 10 ? 2 : 3;
+      const skill = r <= 5 ? 0.1 + 0.18 * (r - 1) : r <= 10 ? 0.35 + 0.13 * (r - 6) : Math.min(1, 0.5 + 0.1 * (r - 11));
+      return { n, skill, power: r > 15 ? 1 + 0.08 * (r - 15) : 1 };
+    }
+    function begin() { run = { round: first - 1, kos: 0, lives: BRAWL.LIVES }; record = false; nextRound(); }
+    function nextRound() {
+      run.round++;
+      const L = lineup(run.round), st = (run.round - 1) % nS;
+      const pool = npcs.filter((n) => !n.ghost && !n.extra && !n.guest && !(visit && n === visit.npc)).sort(() => Math.random() - 0.5);
+      cast = Array.from({ length: L.n }, (_, k) => pool[k] || null);
+      const players = [{ name: playerName || 'You', team: 0, lives: run.lives }]
+        .concat(cast.map((n, k) => ({ name: n ? n.name : ['Wade', 'Kiki', 'Joe'][k], ai: true, skill: L.skill, power: L.power, team: 1, lives: 1 })));
+      g = brawlNow = BRAWL.create(st, { seed: (Math.random() * 2 ** 31) | 0, players });
+      sheets = [sprites].concat(cast.map((n) => (n ? n.sprites : charSprites.male[0])));
+      scr = brawlScreen(st);
+      state = 'fight'; t = 0; msg = null;
+    }
+    // the round won: an extra life for every 5th, and the next round in a moment
+    function won() {
+      lairNote('brawl', run.kos); // (the title belt for your Secret Lair, from round 5: there and then, even if you stop)
+      const back = run.round % 5 === 0 && run.lives < BRAWL.LIVES;
+      if (back) run.lives++;
+      msg = { a: 'K.O.!', b: 'Round ' + run.round + ' cleared!' + (back ? ' One life back.' : ''), t: 0, c: '#f8d040' };
+      sfx('cup');
+    }
+    // out of lives: your knockouts on the board, and here if it's your best
+    function finish() {
+      record = saveBest('brawl', run.kos);
+      sitting = Math.max(sitting, run.kos);
+      // (the leaderboard that comes up when you leave is for your best run this time, not your last)
+      if (sitting > run.kos) boardNote('brawl', sitting);
+      msg = null;
+      sfx('buzz');
+    }
+    const leave = () => { remove(self); brawlNow = null; };
+    function menu(paused) {
+      sfx('menu');
+      const opts = paused ? ['KEEP FIGHTING', 'START AGAIN', 'LEAVE'] : ['FIGHT AGAIN', 'LEAVE'];
+      ui.push(Choice(opts, 112, 150, (i) => {
+        if (opts[i] === 'START AGAIN' || opts[i] === 'FIGHT AGAIN') { state = 'wait'; startFade(begin, col.dark); }
+        else if (opts[i] === 'LEAVE') leave();
+      }, { startCloses: paused }));
+    }
+    const self = {
+      music: 'brawl', doing: 'brawl',
+      get escStart() { return state !== 'title'; }, // (B punches: Esc brings up the menu in a fight, and leaves from the title)
+      update() {
+        t++;
+        if (state === 'title') {
+          if (pressed.has('a') || pressed.has('start')) { sfx('menu'); state = 'wait'; startFade(begin, col.dark); }
+          else if (pressed.has('b')) { sfx('select'); leave(); }
+          return;
+        }
+        if (state === 'wait' || !g) return;
+        if (pressed.has('start')) { menu(state !== 'done'); return; }
+        if (state === 'done' && t > 60 && pressed.has('a')) { menu(false); return; }
+        const s = steer();
+        g.step([state === 'fight' ? { x: brawlWay(s.x), y: brawlWay(s.y), a: held.a, b: held.b } : {}]);
+        brawlSounds(g.events, ME);
+        for (const e of g.events) if (e.e === 'ko') { if (e.f.team === 1) run.kos++; else run.lives = e.f.lives; }
+        scr.hear(g.events, BRAWL_COLS); scr.tick(g);
+        if (msg) msg.t++;
+        if (state === 'fight' && g.over()) {
+          t = 0;
+          if (g.fighters[ME].out) { state = 'done'; finish(); } else { state = 'won'; won(); }
+        } else if (state === 'won' && t > 130) { state = 'next'; startFade(nextRound, col.dark); }
+      },
+      draw() {
+        if (state === 'title' || !g) { drawTitle(); return; }
+        const names = g.fighters.map((f, j) => (j === ME ? null : f.name.toUpperCase().slice(0, 9)));
+        scr.draw(g, ME, { cols: BRAWL_COLS, sheets, names, me: ME, label: (j) => (j === ME ? 'YOU' : g.fighters[j].name) });
+        brawlNotes(g, msg);
+        // the round, and your knockouts
+        box(2, 2, 74, 30);
+        text('ROUND ' + run.round, 8, 8);
+        text(BRAWL_KOS(run.kos), 8, 19, 1, col.mid);
+        if (g.phase === 'ready') {
+          const them = cast.map((n, k) => g.fighters[k + 1].name);
+          const vs = 'vs ' + (them.length > 1 ? them.slice(0, -1).join(', ') + ' and ' + them[them.length - 1] : them[0]);
+          box(30, 30, SW - 60, 30);
+          ctext('ROUND ' + run.round, 37);
+          ctext(vs.length > 44 ? vs.slice(0, 43) + '.' : vs, 48, col.mid);
+          // (the controls, the first round: under everyone's feet, above the damage)
+          if (run.round === first) { box(14, SH - 74, SW - 28, 36); BRAWL_HINTS.forEach((l, i) => ctext(l, SH - 66 + i * 13)); }
+        }
+        if (state === 'done') {
+          box(44, 50, 232, 96);
+          ctext('GAME OVER', 60);
+          ctext('You got to round ' + run.round, 80);
+          ctext('Coworkers knocked out: ' + run.kos, 94);
+          ctext(record && run.kos ? 'Your best yet!' : getBest('brawl') ? 'Your best: ' + BRAWL_KOS(getBest('brawl')) : 'No knockouts yet', 112, col.mid);
+          if (t > 60 && (tick >> 4) & 1) ctext('Space: go on', 128);
+        }
+        if (g.phase !== 'ready') { text('Enter: menu', 5, 33, 1, col.dark); text('Enter: menu', 4, 32, 1, '#f8f8f8'); }
+      },
+    };
+    function drawTitle() {
+      box(0, 0, SW, SH);
+      const title = 'HAAKON BRAWL';
+      text(title, (SW - title.length * 12) >> 1, 10, 2);
+      ctext('THE GAUNTLET', 32, col.mid);
+      ['Coworkers come at you one at a time, then two', 'and three at once, a little tougher every round.', 'You have three lives for the whole run.']
+        .forEach((l, i) => ctext(l, 50 + i * 11));
+      // you, throwing a punch at a coworker, now and then
+      const p = npcs.find((n) => !n.ghost && !n.extra && !n.guest) || null, them = p ? p.sprites : charSprites.male[0];
+      const k = (tick >> 2) % 16, out = k < 6 ? [[-4, 2], [12, -0.5], [12, -0.5], [7, 1]][Math.min(3, k >> 1)] : null;
+      if (out && out[0] < 0) brawlArm(sprites, 136.5, 106.5, out[0], out[1], 1);
+      ctx.drawImage(sprites.right[0], 128, 96, 16, 16);
+      if (out && out[0] >= 0) brawlArm(sprites, 136.5, 106.5, out[0], out[1], 1);
+      if (k >= 2 && k < 5) brawlSwoosh(136.5, 106.5, 1, BRAWL_SWOOSH.side, (k - 2) / 4, 1);
+      ctx.globalAlpha = 1;
+      ctx.drawImage(them.left[0], 160, 96, 16, 16);
+      fine(116, 113, 88, 2, col.mid);
+      BRAWL_HELP.forEach((l, i) => ctext(l, 122 + i * 12));
+      // (pressing B along with a direction and holding it, in whichever buttons you've got)
+      ctext((buttonHints() ? 'D-pad + B' : 'Arrow + X') + ' together, held: charge it up', 122 + BRAWL_HELP.length * 12);
+      const b = getBest('brawl');
+      ctext(b ? 'Your best: ' + BRAWL_KOS(b) : 'No knockouts yet', 210, col.mid);
+      ctext('Space: fight  Esc: leave', SH - 18);
+    }
+    return self;
+  }
+
+  // ---------- live fights: two to four players on the game server ----------
+  // The game server runs it (server/tables/brawl.js, with js/brawl.js) and this shows what it
+  // says (mp.table.view, see view() there). First the lobby: whoever's been there longest picks
+  // the stage, and once there are two or more of you and you've all pressed start, the fight
+  // starts (after a few seconds, unless there are four). Then the fight, just like the gauntlet's
+  // but every one for themselves, three lives each, for up to four minutes. It's run a little
+  // ahead of the server on this screen as a live race is: your fighter does what you say
+  // straight away, and if anyone else turns out to have done something different, they slide
+  // over to where they really are. table: which fight (see server/tables.js), join: for one
+  // picked off the sign-up sheet, which has to still be there, and stage: for a new one, the
+  // stage it was started for.
+  function LiveBrawl(table, join, stage) {
+    const tb = mp.table = { t: table || 'brawl', j: !!join, view: null, out: null, asked: false, feed: (v) => got(v) };
+    // snaps: the fight's views, oldest first. gn: which fight. at: your fighter. pg: this screen's
+    // own copy of the fight, loaded from the newest view and run on with what you've done since
+    // (pend: { q, e ([x, y, a, b], as sent) }), loaded: the view it was last loaded from, q: your
+    // newest tick, out: ticks not sent yet, off: how far out of place each fighter is drawn
+    let snaps = [], gn = -1, at = -1, pg = null, loaded = -1, pend = [], q = 0, out = [], off = [], scr = null;
+    // onStage: showing the fight (rather than the lobby); going: fading over to it; menu: the
+    // option picked on the menu (-1 while it's shut); told: the stage has been asked for
+    let t = 0, onStage = false, going = false, menu = -1, lobby = null, told = false;
+    function got(v) {
+      if (!v || v.ph === 'lobby' || !Array.isArray(v.who) || !Array.isArray(v.sv) || !BRAWL.STAGES[v.st]) return;
+      if (v.gn !== gn) { gn = v.gn; snaps = []; pg = null; loaded = -1; pend = []; q = 0; out = []; off = []; }
+      if (snaps.length && v.n <= snaps[snaps.length - 1].n) return;
+      at = Number.isInteger(v.at) ? v.at : -1;
+      snaps.push(v);
+      if (snaps.length > 30) snaps.shift();
+    }
+    const who = () => (snaps.length ? snaps[snaps.length - 1].who : []);
+    // each fighter's picture: yours, or the look of whoever's playing it
+    const sheetOf = (j) => { const w = who()[j]; if (j === at) return sprites; const o = w && w.id && mp.others[w.id]; return o ? mpSprites(o) : charSprites.male[j % 2]; };
+    // one tick of pg: you doing e, everyone else carrying on as they were. live: this tick is
+    // happening now (not being played again after a view), so it's heard and seen
+    function tickPg(e, live) {
+      pg.step(pg.fighters.map((f, j) => (j === at ? { x: e[0], y: e[1], a: !!e[2], b: !!e[3] } : f.in)));
+      if (!live) return;
+      brawlSounds(pg.events, at);
+      scr.hear(pg.events, BRAWL_COLS);
+    }
+    // What's on the stage now: pg run on a tick with what you're doing (e, or null with the fight
+    // not on), and loaded again from each new view, with your ticks it hasn't had played on top.
+    function show(e) {
+      const last = snaps[snaps.length - 1];
+      if (!last) return;
+      if (!pg) pg = brawlNow = BRAWL.create(last.st, { players: last.who.map((w) => ({ name: String(w.n) })) });
+      for (const o of off) { o[0] *= 0.85; o[1] *= 0.85; }
+      if (e) tickPg(e, true);
+      if (last.n > loaded) {
+        const was = loaded >= 0 ? pg.fighters.map((f) => [f.x, f.y]) : null;
+        pend = pend.filter((p) => p.q > last.aq);
+        pg.load(last.sv); loaded = last.n;
+        for (const p of pend) tickPg(p.e, false);
+        if (was) off = pg.fighters.map((f, j) => {
+          const o = off[j] || [0, 0], x = o[0] + was[j][0] - f.x, y = o[1] + was[j][1] - f.y;
+          return Math.hypot(x, y) > 2 ? [0, 0] : [x, y]; // (a long way: straight there)
+        });
+      }
+      scr.tick(pg);
+    }
+    // A tick of what you're doing, kept until the server's had it, and sent two at a time, or
+    // straight away for a change (or if now).
+    function queue(e, now) {
+      pend.push({ q: ++q, e }); out.push(e);
+      if (pend.length > 90) pend.shift(); // (the server's not getting them: don't run ahead forever)
+      const before = pend[pend.length - 2];
+      if (now || out.length >= 2 || !before || e.some((v, i) => v !== before.e[i])) {
+        wsSend({ k: 'tin', t: tb.t, d: { q: q - out.length + 1, i: out } });
+        out = [];
+      }
+    }
+    // What you're doing this tick (nothing while the menu's open), sent on its way.
+    function act() {
+      const on = menu < 0, s = on ? steer() : { x: 0, y: 0 };
+      const e = [brawlWay(s.x), brawlWay(s.y), on && held.a ? 1 : 0, on && held.b ? 1 : 0];
+      queue(e);
+      return e;
+    }
+    // Switching to another tab or app stops the game here, so let go of everything first.
+    const hidden = () => { if (document.visibilityState === 'hidden' && tb.view && tb.view.ph === 'fight' && snaps.length) queue([0, 0, 0, 0], true); };
+    document.addEventListener('visibilitychange', hidden);
+    function gone(line) {
+      remove(self);
+      brawlNow = null;
+      document.removeEventListener('visibilitychange', hidden);
+      if (mp.table === tb) mp.table = null;
+      if (line) say(line);
+    }
+    function leave() {
+      wsSend({ k: 'stand', t: tb.t });
+      sfx('select');
+      gone(onStage && tb.view && tb.view.ph === 'fight' ? 'You step off the stage. You\'re out of that fight.' : gn >= 0 ? 'Good fight! The cabinet will be here.' : '');
+    }
+    const self = {
+      music: 'brawl',
+      get escStart() { return onStage; }, // Esc opens the menu in a fight (B punches), and leaves the lobby
+      // over your head for everyone else: waiting in the lobby for more players, or the fight
+      get doing() {
+        const v = tb.view;
+        return !v || (v.ph === 'lobby' && v.slots.includes(null)) ? 'brawlwait' : 'brawllive';
+      },
+      get seated() { const v = tb.view; return !v ? 0 : v.ph === 'lobby' ? v.slots.filter(Boolean).length : (v.who || []).filter((w) => w && w.id).length; },
+      update() {
+        t++;
+        if (tb.out) {
+          gone({
+            busy: 'That fight started without you. Have another look at the sign-up sheet.',
+            full: 'That fight is full now. Have another look at the sign-up sheet.',
+            ended: 'That fight has finished. Have another look at the sign-up sheet.',
+            many: 'The cabinet is booked solid right now. Try again in a bit.',
+            off: 'Live fights aren\'t set up on the game server yet. Coworkers will take you on at the cabinet, though.',
+          }[tb.out] || 'You lost your spot. The connection to the game server dropped.');
+          return;
+        }
+        const v = tb.view;
+        if (!v) {
+          // into the lobby once the server's there and knows who you are
+          if (!tb.asked && ws.sock && ws.sock.readyState === 1 && mp.sentKey) { tb.asked = true; wsSend({ k: 'sit', t: tb.t, j: tb.j }); }
+          if (pressed.has('b') || t > 600) {
+            if (tb.asked) wsSend({ k: 'stand', t: tb.t });
+            gone(t > 600 ? 'Nobody\'s answering about live fights right now. Try again in a bit.' : '');
+            if (t <= 600) sfx('select');
+          }
+          return;
+        }
+        // (the site's updated and the game server hasn't yet, or the other way round)
+        if (v.bv !== BRAWL.VERSION) {
+          wsSend({ k: 'stand', t: tb.t });
+          gone('This copy of the game and the game server have different fighting rules right now. Reload the page, or if you just have, try again in a few minutes.');
+          return;
+        }
+        if (v.ph === 'lobby') {
+          // back from a fight: the stage fades out to the lobby
+          if (onStage) { if (!going) { going = true; startFade(() => { onStage = going = false; menu = -1; }, col.dark); } return; }
+          const mine = v.slots[v.me], nS = BRAWL.STAGES.length, host = v.host === v.me;
+          if (!mine) return;
+          // a new fight: the stage it was started for
+          if (!told && Number.isInteger(stage) && host) { told = true; if (stage !== v.st) wsSend({ k: 'tin', t: tb.t, d: { st: stage } }); }
+          if (pressed.has('b')) { leave(); return; }
+          const way = pressed.has('up') || pressed.has('left') ? -1 : pressed.has('down') || pressed.has('right') ? 1 : 0;
+          if (way && host) { wsSend({ k: 'tin', t: tb.t, d: { st: (v.st + way + nS) % nS } }); sfx('select'); }
+          if (pressed.has('a') || pressed.has('start')) { wsSend({ k: 'tin', t: tb.t, d: { go: !mine.r } }); sfx(mine.r ? 'select' : 'menu'); }
+          return;
+        }
+        const last = snaps[snaps.length - 1];
+        if (!last) return;
+        // the fight's about to start: out onto the stage
+        if (!onStage) {
+          if (!going) { going = true; startFade(() => { scr = brawlScreen(last.st); show(null); onStage = true; going = false; }, col.dark); }
+          return;
+        }
+        // the menu (Enter): the fight carries on underneath
+        if (menu >= 0) {
+          if (pressed.has('up') || pressed.has('down')) { menu = 1 - menu; sfx('select'); }
+          if (pressed.has('a') && menu === 1) { leave(); return; }
+          if (pressed.has('a') || pressed.has('b') || pressed.has('start')) { menu = -1; sfx('select'); }
+        } else if (pressed.has('start')) { menu = 0; sfx('menu'); }
+        const fighting = v.ph === 'fight' && at >= 0 && pg && !pg.fighters[at].out;
+        show(fighting ? act() : null);
+      },
+      draw() {
+        const v = tb.view;
+        if (v && v.ph === 'lobby') lobby = v;
+        if (!onStage || !pg || !scr) { drawLobby(lobby); return; }
+        const w = who(), names = pg.fighters.map((f, j) => (j === at ? null : String((w[j] || {}).n || f.name).toUpperCase().slice(0, 9)));
+        scr.draw(pg, at, { cols: BRAWL_COLS, sheets: pg.fighters.map((f, j) => sheetOf(j)), names, off, me: at });
+        brawlNotes(pg, null);
+        // the clock, counting down the four minutes
+        if (pg.time && pg.phase === 'fight') {
+          const left = Math.max(0, Math.ceil((pg.time - pg.clock) / 60)), clk = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+          box(SW / 2 - 24, 2, 48, 18);
+          text(clk, SW / 2 - clk.length * 3, 7, 1, left <= 10 ? '#c01010' : col.dark);
+        }
+        if (v.ph === 'over' && Array.isArray(v.last)) drawResults(v.last, w);
+        else if (at >= 0 && pg.fighters[at].out && pg.phase === 'fight') { box(70, 44, 180, 30); ctext('You\'re out. Watch the rest!', 55); }
+        if (menu >= 0) {
+          box(SW - 118, 40, 118, 40);
+          ['KEEP FIGHTING', 'LEAVE FIGHT'].forEach((o, i) => { text(o, SW - 102, 48 + i * 16); if (i === menu) text('>', SW - 110, 48 + i * 16); });
+        }
+        text('Enter: menu', 5, SH - 48, 1, col.dark); text('Enter: menu', 4, SH - 49, 1, '#f8f8f8');
+      },
+    };
+    // the results, winner first: each { n, lives, kos, falls, left }
+    function drawResults(rows, w) {
+      const h = 46 + rows.length * 14;
+      box(40, 34, 240, h);
+      ctext(rows[0] ? String(rows[0].n).toUpperCase() + ' WINS!' : 'GAME!', 42);
+      text('KOs', 214, 58, 1, col.mid);
+      rows.forEach((r, i) => {
+        const y = 70 + i * 14, j = w.findIndex((x) => x && x.n === r.n), c = BRAWL_COLS[Math.max(0, j)];
+        if (j === at) pickBar(46, y - 3, 228, 12, 'rgba(120, 110, 90, 0.16)');
+        fine(52, y + 0.5, 6, 6, col.dark); fine(52.5, y + 1, 5, 5, c[0]);
+        text(['1ST', '2ND', '3RD', '4TH'][i] || '', 64, y);
+        text(String(r.n).slice(0, 12), 90, y);
+        text(String(r.kos), 220, y);
+        text(r.left ? 'LEFT' : r.lives ? r.lives + (r.lives > 1 ? ' lives' : ' life') : 'OUT', 238, y, 1, col.mid);
+      });
+      if ((tick >> 4) & 1) ctext('Back to the lobby in a moment', 36 + h - 14, col.mid);
+    }
+    // The lobby: the fighters down the left, the stage on the right, and start underneath.
+    function drawLobby(v) {
+      box(0, 0, SW, SH);
+      const dots = '.'.repeat(1 + ((tick >> 4) % 3));
+      if (!v) {
+        ctext('LIVE FIGHT', 10);
+        ctext('Finding you a spot' + dots, 104);
+        text('Esc: never mind', 10, SH - 18);
+        return;
+      }
+      const S = BRAWL.STAGES[brawlStageOf(v.st)], host = v.host === v.me, mine = v.slots[v.me];
+      ctext('LIVE FIGHT: ' + S.name, 10);
+      v.slots.forEach((qq, i) => {
+        const y = 26 + i * 34;
+        box(8, y, 192, 30);
+        if (i === v.me && (tick >> 4) & 1) { ctx.fillStyle = BRAWL_COLS[i][0]; ring(6, y - 2, 196, 34); ring(7, y - 1, 194, 32); }
+        fine(14, y + 6, 6, 6, col.dark); fine(14.5, y + 6.5, 5, 5, BRAWL_COLS[i][0]);
+        text('PLAYER ' + (i + 1), 24, y + 6);
+        if (!qq) { text('Waiting' + dots, 100, y + 12, 1, col.mid); return; }
+        const o = mp.others[qq.id], sheet = i === v.me ? sprites : o ? mpSprites(o) : charSprites.male[0];
+        ctx.drawImage(sheet.right[0], 14, y + 13, 16, 16);
+        text(String(qq.n).slice(0, 12), 34, y + 15);
+        const tags = (i === v.me ? 'YOU  ' : '') + (qq.r ? 'READY' : '');
+        if (tags) text(tags.trim(), 100, y + 6, 1, qq.r ? '#2c8a3c' : col.mid);
+      });
+      // the stage, which whoever's been here longest picks
+      roundBox(206, 28, 104, 80, 3, col.dark);
+      ctx.drawImage(brawlStage(v.st), 208, 30, 100, 75);
+      text(S.name, 258 - S.name.length * 3, 114);
+      if (host) ctext2('Arrows: stage', 258, 128, col.mid);
+      else ctext2(((v.slots[v.host] || {}).n || 'The host') + ' picks', 258, 128, col.mid);
+      // start, and what it's waiting for
+      const ready = mine && mine.r, by = 164;
+      box(206, by, 104, 24);
+      const lbl = ready ? 'READY!' : 'START';
+      text(lbl, 258 - lbl.length * 6, by + 6, 2);
+      if (!ready && (tick >> 4) & 1) text('>', 212, by + 9);
+      const here = v.slots.filter(Boolean), slow = here.filter((x) => !x.r), whom = slow.length === 1 ? slow[0].n : slow.length + ' players';
+      const note = v.cd ? 'The fight starts in ' + v.cd
+        : here.length < 2 ? 'Waiting for someone to fight' + dots
+          : !ready ? 'Press start when you\'re ready' : 'Waiting for ' + whom + ' to press start';
+      ctext(note, 200);
+      if (Array.isArray(v.last) && v.last[0]) ctext('Last fight won by ' + v.last[0].n, 212, col.mid);
+      ctext('Space: ' + (ready ? 'not yet' : 'start') + '  Esc: leave', SH - 14);
+    }
+    function ctext2(str, x, y, c) { if (buttonHints()) str = touchHint(str); text(str, x - str.length * 3, y, 1, c); }
+    return self;
+  }
+
   // ---------- player / world ----------
   const S0 = MAPS.start;
   // free, fx, fy, vx, vy, face, dist, stride, glide: going any way (see updatePlayer; free
@@ -23228,6 +24055,9 @@
       // Haakon Grand Prix: against coworkers, or with a game server, other players
       6: MP_WS ? ['An arcade racing cabinet: HAAKON GRAND PRIX. Race three coworkers, or other players?', ['RACE COWORKERS', 'LIVE RACE'], [() => RaceGame(), () => SignUp('race')]]
         : ['An arcade racing cabinet: HAAKON GRAND PRIX. Three coworkers are already on the grid.', 'RACE', () => RaceGame()],
+      // Haakon Brawl: the gauntlet of coworkers, or with a game server, other players
+      '}': MP_WS ? ['Another arcade cabinet: HAAKON BRAWL. Take on coworkers one after another, or fight other players?', ['FIGHT COWORKERS', 'LIVE FIGHT'], [() => BrawlGame(), () => SignUp('brawl')]]
+        : ['Another arcade cabinet: HAAKON BRAWL. A line of coworkers is waiting to take you on.', 'FIGHT', () => BrawlGame()],
     };
     // the boardroom's everyday games are off while the Halloween party is on
     if (GAMES[t] && hw.state === 'party' && P.floor === hw.floor && roomAt(P.floor, tx, ty) === hw.room) {
@@ -24065,6 +24895,9 @@
       say: 'Stacks of poker chips. Every one of them used to be Cody\'s.' },
     { id: 'helmet', name: 'Racing helmet', rows: decor('helmet'), earn: { key: 'racewin', need: 1, text: 'Win a race at Haakon Grand Prix' },
       say: 'A racing helmet on a stand, with a chequered stripe. First across the line.' },
+    // (5 knockouts is round 5 cleared: a coworker a round, one life each, until the 6th)
+    { id: 'belt', name: 'Title belt', rows: decor('belt'), earn: { key: 'brawl', need: 5, text: 'Clear round 5 of the Haakon Brawl gauntlet' },
+      say: 'A championship belt on a stand, gold plate, ruby and all. Five rounds of the gauntlet, and still standing.' },
     { id: 'brick', name: 'Giant Lego brick', rows: decor('brick'), proper: true, earn: { key: 'legosolo', need: 8, text: 'Clear 8 rows at Joe\'s Lego shelf' },
       say: 'A Lego brick the size of a footstool. Don\'t step on it.' },
     { id: 'cablereel', name: 'Cable reel', rows: decor('cablereel'), earn: { key: 'cable', need: 5, text: 'Patch 5 panels tidying the cables' },
@@ -25385,6 +26218,7 @@
       pokertable: () => PokerApp(null, true), pokerlive: LivePoker, bjtable: () => BlackjackApp(null, true),
       hockey: () => HockeyGame(gateKeeper || npcs.find((n) => !n.ghost && !n.extra)), hockey1: () => LiveHockey(2), hockey2: () => LiveHockey(4), hockey3: () => LiveHockey(6), signhockey: () => SignUp('hockey'), signpoker: () => SignUp('poker'),
       race: () => RaceGame(q.has('track') ? +q.get('track') : undefined, q.has('car') ? +q.get('car') : undefined, q.has('auto')), racelive: () => LiveRace(null, false, +q.get('track') || 0), signrace: () => SignUp('race'),
+      brawl: () => BrawlGame(q.has('round') ? +q.get('round') : undefined), brawllive: () => LiveBrawl(null, false, +q.get('stage') || 0), signbrawl: () => SignUp('brawl'),
       chess: () => ChessGame(null, null, q.get('fen')), checkers: () => CheckersGame(null, null, q.get('fen')),
       deck: () => DeckApp(),
       cards: () => CardsGame(null, { deck: q.get('deck'), foe: q.get('foe'), level: +q.get('level') || 0, seed: +q.get('seed') || 0, first: q.has('first') ? +q.get('first') : undefined }),
@@ -25513,5 +26347,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo, npcs, critters, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get cards() { return cardsNow; }, get playtime() { return { unsent: playUnsent(), since: playSince, part: playPart }; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, cardWhere, get myCards() { return [...cardsMine()]; }, get lair() { return lairText(lair); } };
+  window.GAME = { P, MAPS, warpTo, npcs, critters, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get brawl() { return brawlNow; }, get cards() { return cardsNow; }, get playtime() { return { unsent: playUnsent(), since: playSince, part: playPart }; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, cardWhere, get myCards() { return [...cardsMine()]; }, get lair() { return lairText(lair); } };
 })();

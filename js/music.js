@@ -484,4 +484,27 @@ window.MUSIC = {
       { type: 'drums', vol: 0.45, notes: 'k . h . s . h k | k . h k s . h h' },
     ],
   },
+
+  // Haakon Brawl: driving, in E minor, for a fight
+  brawl: {
+    bpm: 150,
+    voices: [
+      { type: 'square', vol: 0.028, notes:
+        'E5 - B4 E5 G5 - F#5 E5 | D5 - B4 - A4 - B4 - | E5 - B4 E5 G5 - A5 G5 | F#5 - D5 - B4 - - - |' +
+        'E5 - B4 E5 G5 - F#5 E5 | D5 - B4 - A4 - B4 D5 | E5 - G5 - B5 - A5 G5 | F#5 - E5 - D#5 - E5 - |' +
+        'C5 - - E5 G5 - E5 - | D5 - - F#5 A5 - F#5 - | B4 - - D5 F#5 - D5 - | E5 - - G5 B5 - - - |' +
+        'C6 - B5 - A5 - G5 - | D6 - C6 - B5 - A5 - | G5 - F#5 - E5 - D#5 - | E5 - - - B4 - - - |' },
+      { type: 'square', vol: 0.012, notes:
+        'E4 G4 B4 G4 E4 G4 B4 G4 | B3 D4 F#4 D4 B3 D4 F#4 D4 | E4 G4 B4 G4 E4 G4 B4 G4 | B3 D4 F#4 D4 B3 D4 F#4 D4 |' +
+        'E4 G4 B4 G4 E4 G4 B4 G4 | B3 D4 F#4 D4 B3 D4 F#4 D4 | E4 G4 B4 G4 E4 G4 B4 G4 | B3 D#4 F#4 D#4 B3 D#4 F#4 D#4 |' +
+        'C4 E4 G4 E4 C4 E4 G4 E4 | D4 F#4 A4 F#4 D4 F#4 A4 F#4 | B3 D4 F#4 D4 B3 D4 F#4 D4 | E4 G4 B4 G4 E4 G4 B4 G4 |' +
+        'C4 E4 G4 E4 C4 E4 G4 E4 | D4 F#4 A4 F#4 D4 F#4 A4 F#4 | B3 D#4 F#4 D#4 B3 D#4 F#4 D#4 | E4 G4 B4 G4 E4 G4 B4 G4 |' },
+      { type: 'triangle', vol: 0.1, notes:
+        'E2 E2 E3 E2 E2 E2 E3 E2 | B1 B1 B2 B1 B1 B1 B2 B1 | E2 E2 E3 E2 E2 E2 E3 E2 | B1 B1 B2 B1 B1 B1 B2 B1 |' +
+        'E2 E2 E3 E2 E2 E2 E3 E2 | B1 B1 B2 B1 B1 B1 B2 B1 | E2 E2 E3 E2 E2 E2 E3 E2 | B1 B1 B2 B1 B1 B1 B2 B1 |' +
+        'C2 C2 C3 C2 C2 C2 C3 C2 | D2 D2 D3 D2 D2 D2 D3 D2 | B1 B1 B2 B1 B1 B1 B2 B1 | E2 E2 E3 E2 E2 E2 E3 E2 |' +
+        'C2 C2 C3 C2 C2 C2 C3 C2 | D2 D2 D3 D2 D2 D2 D3 D2 | B1 B1 B2 B1 B1 B1 B2 B1 | E2 E2 E3 E2 E2 E2 E3 E2 |' },
+      { type: 'drums', vol: 0.45, notes: 'k . h k s . h h | k k h . s . h k' },
+    ],
+  },
 };

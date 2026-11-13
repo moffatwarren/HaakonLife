@@ -2,5 +2,6 @@
 import * as poker from './poker.js';
 import * as hockey from './hockey.js';
 import * as race from './race.js';
+import * as brawl from './brawl.js';
 
-export default { poker, hockey1: hockey.one, hockey2: hockey.two, hockey3: hockey.three, race };
+export default { poker, hockey1: hockey.one, hockey2: hockey.two, hockey3: hockey.three, race, brawl };

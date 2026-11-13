@@ -356,6 +356,15 @@ for (const n of needs) if (!scriptNames.has(n)) say(`The list at the very top of
   if (!m || m[1] !== now) say(`js/race.js has changed, so the game server needs to know: set VERSION in server/tables/race.js to '${now}'.`);
 }
 
+// ---------- the fighting game's rules on the server ----------
+// And for js/brawl.js: a browser only fights live against a server with the very same rules.
+{
+  const box = vm.createContext({ window: {} });
+  vm.runInContext(read('js/brawl.js'), box, { filename: 'js/brawl.js' });
+  const now = box.window.BRAWL.VERSION, m = /export const VERSION = '(\w+)'/.exec(read('server/tables/brawl.js'));
+  if (!m || m[1] !== now) say(`js/brawl.js has changed, so the game server needs to know: set VERSION in server/tables/brawl.js to '${now}'.`);
+}
+
 // ---------- and the verdict ----------
 const unique = [...new Set(problems)];
 if (unique.length) {

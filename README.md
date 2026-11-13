@@ -233,6 +233,8 @@ Walk up to these and press A:
 - **Elevator**: every ride, a coworker gets in and makes conversation
 - **Haakon Grand Prix** (the arcade cabinet in the lunch room, by the TV): a top-down race, three laps against three
   coworkers on one of five tracks, or live against other players; see **Haakon Grand Prix** below
+- **Haakon Brawl** (the blue arcade cabinet beside it): a fighting game on a stage you can be knocked off. Take on
+  coworkers one after another in the gauntlet, or fight other players live; see **Haakon Brawl** below
 - **Hockey** (the parking lot's rink, at Christmas): one on one against a coworker, or live against other players; see Christmas below
 - **Humbug Sweeper** (any office computer, from Christmas 2026 on): clear a field of snow, in one of three sizes, without digging up a humbug, against the clock, and never having to guess; see Christmas below
 - **Winter games** (around the parking lot, at Christmas): chopping wood, toasting marshmallows, decorating the big spruce, building a snowman, working the hot chocolate stand and a snowball fight; see Christmas below
@@ -345,6 +347,100 @@ and a steering wheel). Press A on it: **RACE COWORKERS**, or with a game server,
   picture for each of 48 ways round, lit from the top left whichever way they point. `RaceGame` and
   `LiveRace` in `js/game.js` are the screens, with `raceScreen` drawing the race for both. The song is
   `race` in `js/music.js`, and the engine note rising through the gears is `engineHum`.
+
+## Haakon Brawl
+
+The blue arcade cabinet beside the racing one in the lunch room's corner, with K.O.! lit up on top.
+Press A on it: **FIGHT COWORKERS**, or with a game server, **LIVE FIGHT** too.
+
+- **Fighting:** everyone fights as their own character on a stage you can be knocked off. A punch is
+  their own arm (sleeve and all) shooting out from the shoulder, with a white swoosh through where it
+  hits. Every hit adds to your damage, the percentage along the bottom of the screen, and the more damage you've taken the
+  further the next hit sends you. Knocked right off the screen (off either side, off the top, or down
+  past the bottom), you lose a life, and you're back a moment later dropping in from above with no
+  damage, flashing while nothing can hit you. Anyone off the edge of the screen shows in a bubble at it.
+- **The controls** (A and B and the way you're holding, on every platform): **left or right** walks,
+  and held for a third of a second it breaks into a run, twice as fast, for as long as you hold it (let
+  go or turn round and it's a walk again). To run straight away, tap it twice (the second within a
+  quarter of a second). On a phone it's the D-pad, not the thumbstick, as for Haakon Grand Prix: the
+  moves need a clean up, down, left or right. **A** jumps, and again
+  once in the air; hold it to jump higher, tap it for a short hop. **Down + A** on a platform drops
+  through it. Holding **down** while you fall falls faster. **B** attacks, and the way you're holding
+  picks the move:
+  - **On the ground:** B on its own is a quick jab; left or right + B a side punch (slower, and it
+    sends people furthest sideways, so it's the one that finishes them off); up + B an uppercut, up
+    over your head; down + B a low sweep that hits both sides. B while you're running is a lunge:
+    you lean in and slide nearly two tiles along the ground, punching as you go (it finishes someone
+    off at about 160% from the middle of the stage). A move on the ground stops at the edge of what
+    you're standing on rather than sliding you off it.
+  - **In the air:** a spin that hits all round you; a flying punch the way you're holding; an
+    uppercut; and down + B a stomp, which drops you fast and knocks anyone under you down (or, if
+    they're standing on something, up).
+  - **Getting back:** the first uppercut in the air each time you leave the ground carries you up,
+    so knocked off the stage you jump, then press up + B. Reach just under the stage's edge and you
+    climb up over it. Being hit gives you your jump in the air back.
+  - **Charged punches:** on the ground, press a direction and B together (a tenth of a second apart
+    either way still counts) and keep holding B. You plant your feet and draw your arm back, with a
+    glow building at your fist, and the side punch, uppercut or low sweep goes when you let go of B,
+    harder the longer you held it: full after a second (the glow flickers white and you shake), when it
+    does 40% more damage and sends them 22% harder. Holding it longer keeps it at full. Getting hit
+    while you're charging loses it. A direction you were already holding when you pressed B (running
+    at someone, say) is the ordinary punch, straight away, as is anything in the air, and B while
+    you're running is always the lunge. The better
+    coworkers charge one now and then, and wait for you with one as you run at them
+    (`CHARGE`, `CHARGED`, `CHARGE_KB` and `LEEWAY` in `js/brawl.js`).
+  On a keyboard, Space, E or J jumps and X, K or Shift attacks, with the arrows or WASD to move, and
+  Enter (or Esc) brings up the menu. With 0% a side punch hardly moves you; it finishes someone off at
+  about 140% from the middle of the stage, or about 80% at its edge (fully charged, about 100% and
+  50%), and an uppercut sends them off the top at about 145% (fully charged, about 105%).
+  `server/test/brawl.test.js` checks the more-damage-further part, and the charging.
+- **The stages:** **The Roof** (the office's roof in summer, its wall going straight down off the screen,
+  catwalks either side and the HAAKON sign up top), **The Plant** (a mezzanine in the Kingston
+  warehouse, with pallet racks to climb, two each side) and **The Dock** (a cottage dock out on a lake,
+  with a sun deck over it and a piling either side, out over the water). Every platform but the stage
+  itself you can jump up through.
+- **The gauntlet:** coworkers come at you one round at a time, each with one life, and you have three
+  lives for the whole run (one back for every 5th round you clear, up to three). Your damage goes back
+  to nothing each round. They get better every round, two come at once from the 6th round and three from
+  the 11th, all of them as good as they get by the 16th, and from then on they hit harder every round,
+  so there's no last round. The stage goes round the three in turn. Coworkers on the same side can't hit
+  each other. Your score is how many coworkers you knock out before your last life goes: the **HAAKON
+  BRAWL** board (`brawl`), on the Hall of Fame's SCREENS AND CODY'S CASINO page. Clear round 5 (all
+  five coworkers who come at you one at a time) and you win the title belt for your Secret Lair, there
+  and then. That was set by simulating whole runs with the computer playing you: about half of average
+  players get that far, almost every good one, and hardly any beginners. Enter brings up KEEP
+  FIGHTING, START AGAIN and LEAVE.
+- **How coworkers fight:** every so often (more often the better they are) they make up their mind: go
+  after whoever's nearest (tapping twice to run when they're a long way off, and lunging as they get
+  close), jump after them (by way of a platform in between if they're higher up than one
+  jump), drop down through a platform to them, and once they're close enough, hit them with whatever
+  suits where they are, the side punch more often once they've taken a lot. Knocked off, they head back,
+  jumping and then uppercutting up to the edge, and the better ones wait at the edge for you to come back.
+  A beginner sometimes leaves it too late (`think` in `js/brawl.js`).
+- **Live fights:** LIVE FIGHT opens the sign-up sheet (as the racing cabinet's does): every fight with a
+  spot left in its lobby, with its stage and who's in it, and START A NEW FIGHT, which asks which stage.
+  Two to four players, every one for themselves, with nobody the computer plays. In the lobby whoever's
+  been there longest picks the stage with the arrows (their name's under it; it goes to the next one if
+  they leave). Once at least two of you are there and you've all pressed start, the fight starts five
+  seconds later, unless someone else turns up first (straight away with all four). A new stage takes
+  everyone's start back. Nobody can join a fight that's on. Everyone has three lives, and the last one
+  standing wins; after four minutes (the clock at the top) it's whoever has the most lives left, then the
+  least damage. It's run a little ahead of the server on your screen, as live racing is, so your fighter
+  does what you say straight away and anyone who did something different slides over to where they
+  really are. Enter brings up a menu but doesn't pause. Leave partway (or drop out for too long) and
+  you're out of it, down as LEFT. The results come up as soon as it's won, with everyone's knockouts,
+  and eight seconds later it's back to the lobby. Live fights don't go on the board.
+- **How it's made:** the fight itself (the stages, the moves, the hits and how coworkers fight) is
+  `js/brawl.js`, with no drawing or keys in it, so the game server runs the same file for a live fight
+  (`server/tables/brawl.js`) and `server/test/brawl.test.js` plays it with no browser. The moves are
+  `MOVES` there: each one's damage, how hard it sends you at no damage and how much harder for every
+  100% (`base` and `grow`), which way, where it hits and for how long. The stages are `STAGES`, and
+  they're only added to the end of (a live fight goes by its stage's place in the list). `BrawlGame` and
+  `LiveBrawl` in `js/game.js` are the screens, `brawlScreen` draws a fight for both, and `brawlStage`
+  paints each stage once. The fighters are everyone's own characters from the side. A punching arm is
+  lifted off their own picture and stretched out (`limbsOf` and `armPic`, as for snow angels), to
+  where `brawlHands` says the hand is as the move goes on, and `BRAWL_SWOOSH` is each move's swoosh.
+  The song is `brawl` in `js/music.js`.
 
 ## Morale Madness
 
@@ -559,6 +655,7 @@ service bell dings, and the big red button buzzes).
 | Giant ace | Blackjack | Win 200 spring rolls off Cody at blackjack (400 or more) |
 | Poker chips | Hold'em | Win every spring roll at a game of Hold'em (600) |
 | Racing helmet | Haakon Grand Prix | Win a race |
+| Title belt | Haakon Brawl | Clear round 5 of the gauntlet (5 knockouts in one run) |
 | Giant Lego brick | Joe's Lego shelf | Clear 8 rows |
 | Cable reel | Server room cables | Patch 5 panels tidying the cables |
 | Desk fan | Fan balancing | Balance 3 branches on the fan |
@@ -789,7 +886,7 @@ The scores live in a free Firebase Realtime Database. To set one up:
         ".indexOn": ["score"],
         "$player": {
           ".write": "newData.exists() && (!data.exists() || newData.child('score').val() > data.child('score').val()) && ($game !== 'humbug26' || (now >= 1795766400000 && now < 1798790400000))",
-          ".validate": "$game.matches(/^(ball|blackjack|bob|cable|candy|cards|cardwins|carrotpts|carve|catchrun|checkers|chess|chop|cocoa|coffee|coil|costumepts|cprpts|damper|dancepts|dark|desk|engrave|eotm|fan|filter|forklift|forms|galaxy|ghosts|golf9|hockey|humbug|humbug26|jam|laundry|legolines|legosolo|linda|lunch|mallow|mummy|paint|parts|poker|pokerlivelost|pokerlivewon|pong|pullreps|punch5|racelake|racemaple|raceplant|raceprairie|racesnow|run|simon|slots|snake|snowball|snowman|spruce|squat|stack|toss|treat|trophy|wokpieces)$/) && $player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['name','score','t']) && newData.child('score').isNumber() && newData.child('score').val() >= -100000 && newData.child('score').val() <= 1000000 && newData.child('t').val() == now",
+          ".validate": "$game.matches(/^(ball|blackjack|bob|brawl|cable|candy|cards|cardwins|carrotpts|carve|catchrun|checkers|chess|chop|cocoa|coffee|coil|costumepts|cprpts|damper|dancepts|dark|desk|engrave|eotm|fan|filter|forklift|forms|galaxy|ghosts|golf9|hockey|humbug|humbug26|jam|laundry|legolines|legosolo|linda|lunch|mallow|mummy|paint|parts|poker|pokerlivelost|pokerlivewon|pong|pullreps|punch5|racelake|racemaple|raceplant|raceprairie|racesnow|run|simon|slots|snake|snowball|snowman|spruce|squat|stack|toss|treat|trophy|wokpieces)$/) && $player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['name','score','t']) && newData.child('score').isNumber() && newData.child('score').val() >= -100000 && newData.child('score').val() <= 1000000 && newData.child('t').val() == now",
           "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12 && newData.val().toLowerCase().replace(' ', '_').replace('.', '_').replace(\"'\", '_').replace('-', '_') === $player" },
           "score": { ".validate": true },
           "t": { ".validate": true },
@@ -1234,7 +1331,7 @@ of anything you use: everyone playing something stays standing where they starte
 several can end up on the same spot, and A (or a click) on something in front of you uses it
 even with another player there, if they're busy (in a game, or reading something) or
 standing right where you are. You only talk to them if there's nothing there to use. So any
-number can sign up at the racing cabinet, the chess table, the rink's booth or the poker
+number can sign up at the racing cabinet, the fighting cabinet, the chess table, the rink's booth or the poker
 table (`interact` and `clickUse` in `js/game.js`).
 
 - **Say something**: from the Start menu, or walk up to another player and press A
@@ -1598,6 +1695,13 @@ what to set it to. To try it, open `tools/test.html#play&game=signrace&server=ws
 two tabs, one a few seconds after the other (a sign-up sheet that opens with nothing to join goes
 straight to starting a new race), or `game=racelive&track=1` in both for the one race with the plain
 name.
+
+Live fights are another, `brawl`, in `server/tables/brawl.js`, made the same way as live racing:
+`js/brawl.js`'s fight at 60 ticks a second, sent out 30 times a second, each browser running it ahead,
+the server's views saying which rules it has (`bv`, `BRAWL.VERSION`), and `VERSION` in
+`server/tables/brawl.js` kept the same as the rules by `tools/check_games.mjs`. To try it, open
+`tools/test.html#play&game=signbrawl&server=ws://localhost:8080` in two tabs, one a few seconds after
+the other, or `game=brawllive&stage=1` in both.
 
 For what it costs: bots playing every game flat out against a copy of the server on a
 desktop (i7-14700K, November 2026) took about 1 to 2% of a core per game with a few games
@@ -2209,6 +2313,7 @@ pants and their colours.
 | Kingston plant | `forklift`, `paint` (Even Coat) |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`), `fame` (the Hall of Fame) |
 | Halloween | `contest`, `bob`, `mummy`, `carve`, `treat`, `ghosts`, `hsplash` (the closing screen) |
+| Haakon Brawl | `brawl` (the gauntlet; add `&round=` to start a run at that round, for trying the later ones), `signbrawl` (the live sign-up sheet) and `brawllive` (straight into a live fight's lobby, `&stage=` 0 to 2 for a new one's stage), both with `&server=` |
 | Haakon Grand Prix | `race` (add `&track=` 0 to 4 and `&car=` 0 to 4 to go straight into a race, and `&auto=1` to have the computer drive your car too, for trying the end of a race), `signrace` (the live sign-up sheet) and `racelive` (straight into a live race's lobby, `&track=` for a new one's track), both with `&server=` |
 | Christmas | `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `humbug` (Humbug Sweeper: it asks what size, or add `&field=small`, `medium` or `full` to go straight in), `hockey` (against whoever's minding the gate; add `&yard` to see the rink) |
 
@@ -2247,7 +2352,7 @@ Best scores are saved in the browser, and sent to the online leaderboards when
 (or `run`, `pong`, `toss`, `stack`, `simon`, `lunch`, `candy`, `squat`, `golf`,
 `dark`, `coffee`, `battle`, `fan`, `coil`, `damper`, `filter`, `snake`, `galaxy`, `parts`,
 `cable`, `cpr`, `engrave`, `pulldown`, `ball`, `desk`, `jam`, `laundry`,
-`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `race`, `poker`, `pokerlive`, `hockey1`, `hockey2` and `hockey3` (live hockey, with `&yard=1` to be out at the rink), `racelive`, `signhockey`, `signpoker` and `signrace` (the sign-up sheets; all of these from `pokerlive` on need `&server=`), `blackjack`, `build`, `forklift`, `paint`,
+`forms`, `nathan`, `wade`, `lego`, `wok`, `carrot`, `jar`, `dance`, `party`, `race`, `brawl`, `poker`, `pokerlive`, `hockey1`, `hockey2` and `hockey3` (live hockey, with `&yard=1` to be out at the rink), `racelive`, `brawllive`, `signhockey`, `signpoker`, `signrace` and `signbrawl` (the sign-up sheets; all of these from `pokerlive` on need `&server=`), `blackjack`, `build`, `forklift`, `paint`,
 `chop`, `mallow`, `spruce`, `snowman`, `cocoa`, `snowball`, `hockey`, `chess`, `checkers`) opens a game straight away. With `chess`, `&fen=` and a position in the usual chess notation starts from there, which is the quick way to try a checkmate or a promotion. It works with `checkers` too, for trying a double jump or a crowning: the ranks from 8 down to 1 written the same way (`M` a black man, `K` a black king, the same in lower case for red), whose turn (`b` or `r`), a `-` and a count of moves since a jump or a man moved, like `7k/8/5m2/8/3m4/2M5/8/6M1 b - 0`.
 `&dog=Bella` puts that dog right in front of you; `game=catch` plays catch with it
 and `game=dogs` shows the frisbee leaderboard.
