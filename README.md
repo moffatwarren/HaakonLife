@@ -211,7 +211,7 @@ Walk up to these and press A:
 - **Air handling fan** (Boardroom 114): hold the wheel inside the target CFM band without tripping the motor, for long enough to balance the branch, then the next. The bands narrow, and from the 4th branch the load shifts and the band drifts, quicker each branch, until a branch runs out of time or the motor trips
 - **Cooling coil** (Boardroom 114): hold the superheat in the green while the load wanders; frost it or flood it and you lose
 - **Dampers** (Boardroom 114): three branches share one fan, so balancing them is a puzzle, not three dials
-- **Supply cupboard**: match filter sizes before the pressure-drop alarm tops out
+- **Supply cupboard**: match filter sizes before the pressure-drop alarm tops out. Every bank of four you finish, the pressure climbs faster, up to the 9th bank. Every bank after that keeps the 9th one's pace, so it goes on until the alarm wins
 - **The other TVs** (the left-hand sets): Snake, so they aren't all Pong
 - **Parts on the floor** (2nd floor): sort them into bins as they come past on the belt
 - **Server racks**: patch every port to its matching colour
@@ -664,6 +664,11 @@ went faster than 6 wraps a second, so nobody could beat about 10.8s). The fan's 
 coming, and the paper loosens as you keep a run going, so your own hands set the pace. They kept
 their boards, `fan` and `mummy`: the fan's first three branches are just as they were, and an old
 Mummy Wrap time is still a real time, it's only easier to beat now.
+
+The filter change sped up with every bank for as long as you lasted, so the best players all ran
+out of hands at the same place (two tied at 36, all of the 9th bank). Since 13 November 2026 it
+stops speeding up after the 9th bank, so a quicker player can keep going. It kept its board,
+`filter`: the first nine banks are just as they were.
 
 The live poker table's board (**Live Hold'em**) is a running tally rather than a best
 score. Every hand you're dealt into counts: if you end it with more spring rolls than you

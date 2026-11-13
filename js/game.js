@@ -11262,12 +11262,14 @@
 
   // ---------- filter change: match the sizes before the pressure drop alarms out ----------
   function FilterGame() {
-    const SIZES = [16, 18, 20, 24, 25, 30], SLOTS = 4, RELIEF = 16, BASE = 0.11, STEP = 0.05;
+    const SIZES = [16, 18, 20, 24, 25, 30], SLOTS = 4, RELIEF = 16, BASE = 0.11, STEP = 0.05, TOP = 8;
     let state = 'ready', t = 0, need = [], stock = [], sel = 0, press = 20, fitted = 0, record = false;
     let sets = 0, cleared = 0;
     // Every bank you finish, the pressure climbs faster, so the next one has to be
-    // done quicker. Set 1 is the original pace; after that the clock closes in.
-    const rise = () => BASE + sets * STEP;
+    // done quicker. Set 1 is the original pace; after that the clock closes in, until
+    // the 9th bank (TOP banks done). Every bank after that keeps the 9th one's pace, so
+    // there's no point where nobody can keep up, and a quicker pair of hands always gets further.
+    const rise = () => BASE + Math.min(sets, TOP) * STEP;
     const pace = () => SLOTS * RELIEF / rise() / 60;
     const pick = () => SIZES[Math.floor(Math.random() * SIZES.length)];
     function deal() {
@@ -11357,7 +11359,7 @@
           text(String(s), x + 8, 168, 1, col.dark);
           if (i === sel && state === 'play') { ctx.fillStyle = '#3060d0'; ring(x - 2, 148, 44, 50); }
         });
-        if (cleared > 0 && (cleared >> 3) & 1) ctext('BANK DONE - FASTER NOW!', 206, '#c03030');
+        if (cleared > 0 && (cleared >> 3) & 1) ctext(sets < TOP ? 'BANK DONE - FASTER NOW!' : sets === TOP ? 'BANK DONE - TOP SPEED NOW!' : 'BANK DONE - KEEP IT UP!', 206, '#c03030');
         if (state === 'ready') readyBox(t, 'Left/Right: pick  Space: fit');
         else if (state === 'done') doneBox(['Pressure alarm!', 'Fitted ' + fitted + '  in ' + sets + ' banks',
           record ? 'New record!' : 'Best ' + getBest('filter')], t);
