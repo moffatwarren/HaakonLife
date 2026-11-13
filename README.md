@@ -111,6 +111,13 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
     the screen calls `typeBox` each frame it's showing it; one that isn't drawn is put away, and a
     phone's keyboard with it. While one's up, keys go into it rather than the game (`typeKey`),
     except Enter (START) and Esc (B). A phone's keyboard being up doesn't resize the game (`layout`).
+- **Lists longer than the screen:** a list with more in it than fits has a slim scroll bar down its
+  right side: the catalogue in your lair, a long menu (like the games to challenge someone to), PLAY
+  TIME, the Hall of Fame's Champions and Quests, the live sign-up sheets, the SDG app's parts and MY
+  CARDS (where it goes between the big card and the page). Its thumb is the part you can see. The
+  arrow at each end is dark while there's more that way and faint once there isn't, and the one at
+  the bottom bobs so you notice it. In the code it's `scrollBar` in `js/game.js`: give one to any
+  new list that scrolls.
 - Controllers: pair an Xbox or PlayStation controller with your phone or computer over
   Bluetooth (or plug it in), then press a button on it: browsers keep a controller hidden
   from a page until then (and from any page that isn't https). While you play with one,

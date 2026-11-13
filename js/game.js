@@ -1205,6 +1205,27 @@
   const rrPath = (c, x, y, w, h, r) => { c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
   // ...and a dark bar behind whatever's picked in a list, with its corners rounded.
   const pickBar = (x, y, w, h, c) => roundBox(x, y, w, h, 2.5, c);
+  // A list with more in it than fits on the screen: a slim bar down its right side, from top to
+  // bottom with x its middle, whose thumb is the part you can see, and an arrow at each end, dark
+  // while there's more that way (the one at the bottom bobbing, so you notice it) and faint once
+  // there isn't. first is the first row showing, shown how many fit, and n how many there are, so
+  // it's nothing at all if they all fit. look can change its colours (ink, faint), and narrow
+  // makes it thinner, for a tight spot.
+  function scrollBar(x, top, bottom, first, shown, n, look = {}) {
+    if (n <= shown) return;
+    const ink = look.ink || col.dark, faint = look.faint || 'rgba(40, 40, 60, 0.2)', aw = look.narrow ? 4 : 7, tw = look.narrow ? 2 : 3;
+    first = Math.max(0, Math.min(n - shown, first));
+    const down = first + shown < n, bob = down && (tick >> 4) & 1 ? 1 : 0;
+    // (the arrows, aw across and half that high, in half-pixel rows: point is 1 for down)
+    const arrow = (y, point, c) => {
+      for (let j = 0; j < aw / 2; j += 0.5) { const w = aw - j * 2; fine(x - w / 2, point > 0 ? y + j : y + aw / 2 - 0.5 - j, w, 0.5, c); }
+    };
+    arrow(top, -1, first ? ink : faint);
+    arrow(bottom - aw / 2 - 1 + bob, 1, down ? ink : faint);
+    const t0 = top + aw / 2 + 2, len = bottom - aw / 2 - 3 - t0, th = Math.min(len, Math.max(6, Math.round(len * shown / n * 2) / 2));
+    fine(x - 0.5, t0, 1, len, faint);
+    roundBox(x - tw / 2, t0 + Math.round((len - th) * first / (n - shown) * 2) / 2, tw, th, tw / 2, ink);
+  }
   // At double resolution each letter is FONT.glyphs2 (smoothed), made into a picture once
   // for each colour and drawn at the letter's size, every pixel showing.
   const glyphPics = new Map();
@@ -1363,15 +1384,14 @@
       },
       draw() {
         box(x, y, w, h);
-        roundBox(x + 6, y + 5 + (cur - first) * 16, w - 12, 13, 2.5, 'rgba(120, 110, 90, 0.16)');
+        roundBox(x + 6, y + 5 + (cur - first) * 16, w - 12 - (scrolls ? 8 : 0), 13, 2.5, 'rgba(120, 110, 90, 0.16)');
         self.options.forEach((o, i) => {
           if (i < first || i >= first + rows) return;
           if (opts.icon) opts.icon(i, x + 15, y + 5.5 + (i - first) * 16);
           text(o, x + nameX, y + 8 + (i - first) * 16);
           if (i === cur) text('>', x + 8, y + 8 + (i - first) * 16);
         });
-        if (first) text('^', x + w - 11, y + 8, 1, '#686878');
-        if (first + rows < options.length) text('v', x + w - 11, y + 8 + (rows - 1) * 16, 1, '#686878');
+        scrollBar(x + w - 10, y + 5, y + h - 6, first, rows, options.length);
       },
     };
     // (opts.taps: it takes taps, for a menu over a game that does: a tap on an option picks it, and a
@@ -3026,18 +3046,21 @@
         ctx.fillStyle = INK; ctx.fillRect(L.x + 1, L.y + 15, L.w - 2, 0.5);
         fine(L.x + 1, L.y + 15.5, L.w - 2, 1, '#e0e2ea'); fine(L.x + 1, L.y + 16.5, 0.5, L.h - 17.5, '#d8dae2');
         const first = listFirst();
+        // (with more than fit, the rows make room for the scroll bar down the right)
+        const rw = L.w - 6 - (sdgComps.length > LIST_ROWS ? 8 : 0);
         sdgComps.slice(first, first + LIST_ROWS).forEach((c, i) => {
           const idx = first + i, yy = L.y + 20 + i * 11;
           let ink = INK;
-          if (idx !== sel && idx & 1) fine(L.x + 3, yy - 2, L.w - 6, 11, '#f0f1f6');
+          if (idx !== sel && idx & 1) fine(L.x + 3, yy - 2, rw, 11, '#f0f1f6');
           if (idx === sel) {
             ctx.fillStyle = mode === 'move' ? '#c03030' : TITLE;
-            ctx.fillRect(L.x + 3, yy - 2, L.w - 6, 11);
-            fine(L.x + 3, yy - 2, L.w - 6, 0.5, mode === 'move' ? '#f07868' : '#6890e0'); fine(L.x + 3, yy + 8.5, L.w - 6, 0.5, mode === 'move' ? '#801818' : '#102050');
+            ctx.fillRect(L.x + 3, yy - 2, rw, 11);
+            fine(L.x + 3, yy - 2, rw, 0.5, mode === 'move' ? '#f07868' : '#6890e0'); fine(L.x + 3, yy + 8.5, rw, 0.5, mode === 'move' ? '#801818' : '#102050');
             ink = '#f8f8f8';
           }
           text((idx + 1) + ' ' + c, L.x + 5, yy, 1, ink);
         });
+        scrollBar(L.x + L.w - 6, L.y + 18, L.y + 18 + LIST_ROWS * 11 - 1, first, LIST_ROWS, sdgComps.length, { ink: INK });
         if (!sdgComps.length) text('(empty)', L.x + 5, L.y + 20, 1, WIN_DARK);
 
         // graphical view
@@ -3799,9 +3822,9 @@
           text('Esc: never mind', 10, SH - 18);
           return;
         }
-        const games = open(), row = (y, on, a, b) => {
+        const games = open(), row = (y, on, a, b, w = SW - 24) => {
           if (on) {
-            roundBox(12, y - 3, SW - 24, b ? 25 : 14, 2.5, 'rgba(120, 110, 90, 0.16)');
+            roundBox(12, y - 3, w, b ? 25 : 14, 2.5, 'rgba(120, 110, 90, 0.16)');
             text('>', 14, y);
           }
           text(a, 24, y);
@@ -3815,8 +3838,11 @@
           return;
         }
         ctext(hk ? 'Join a game, or start a new one' : rc ? 'Join a race, or start a new one' : 'Pull up a chair, or start a new table', 26);
-        games.slice(first, first + SHOWN).forEach((x, i) => row(44 + i * 28, x.t === pick, rc ? raceLine(x) : sheetLine(x, hk), sheetNames(x.who)));
-        if (games.length > SHOWN) {
+        // (with more than fit, the scroll bar goes down the right, beside them)
+        const lots = games.length > SHOWN;
+        games.slice(first, first + SHOWN).forEach((x, i) => row(44 + i * 28, x.t === pick, rc ? raceLine(x) : sheetLine(x, hk), sheetNames(x.who), SW - 24 - (lots ? 8 : 0)));
+        scrollBar(SW - 13, 41, 44 + (SHOWN - 1) * 28 + 22, first, SHOWN, games.length);
+        if (lots) {
           const more = first + 1 + '-' + (first + SHOWN) + ' of ' + games.length;
           text(more, SW - 12 - more.length * 6, 10, 1, col.mid);
         }
@@ -5092,8 +5118,7 @@
             right(playFmt(r.s), 216, y);
             right(r.t ? ago(r.t) : '', SW - 18, y, '#686878');
           });
-          if (scroll) text('^', SW - 12, 56, 1, '#686878');
-          if (scroll < room()) text('v', SW - 12, 56 + (SHOWN - 1) * 12, 1, '#686878');
+          scrollBar(SW - 10, 54, 56 + SHOWN * 12 - 2, scroll, SHOWN, rows.length);
           ctx.fillStyle = col.mid; ctx.fillRect(14, 190, SW - 28, 1);
           ctext(rows.length + (rows.length === 1 ? ' name, ' : ' names, ') + playFmt(rows.reduce((n, r) => n + r.s, 0)) + ' in all', 196);
         }
@@ -5783,7 +5808,7 @@
       standings.slice(scroll, scroll + CROWS).forEach((s, i) => row(scroll + i, 62 + i * 13));
       // (you always see your own row: if it's scrolled out of sight, it goes in the spot underneath)
       if (mine >= 0 && (mine < scroll || mine >= scroll + CROWS)) row(mine, 170);
-      scrollMarks('CHAMPIONS', 62, 153);
+      scrollMarks('CHAMPIONS', CROWS, 59, 62 + CROWS * 13 - 3);
       ctx.fillStyle = col.mid; ctx.fillRect(14, 184, SW - 28, 1);
       if (!me) return;
       const played = keys.filter((k) => rankOf(k) >= 0), tens = played.filter((k) => rankOf(k) < 10);
@@ -5802,10 +5827,9 @@
       if (page === 'QUESTS') return Math.max(0, ...QUESTS.map(([k]) => boards[k].length - QROWS));
       return 0;
     }
-    // more names above or below
-    function scrollMarks(page, top, bottom) {
-      if (scroll) text('^', SW - 12, top, 1, '#686878');
-      if (scroll < scrollRoom(page)) text('v', SW - 12, bottom, 1, '#686878');
+    // more names above or below (shown: how many rows fit, from top to bottom)
+    function scrollMarks(page, shown, top, bottom) {
+      scrollBar(SW - 10, top, bottom, scroll, shown, shown + scrollRoom(page));
     }
     function drawQuests() {
       ctext('Everyone who has done it, and how many times', 46, '#686878');
@@ -5823,7 +5847,7 @@
           text(n, x + 134 - n.length * 6, y, 1, c);
         });
       });
-      scrollMarks('QUESTS', 76, 164);
+      scrollMarks('QUESTS', QROWS, 74, 76 + QROWS * 11 - 2);
       ctx.fillStyle = col.mid; ctx.fillRect(14, 184, SW - 28, 1);
       const count = (key) => { const r = me ? boards[key].find((x) => x.id === me) : null; return r ? r.score : 0; };
       const l = count('linda'), e = count('eotm');
@@ -9348,8 +9372,10 @@
           if (sel) { fr(x - 3, y - 3, 94, 3, '#f8d850'); fr(x - 3, y + 116, 94, 3, '#f8d850'); fr(x - 3, y, 3, 116, '#f8d850'); fr(x + 88, y, 3, 116, '#f8d850'); }
         });
         const rows = Math.ceil(ids.length / COLS);
-        if (scroll > 0) say2('^', 626, 42, '#f8d850');
-        if (scroll + ROWS < rows) say2('v', 626, 378, '#f8d850');
+        // (more rows than fit: the scroll bar, in the gap between the big card and the page)
+        ctx.save(); ctx.scale(2, 2);
+        scrollBar(135, GY / 2, (GY + (ROWS - 1) * 120 + 116) / 2, scroll, ROWS, rows, { ink: '#f4ecd8', faint: 'rgba(244, 236, 216, 0.2)', narrow: true });
+        ctx.restore();
         if (!TABS[tab][1] && !draft.length) say2('Nothing in your deck yet.', GX + 20, 180);
         // what A does, or how to get it
         const wrapped = [];
@@ -24556,8 +24582,7 @@
           } else text(p.name.length > 21 ? p.name.slice(0, 20) + '.' : p.name, X + 6, y, 1, c);
         }
         if (first < SETS) fine(X + 4, rowY(SETS) - 3 - GAP / 2 - 0.5, RW - 8, 1, 'rgba(40, 40, 60, 0.22)');
-        if (first) text('^', X + RW - 8, Y - 14, 1, '#686878');
-        if (first + ROWS < list.length) text('v', X + RW - 8, SH - 18, 1, '#686878');
+        scrollBar(X + RW + 4, Y - 3, Y + (ROWS - 1) * 15 + GAP + 11, first, ROWS, list.length);
         // the one that's picked: its picture, as big as fits, and how you get it if it isn't yours
         const p = list[cur], PX = 156, PW = SW - PX - 12;
         roundBox(PX, Y - 4, PW, 112, 3, 'rgba(120, 110, 90, 0.12)');
