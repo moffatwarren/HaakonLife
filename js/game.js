@@ -4653,10 +4653,12 @@
     const AX = 12, AW = 248, HEAD = 18, CUP_Y = 184, CUP_W = 44, CUP_H = 34, FLOOR = 220;
     const COFFEE = '#6b3a1e', CREMA = '#b07040';
     const METER = { x: 280, y: 40, w: 24, h: 168 };
-    // the machine pours this many drops and stops; your score is how many land in the cup
-    const DROPS = 150;
+    // The machine keeps pouring until SPILLS drops have gone on the counter, and your score is
+    // how many land in the cup. Over the first RAMP drops it gets quicker and twitchier, and
+    // then it keeps that pace. A cup holds CUP drops, and a full one is swapped for an empty one.
+    const RAMP = 150, SPILLS = 100, CUP = 50;
     let cup = AX + AW / 2 - CUP_W / 2, fill = 0, caught = 0, missed = 0, t = 0, state = 'ready';
-    let poured = 0, wait = 0, record = false, frame = 0;
+    let poured = 0, wait = 0, record = false, frame = 0, full = 0;
     let nozzle = AX + AW / 2, target = nozzle, drops = [], splashes = [];
     const rnd = vs ? vs.rng : Math.random, ghost = ghostTrack();
     const race = vs && scoreRace(vs, { what: 'the coffee machine', fmt: String, hear: (m) => ghost.add(m) });
@@ -4685,20 +4687,23 @@
         if (held.left) cup = Math.max(AX, cup - 3);
         if (held.right) cup = Math.min(AX + AW - CUP_W, cup + 3);
         if (race) { race.send({ f: frame, x: Math.round(cup), s: caught }, Math.round(cup) + ':' + caught); ghost.follow(frame); }
-        // the nozzle wanders back and forth. As the pour goes on it gets faster (in the end
+        // the nozzle wanders back and forth. Over the first RAMP drops it gets faster (in the end
         // faster than the cup), drips more often and starts changing its mind halfway.
-        const p = poured / DROPS;
+        const p = Math.min(1, poured / RAMP);
         if (Math.abs(target - nozzle) < 2 || rnd() < 0.025 * p) target = AX + 12 + rnd() * (AW - 24);
         nozzle += Math.sign(target - nozzle) * Math.min(Math.abs(target - nozzle), 1.2 + 4.4 * p);
-        if (poured < DROPS && --wait <= 0) {
+        if (--wait <= 0) {
           drops.push({ x: nozzle - 1 + (rnd() * 4 - 2), y: HEAD + 22, vy: 1 });
           poured++; wait = Math.round(8 - 3 * p);
         }
         for (const d of drops) { d.vy = Math.min(d.vy + 0.08, 4); d.y += d.vy; }
+        if (full > 0) full--;
         drops = drops.filter((d) => {
           if (d.y + 6 >= CUP_Y && d.y < CUP_Y + 8 && d.x + 3 > cup + 3 && d.x < cup + CUP_W - 3) {
-            caught++; fill = 100 * caught / DROPS;
+            // (a cup that's just filled shows full until the next drop goes in the new one)
+            caught++; fill = 100 * (caught % CUP || CUP) / CUP;
             sfx('pour', fill);
+            if (caught % CUP === 0) { full = 60; sfx('ding'); }
             splashes.push({ x: d.x, y: CUP_Y + 2, t: 0 });
             return false;
           }
@@ -4707,14 +4712,14 @@
         });
         splashes.forEach((sp) => sp.t++);
         splashes = splashes.filter((sp) => sp.t < 12);
-        if (poured >= DROPS && !drops.length) {
+        if (missed >= SPILLS) {
           if (race) { race.finish(caught); state = 'wait'; t = 0; return; }
           state = 'done'; t = 0; record = saveBest('coffee', caught); sfx('ding');
         }
       },
       draw() {
         box(0, 0, SW, SH);
-        text('Catch the coffee!', AX + 4, 6);
+        text(state === 'ready' ? 'Catch the coffee!' : 'Caught ' + caught, AX + 4, 6);
         const b = race ? vs.name + ' ' + race.now : 'Best ' + getBest('coffee');
         text(b, AX + AW - b.length * 6, 6);
         // machine head + nozzle
@@ -4728,7 +4733,7 @@
         fine(AX + AW - 12, HEAD + 5, 2, 2, '#48d860'); fine(AX + AW - 12, HEAD + 5, 1, 1, '#c8ffc8');
         const nx = Math.round(nozzle);
         fine(nx - 5, HEAD + 14, 0.5, 6, '#c8ccd8'); fine(nx - 2, HEAD + 14, 0.5, 6, '#a8b0c0'); fine(nx - 5, HEAD + 19.5, 10, 0.5, '#585868');
-        if (state === 'play' && poured < DROPS) { ctx.fillStyle = COFFEE; ctx.fillRect(Math.round(nozzle) - 1, HEAD + 21, 2, 3); }
+        if (state === 'play') { ctx.fillStyle = COFFEE; ctx.fillRect(Math.round(nozzle) - 1, HEAD + 21, 2, 3); }
         // falling coffee
         for (const d of drops) {
           const dx = Math.round(d.x), dy = Math.round(d.y);
@@ -4775,9 +4780,12 @@
           ctx.fillRect(Math.round(sp.x) - dx, sp.y - dy, sz, sz);
           ctx.fillRect(Math.round(sp.x) + dx, sp.y - dy, sz, sz);
         }
-        // fill meter
-        const m = METER, mh = Math.round((m.h - 4) * fill / 100);
-        text('FILL', m.x, m.y - 12);
+        // a full cup, before it's swapped for an empty one
+        if (full > 0) { const s = 'Cup ' + Math.floor(caught / CUP) + ' full!'; text(s, AX + ((AW - s.length * 6) >> 1), 120, 1, '#5a3420'); }
+        // the spill meter: how much is on the counter, out of the most there can be before
+        // it's over (its label blinks red near the top)
+        const m = METER, mh = Math.round((m.h - 4) * Math.min(1, missed / SPILLS));
+        text('SPILL', m.x - 3, m.y - 12, 1, missed >= SPILLS * 0.8 && (tick >> 3) & 1 ? '#c03030' : col.dark);
         ctx.fillStyle = col.dark; ctx.fillRect(m.x, m.y, m.w, m.h);
         ctx.fillStyle = col.light; ctx.fillRect(m.x + 2, m.y + 2, m.w - 4, m.h - 4);
         ctx.fillStyle = COFFEE; ctx.fillRect(m.x + 2, m.y + m.h - 2 - mh, m.w - 4, mh);
@@ -4786,21 +4794,19 @@
         // marks every tenth, a shine down the glass
         for (let k = 1; k < 10; k++) fine(m.x + 2, m.y + 2 + Math.round((m.h - 4) * k / 10), k % 5 ? 2 : 4, 0.5, '#181820');
         fine(m.x + m.w - 4, m.y + 2, 1, m.h - 4, 'rgba(255, 255, 255, 0.5)');
-        text(Math.floor(fill) + '%', m.x, m.y + m.h + 4);
-        // how full their cup is, as a notch beside the meter
-        if (race) {
-          const ty = m.y + m.h - 2 - Math.round((m.h - 4) * Math.min(1, race.now / DROPS));
-          ctx.fillStyle = col.dark; ctx.fillRect(m.x - 5, ty - 1, 5, 3);
-        }
+        const sp = Math.min(missed, SPILLS) + '/' + SPILLS;
+        text(sp, m.x + m.w / 2 - sp.length * 3, m.y + m.h + 4);
         // messages
         if (state === 'ready') {
-          box(70, 92, 180, 48);
-          text(t < 50 ? 'Get ready...' : 'GO!', 70 + (t < 50 ? 54 : 81), 104);
-          text('Left/Right: move cup', 70 + 30, 120);
+          box(70, 86, 180, 62);
+          const mid = (s, y) => text(s, 70 + ((180 - s.length * 6) >> 1), y);
+          mid(t < 50 ? 'Get ready...' : 'GO!', 98);
+          mid('Left/Right: move cup', 114);
+          mid('Spill ' + SPILLS + ' and it\'s over', 128);
         } else if (state === 'over') race.box(t);
         else if (state === 'wait') race.waitBox();
         else if (state === 'done') {
-          doneBox(['Coffee\'s ready!', 'Caught ' + caught + ' of ' + DROPS + '   Spilled ' + missed, record ? 'New record!' : 'Best ' + getBest('coffee')], t);
+          doneBox(['Coffee all over the counter!', 'Caught ' + caught + '   Spilled ' + missed, record ? 'New record!' : 'Best ' + getBest('coffee')], t);
         } else {
           text('Esc: give up', AX + 4, SH - 16);
         }

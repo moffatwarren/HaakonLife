@@ -202,7 +202,7 @@ Walk up to these and press A:
 - **Zin's computer** (office 126): Spring Roll Hold'em, no-limit Texas Hold'em against Cody and Dmitriy, played for spring rolls. The arrows pick Fold, Call, Raise or All in and A does it; or click, or tap, the button (see **The mouse** and **Tapping the screen**)
 - **Cody's casino** (cubicle 142): see below
 - **Your Secret Lair** (the empty room by the ground floor's elevator): see below
-- **Coffee machine** (lunch room): catch the coffee in your cup. It pours 150 drops, and the nozzle gets quicker and twitchier as it goes; you're scored on how many you catch
+- **Coffee machine** (lunch room): catch the coffee in your cup. Over the first 150 drops the nozzle gets quicker and twitchier, then it keeps that pace, pouring until 100 drops have gone on the counter (the SPILL meter on the right); you're scored on how many you catch. Every 50 fills a cup, and you get an empty one
 - **Recycling bin** (lunch room): toss crumpled paper into the bin; watch the wind
 - **Chess** (the lunch room table with the board on it): a whole game against whichever coworker happens to be looking for one. Pick white or black first. Each coworker always plays the same way, from Beginner to Shark, as it says under their name. The arrows move the cursor, A picks a piece up and puts it down, and B lets go of it, or with nothing in your hand opens the menu (keep playing or leave). With the mouse or a finger, click or tap the piece and then where it goes (see **The mouse** and **Tapping the screen**). A pawn reaching the far end asks what it should become. Stalemate, not enough pieces left, the same position three times and fifty moves with no capture or pawn move are all draws. Every piece is the shape you'd expect, so you can always tell which is which, with some air handling on top: a pawn's head is a little fan, a rook's walls are damper blades, the queen's collar is a copper coil and the king has the supply fan in his crown. Can also be played against another player (see **Playing together**)
 - **Checkers** (the lunch room table under the chess one): a whole game against whichever coworker happens to be looking for one, played just like chess. Pick black or red first (black goes first). You have to jump if you can, and the pieces that must are lit up orange; a double jump goes one jump at a time, with the piece staying in your hand until it's done. A man reaching the far side is crowned, and his turn stops there. You win by taking everything or leaving them no move; the same position three times, or forty moves each with no jump and no man moved, is a draw. Each checker is a fan wheel in its round housing, seen from above, and a king has a gold crown on top. Can also be played against another player (see **Playing together**)
@@ -676,6 +676,11 @@ The filter change sped up with every bank for as long as you lasted, so the best
 out of hands at the same place (two tied at 36, all of the 9th bank). Since 13 November 2026 it
 stops speeding up after the 9th bank, so a quicker player can keep going. It kept its board,
 `filter`: the first nine banks are just as they were.
+
+The coffee machine poured 150 drops and stopped, so the best you could do was 150 (the top was
+144). Since 13 November 2026 it keeps pouring at the 150th drop's pace until 100 have gone on the
+counter. It kept its board, `coffee`: the first 150 drops pour just as they did, so anyone who
+spills fewer than 100 of them scores at least what they did before.
 
 The live poker table's board (**Live Hold'em**) is a running tally rather than a best
 score. Every hand you're dealt into counts: if you end it with more spring rolls than you
@@ -1291,8 +1296,8 @@ table (`interact` and `clickUse` in `js/game.js`).
     game server runs this one (`server/games/forklift.js`), so it's only in the list
     when there is one.
   - **Coffee machine**: you both get the same pour, and their cup chases the drops as a
-    faint outline (with a notch beside your fill meter for how full theirs is). Most
-    drops caught wins.
+    faint outline, with how many they've caught at the top. It goes on until you've each
+    spilled 100, and most drops caught wins.
   - **Treadmill**: you both get the same gym clutter, and they run on a second treadmill
     further back, with their name over their head, where they were at that point in
     their run. If you wipe out first, you step off and watch them run on until they
