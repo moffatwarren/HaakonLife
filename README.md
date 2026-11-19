@@ -112,8 +112,8 @@ needs to be (see **Testing**), and if not, nothing goes up and GitHub emails you
     phone's keyboard with it. While one's up, keys go into it rather than the game (`typeKey`),
     except Enter (START) and Esc (B). A phone's keyboard being up doesn't resize the game (`layout`).
 - **Lists longer than the screen:** a list with more in it than fits has a slim scroll bar down its
-  right side: the catalogue in your lair, a long menu (like the games to challenge someone to), PLAY
-  TIME, the Hall of Fame's Champions and Quests, the live sign-up sheets, the SDG app's parts and MY
+  right side: the catalogue in your lair, OTHER LAIRS, a long menu (like the games to challenge someone
+  to), PLAY TIME, the Hall of Fame's Champions and Quests, the live sign-up sheets, the SDG app's parts and MY
   CARDS (where it goes between the big card and the page). Its thumb is the part you can see. The
   arrow at each end is dark while there's more that way and faint once there isn't, and the one at
   the bottom bobs so you notice it. In the code it's `scrollBar` in `js/game.js`: give one to any
@@ -580,7 +580,8 @@ like Cody's cubicle: step through its door and it opens out into your Secret Lai
 twelve tiles by nine with nothing but black around it. Walk back out of its doorway and
 you're in the office again. Everybody has their own, and nobody else is ever in yours: other
 players who walk in are in theirs, so you don't see them in there and they don't see you
-(they show as being in "Their Secret Lair" in WHO'S HERE). Nothing in the game tells you it's
+(they show as being in "Their Secret Lair" in WHO'S HERE). They can look round it, though,
+with OTHER LAIRS (see **Other people's lairs**, below). Nothing in the game tells you it's
 there: you find it by going in. The first time you step in, it tells you what it's for, along
 with any furniture you've already earned for it.
 
@@ -614,6 +615,20 @@ with a cursor on it, and along the top is what's under the cursor:
   and **DONE**. There, A on LIGHTS switches them straight over.
 - B with nothing in your hand is done, and it's saved.
 - With the mouse, the cursor goes where you point, a click is A and the right button is B.
+
+**Other people's lairs.** In a lair the Start menu also has **OTHER LAIRS**: everybody else
+who's decorated theirs (put furniture in it, or picked a floor or the lights of their own), A to Z.
+The one you're on is shown in a picture on the right, half as big as in the game, with its lamps
+lit, and under it how many pieces of furniture are in it, its floor and lights, and when it was
+last changed. Up and down go through them (or point with the mouse, and the wheel scrolls),
+A goes in, and B goes back. Going in puts you in their doorway, with their name across the top of
+the screen for as long as you're in there. You can walk round it, switch their lamps off and on
+and press A at their keepsakes, and their computer has its desktop, but the Start menu has **BACK
+TO YOURS** where DECORATE was, so their lair is never changed. OTHER LAIRS is there too, starting
+on whoever's you're in. Walk out of their doorway and you're in the office, and yours is there the
+next time you go in. Nobody's told you've been round, and you still don't see each other: you're
+looking round their lair as they left it, not in it with them. Anything that's been taken away from
+somebody on the Data tab is left out of theirs, the same as it is for them.
 
 **Lamps** light up a pool of the floor round them and their shades glow (a lava lamp's light is
 orange, and swells and fades). Walking round, A at a lamp switches it off, and again on. That's
@@ -691,6 +706,19 @@ through `questNote`, `boardNote` and `questBoard` as before, and `lairNote` chec
 against the pieces. A piece you've earned is a special item named `f_` and its id, like
 `f_mug` (see "Special items"), so you can give it to somebody or take it away on the Data
 tab. One that's taken away comes out of their lair the next time they come in.
+
+OTHER LAIRS is `LairList`, which `lairsAll` fills. That reads everybody's lair at once, as
+`lairs/live` (so the database's rules have to let that whole part be read: see "Leaderboards"),
+and reads each one as yours is read (`lairRead`), so one that's been tampered with only ever has
+real pieces in places they fit. A lair is kept under its owner's key, which has lost their capitals
+and spaces, so the names come from `playtime/live`, which has everybody's. A key nobody has played
+under gets a name made from it (`maya_j_` is "Maya J"). As the list gets to each one,
+`lairItems` asks for that player's special items, to leave out anything that's been taken
+away. Going in is `lairGo`: while you're in someone else's, `lairVisit` says whose it is,
+`lairBuild` lays theirs out instead of yours (`lairShown`), and yours stays in `lair` the whole
+time, so nothing of theirs is ever kept as yours. Coming in or going out of the doorway
+(`lairDoor`) puts yours back. The banner saying whose it is stays up by being given a `stay`
+(`showBanner` in `js/game.js`). The doorway also switches the lamps all back on, yours too.
 
 What's in your lair is kept as a line of text, the floor (with `,low` if the lights are down) and
 then each piece with where its top left corner is from the room's, and which way it's turned if
@@ -961,9 +989,9 @@ The scores live in a free Firebase Realtime Database. To set one up:
     },
     "lairs": {
       "$world": {
+        ".read": true,
         ".validate": "$world === 'live' || $world === 'test'",
         "$player": {
-          ".read": true,
           ".write": "newData.exists() && (!data.exists() || newData.child('at').val() > data.child('at').val())",
           ".validate": "$player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['r','at'])",
           "r": { ".validate": "newData.isString() && newData.val().length <= 2000 && newData.val().matches(/^[a-z0-9:;,]*$/)" },
@@ -1007,6 +1035,11 @@ name's own key, with nothing in it the game wouldn't send.
 If your rules were published before the Secret Lair (November 11 2026), add the `lairs` part
 and press Publish again. Until then the database turns lairs down, and each browser keeps its
 own (see **Your Secret Lair**). The furniture you earn needs nothing new: it's special items.
+
+If they were published before OTHER LAIRS (November 19 2026), move the `lairs` part's `".read": true`
+up from under `$player` to under `$world`, as it is above, and press Publish again. Every lair
+could already be read one at a time; this lets the whole list be read at once. Until then OTHER
+LAIRS says it couldn't reach the other lairs, and everything else about lairs works as before.
 
 If your rules were published before November 6 2026, publish these ones instead. The game works
 with either, but the old ones take anything under any key, and leave the `live` world of `mp`
@@ -1290,7 +1323,8 @@ lists every name A to Z, with how long they've played and when they last did, an
 everyone underneath. Up and down scroll, and B, A or a click closes it. To do that the game has to be
 able to read the whole list, so the rules let anybody read `playtime` (the `.read` under `$world`).
 Only Warren gets the menu, but somebody who knew how could read everybody's play time straight from
-the database, the way they can read the scores.
+the database, the way they can read the scores. OTHER LAIRS reads it too, for everybody's names
+(see **Other people's lairs**).
 
 Only time spent playing counts:
 
@@ -2332,6 +2366,9 @@ the title screen.
   or `&x=` and `&y=` to stand somewhere else in it).
 - `&lair=all` instead has every piece of furniture yours, for this visit, and `&decorate=1` opens
   DECORATE straight away.
+- `&lairs=1` opens OTHER LAIRS there, and `&visit=ada` stands you in Ada's lair instead (any
+  name, as its key: `&visit=maya_j_`). The test page makes up a few lairs, under some of its
+  made-up names (`LAIR_DEMO`): Ada, Grace, Linus and Radia.
 - `&unlock=lair` brings up the message you get stepping into your lair for the first time, as if
   you'd already earned three pieces, and `&unlock=lairpiece` the message for one piece earned in
   a game once you've found it.
