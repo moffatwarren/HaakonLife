@@ -275,6 +275,20 @@ window.MUSIC = {
     ],
   },
 
+  // Jenn's Cookie Showdown: an oom-pah polka at a gallop, like a county fair eating contest
+  cookies: {
+    bpm: 152,
+    voices: [
+      { type: 'square', vol: 0.028, notes:
+        'C5 . A4 C5 F5 - E5 F5 | G5 - E5 - C5 - . . | Bb4 . G4 Bb4 E5 - D5 E5 | F5 - C5 - A4 - . . |' +
+        'A4 C5 F5 A5 G5 - F5 - | E5 G5 C6 - Bb5 - G5 - | F5 - A5 - G5 - E5 - | F5 - - - F4 - . . |' },
+      { type: 'triangle', vol: 0.1, notes:
+        'F2 . C3 . F2 . C3 . | C2 . G2 . C2 . G2 . | C2 . Bb2 . C2 . G2 . | F2 . C3 . F2 . A2 . |' +
+        'F2 . C3 . F2 . C3 . | C2 . G2 . C2 . Bb2 . | F2 . C3 . C2 . G2 . | F2 . C3 . F2 . . . |' },
+      { type: 'drums', vol: 0.45, notes: 'k h s h k h s h | k h s h k k s h' },
+    ],
+  },
+
   // Joe's Lego brick battle: bouncy and busy, like snapping bricks together
   lego: {
     bpm: 152,

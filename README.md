@@ -203,6 +203,34 @@ Walk up to these and press A:
 - **Cody's casino** (cubicle 142): see below
 - **Your Secret Lair** (the empty room by the ground floor's elevator): see below
 - **Coffee machine** (lunch room): catch the coffee in your cup. Over the first 150 drops the nozzle gets quicker and twitchier, then it keeps that pace, pouring until 100 drops have gone on the counter (the SPILL meter on the right); you're scored on how many you catch. Every 50 fills a cup, and you get an empty one
+- **Jenn's cookies** (the lunch room counter, by the sink): after the note on the plate, Jenn's
+  Cookie Showdown, an eating contest against Nik and Dmitriy, with Jenn judging and Bandit under
+  the table hoping for crumbs.
+  - **Eating:** Space takes a bite of the cookie in your hand, which fills your mouth (MOUTH, along
+    the bottom). You chew it down by yourself, quicker the fuller your mouth is, so keep it nearly
+    full: bite whenever the level is in the green, which is as much room as the next bite needs.
+    Bite with no room and you choke, and cough for a while with no chewing, so mashing gets you
+    nowhere.
+  - **Milk:** every bite dries your mouth out (DRY), and a dry mouth chews far more slowly. Down
+    takes a gulp of milk, which puts that right. The glass holds three gulps, and Jenn tops it up
+    by one every five and a half seconds.
+  - **The cookies:** chocolate chip, oatmeal raisin (chewy, so slower, but not so drying),
+    shortbread (three big bites, and very drying), gingersnaps (three small ones) and, after the
+    first few, now and then a giant one worth two. Every so often Nik or Dmitriy slips one of
+    their own burnt cookies into your hand: X pushes it away, while biting it means a long
+    coughing fit, and only Jenn's count. Pushing one of hers away just wastes it.
+  - **The end:** Nik and Dmitriy each eat at a pace that keeps going up (Dmitriy starts slower but
+    speeds up more), and you're out the moment either of them has eaten more than you, so there's
+    no top score. Your score is how many you'd eaten, on the COOKIE SHOWDOWN board. Enter brings
+    up the menu (keep eating or give up), since X is for pushing cookies away.
+    "Eat 15 cookies in Jenn's contest" can turn up on Linda's list: a first go gets about 13, and
+    most people get there in a few tries.
+  - **The code:** the rules are `js/cookies.js` (`COOKIES`), with no drawing or keys, so they could
+    run on the game server one day for a live contest, and `server/test/cookies.test.js` plays
+    them. `CookieGame` in `js/game.js` draws it (each cookie, bites and all, is `cookiePic`), and
+    its song is `cookies` in `js/music.js`. It was tuned by simulation, not by hand: a computer
+    player that bites the moment there's room eats about 47, one a third of a second slow about 34,
+    and one twice as slow about 22.
 - **Recycling bin** (lunch room): toss crumpled paper into the bin; watch the wind
 - **Chess** (the lunch room table with the board on it): a whole game against whichever coworker happens to be looking for one. Pick white or black first. Each coworker always plays the same way, from Beginner to Shark, as it says under their name. The arrows move the cursor, A picks a piece up and puts it down, and B lets go of it, or with nothing in your hand opens the menu (keep playing or leave). With the mouse or a finger, click or tap the piece and then where it goes (see **The mouse** and **Tapping the screen**). A pawn reaching the far end asks what it should become. Stalemate, not enough pieces left, the same position three times and fifty moves with no capture or pawn move are all draws. Every piece is the shape you'd expect, so you can always tell which is which, with some air handling on top: a pawn's head is a little fan, a rook's walls are damper blades, the queen's collar is a copper coil and the king has the supply fan in his crown. Can also be played against another player (see **Playing together**)
 - **Checkers** (the lunch room table under the chess one): a whole game against whichever coworker happens to be looking for one, played just like chess. Pick black or red first (black goes first). You have to jump if you can, and the pieces that must are lit up orange; a double jump goes one jump at a time, with the piece staying in your hand until it's done. A man reaching the far side is crowned, and his turn stops there. You win by taking everything or leaving them no move; the same position three times, or forty moves each with no jump and no man moved, is a draw. Each checker is a fan wheel in its round housing, seen from above, and a king has a gold crown on top. Can also be played against another player (see **Playing together**)
@@ -914,7 +942,7 @@ The scores live in a free Firebase Realtime Database. To set one up:
         ".indexOn": ["score"],
         "$player": {
           ".write": "newData.exists() && (!data.exists() || newData.child('score').val() > data.child('score').val()) && ($game !== 'humbug26' || (now >= 1795766400000 && now < 1798790400000))",
-          ".validate": "$game.matches(/^(ball|blackjack|bob|brawl|cable|candy|cards|cardwins|carrotpts|carve|catchrun|checkers|chess|chop|cocoa|coffee|coil|costumepts|cprpts|damper|dancepts|dark|desk|engrave|eotm|fan|filter|forklift|forms|galaxy|ghosts|golf9|hockey|humbug|humbug26|jam|laundry|legolines|legosolo|linda|lunch|mallow|mummy|paint|parts|poker|pokerlivelost|pokerlivewon|pong|pullreps|punch5|racelake|racemaple|raceplant|raceprairie|racesnow|run|simon|slots|snake|snowball|snowman|spruce|squat|stack|toss|treat|trophy|wokpieces)$/) && $player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['name','score','t']) && newData.child('score').isNumber() && newData.child('score').val() >= -100000 && newData.child('score').val() <= 1000000 && newData.child('t').val() == now",
+          ".validate": "$game.matches(/^(ball|blackjack|bob|brawl|cable|candy|cards|cardwins|carrotpts|carve|catchrun|checkers|chess|chop|cocoa|coffee|coil|cookies|costumepts|cprpts|damper|dancepts|dark|desk|engrave|eotm|fan|filter|forklift|forms|galaxy|ghosts|golf9|hockey|humbug|humbug26|jam|laundry|legolines|legosolo|linda|lunch|mallow|mummy|paint|parts|poker|pokerlivelost|pokerlivewon|pong|pullreps|punch5|racelake|racemaple|raceplant|raceprairie|racesnow|run|simon|slots|snake|snowball|snowman|spruce|squat|stack|toss|treat|trophy|wokpieces)$/) && $player.length <= 12 && $player.matches(/^[a-z0-9_]+$/) && newData.hasChildren(['name','score','t']) && newData.child('score').isNumber() && newData.child('score').val() >= -100000 && newData.child('score').val() <= 1000000 && newData.child('t').val() == now",
           "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12 && newData.val().toLowerCase().replace(' ', '_').replace('.', '_').replace(\"'\", '_').replace('-', '_') === $player" },
           "score": { ".validate": true },
           "t": { ".validate": true },
@@ -2337,7 +2365,7 @@ pants and their colours.
 
 | | |
 | --- | --- |
-| Office and lunch room | `coffee`, `toss`, `lunch`, `candy`, `chess` and `checkers` (against a coworker; add `&fen=` and a position to start from there), `stack`, `jam`, `desk`, `filter`, `simon` |
+| Office and lunch room | `coffee`, `cookies` (Jenn's Cookie Showdown), `toss`, `lunch`, `candy`, `chess` and `checkers` (against a coworker; add `&fen=` and a position to start from there), `stack`, `jam`, `desk`, `filter`, `simon` |
 | Fitness room | `punch`, `squat`, `run`, `pulldown`, `ball`, `laundry` |
 | TVs and computers | `pong`, `snake`, `galaxy` (Galaxy Guard), `poker`, `blackjack`, `computer` (the desktop) |
 | Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf`, `build` (Joe's Lego shelf) |

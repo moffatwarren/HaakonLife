@@ -15,6 +15,7 @@ changing, and update it in the same change.
 | `js/hockey.js`, `js/race.js`, `js/brawl.js`, `js/chess.js`, `js/checkers.js`, `js/cards.js` | Those games' rules with no drawing or keys (`race.js` is Haakon Grand Prix, the racing cabinet, and `brawl.js` Haakon Brawl, the fighting one): see "Games that might go multiplayer" |
 | `js/cardlist.js`, `js/cardart.js` | The card game's cards, one to a line, and the painter for their art |
 | `js/sweeper.js` | Humbug Sweeper's fields, made so that none of them needs a guess, with no drawing or keys |
+| `js/cookies.js` | Jenn's Cookie Showdown's rules (the cookie eating contest), with no drawing or keys. Only played against the computer so far |
 | `server/` | The game server (Node + `ws`): who's here, messages, `games/` (two-player matches), `tables/` (anyone can join) |
 | `tools/` | Map builder, checks, screenshots, backups, and `test.html`, the page for testing |
 
@@ -157,7 +158,7 @@ keep their own copy of the rules, which has to be kept in step by hand. Don't co
   and from Node 22 or newer connect a `WebSocket` to `ws://127.0.0.1:PORT/session`. That's WebDriver
   BiDi: `session.new`, `script.addPreloadScript`, `browsingContext.create`, `.navigate` and
   `.captureScreenshot`, `script.evaluate`. In the page, `window.GAME` has `press`, `release`, `warpTo`,
-  `P`, `mp`, `hockey` and `brawl` (the fight on the screen), and `problemWhere()` says what's open.
+  `P`, `mp`, `hockey`, `brawl` (the fight on the screen) and `cookies` (the cookie contest), and `problemWhere()` says what's open.
 - **Random input for every game:** in a preload script, replace `requestAnimationFrame` and
   `performance.now` with a fake clock running 100 ms a frame, and press random keys through
   `GAME.press` and `GAME.release`. 1800 frames a game takes about 2 minutes for all of them. Count

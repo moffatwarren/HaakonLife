@@ -4,7 +4,7 @@
   // only whatever uses that script would break, much later on. Stop here instead: with no
   // window.GAME, index.html reloads the page, and a reload always asks for the newest index.html.
   // (tools/check_games.mjs makes sure every script has a name in this list.)
-  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'RACE', 'TrackArt', 'BRAWL', 'CHESS', 'CHECKERS', 'SWEEPER', 'CARD_LIST', 'CARDS', 'CARD_ART'].some((name) => !window[name])) return;
+  if (['FONT', 'Art', 'LotArt', 'OFFICE_MAPS', 'PEOPLE', 'MUSIC', 'HOCKEY', 'RACE', 'TrackArt', 'BRAWL', 'CHESS', 'CHECKERS', 'SWEEPER', 'COOKIES', 'CARD_LIST', 'CARDS', 'CARD_ART'].some((name) => !window[name])) return;
 
   // View: 20 x 15 tiles of 16px.
   const SW = 320, SH = 240;
@@ -630,6 +630,10 @@
     whiff: () => noise(0.07, 2600, 0.035),
     // ...and charging one up: a blip that climbs as it builds (k 0 to 1, a little over at full)
     charge: (k) => tone(260 + (k || 0) * 520, 0.05, 'square', 0.018),
+    // Jenn's Cookie Showdown: a bite, a coughing fit and a gulp of milk
+    chomp: () => { noise(0.05, 1100, 0.07); tone(190, 0.05, 'square', 0.03, -70); },
+    cough: () => { noise(0.12, 800, 0.08); tone(170, 0.08, 'sawtooth', 0.04, -70); tone(150, 0.08, 'sawtooth', 0.04, -60, 0.14); tone(140, 0.1, 'sawtooth', 0.035, -50, 0.28); },
+    gulp: () => { tone(330, 0.09, 'sine', 0.08, -130); tone(270, 0.1, 'sine', 0.07, -110, 0.13); },
     // the bell on the Santa hat, which goes with every other stride, so it's very quiet
     bell: () => {
       const k = 1 + Math.random() * 0.05;
@@ -4859,6 +4863,8 @@
     desk: { title: 'FRONT DESK' }, jam: { title: 'PAPER JAM' }, laundry: { title: 'LAUNDRY' },
     forms: { title: 'JHONNA\'S FORMS' }, trophy: { title: 'NATHAN\'S TROPHIES' }, legolines: { title: 'JOE\'S BRICK BATTLE' },
     legosolo: { title: 'LEGO BUILDING', unit: ' lines' },
+    // Jenn's Cookie Showdown: the most cookies you've eaten before Nik or Dmitriy got ahead of you
+    cookies: { title: 'COOKIE SHOWDOWN', unit: (n) => n + (n === 1 ? ' cookie' : ' cookies') },
     // These six once had a most you could score, so the best players all tied on it: the old
     // boards (cpr, pulldown, wokdishes, carrotpct, dance, costume) were 30 perfect compressions,
     // 20 reps, dishes in a minute, two percentages and 30 from the judges. Now they go on until
@@ -5157,7 +5163,7 @@
   // Employee of the Month) earn points and crowns the same way, on a QUESTS page of their own
   // listing everyone who has done them.
   const FAME_GROUPS = [
-    ['OFFICE', ['coffee', 'toss', 'lunch', 'candy', 'stack', 'simon', 'desk', 'jam', 'filter']],
+    ['OFFICE', ['coffee', 'cookies', 'toss', 'lunch', 'candy', 'stack', 'simon', 'desk', 'jam', 'filter']],
     ['FITNESS ROOM', ['punch5', 'squat', 'run', 'pullreps', 'ball', 'laundry']],
     ['SCREENS AND CODY\'S CASINO', ['pong', 'snake', 'galaxy', 'brawl', 'poker', 'pokerlive', 'blackjack', 'slots']],
     ['BOARDROOM AND 2ND FLOOR', ['fan', 'coil', 'damper', 'parts', 'cable', 'cprpts', 'engrave', 'golf9', 'legosolo']],
@@ -16471,6 +16477,7 @@
     { key: 'engrave', need: 70, text: 'Engrave a nameplate (70% on)' },
     { key: 'golf', need: 1, text: 'Play a round on Wade\'s green' },
     { key: 'legosolo', need: 5, text: 'Clear 5 rows at Joe\'s Lego shelf' },
+    { key: 'cookies', need: 15, text: 'Eat 15 cookies in Jenn\'s contest' },
   ].filter(everyDay);
   const LINDA_COUNT = 7;
   const LINDA_WAITING = [
@@ -16646,6 +16653,360 @@
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     quest = { tasks: pool.slice(0, LINDA_COUNT).map((t) => Object.assign({ done: false }, t)), complete: false };
   }
+  // ---------- Jenn's Cookie Showdown: the cookie eating contest at the lunch room counter ----------
+  // After the cookies' own line, the plate asks if you want to take on Nik and Dmitriy. The rules
+  // (biting, chewing, the milk and the two of them speeding up) are js/cookies.js; CookieGame feeds
+  // it your keys, plays its sounds and draws the three of you behind the contest table, with Jenn
+  // judging from the end of it and Bandit on the floor, hoping for crumbs.
+  function cookieOffer() {
+    ask('A sign by the plate says: JENN\'S COOKIE SHOWDOWN. Out-eat Nik and Dmitriy!', ['TAKE THEM ON', 'NOT NOW'], (i) => {
+      if (i === 0) { sfx('menu'); ui.push(CookieGame()); }
+    });
+  }
+  // Each cookie's dough (its colour, shade and light) and what's baked into it: [how many, the bit's
+  // colour, its glint, w, h] in real pixels, scattered the same way every time (or in rows, `rows`).
+  const COOKIE_LOOKS = {
+    chip: { dough: ['#d89850', '#a86c34', '#f4c47c'], bits: [[7, '#4a2a18', '#7a5236', 3, 3]] },
+    oat: { dough: ['#c49058', '#9a6a3a', '#e4b884'], bits: [[9, '#ecd4a4', '#fff4dc', 2, 1], [4, '#5a2838', '#8c4c5c', 3, 2]] },
+    short: { dough: ['#f0d498', '#c8a868', '#fff2c8'], bits: [[9, '#c09858', '#c09858', 1, 1]], rows: true },
+    snap: { dough: ['#b8682e', '#8a4a1c', '#dc9454'], bits: [[5, '#e8a868', '#e8a868', 3, 1], [12, '#fff4e0', '#fff4e0', 1, 1]] },
+    giant: { dough: ['#d89850', '#a86c34', '#f4c47c'], bits: [[15, '#4a2a18', '#7a5236', 3, 3]] },
+    burnt: { dough: ['#4a3428', '#2a1c14', '#6c5242'], bits: [[6, '#1c120c', '#1c120c', 2, 2], [5, '#7a5c48', '#7a5c48', 3, 1]] },
+  };
+  const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  // A cookie of radius R (real pixels) with `left` of its `bites` still to go, made once. The bites
+  // come out of its top right, each a scoop with a point between it and the next, and take as much
+  // of it as they should; the outline and the light follow the bites round.
+  function cookiePic(kind, left, bites, R) {
+    const D = (R + 3) * 2;
+    return finePic('cookie.' + kind + left + '/' + bites + '@' + R, D, D, (c) => {
+      const look = COOKIE_LOOKS[kind] || COOKIE_LOOKS.chip;
+      // (where to cut so the part of the disc that's gone is as big as the bites taken)
+      const lost = 1 - left / bites, rb = R * 0.34;
+      let lo = -1, hi = 1;
+      for (let i = 0; i < 30; i++) { const d = (lo + hi) / 2; if ((Math.acos(d) - d * Math.sqrt(1 - d * d)) / Math.PI > lost) lo = d; else hi = d; }
+      const cut = lo * R + rb * 0.8;
+      const there = (x, y) => {
+        if (x * x + y * y > R * R) return false;
+        if (left >= bites) return true;
+        const u = x * 0.82 - y * 0.57, v = x * 0.57 + y * 0.82; // (u: towards the top right)
+        if (u > cut) return false;
+        const dv = v - Math.round(v / (rb * 1.6)) * rb * 1.6, du = u - cut;
+        return du * du + dv * dv > rb * rb;
+      };
+      const mid = D / 2, grid = new Uint8Array(D * D);
+      for (let y = 0; y < D; y++) for (let x = 0; x < D; x++) grid[y * D + x] = there(x + 0.5 - mid, y + 0.5 - mid) ? 1 : 0;
+      const at = (x, y) => x >= 0 && y >= 0 && x < D && y < D && grid[y * D + x] === 1;
+      const img = c.createImageData(D, D), px = img.data;
+      const put = (x, y, hex) => { const [r, g, b] = rgbOf(hex), i = (y * D + x) * 4; px[i] = r; px[i + 1] = g; px[i + 2] = b; px[i + 3] = 255; };
+      const [dough, shade, light] = look.dough;
+      for (let y = 0; y < D; y++) for (let x = 0; x < D; x++) {
+        if (at(x, y)) { put(x, y, !at(x - 2, y - 2) || !at(x - 1, y - 2) ? light : !at(x + 2, y + 2) || !at(x + 2, y + 1) ? shade : dough); continue; }
+        let near = false;
+        for (let j = -2; j <= 2 && !near; j++) for (let i = -2; i <= 2; i++) if (Math.abs(i) + Math.abs(j) <= 3 && at(x + i, y + j)) { near = true; break; }
+        if (near) put(x, y, col.dark);
+      }
+      // what's baked in, only where there's cookie all round it
+      const total = look.bits.reduce((n, b) => n + b[0], 0);
+      let n = 0;
+      for (const [count, bit, glint, w, h] of look.bits) for (let k = 0; k < count; k++, n++) {
+        const a = n * 2.39996 + 0.7, r = R * 0.78 * Math.sqrt((n + 0.5) / total);
+        const bx = look.rows ? ((k % 3) - 1) * R * 0.44 : Math.cos(a) * r, by = look.rows ? (Math.floor(k / 3) - 1) * R * 0.44 : Math.sin(a) * r;
+        const x0 = Math.round(mid + bx - w / 2), y0 = Math.round(mid + by - h / 2);
+        let ok = true;
+        for (let j = -1; j <= h && ok; j++) for (let i = -1; i <= w; i++) if (!at(x0 + i, y0 + j)) { ok = false; break; }
+        if (!ok) continue;
+        for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x0 + i, y0 + j, !i && !j && w > 1 ? glint : bit);
+      }
+      c.putImageData(img, 0, 0);
+    });
+  }
+  // a cookie with its middle at x, y; a burnt one smokes
+  function drawCookie(kind, left, bites, R, x, y) {
+    const pic = cookiePic(kind, left, bites, R);
+    ctx.drawImage(pic, Math.round((x - pic.width / 4) * 2) / 2, Math.round((y - pic.height / 4) * 2) / 2);
+    if (kind !== 'burnt') return;
+    for (let i = 0; i < 4; i++) {
+      const p = ((tick + i * 17) % 60) / 60;
+      ctx.globalAlpha = 0.55 * (1 - p);
+      fine(Math.round((x - 3 + i * 2 + Math.sin(tick / 9 + i * 2) * 1.5) * 2) / 2, Math.round((y - R / 2 - p * 14) * 2) / 2, 1, 1, '#a8a8b4');
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  let cookieNow = null; // (the contest on the screen, for testing: GAME.cookies)
+  function CookieGame() {
+    const g = cookieNow = COOKIES.create({ seed: (Math.random() * 2 ** 31) | 0, players: [{ name: playerName || 'You' }] });
+    const me = g.players[0], K = COOKIES.KINDS;
+    // the scene, top to bottom: where the three of them sit (their pictures' top), the table's
+    // top, its cloth, the floor in front of it, and the meters along the bottom
+    const SEAT_Y = 88, TABLE_Y = 128, CLOTH_Y = 138, FLOOR_Y = 178, HUD_Y = 202, MOUTH_Y = SEAT_Y + 25;
+    // Nik, you and Dmitriy behind the table: the middle of each, their pictures, their skin (for
+    // their cheeks), and the ticks left of their bite (`bite`); for the two of them, which bite of
+    // their cookie they're on (q)
+    const rival = (r, x) => ({ name: g.rivals[r].name, r, x, sprites: spritesFor(g.rivals[r].name), skin: lookFor(g.rivals[r].name).look.s, bite: 0, q: 0 });
+    const seats = [rival(0, 104), { name: 'You', me: true, x: 184, sprites, skin: Art.lookColours(myLook).s }, rival(1, 264)];
+    const you = seats[1], jenn = spritesFor('Jenn'), bandit = dogs.find((d) => d.name === 'Bandit');
+    let state = 'play', t = 0, record = false, hop = 0, crumbs = [], floats = [], jennSays = null;
+    const jennSay = (s) => { jennSays = { s, t: 0 }; };
+    const float = (s, c) => floats.push({ s, c, t: 0 });
+    function spray(x, y, n, kind, hard) {
+      const dough = (COOKIE_LOOKS[kind] || COOKIE_LOOKS.chip).dough;
+      for (let i = 0; i < n; i++) crumbs.push({ x, y, vx: (Math.random() - 0.5) * (hard ? 3 : 1.2), vy: -Math.random() * (hard ? 2.4 : 0.8) - 0.2, c: dough[i % 3], t: 0 });
+    }
+    const leader = () => g.rivals.reduce((a, b) => (b.eaten > a.eaten ? b : a));
+    // one of them level with you and halfway through the cookie that would put them ahead
+    const closing = (r) => g.phase === 'play' && r.eaten >= me.eaten && r.prog >= r.len / 2;
+    function hear(e) {
+      if (e.e === 'go') { sfx('ding'); jennSay('EAT!'); }
+      else if (e.e === 'bite') { sfx('chomp'); spray(you.x + 4, MOUTH_Y + 3, 2, e.kind); }
+      else if (e.e === 'ate') { float(e.kind === 'giant' ? '+2' : '+1', '#3c8030'); if (e.kind === 'giant') jennSay('A giant!'); }
+      else if (e.e === 'choke') { sfx('cough'); float('Cough!', '#b83028'); spray(you.x, MOUTH_Y, 10, me.kind, true); hop = 30; }
+      else if (e.e === 'crunch') { sfx('chop'); sfx('cough'); float('CRUNCH!', '#b83028'); spray(you.x, MOUTH_Y, 8, 'burnt', true); jennSay(g.rivals[e.by].name + '!!'); hop = 30; }
+      else if (e.e === 'gulp') sfx('gulp');
+      else if (e.e === 'nomilk') { sfx('bump'); float('No milk!', '#b83028'); }
+      else if (e.e === 'push') { sfx('swish'); jennSay('Good eye!'); }
+      else if (e.e === 'waste') { sfx('bump'); jennSay('Hey! Mine!'); }
+      else if (e.e === 'slip') sfx('blip');
+      else if (e.e === 'refill') sfx('pour', 30);
+      else if (e.e === 'rival' && g.rivals[e.r].eaten === me.eaten) sfx('blip', true);
+      else if (e.e === 'out') { state = 'done'; t = 0; record = saveBest('cookies', me.eaten); sfx(record ? 'cup' : 'buzz'); }
+    }
+    // what Jenn makes of it, back out in the lunch room
+    function verdict() {
+      const n = me.eaten, ate = n + (n === 1 ? ' cookie' : ' cookies');
+      return 'Jenn: "' + (n === 0 ? 'Not even one? More for Bandit, I suppose.'
+        : n < 10 ? ate + '. ' + g.rivals[me.outBy].name + ' is never going to let you hear the end of it.'
+          : n < 25 ? ate + '! Not bad at all. They are the best cookies in the building, after all.'
+            : n < 40 ? ate + '! Now that\'s an appetite. Nik and Dmitriy are going to need a lie down.'
+              : ate + '! You\'re a true cookie monster champion. Somebody tell Nathan.') + '"' + (record ? ' A new record!' : '');
+    }
+    // someone's cheeks, puffed out as far as their mouth is full (m, 0 to 1), on their picture
+    // drawn 48 across with its middle at x and its top at y
+    function cheeks(x, y, m, skin) {
+      if (m < 0.08) return;
+      const r = 0.5 + 2.3 * Math.min(1, m) ** 2, cy = y + 24.5;
+      for (const side of [-1, 1]) {
+        const cx = x + side * 10.5;
+        fineDisc(cx + side * 0.5, cy, r + 2, col.dark);
+        fineDisc(cx, cy, r, skin);
+        fine(side < 0 ? cx : cx - r, cy - r * 0.7, r, r * 1.4, skin); // (into the face, over its outline)
+        fineDisc(cx + side * r * 0.2, cy + r * 0.25, r * 0.45, mixHex(skin, '#e04848', 0.35));
+        fine(cx - r * 0.5, cy - r * 0.6, 1, 0.5, 'rgba(255, 255, 255, 0.6)');
+      }
+    }
+    // a hand holding something up at x, y
+    function hand(x, y, skin) {
+      roundBox(x - 4, y - 2, 8, 6, 2.5, col.dark); roundBox(x - 3, y - 1, 6, 4, 1.5, skin);
+      fine(x - 2, y - 0.5, 2.5, 0.5, 'rgba(255, 255, 255, 0.45)');
+    }
+    // a glass of milk standing with its bottom middle at x, y, `level` full (0 to 1)
+    function glass(x, y, level) {
+      roundBox(x - 5, y - 15, 10, 15, 2, col.dark);
+      fine(x - 4, y - 14, 8, 13, '#a8c4d8'); // (the empty glass, a clear blue so the milk shows up white)
+      const h = Math.round(13 * Math.max(0, Math.min(1, level)) * 2) / 2;
+      if (h) { fine(x - 4, y - 1 - h, 8, h, '#fcfcff'); fine(x + 2, y - 1 - h, 2, h, '#dce0ec'); fine(x - 4, y - 1 - h, 8, 0.5, '#ffffff'); fine(x - 4, y - 1.5, 8, 0.5, '#c8ccdc'); }
+      fine(x - 3.5, y - 13, 1, 11, 'rgba(255, 255, 255, 0.8)');
+    }
+    // gingham, cw x ch squares from x0, y0
+    function gingham(x0, y0, w, h, cw, ch) {
+      for (let y = 0; y < h; y += ch) for (let x = 0; x < w; x += cw) {
+        const a = Math.round(x / cw) & 1, b = Math.round(y / ch) & 1;
+        fine(x0 + x, y0 + y, Math.min(cw, w - x), Math.min(ch, h - y), a && b ? '#c83838' : a || b ? '#e8948c' : '#faf2e6');
+      }
+    }
+    function meter(label, x, y, w, v, c, zone) {
+      text(label, 12, y + 1);
+      roundBox(x - 1, y - 1, w + 2, 11, 2, col.dark);
+      fine(x, y, w, 9, '#e8e8ec');
+      if (zone) fine(x, y, Math.round(w * zone * 2) / 2, 9, '#d4ecc4');
+      const f = Math.round(w * Math.max(0, Math.min(1, v)) * 2) / 2;
+      if (f) { fine(x, y, f, 9, c); fine(x, y, f, 1, 'rgba(255, 255, 255, 0.45)'); fine(x, y + 8, f, 1, 'rgba(0, 0, 0, 0.15)'); }
+      if (zone) { fine(x + Math.round(w * zone * 2) / 2 - 0.5, y - 2, 1, 13, col.dark); fine(x + Math.round(w * zone * 2) / 2 - 1.5, y - 3, 3, 1, col.dark); }
+    }
+    const leave = (line) => { remove(self); cookieNow = null; say(line); };
+    const self = {
+      music: 'cookies', doing: 'cookies', escStart: true, // (B pushes a cookie away: Esc brings up the menu)
+      update() {
+        t++;
+        if (hop) hop--;
+        if (jennSays && ++jennSays.t > 80) jennSays = null;
+        floats = floats.filter((f) => ++f.t < 50);
+        crumbs = crumbs.filter((c) => { c.t++; c.x += c.vx; c.y += c.vy; c.vy += 0.15; return c.y < TABLE_Y + 3; });
+        if (state === 'done') {
+          if (t > 40 && (pressed.has('a') || pressed.has('b') || pressed.has('start'))) leave(verdict());
+          return;
+        }
+        if (pressed.has('start')) {
+          sfx('menu');
+          ui.push(Choice(['KEEP EATING', 'GIVE UP'], -1, 34, (i) => {
+            if (i === 1) leave('Jenn: "Full already? There\'s always another plate tomorrow."');
+          }, { startCloses: true }));
+          return;
+        }
+        g.step([{ bite: pressed.has('a'), drink: pressed.has('down'), push: pressed.has('b') }]);
+        g.events.forEach(hear);
+        // the two of them, a bite at a time
+        for (const s of [seats[0], seats[2]]) {
+          const r = g.rivals[s.r], q = Math.floor(r.prog / r.len * COOKIES.RIVAL_BITES);
+          if (s.bite) s.bite--;
+          if (q !== s.q && g.phase === 'play') { s.bite = COOKIES.BITE; spray(s.x + 4, MOUTH_Y + 3, 2, r.kind); }
+          s.q = q;
+        }
+      },
+      draw() {
+        box(0, 0, SW, SH);
+        text('Jenn\'s Cookie Showdown', 12, 8);
+        const best = 'Best ' + getBest('cookies');
+        text(best, SW - 12 - best.length * 6, 8);
+        ctext('Space: bite  Down: milk  X: push  Enter: pause', 20, '#686878');
+        // the lunch room: a striped wall, bunting, Jenn's sign, a skirting board and the floor
+        fine(6, 32, SW - 12, 102, '#efe4cc');
+        for (let x = 12; x < SW - 6; x += 12) fine(x, 32, 0.5, 102, '#e4d6ba');
+        fine(6, 128, SW - 12, 6, 'rgba(90, 70, 40, 0.05)');
+        fine(6, 134, SW - 12, 3, '#a87850'); fine(6, 134, SW - 12, 0.5, '#c89870'); fine(6, 136.5, SW - 12, 0.5, '#6a4a30');
+        fine(6, 137, SW - 12, FLOOR_Y + 20 - 137, '#cdc5b4');
+        for (let y = 137; y < FLOOR_Y + 20; y += 10) for (let x = 6 + ((y - 137) / 10 & 1) * 16; x < SW - 6; x += 32) fine(x, y, Math.min(16, SW - 6 - x), Math.min(10, FLOOR_Y + 20 - y), '#d8d0c0');
+        const sag = (x) => 35 + Math.sin(Math.PI * (x - 6) / (SW - 12)) * 5;
+        for (let x = 6; x < SW - 6; x += 0.5) fine(x, Math.round(sag(x) * 2) / 2, 0.5, 0.5, '#6a4a30');
+        ['#d84838', '#f0c030', '#4890d8', '#58a848'].forEach((c, k) => {
+          for (let x = 16 + k * 20; x < SW - 10; x += 80) {
+            const y = Math.round(sag(x) * 2) / 2;
+            for (let r = 0; r < 10; r += 0.5) { const w = Math.round((5.5 - r * 0.55) * 2) / 2; fine(x - w - 1, y + r, w * 2 + 2, 0.5, col.dark); }
+            for (let r = 0.5; r < 8; r += 0.5) { const w = Math.round((4.5 - r * 0.56) * 2) / 2; if (w > 0) fine(x - w, y + r, w * 2, 0.5, r < 2 ? mixHex(c, '#ffffff', 0.35) : c); }
+          }
+        });
+        roundBox(106, 44, 108, 18, 2.5, col.dark); roundBox(107, 45, 106, 16, 2, '#fffaf0');
+        fine(108, 45.5, 104, 0.5, '#ffffff'); fine(108, 59.5, 104, 0.5, '#e8dcc4');
+        text('COOKIE SHOWDOWN', 115, 49, 1, '#b83028');
+        for (const tx of [103, 207]) { fine(tx, 42, 10, 4, 'rgba(240, 232, 190, 0.85)'); fine(tx, 42, 10, 0.5, 'rgba(255, 255, 255, 0.8)'); }
+        // Jenn, judging from the end of the table with the milk jug
+        floorShadow(28, 137, 14, 2);
+        ctx.drawImage(jenn.down[0], 4, SEAT_Y, 48, 48);
+        roundBox(36, 112, 12, 16, 2.5, col.dark); roundBox(37, 113, 10, 14, 2, '#fcfcff');
+        fine(37, 118, 10, 4, '#4890d8'); fine(37, 118, 10, 0.5, '#88b8f0'); fine(38, 114, 1, 3, '#ffffff');
+        fine(46, 115, 4, 2, col.dark); fine(48, 115, 2, 8, col.dark); fine(46, 121, 4, 2, col.dark);
+        hand(41, 124, lookFor('Jenn').look.s);
+        if (jennSays) {
+          const w = jennSays.s.length * 6 + 10;
+          roundBox(4, 66, w, 16, 3, col.dark); roundBox(5, 67, w - 2, 14, 2.5, '#fffaf0');
+          for (let r = 0; r < 4; r += 0.5) fine(18 + r * 0.5, 81 + r, 5 - r, 0.5, r < 1 ? '#fffaf0' : col.dark);
+          text(jennSays.s, 9, 70);
+        }
+        // the three of them behind the table, chewing (their cheeks as full as their mouths)
+        const playing = g.phase === 'play';
+        for (const s of seats) {
+          const r = s.me ? null : g.rivals[s.r];
+          const m = s.me ? me.mouth : playing ? 0.3 + 0.45 * (1 - ((r.prog / r.len * COOKIES.RIVAL_BITES) % 1)) : 0;
+          const coughing = s.me && me.cough > 0, shake = coughing ? ((tick >> 1) & 1 ? 1 : -1) : 0;
+          const bob = m > 0.05 && !coughing && ((tick + s.x) >> 3) & 1 ? 1 : 0;
+          ctx.drawImage(s.sprites.down[0], s.x - 24 + shake, SEAT_Y + bob, 48, 48);
+          cheeks(s.x + shake, SEAT_Y + bob, m, s.skin);
+          if (coughing) for (const dx of [-11, 10]) fine(s.x + dx + shake, SEAT_Y + 20 + ((tick >> 2) & 3), 1, 2, '#68a8e8'); // (eyes watering)
+        }
+        // the table, in a gingham cloth
+        fine(62, TABLE_Y - 1, SW - 68, 1, col.dark);
+        gingham(62, TABLE_Y, SW - 68, CLOTH_Y - TABLE_Y, 8, 5);
+        fine(62, TABLE_Y, SW - 68, 0.5, 'rgba(255, 255, 255, 0.6)');
+        gingham(62, CLOTH_Y, SW - 68, FLOOR_Y - CLOTH_Y, 8, 8);
+        fine(62, CLOTH_Y, SW - 68, 1, 'rgba(70, 30, 30, 0.35)'); fine(62, CLOTH_Y + 1, SW - 68, 0.5, 'rgba(255, 255, 255, 0.35)');
+        for (let x = 92; x < SW - 6; x += 44) fine(x, CLOTH_Y + 1, 2, FLOOR_Y - CLOTH_Y - 1, 'rgba(60, 20, 20, 0.07)');
+        fine(61, TABLE_Y - 1, 1, FLOOR_Y - TABLE_Y + 2, col.dark); fine(62, TABLE_Y, 1, FLOOR_Y - TABLE_Y, 'rgba(255, 255, 255, 0.4)');
+        fine(61, FLOOR_Y, SW - 67, 1, col.dark); fine(62, FLOOR_Y + 1, SW - 68, 3, 'rgba(60, 50, 40, 0.15)');
+        // each one's tally on the front of the cloth, flashing on theirs if they're about to get ahead of you
+        for (const s of seats) {
+          const n = s.me ? me.eaten : g.rivals[s.r].eaten, level = !s.me && state === 'play' && closing(g.rivals[s.r]);
+          roundBox(s.x - 25, CLOTH_Y + 6, 50, 28, 3, col.dark);
+          roundBox(s.x - 24, CLOTH_Y + 7, 48, 26, 2.5, level && (tick >> 3) & 1 ? '#f8d0c8' : '#fffaf0');
+          fine(s.x - 22, CLOTH_Y + 7.5, 44, 0.5, '#ffffff');
+          const label = s.me ? 'YOU' : s.name.toUpperCase(), num = String(n);
+          text(label, s.x - label.length * 3, CLOTH_Y + 9, 1, s.me ? '#b83028' : col.dark);
+          text(num, s.x - num.length * 6 + 1, CLOTH_Y + 18, 2);
+        }
+        // on the table: everyone's milk, and a plate piled up with Jenn's cookies
+        for (const s of seats) {
+          glass(s.x - 21, TABLE_Y + 5, s.me ? (me.gulp ? 0 : me.milk / COOKIES.MILK) : 0.8);
+          roundBox(s.x + 10, TABLE_Y + 1, 22, 6, 3, col.dark); roundBox(s.x + 11, TABLE_Y + 2, 20, 4, 2, '#fcfcff');
+          fine(s.x + 13, TABLE_Y + 2.5, 14, 0.5, '#ffffff'); fine(s.x + 14, TABLE_Y + 5, 14, 0.5, '#c8ccd8');
+          drawCookie('oat', 1, 1, 7, s.x + 16, TABLE_Y);
+          drawCookie('short', 1, 1, 7, s.x + 26, TABLE_Y);
+          drawCookie('chip', 1, 1, 7, s.x + 21, TABLE_Y - 4);
+        }
+        // what's in each one's hand: their cookie, up at their mouth for a bite (a burnt one smokes,
+        // and one you push away slides off), and your milk, up at your mouth for a gulp
+        for (const s of seats) {
+          let kind, left, bites, lift = 0, slide = 0;
+          if (s.me) {
+            if (me.next) continue;
+            kind = me.kind; left = me.left; bites = K[me.kind].bites;
+            if (me.push) slide = (COOKIES.PUSH - me.push) * 3;
+            if (me.bite) lift = Math.sin(Math.PI * me.bite / COOKIES.BITE) * 8;
+            if (me.gulp) {
+              const k = Math.sin(Math.PI * me.gulp / COOKIES.GULP);
+              glass(s.x - 2, MOUTH_Y + 14 - k * 4, 0.6);
+              hand(s.x - 2, MOUTH_Y + 12 - k * 4, s.skin);
+            }
+          } else {
+            const r = g.rivals[s.r];
+            if (!playing) { kind = r.kind; left = bites = COOKIES.RIVAL_BITES; }
+            else { kind = r.kind; bites = COOKIES.RIVAL_BITES; left = bites - Math.floor(r.prog / r.len * bites); }
+            if (s.bite) lift = Math.sin(Math.PI * s.bite / COOKIES.BITE) * 8;
+          }
+          const R = kind === 'giant' ? 19 : 13, cy = 121 - lift - (kind === 'giant' ? 2 : 0);
+          ctx.globalAlpha = slide ? Math.max(0, 1 - slide / 40) : 1;
+          drawCookie(kind, left, bites, R, s.x + 5 + slide, cy);
+          ctx.globalAlpha = 1;
+          if (!slide) hand(s.x + 5, cy + R / 2 + 1, s.skin);
+        }
+        for (const c of crumbs) fine(Math.round(c.x * 2) / 2, Math.round(c.y * 2) / 2, 1, 1, c.c);
+        for (const f of floats) {
+          ctx.globalAlpha = f.t > 30 ? (50 - f.t) / 20 : 1;
+          text(f.s, you.x - f.s.length * 3, SEAT_Y - 6 - Math.round(f.t * 0.4), 1, f.c);
+        }
+        ctx.globalAlpha = 1;
+        // Bandit, down by the end of the table, jumping up at the crumbs when you cough
+        if (bandit) {
+          const by = FLOOR_Y - 4 - Math.round(Math.sin(Math.PI * hop / 30) * 6);
+          floorShadow(40, FLOOR_Y + 19, 9, 1.5);
+          ctx.drawImage(bandit.sprites.right[0], 28, by, 24, 24);
+          if (hop > 8) text('!', 38, by - 8, 1, '#b83028');
+        }
+        // your mouth (in the green there's room for a bite), how dry it is, your milk, and how far
+        // ahead you are
+        meter('MOUTH', 50, HUD_Y + 2, 146, me.mouth, me.cough ? ((tick >> 2) & 1 ? '#d84838' : '#f08070') : g.room(me) ? '#58b058' : '#e8a030', 1 - K[me.kind].size);
+        meter('DRY', 50, HUD_Y + 19, 146, me.dry, me.dry > 0.75 && (tick >> 3) & 1 ? '#d84838' : '#c88848');
+        text('MILK', 206, HUD_Y + 3);
+        for (let i = 0; i < COOKIES.MILK; i++) glass(240 + i * 12, HUD_Y + 17, i < me.milk ? 1 : i === me.milk ? me.refill / COOKIES.REFILL * 0.6 : 0);
+        const lead = me.eaten - leader().eaten, ls = signed(lead);
+        text('LEAD', 206, HUD_Y + 21);
+        text(ls, 240, HUD_Y + 21, 1, lead <= 0 ? '#b83028' : lead < 3 ? '#b86810' : '#3c8030');
+        text(String(Math.floor(Math.max(0, g.t - COOKIES.READY) / 60)) + 's', 284, HUD_Y + 21, 1, '#686878');
+        // a word about what needs doing, over everything
+        let banner = null;
+        if (state === 'play' && playing) {
+          const level = g.rivals.find(closing);
+          if (me.burnt && !me.next && !me.push) banner = ['A burnt one from ' + g.rivals[me.by].name + '!', 'X: push it away'];
+          else if (level) banner = [level.name + ' is catching you!', 'Keep eating!'];
+          else if (me.dry > 0.85 && me.milk >= 1) banner = ['Your mouth is so dry!', 'Down: a gulp of milk'];
+        }
+        if (banner) { box(76, 62, 168, 26); ctext(banner[0], 67, '#b83028'); ctext(banner[1], 77); }
+        if (g.phase === 'ready') {
+          box(64, 58, 192, 62);
+          const word = g.t < COOKIES.READY / 2 ? 'Ready...' : 'Set...';
+          text(word, (SW - word.length * 12) >> 1, 66, 2);
+          ctext('Space: bite in the green', 88);
+          ctext('Down: milk  X: push burnt', 102);
+        }
+        if (state === 'done') {
+          const n = me.eaten;
+          doneBox([g.rivals[me.outBy].name + ' pulls ahead!', 'You ate ' + n + (n === 1 ? ' cookie' : ' cookies'),
+            record ? 'New record!' : 'Best ' + getBest('cookies')], t);
+        }
+      },
+    };
+    return self;
+  }
+
   // ---------- Employee of the Month: help out every coworker with a challenge ----------
   // Beat each person's own game (the results come in through questNote too). Once
   // everyone's been helped, Kiki at reception hands you the award and your picture goes
@@ -17822,6 +18183,7 @@
     coffee: 'Playing Coffee Machine', catch: 'Playing Frisbee Catch', punch: 'Playing Punching Bag', run: 'Playing Treadmill',
     pong: 'Playing Pong', toss: 'Playing Paper Toss', stack: 'Playing Photocopier', simon: 'Playing Control Panel',
     lunch: 'Playing Find My Lunch', candy: 'Playing Candy Table', squat: 'Playing Squat Rack', golf: 'Playing mini golf',
+    cookies: 'In a cookie eating contest',
     cards: 'Playing Morale Madness',
     deck: 'Sorting their cards',
     dark: 'Playing Damir\'s Lights', duel: 'Playing Air Duel', fan: 'Playing Fan Balancing', coil: 'Playing Cooling Coil',
@@ -23934,7 +24296,7 @@
     if (cup && P.floor === cup.floor && tx === cup.x && ty === cup.y) { cupTalk(); return; }
     if (P.floor === cookies.floor && tx === cookies.x && ty === cookies.y) {
       sfx('select');
-      say('There is a plate of cookies with a note: "Made with love by Jenn." You take one.\nAs you eat it, you think to yourself: Nik and Dmitriy could never make anything this good.');
+      say('There is a plate of cookies with a note: "Made with love by Jenn." You take one.\nAs you eat it, you think to yourself: Nik and Dmitriy could never make anything this good.', cookieOffer);
       return;
     }
     if (!stapler.found && P.floor === stapler.floor && tx === stapler.x && ty === stapler.y) {
@@ -26386,7 +26748,7 @@
       const [dx, dy] = DIRS[P.dir];
       Object.assign(testDog, { floor: P.floor, x: P.x + dx, y: P.y + dy, wait: 1e9 });
     }
-    const GAME = { coffee: CoffeeGame, punch: PunchGame, run: RunGame, pong: PongGame, toss: TossGame, stack: StackGame, simon: SimonGame, lunch: LunchGame, candy: CandyGame, squat: SquatGame, golf: GolfGame, dark: DarkGame, battle: BattleGame,
+    const GAME = { coffee: CoffeeGame, cookies: CookieGame, punch: PunchGame, run: RunGame, pong: PongGame, toss: TossGame, stack: StackGame, simon: SimonGame, lunch: LunchGame, candy: CandyGame, squat: SquatGame, golf: GolfGame, dark: DarkGame, battle: BattleGame,
       fan: FanGame, coil: CoilGame, damper: DamperGame, filter: FilterGame,
       snake: SnakeGame, galaxy: GalaxyGame, parts: PartsGame, cable: CableGame, cpr: CprGame,
       engrave: EngraveGame, pulldown: PulldownGame, ball: BallGame,
@@ -26524,5 +26886,5 @@
   requestAnimationFrame(frame);
 
   // Expose a little state for debugging in the console.
-  window.GAME = { P, MAPS, warpTo, npcs, critters, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get brawl() { return brawlNow; }, get cards() { return cardsNow; }, get playtime() { return { unsent: playUnsent(), since: playSince, part: playPart }; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, cardWhere, get myCards() { return [...cardsMine()]; }, get lair() { return lairText(lair); } };
+  window.GAME = { P, MAPS, warpTo, npcs, critters, questNote, stapler, mp, press, release, get quest() { return quest; }, get hockey() { return hockey; }, get brawl() { return brawlNow; }, get cookies() { return cookieNow; }, get cards() { return cardsNow; }, get playtime() { return { unsent: playUnsent(), since: playSince, part: playPart }; }, get open() { return ui.length; }, talkTo, cardEarned, cardDeck, cardWhere, get myCards() { return [...cardsMine()]; }, get lair() { return lairText(lair); } };
 })();
