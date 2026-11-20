@@ -167,7 +167,10 @@ function endStreet(s) {
   later(s, runOut ? 12 : 6, 'street');
 }
 
+// (someone who gets up while the next card's coming, or the hands are about to be turned
+// over, can leave just the one player in: they take the pot, as they would have straight away)
 function nextStreet(s) {
+  if (inHand(s).length === 1) { winUncontested(s); return; }
   s.street++;
   s.deck.pop(); // burn
   for (let i = s.street === 1 ? 3 : 1; i > 0; i--) s.board.push(s.deck.pop());
@@ -209,6 +212,7 @@ function winUncontested(s) {
 }
 
 function showdown(s) {
+  if (inHand(s).length === 1) { winUncontested(s); return; }
   const contenders = inHand(s), got = s.seats.map(() => 0), all = s.seats.filter(Boolean);
   for (const p of contenders) { p.show = true; p.value = handValue(p.hand.concat(s.board)); }
   // Side pots: slice the contributions at each player's total, smallest first; each

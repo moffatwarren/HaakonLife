@@ -399,6 +399,22 @@ test('Max gets a new worker going the turn it comes in', () => {
   const max = me(g, 0).table.find((x) => x.id === 'max').u;
   assert.ok(!g.act(0, { do: 'attack', from: max, target: 1 }), 'but Max isn\'t Keen himself');
 });
+test('Keen is a first go, not another: one that\'s already attacked this turn doesn\'t get a second', () => {
+  const g = game();
+  const old = g.give(0, 'assembler');
+  wake(g, 0);
+  assert.ok(g.act(0, { do: 'attack', from: old, target: 1 }));
+  play(g, 0, 'max', old);
+  assert.ok(!g.act(0, { do: 'attack', from: old, target: 1 }), 'it\'s been already');
+  play(g, 0, 'courier');
+  const courier = me(g, 0).table.find((x) => x.id === 'courier').u;
+  assert.ok(g.act(0, { do: 'attack', from: courier, target: 1 }));
+  play(g, 0, 'granfondo');
+  assert.ok(!g.act(0, { do: 'attack', from: courier, target: 1 }), 'nor has a Keen one');
+  assert.ok(!g.act(0, { do: 'attack', from: old, target: 1 }), 'and still not');
+  nextTurn(g); nextTurn(g);
+  assert.ok(g.act(0, { do: 'attack', from: old, target: 1 }), 'the next turn it goes again as usual');
+});
 test('Jill sends one of yours back to your hand, to play again', () => {
   const g = game();
   const bob = g.give(0, 'bob'), theirs = g.give(1, 'student');

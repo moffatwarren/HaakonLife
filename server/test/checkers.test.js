@@ -37,6 +37,10 @@ function perft(g, depth) {
   }
   return n;
 }
+test('the server says which rules it has', () => {
+  assert.equal(checkers.VERSION, CHECKERS.VERSION, 'VERSION in server/games/checkers.js is js/checkers.js\'s (node tools/check_games.mjs says what to set it to)');
+});
+
 test('every legal move and no others, from the start', () => {
   [7, 49, 302, 1469, 7361, 36768, 179740].forEach((want, i) => {
     assert.equal(perft(CHECKERS.create(), i + 1), want, 'depth ' + (i + 1));
@@ -307,6 +311,27 @@ test('from level 3 up it takes the double jump over the single one', () => {
       const g = pos('1k6/8/5m2/8/1m1m4/M1M5/8/8 b - 0', { seed, players: [{ ai: level }, {}] });
       for (let i = 0; i < 400 && g.turn === 0 && !g.result; i++) g.step();
       assert.equal(g.at(sq('g7')), 'M', 'level ' + level + ' seed ' + seed + ': ' + g.fen());
+    }
+  }
+});
+
+test('a position it\'s been in before doesn\'t tempt it into throwing a piece away', () => {
+  // c3-d4 hands red a piece, and so does a move from c3 on the other board. Seen once before, the
+  // position after it is worth a little more to a side that isn't winning, but not a whole piece.
+  for (const [fen, level, mv] of [
+    ['5m1m/m1m3m1/1m1m1m1M/m1m5/1M5m/M1M1M1M1/1M3M1M/M5M1 b - 0', 3, 'c3d4'],
+    ['1m1m1m1m/6m1/1m3m1m/m3m3/3M3M/M1M5/1M1M3M/M1M3M1 b - 0', 4, 'c3b4'],
+  ]) {
+    const after = pos(fen);
+    go(after, mv);
+    const key = after.fen().split(' ').slice(0, 3).join(' ');
+    for (let seed = 1; seed <= 4; seed++) {
+      const g = pos(fen, { seed, players: [{ ai: level }, {}] });
+      const s = g.save();
+      s.seen[key] = 1;
+      g.load(s);
+      for (let i = 0; i < 400 && !g.ply; i++) g.step();
+      assert.notDeepEqual(plain(g.last), [sq(mv.slice(0, 2)), sq(mv.slice(2, 4))], 'level ' + level + ' seed ' + seed);
     }
   }
 });

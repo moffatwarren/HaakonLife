@@ -330,7 +330,7 @@ window.CARDS = (function engine() {
     }
     function newUnit(id, seat) {
       const c = CARD.get(id), words = c.words || [];
-      return { u: st.next++, id, pw: c.power, pa: c.patience, max: c.patience, gate: words.includes('gate'), skin: words.includes('skin'), left: words.includes('keen') ? 1 : 0, frozen: 0, stuck: false, seat };
+      return { u: st.next++, id, pw: c.power, pa: c.patience, max: c.patience, gate: words.includes('gate'), skin: words.includes('skin'), left: words.includes('keen') ? 1 : 0, went: false, frozen: 0, stuck: false, seat };
     }
     function hurt(u, n) {
       if (n <= 0) return;
@@ -431,7 +431,8 @@ window.CARDS = (function engine() {
             if (!x) continue;
             if (e.word === 'gate') x.gate = true;
             else if (e.word === 'skin') x.skin = true;
-            else if (e.word === 'keen' && x.left === 0) x.left = 1;
+            // (only for one that's not attacked yet this turn: Keen is a first go, not another)
+            else if (e.word === 'keen' && x.left === 0 && !x.went) x.left = 1;
             log({ e: 'give', u, word: e.word });
           }
           break;
@@ -465,7 +466,7 @@ window.CARDS = (function engine() {
       const me = st.p[seat];
       me.cups = Math.min(CUPS, me.cups + 1);
       me.coffee = me.cups;
-      for (const x of me.table) { x.left = 1; x.stuck = x.frozen > 0; x.frozen = 0; }
+      for (const x of me.table) { x.left = 1; x.went = false; x.stuck = x.frozen > 0; x.frozen = 0; }
       st.clock = st.turnTicks;
       st.wait = THINK;
       log({ e: 'turn', s: seat, n: st.n });
@@ -552,6 +553,7 @@ window.CARDS = (function engine() {
       const x = st.p[seat].table.find((y) => y.u === a.from);
       if (!x || !canAttack(x) || !attackTargets(seat).includes(a.target)) return false;
       x.left--;
+      x.went = true;
       log({ e: 'attack', u: x.u, t: a.target });
       const other = a.target === 0 || a.target === 1 ? null : unit(a.target);
       hurt(a.target, x.pw);

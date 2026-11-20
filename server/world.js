@@ -32,17 +32,20 @@ const ASK_MS = 60000; // ms a challenge stays open
 const PER_SEC = 100; // messages a second from one player before the rest are dropped
 const TABLE_RE = /^[a-z0-9]{1,16}(:[A-Za-z0-9]{1,16})?$/; // a table's name (see tables.js)
 const TABLES_MAX = 40; // tables going at once in a world, since each one is ticking away
+const ROOMS_MAX = 40; // and the same for games the server runs
 // How often changed records go out to copies that take bundles: 30 times a second. A step
 // from one tile to the next takes four of these, so other players walk as smoothly as when
 // every record went out on its own. (At ten a second they'd stutter.)
 export const BUNDLE_MS = 1000 / 30;
 
-// a copy of o if it's a flat object of allowed values, otherwise null
+// a copy of o if it's a flat object of allowed values, otherwise null. (Not with a key every
+// object already has, like constructor or toString: a browser that used one to look something
+// up would get that instead.)
 function flat(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const out = {};
   for (const [k, v] of Object.entries(o)) {
-    if (!KEY_RE.test(k)) return null;
+    if (!KEY_RE.test(k) || k in Object.prototype) return null;
     if (!(typeof v === 'number' && Number.isFinite(v)) && typeof v !== 'boolean' && !(typeof v === 'string' && v.length <= STR_MAX)) return null;
     out[k] = v;
   }
@@ -89,7 +92,11 @@ export class World {
     if (old) old.close(4000, 'replaced'); // the same tab reconnecting: drop the stale one
     const players = {};
     for (const o of this.players.values()) if (o !== p && o.sock && o.rec) players[o.id] = o.rec;
-    this.write(sock, { k: 'all', now: this.now(), players, rooms: p.room ? [p.room] : [], tables: p.table ? [p.table] : [] });
+    // (a game that ended while they were gone still counts as one they're in, so its result,
+    // waiting in their mail, is how it ended for them, not that they'd dropped out)
+    const rooms = p.mail.filter((msg) => msg.k === 'end').map((msg) => msg.m);
+    if (p.room) rooms.push(p.room);
+    this.write(sock, { k: 'all', now: this.now(), players, rooms, tables: p.table ? [p.table] : [] });
     for (const msg of p.mail.splice(0)) this.write(sock, msg);
     if (p.room) this.rooms.get(p.room)?.back(p.id);
     if (p.table) this.tables.get(p.table)?.back(p.id);
@@ -123,7 +130,9 @@ export class World {
       const m = flat(d.m);
       if (!m || typeof d.to !== 'string' || d.to === p.id) return;
       Object.assign(m, { from: p.id, t: this.now() });
+      // (their name from their record, or before they've sent one, as long as one can be)
       if (p.rec) m.n = p.rec.n;
+      else if (m.n !== undefined) m.n = String(m.n).slice(0, NAME_MAX);
       this.watch(p.id, d.to, m);
       this.send(d.to, { k: 'm', m }, true);
     } else if (d.k === 'in') {
@@ -186,7 +195,7 @@ export class World {
   // server starts it, and when either player gives up it stops.
   watch(from, to, m) {
     if (typeof m.m !== 'string') return;
-    if (m.k === 'ask' && this.games[m.g]) {
+    if (m.k === 'ask' && Object.hasOwn(this.games, m.g)) {
       this.asks.set(m.m, { g: m.g, a: from, b: to, seed: +m.seed || 0, soft: !!m.soft, at: this.now() });
     } else if (m.k === 'yes') {
       const c = this.asks.get(m.m);
@@ -198,12 +207,14 @@ export class World {
     }
   }
 
+  // Not if either of them is in a game already, or there are too many going.
   start(id, c) {
     const seats = [c.a, c.b];
-    if (this.rooms.has(id) || seats.some((pid) => !this.players.has(pid))) return;
+    if (this.rooms.has(id) || this.rooms.size >= ROOMS_MAX) return;
+    if (seats.some((pid) => { const p = this.players.get(pid); return !p || (p.room && this.rooms.has(p.room)); })) return;
     const room = new Room({
       id, game: this.games[c.g], seats, seed: c.seed, soft: c.soft,
-      send: (pid, msg) => this.send(pid, msg),
+      send: (pid, msg) => this.send(pid, msg, msg.k === 'end'), // (the result waits for them if they're gone)
       quiet: (pid) => { const p = this.players.get(pid); return p && p.rec ? this.now() - p.rec.t : 0; },
       done: () => {
         this.rooms.delete(id);
@@ -212,7 +223,13 @@ export class World {
     });
     if (room.over) return; // it couldn't even start
     this.rooms.set(id, room);
-    for (const pid of seats) this.players.get(pid).room = id;
+    // (whoever's connection has dropped since, the challenger while they waited for an
+    // answer, say, has GRACE to come back, as if it dropped mid-game)
+    for (const pid of seats) {
+      const p = this.players.get(pid);
+      p.room = id;
+      if (!p.sock) room.gone(pid);
+    }
   }
 
   // keep: hold on to it if they're disconnected right now (a message, not a game's state)
@@ -263,9 +280,11 @@ export class World {
     for (const [id, c] of this.asks) if (now - c.at > ASK_MS) this.asks.delete(id);
   }
 
-  // the server is shutting down: stop the tables ticking
+  // the server is shutting down: stop the tables and games ticking
   close() {
     for (const table of this.tables.values()) table.close();
     this.tables.clear();
+    for (const room of this.rooms.values()) room.close();
+    this.rooms.clear();
   }
 }

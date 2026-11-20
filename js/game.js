@@ -66,7 +66,9 @@
     warren: '9cfbdc7fa08244a389936137f36401b459d9297be841f7cf1bd39acea60c56da',
   };
   const lockName = (name) => String(name || '').toLowerCase().replace(/[^a-z]/g, '');
-  const unlocked = (name) => { const h = LOCKED[lockName(name)]; return !h || store.get('pass.' + lockName(name)) === h; };
+  // (inTable, so a name like "Constructor" isn't taken for one with a password)
+  const lockOf = (name) => (inTable(LOCKED, lockName(name)) ? LOCKED[lockName(name)] : null);
+  const unlocked = (name) => { const h = lockOf(name); return !h || store.get('pass.' + lockName(name)) === h; };
   if (!unlocked(store.get('name'))) store.set('name', '');
   // A password scrambled for keeping (PBKDF2, salted with the name), as hex. It throws (rejects) in a
   // browser that can't, which is only a page that isn't https.
@@ -677,7 +679,8 @@
     SONGS[name] = {
       bpm: song.bpm,
       voices: song.voices.map((v) => {
-        const toks = v.notes.split(/\s+/).filter((s) => s && s !== '|');
+        // Bar lines can touch a note where two lines of a song are joined ('... |' + 'E4 ...').
+        const toks = v.notes.split(/[\s|]+/).filter(Boolean);
         const steps = toks.map(() => null);
         toks.forEach((tok, i) => {
           if (v.type === 'drums') { if ('ksh'.includes(tok)) steps[i] = tok; return; }
@@ -727,8 +730,9 @@
   function playMusic(name) {
     if ((music && music.name) === name) return;
     if (music && actx) { // fade the old song out; its already-scheduled notes go quiet with it
-      const g = music.out.gain;
+      const old = music.out, g = old.gain;
       g.setValueAtTime(g.value, actx.currentTime); g.linearRampToValueAtTime(0, actx.currentTime + 0.15);
+      setTimeout(() => old.disconnect(), 400); // (and once it's quiet, it's let go)
     }
     music = null;
     if (!name || !SONGS[name] || !actx) return;
@@ -1111,6 +1115,9 @@
     if (e.pointerType === 'mouse' || finger) return;
     e.preventDefault();
     finger = { id: e.pointerId, x: e.clientX, y: e.clientY, dragY: e.clientY, drag: false };
+    // (held on to, so the finger's lifting comes here even off the picture, and losing it lets go:
+    // a finger that never let go would stop every tap after it)
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* it's gone already */ }
   });
   canvas.addEventListener('pointermove', (e) => {
     if (!finger || e.pointerId !== finger.id) return;
@@ -1129,7 +1136,7 @@
     }
     finger = null;
   });
-  canvas.addEventListener('pointercancel', (e) => { if (finger && e.pointerId === finger.id) finger = null; });
+  for (const kind of ['pointercancel', 'lostpointercapture']) canvas.addEventListener(kind, (e) => { if (finger && e.pointerId === finger.id) finger = null; });
   // what fingers have done since the last update, handed to the layer on top (see layerUpdate)
   function tapTo(el) {
     touch.seen = true;
@@ -1364,7 +1371,7 @@
     const nameX = opts.icon ? 31 : 16;
     // (opts.rows: how many fit, if it might not all fit on the screen: the list scrolls past that)
     const rows = Math.min(options.length, opts.rows || options.length), scrolls = rows < options.length;
-    let first = 0;
+    let first = Math.max(0, cur - rows + 1); // (so one picked to start with is in view)
     const w = Math.max(opts.minChars || 0, ...options.map((o) => o.length)) * 6 + 6 + nameX + (scrolls ? 8 : 0), h = rows * 16 + 8;
     if (x < 0) x = SW - w + x + 1;
     const self = {
@@ -1405,6 +1412,8 @@
     // (opts.taps: it takes taps, for a menu over a game that does: a tap on an option picks it, and a
     // tap on the one that's picked already does it, as in Morale Madness. See "touch".)
     if (opts.taps) self.tap = (px, py) => menuTap(self, px, py);
+    // (one that scrolls goes up and down with the mouse wheel)
+    if (scrolls) self.wheel = (d) => { cur = clamp(cur + d, 0, options.length - 1); first = Math.max(cur - rows + 1, Math.min(first, cur)); };
     return self;
   }
   // A tap on a menu, for a layer that takes taps and has one open (menu, a Choice): it picks the option
@@ -3807,8 +3816,9 @@
         if (button === 'b') return 'b';
         if (!sheet.list || !begun || x < 12 || x >= SW - 12) return null;
         if (sizes) {
-          const i = Math.floor((y - 53) / 32);
-          if (i < 0 || i >= SIZES.length || y - 53 - i * 32 >= 25) return null;
+          const gap = SIZES.length > 4 ? 30 : 32; // (as draw has them)
+          const i = Math.floor((y - 53) / gap);
+          if (i < 0 || i >= SIZES.length || y - 53 - i * gap >= 25) return null;
           size = i;
           return 'a';
         }
@@ -3933,7 +3943,8 @@
     // pot for a bet and out of it to whoever won
     function hear(v, old) {
       if (v.ev !== ev && ev >= 0) {
-        if (v.snd.startsWith('win:')) sfx(v.snd.slice(4).split(',').map(Number).includes(v.me) ? 'cup' : 'bump');
+        // (filter(Boolean): an empty list of winners mustn't read as seat 0, as Number('') would)
+        if (v.snd.startsWith('win:')) sfx(v.snd.slice(4).split(',').filter(Boolean).map(Number).includes(v.me) ? 'cup' : 'bump');
         else sfx({ deal: 'select', card: 'putt', fold: 'select', check: 'blip', call: 'putt', raise: 'menu' }[v.snd] || 'select');
       }
       ev = v.ev;
@@ -5077,19 +5088,22 @@
     if (now - playLast >= (playUnsent() > PLAY_MOST ? 5000 : PLAY_EVERY)) playSend(false);
   }
   // Send what's waiting under the name you're playing as. With leaving, it's sent even if the page
-  // closes (keepalive). It only comes off what's waiting once the database has it.
+  // closes (keepalive). It comes off what's waiting as it goes, since a page that's closing never
+  // hears back (and would send it all again next time), and goes back on if it doesn't get there.
   function playSend(leaving) {
     if (!PLAY_URL || playSending || mode === 'name') return; // (not while the name is being typed)
     playLast = performance.now();
     const name = playerName || store.get('name') || '', s = Math.min(playUnsent(), PLAY_MOST);
     if (!s || !name || name === 'New Hire') return;
     playSending = true;
+    store.set(PLAY_KEY, String(playUnsent() - s));
+    const back = () => store.set(PLAY_KEY, String(playUnsent() + s));
     const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 10000);
     fetch(PLAY_URL + boardKey(name) + '.json', {
       method: 'PATCH', keepalive: leaving, signal: ac.signal,
       body: JSON.stringify({ name, s: { '.sv': { increment: s } }, t: { '.sv': 'timestamp' } }),
-    }).then((r) => { if (r.ok) store.set(PLAY_KEY, String(Math.max(0, playUnsent() - s))); })
-      .catch(() => {}) // (it waits for next time)
+    }).then((r) => { if (!r.ok) back(); })
+      .catch(back) // (it waits for next time)
       .finally(() => { clearTimeout(timer); playSending = false; });
   }
   // The names that get PLAY TIME in the start menu (only with their password: see LOCKED)
@@ -5207,7 +5221,7 @@
       const half = (k) => (!boardDemo ? boardAll(key + k, name) : Promise.resolve(DEMO_NAMES.concat(name ? [name] : [])
         .filter((n) => hash(key + n) % 3).map((n) => ({ id: boardKey(n), name: n, score: hash(n + key + k) % 400 + 1, t: Date.now() - hash(key + n) % 6e8 }))));
       return Promise.all([half('won'), half('lost')]).then(([won, lost]) => {
-        const rows = {};
+        const rows = Object.create(null); // (keyed by a name off the board, which could be __proto__)
         for (const [half, k] of [[won, 'won'], [lost, 'lost']]) for (const r of half) {
           const row = rows[r.id] || (rows[r.id] = { id: r.id, name: r.name, won: 0, lost: 0, t: 0 });
           row[k] = r.score; row.t = Math.max(row.t, r.t);
@@ -5240,7 +5254,7 @@
   // Everyone in the running for Office Champion, best first, from every board in keys
   // (boards[key], best first): points for each top ten, then crowns to break a tie.
   function fameStandings(boards, keys) {
-    const pts = {};
+    const pts = Object.create(null); // (keyed by a name off the boards, which could be __proto__)
     for (const k of keys) (boards[k] || []).slice(0, 10).forEach((r, i) => {
       const s = pts[r.id] || (pts[r.id] = { id: r.id, name: r.name, points: 0, crowns: 0 });
       s.points += 10 - i;
@@ -5380,7 +5394,7 @@
   const TRAIL_SPOTS = [-34, -20, -9, 11, 23, 35];
   function trailPreview(x, y) {
     TRAIL_SPOTS.forEach((dx, i) => {
-      const k = ((tick + i * 17) % GLOW_LIFE * 2) / (GLOW_LIFE * 2), pic = starPic(k < 0.4 ? 0 : k < 0.75 ? 1 : 2, GLOW_COLS[(i + (tick >> 3)) % 3]);
+      const k = ((tick + i * 17) % GLOW_LIFE) / GLOW_LIFE, pic = starPic(k < 0.4 ? 0 : k < 0.75 ? 1 : 2, GLOW_COLS[(i + (tick >> 3)) % 3]);
       ctx.globalAlpha = 1 - k * k;
       ctx.drawImage(pic, realPx(x + dx - pic.width / 4), realPx(y - 3 + (i % 3) * 3 - k * 7 - pic.height / 4));
     });
@@ -5906,10 +5920,12 @@
         text(BOARDS[r.key].title + '  ' + (r.rank ? nth(r.rank + 1) : 'TOP SPOT') + '  ' + ago(r.t), 20, y + 9, 1, hi ? '#c8ccd8' : '#686878');
       });
     }
+    // (a page of more than nine boards has them closer together, to keep clear of the line under them)
+    const rowGap = (list) => (list.length > 9 ? 13 : 15);
     function drawGroup(list) {
       list.forEach((key, i) => {
-        const y = 50 + i * 15, rows = boards[key], hi = i === sel, c = hi ? col.light : col.dark;
-        if (hi) pickBar(14, y - 4, SW - 28, 15, col.dark);
+        const y = 50 + i * rowGap(list), rows = boards[key], hi = i === sel, c = hi ? col.light : col.dark;
+        if (hi) pickBar(14, y - 4, SW - 28, rowGap(list), col.dark);
         text(BOARDS[key].title, 20, y, 1, c);
         if (!rows.length) { right('up for grabs', y, hi ? '#f0b030' : '#d07020'); return; }
         if (rows[0].id === me) drawCrown(150, y + 1);
@@ -5950,7 +5966,7 @@
           return button ? null : 'a';
         }
         if (!list) return button;
-        const i = Math.floor((y - 46) / 15);
+        const i = Math.floor((y - 46) / rowGap(list));
         if (!boards || x < 14 || x >= SW - 14 || i < 0 || i >= list.length) return null;
         sel = i;
         return 'a';
@@ -7269,7 +7285,9 @@
         }
         // where the piece you've picked up can go, and what it would take
         for (const m of options) {
-          const hit = m.over === undefined ? (g.at(m.to) ? m.to : -1) : m.over;
+          // (en passant in chess: a pawn going across onto nothing takes the one beside it, as a jump in checkers does)
+          const passing = m.over === undefined && !g.at(m.to) && /^[Pp]$/.test(g.at(m.from)) && m.to % 8 !== m.from % 8;
+          const hit = m.over === undefined ? (g.at(m.to) ? m.to : passing ? m.from - m.from % 8 + m.to % 8 : -1) : m.over;
           if (hit >= 0) {
             const { x, y } = posOf(hit), px = BX + x * SQ, py = BY + y * SQ, co = 'rgba(216, 40, 40, 0.85)', k = 6;
             for (const [a, b] of [[0, 0], [SQ - k, 0], [0, SQ - k], [SQ - k, SQ - k]]) {
@@ -7625,6 +7643,7 @@
         case 'skin': didThat(nameOf(e.u) + ' blocked it'); break;
         case 'boost': didThat(nameOf(e.u) + [e.p ? ' ' + signed(e.p) + ' Power' : '', e.h ? ' ' + signed(e.h) + ' Patience' : ''].join('')); break;
         case 'freeze': didThat(nameOf(e.u) + ' is stuck'); break;
+        case 'give': didThat(nameOf(e.u) + ' got ' + (inTable(CARDS.WORDS, e.word) ? CARDS.WORDS[e.word] : e.word)); break;
         case 'coffee': didThat(by(e.s) + ' +' + e.n + ' coffee'); break;
         case 'draw': didThat(by(e.s) + ' drew a card'); break;
         case 'summon': didThat(nm(e.id) + ' came in'); break;
@@ -9241,7 +9260,7 @@
       ask(whose + ' has ' + draft.length + ' of ' + SIZE + ' cards. Do you want to finish it yourself, or have it filled for you?', ['FINISH IT', 'AUTO FILL'], (i) => {
         if (i === 1) { draft = topUp(); sfx('menu'); leave(); return; }
         flash('Pick ' + short + ' more card' + (short === 1 ? '' : 's') + ' for your deck.');
-      });
+      }, { taps: true });
     }
     const self = {
       doing: 'deck',
@@ -11360,7 +11379,7 @@
         }
         if (cleared > 0) cleared--;
         press += rise();
-        if (press >= 100) { state = 'done'; t = 0; record = saveBest('filter', fitted); sfx('buzz'); }
+        if (press >= 100) { press = 100; state = 'done'; t = 0; record = saveBest('filter', fitted); sfx('buzz'); }
       },
       draw() {
         box(0, 0, SW, SH);
@@ -11599,6 +11618,7 @@
           at.gone = true;
           if (at.k === i) { sorted++; sfx('blip', true); flash = { t: 0, ok: true, i }; }
           else { lives--; sfx('buzz'); flash = { t: 0, ok: false, i }; }
+          break; // (two keys at once still only sort the one part)
         }
         items = items.filter((it) => {
           if (it.gone) return false;
@@ -12634,6 +12654,8 @@
         }
         if (said) {
           if (++said.t > 50) {
+            // (a bad enough answer fills the bar: that's the end of the talking, last stop or not)
+            if (silence >= 100) { state = 'done'; t = 0; sfx('buzz'); return; }
             if (++turn >= hops) { state = 'done'; t = 0; sfx('ding'); questNote('elevator', 1); return; }
             nextBit();
           }
@@ -12643,7 +12665,7 @@
         if (pressed.has('down')) { sel = (sel + 1) % 3; sfx('select'); }
         if (pressed.has('a')) {
           const pts = bit.a[sel][1];
-          score += pts; silence = Math.max(0, silence + (pts === 2 ? -14 : pts === 1 ? 2 : 18));
+          score += pts; silence = Math.max(0, Math.min(100, silence + (pts === 2 ? -14 : pts === 1 ? 2 : 18)));
           said = { t: 0, line: bit.a[sel][0], pts };
           sfx(pts === 2 ? 'blip' : 'bump', true);
           return;
@@ -16437,10 +16459,11 @@
         [musicOn ? 'MUSIC ON' : 'MUSIC OFF', (self) => { musicOn = !musicOn; store.set('music', musicOn ? 'on' : 'off'); self.options = items().map((o) => o[0]); sfx('select'); }],
         ['CLOSE', (self) => remove(self)],
       ]);
+    // (found by name, not place: UPDATE GAME can turn up while it's open, and move everything under it down)
     const menu = Choice(items().map((o) => o[0]), -1, 0, (i, self) => {
-      if (i < 0) return;
-      items()[i][1](self);
-    }, { keepOpen: true, startCloses: true, minChars: 12 });
+      const it = i < 0 ? null : items().find((o) => o[0] === self.options[i]);
+      if (it) it[1](self);
+    }, { keepOpen: true, startCloses: true, minChars: 12, rows: 14 }); // (14 fit on the screen: it scrolls past that)
     ui.push(menu);
   }
 
@@ -17444,7 +17467,7 @@
   }
   function passDone() {
     if (pass.checking) return;
-    const tried = pass, want = LOCKED[lockName(playerName)];
+    const tried = pass, want = lockOf(playerName);
     tried.checking = true;
     passHash(playerName, passBox().text).then((h) => (h === want ? 'right' : 'wrong'), () => 'cant').then((how) => {
       if (pass !== tried) return;
@@ -18203,7 +18226,8 @@
   // walking around with nothing open, so a challenge can come straight up
   const mpFree = () => mode === 'play' && !fade && !ui.length && !questQueue.length && !pendingBoard;
   const mp = {
-    id: Math.random().toString(36).slice(2, 12), on: false, heard: false, others: {}, mail: [],
+    // (others has no Object behind it: another player's id could be "constructor")
+    id: Math.random().toString(36).slice(2, 12), on: false, heard: false, others: Object.create(null), mail: [],
     sending: false, sentKey: '', lastSend: 0, tickAt: Date.now(), say: -1, sayText: '', sayN: 0, bubble: null, newer: false, nudged: false,
     pending: null, invite: null, held: null, match: null, table: null, sheet: null,
   };
@@ -18407,11 +18431,12 @@
   // there; mp.table.feed, if it's set, hears every one), and 'ls' (what's on at those
   // tables, for a sign-up sheet). See server/world.js.
   const mpKey = Math.random().toString(36).slice(2, 12);
-  const ws = { sock: null, tree: {}, skew: 0, retry: 0 };
+  const ws = { sock: null, tree: Object.create(null), skew: 0, retry: 0, again: 0 };
   const wsSend = (d) => { if (ws.sock && ws.sock.readyState === 1) ws.sock.send(JSON.stringify(d)); };
   // records are stamped with the server's clock: shift them onto this device's
   const wsRec = (r) => Object.assign({}, r, { t: (+r.t || 0) + ws.skew });
   function wsOpen() {
+    clearTimeout(ws.again); // (opened some other way first, say on waking up: the retry isn't wanted)
     if (ws.sock) { ws.sock.onclose = null; ws.sock.close(); }
     const sock = ws.sock = new WebSocket(MP_WS + '/?' + new URLSearchParams({ w: MP_WORLD, id: mp.id, key: mpKey, b: 1 }));
     sock.onopen = () => { ws.retry = 0; mp.sentKey = ''; mp.lastSend = 0; };
@@ -18424,7 +18449,7 @@
       ws.sock = null; mp.heard = false;
       // somebody else has this id (vanishingly unlikely): pick another
       if (e.code === 4001) mp.id = Math.random().toString(36).slice(2, 12);
-      setTimeout(wsOpen, e.code === 1012 || e.code === 4001 ? 500 : Math.min(30000, 1000 * 2 ** ws.retry++));
+      ws.again = setTimeout(wsOpen, e.code === 1012 || e.code === 4001 ? 500 : Math.min(30000, 1000 * 2 ** ws.retry++));
     };
   }
   function wsHear(d) {
@@ -18432,7 +18457,7 @@
     if (d.k === 'all') {
       mp.heard = true;
       ws.skew = Date.now() - (+d.now || Date.now());
-      ws.tree = {};
+      ws.tree = Object.create(null);
       for (const id in d.players || {}) ws.tree[id] = wsRec(d.players[id]);
       mpPlayers(ws.tree);
       // a server-run game the server no longer has (it restarted, or you were gone too
@@ -18480,7 +18505,7 @@
       const look = Art.lookFrom(r.a) || oldPick(GENDERS.includes(r.g) ? r.g : 'male', r.l);
       const rec = {
         n: String(r.n || '?').slice(0, NAME_MAX), look, a: Art.lookCode(look), c: inTable(Art.COSTUMES, r.c) ? r.c : '', xs: inTable(Art.SWEATERS, r.xs) ? r.xs : '',
-        f: MAPS.floors[r.f] ? r.f : 0, x: +r.x || 0, y: +r.y || 0, d: inTable(DIRS, r.d) ? r.d : 'down', b: !!r.b,
+        f: Number.isInteger(r.f) && MAPS.floors[r.f] ? r.f : 0, x: +r.x || 0, y: +r.y || 0, d: inTable(DIRS, r.d) ? r.d : 'down', b: !!r.b,
         do: inTable(MP_DOING, r.do) ? r.do : '', dn: Math.max(0, Math.min(9, Math.round(+r.dn) || 0)),
         s: mpLine(r.s) ? r.s : -1, w: mpClean((typeof r.w0 === 'string' ? r.w0 : '') + (typeof r.w1 === 'string' ? r.w1 : '')),
         sn: +r.sn || 0, v: +r.v || 0, t: +r.t || 0, tc: !!r.tc,
@@ -22941,7 +22966,8 @@
     }
     if (Number.isInteger(startTrack) && Number.isInteger(startCar)) begin();
     const self = {
-      music: 'race', doing: 'race', escStart: true, // (B is the brake: Esc brings up the menu)
+      // (B is the brake: Esc brings up the menu, and goes back from picking a track or a car)
+      music: 'race', doing: 'race', get escStart() { return state !== 'track' && state !== 'car'; },
       // (no stick: on a phone it's the D-pad, at the user's request; a controller's stick still steers as far as it's pushed)
       update() {
         t++;
@@ -24117,7 +24143,8 @@
 
   function startFade(cb, color) { fade = { t: 0, cb, color }; }
   function placePlayer(fi, x, y, dir) {
-    Object.assign(P, { floor: fi, x, y, dir, bump: 0, free: false });
+    // (fx and fy too, for a click that comes before updatePlayer has caught up: see walkPlan)
+    Object.assign(P, { floor: fi, x, y, dir, bump: 0, free: false, fx: x, fy: y });
     walkTo = null;
     curRoom = roomAt(fi, x, y);
     roomName = curRoom ? curRoom.name : null;
@@ -24569,7 +24596,7 @@
         from[ny * w + nx] = k; order.push(ny * w + nx);
       }
     }
-    return { w, from, order, ok };
+    return { w, h, from, order, ok };
   }
   // whether you'd fit all the way from a to b in a straight line, by the tiles ok says are all right
   function walkLine(a, b, ok) {
@@ -24601,7 +24628,9 @@
     // (off the rink if there's any other way, unless that's where you are or where you're going)
     const iceToo = tileAt(P.floor, P.x, P.y) === '~' || tileAt(P.floor, gx, gy) === '~';
     let m = walkMap(end, avoid, iceToo);
-    const best = (tiles) => tiles.map(([x, y]) => y * m.w + x).filter((k) => m.from[k] !== -2).sort((a, b) => m.order.indexOf(a) - m.order.indexOf(b))[0];
+    // (the nearest of tiles you can get to: one off the edge of the map isn't, and nor is one round the other side)
+    const best = (tiles) => tiles.filter(([x, y]) => x >= 0 && y >= 0 && x < m.w && y < m.h).map(([x, y]) => y * m.w + x)
+      .filter((k) => m.from[k] !== -2).sort((a, b) => m.order.indexOf(a) - m.order.indexOf(b))[0];
     const around = (list) => list.map(([dx, dy]) => [gx + dx, gy + dy]);
     const pick = () => (use ? best(around(STEPS8.slice(0, 4))) ?? best(around(STEPS8.slice(4))) : best([[gx, gy]]));
     let goal = pick();
@@ -25943,7 +25972,7 @@
       wheel(d) { if (list && list.length) { first = clamp(first + d, 0, Math.max(0, list.length - ROWS)); pick(clamp(cur, first, first + ROWS - 1)); } },
       update() {
         if (pressed.has('b') || (pressed.has('a') && !(list && list.length))) { sfx('select'); remove(self); return; }
-        if (!list) return;
+        if (!list || !list.length) return;
         if (pressed.has('up')) { pick((cur + list.length - 1) % list.length); sfx('select'); }
         if (pressed.has('down')) { pick((cur + 1) % list.length); sfx('select'); }
         if (pressed.has('a')) { remove(self); lairGo(list[cur]); }
@@ -26809,6 +26838,7 @@
     canvas.width = SW * RES;
     ctx.scale(RES, RES);
     ctx.imageSmoothingEnabled = false;
+    zoomed = null; // (wiping the screen undid any zoom too: see zoomOn)
     pressed.clear();
   }
   // (not while you're in a screen that doesn't show dialogs, and not over and over)

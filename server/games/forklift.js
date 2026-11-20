@@ -121,12 +121,14 @@ export function create({ rng }) {
 }
 
 // d.h: the keys held (1 up, 2 down, 4 left, 8 right), d.e: presses since the last message
-// ('l' and 'r' turn the wheels a notch, 'a' straightens them and sets down any pallet)
+// ('l' and 'r' turn the wheels a notch, 'a' straightens them and sets down any pallet). As on
+// your own, a press during "Get ready" does nothing, and while the game stands still (see
+// rooms.js) only the first few wait for it to carry on.
 export function input(s, seat, d) {
   if (!d || typeof d !== 'object') return;
   const L = s.lifts[seat];
   if (typeof d.h === 'number') L.held = { u: !!(d.h & 1), d: !!(d.h & 2), l: !!(d.h & 4), r: !!(d.h & 8) };
-  if (typeof d.e === 'string') for (const ch of d.e.slice(0, 8)) if ('lra'.includes(ch)) L.presses.push(ch);
+  if (typeof d.e === 'string' && s.ready >= READY) for (const ch of d.e.slice(0, 8)) if ('lra'.includes(ch) && L.presses.length < 16) L.presses.push(ch);
 }
 
 function drive(s, i) {

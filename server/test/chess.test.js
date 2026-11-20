@@ -43,6 +43,10 @@ for (const [what, fen, counts] of PERFT) {
   });
 }
 
+test('the server says which rules it has', () => {
+  assert.equal(chess.VERSION, CHESS.VERSION, 'VERSION in server/games/chess.js is js/chess.js\'s (node tools/check_games.mjs says what to set it to)');
+});
+
 test('a move has to be legal, and it has to be your turn', () => {
   const g = CHESS.create();
   assert.equal(g.play({ from: sq('e2'), to: sq('e5') }), false);
@@ -126,6 +130,14 @@ test('checkmate wins it', () => {
   assert.ok(g.events.includes('over'));
   same(g.moves(), []);
   assert.equal(g.play({ from: sq('a2'), to: sq('a3') }), false, 'it\'s over');
+});
+
+test('a game started from a position that\'s already over is over, and the computer doesn\'t move', () => {
+  const g = CHESS.create({ fen: 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3', players: [{ ai: 3 }, {}] });
+  same(g.result, { w: 1, why: 'mate' });
+  for (let i = 0; i < 200; i++) g.step();
+  assert.equal(g.ply, 0);
+  assert.equal(g.at(sq('a1')), 'R');
 });
 
 test('stalemate is a draw', () => {
@@ -276,6 +288,25 @@ test('even running out of budget it doesn\'t throw a piece away', () => {
     const [, to] = g.last;
     const taken = reply.moves().some((m) => m.to === to);
     if (taken) assert.ok(piece[g.at(to)] <= 330, 'seed ' + seed + ' left a ' + g.at(to) + ' where it can be taken: ' + g.fen());
+  }
+});
+
+test('a position it\'s been in before doesn\'t tempt it into throwing a piece away', () => {
+  // Ba6 hands the bishop to b7xa6. Seen once before, the position after it is worth a little more to
+  // a side that isn't winning, but only a little: not a whole bishop.
+  const fen = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3';
+  const after = CHESS.create({ fen });
+  go(after, 'f1a6');
+  const key = after.fen().split(' ').slice(0, 4).join(' ');
+  for (let level = 3; level <= CHESS.LEVELS; level++) {
+    for (let seed = 1; seed <= 4; seed++) {
+      const g = CHESS.create({ fen, seed, players: [{ ai: level }, {}] });
+      const s = g.save();
+      s.seen[key] = 1;
+      g.load(s);
+      for (let i = 0; i < 130 && !g.ply; i++) g.step();
+      assert.notEqual(g.at(sq('a6')), 'B', 'level ' + level + ' seed ' + seed);
+    }
   }
 });
 

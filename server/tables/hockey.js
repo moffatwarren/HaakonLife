@@ -20,6 +20,11 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 
+// js/hockey.js's VERSION: tools/check_games.mjs stops the site deploying until this matches, so a
+// change to the rules always changes this folder too, which is what makes Render deploy the
+// server again (until it does, browsers fall back to the slower way of playing live)
+export const VERSION = '1h6sjkr';
+
 export const hz = 30; // each tick is STEPS of the game's (it runs at 60 a second)
 const STEPS = 2;
 const OVER = 8 * hz; // ticks the final score stays up before it's back to the lobby

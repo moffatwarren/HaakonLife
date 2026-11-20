@@ -337,16 +337,17 @@ window.BRAWL = (function engine() {
           if (!foes(f, o) || !live(o) || o.safe > 0 || (f.hit & (1 << o.i))) continue;
           if (x1 < o.x - FW || x0 > o.x + FW || y1 < o.y - FH || y0 > o.y) continue;
           f.hit |= 1 << o.i;
-          landed.push([f, o, m]);
+          landed.push([f, o, m, f.mv, f.face]);
         }
       }
-      // (everyone's hits land together, so two at once both count)
-      for (const [f, o, m] of landed) {
+      // (everyone's hits land together, so two at once both count: the move and the way each one
+      // faced are from before any of them landed, since being hit stops your move and turns you)
+      for (const [f, o, m, mv, face] of landed) {
         const dmg = Math.round(m.dmg * f.power * (1 + CHARGED * f.cp) * 10) / 10;
         o.pct = Math.min(999, Math.round((o.pct + dmg) * 10) / 10);
         let ang = m.ang;
-        if (f.mv === 'dair' && o.ground >= 0) ang = 75; // (a stomp on someone standing pops them up)
-        const dir = m.both ? (o.x === f.x ? f.face : o.x > f.x ? 1 : -1) : f.face, L = (m.base + m.grow * o.pct / 100) * (1 + CHARGE_KB * f.cp), rad = ang * Math.PI / 180;
+        if (mv === 'dair' && o.ground >= 0) ang = 75; // (a stomp on someone standing pops them up)
+        const dir = m.both ? (o.x === f.x ? face : o.x > f.x ? 1 : -1) : face, L = (m.base + m.grow * o.pct / 100) * (1 + CHARGE_KB * f.cp), rad = ang * Math.PI / 180;
         o.kx = Math.cos(rad) * L * dir; o.ky = -Math.sin(rad) * L;
         o.vx = 0; o.vy = 0; o.launch = L; o.stun = Math.round(L * STUN);
         if (o.ky < 0 || ang > 0) o.ground = -1;
@@ -355,7 +356,7 @@ window.BRAWL = (function engine() {
         o.hb = f.i; o.hbT = g.clock;
         const frz = 3 + Math.floor(dmg / 3);
         o.frz = Math.max(o.frz, frz); f.frz = Math.max(f.frz, frz);
-        ev('hit', { f, o, m: f.mv, dmg, c: f.cp, p: Math.min(1, L / 24), x: (o.x + f.x) / 2, y: o.y - FH / 2 });
+        ev('hit', { f, o, m: mv, dmg, c: f.cp, p: Math.min(1, L / 24), x: (o.x + f.x) / 2, y: o.y - FH / 2 });
       }
     }
     // standing on top of each other: a little shove apart

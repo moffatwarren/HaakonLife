@@ -462,10 +462,12 @@ window.CHESS = (function engine() {
         let best = -INF;
         for (const m of order) {
           make(m);
-          // (anything that can't come within the wobble of the best so far needn't be looked at closely)
-          let score = -search(depth - 1, -INF, L.wobble - best, 1, L.trades);
           // don't go round in circles while winning: be glad to while losing
           const again = seen[posKey()] || 0;
+          // (anything that can't come within the wobble of the best so far needn't be looked at
+          // closely: but one that's been seen before might be worth 40 more, so it gets a closer look,
+          // or a bad move's rough score could get the 40 and look better than the best)
+          let score = -search(depth - 1, -INF, L.wobble + (again === 1 ? 40 : 0) - best, 1, L.trades);
           if (again >= 2) score = 0;
           else if (again) score += score > 0 ? -40 : 40;
           unmake();
@@ -533,6 +535,7 @@ window.CHESS = (function engine() {
     if (!setFen(o.fen || START)) setFen(START);
     g.ply = 0;
     seen[posKey()] = 1;
+    settle(); // (a position to start from might already be over)
     return g;
   }
 

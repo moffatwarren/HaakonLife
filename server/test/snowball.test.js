@@ -68,10 +68,19 @@ test('five snowballs, then ducking packs another', () => {
   assert.equal(s.p[0].ammo, 0);
   run(s, 1);
   assert.equal(s.p[0].ammo, 1);
-  toss(s, 0, 40); // still ducking on the server: a throw only counts standing up
-  sb.input(s, 0, { d: 1 });
+  sb.input(s, 0, { x: 40, d: 1, n: s.p[0].n + 1 }); // a throw only counts standing up
   run(s, 2);
   assert.equal(s.id, 5);
+});
+
+test('a throw just before ducking still goes, even if the server hears both at once', () => {
+  const s = game();
+  toss(s, 0, 160);
+  sb.input(s, 0, { d: 1 });
+  sb.tick(s);
+  assert.equal(s.balls.length, 1);
+  assert.equal(s.p[0].ammo, 4);
+  assert.equal(sb.view(s, 0).me.n, 1);
 });
 
 test('three hits and you are out; the next one only brushes you for a moment after a hit', () => {

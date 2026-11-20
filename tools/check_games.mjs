@@ -365,6 +365,16 @@ for (const n of needs) if (!scriptNames.has(n)) say(`The list at the very top of
   if (!m || m[1] !== now) say(`js/brawl.js has changed, so the game server needs to know: set VERSION in server/tables/brawl.js to '${now}'.`);
 }
 
+// ---------- hockey's, chess's and checkers' rules on the server ----------
+// The server reads these from js/ too, so a change to one has to touch server/ to reach it: until
+// then, live hockey falls back to the slower way and live chess and checkers play the old rules.
+for (const [file, name, mod] of [['hockey.js', 'HOCKEY', 'server/tables/hockey.js'], ['chess.js', 'CHESS', 'server/games/chess.js'], ['checkers.js', 'CHECKERS', 'server/games/checkers.js']]) {
+  const box = vm.createContext({ window: {} });
+  vm.runInContext(read('js/' + file), box, { filename: 'js/' + file });
+  const now = box.window[name].VERSION, m = /export const VERSION = '(\w+)'/.exec(read(mod));
+  if (!m || m[1] !== now) say(`js/${file} has changed, so the game server needs to know: set VERSION in ${mod} to '${now}'.`);
+}
+
 // ---------- and the verdict ----------
 const unique = [...new Set(problems)];
 if (unique.length) {

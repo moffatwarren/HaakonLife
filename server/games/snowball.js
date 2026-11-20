@@ -40,8 +40,9 @@ export function input(s, seat, d) {
   const p = s.p[seat];
   if (typeof d.x === 'number' && Number.isFinite(d.x)) p.want = Math.max(LO, Math.min(HI, seat ? SW - d.x : d.x));
   if (d.d !== undefined) p.duck = !!d.d;
-  // new throws wait their turn (one every COOL steps); a burst of more than two is ignored
-  if (Number.isInteger(d.n) && d.n > p.n) { p.q = Math.min(2, p.q + d.n - p.n); p.n = d.n; }
+  // new throws wait their turn (one every COOL steps); a burst of more than two is ignored, and
+  // so is a throw while ducking (a browser only throws standing up, and says so as it does)
+  if (Number.isInteger(d.n) && d.n > p.n) { if (!p.duck) p.q = Math.min(2, p.q + d.n - p.n); p.n = d.n; }
 }
 
 function result(s) {
@@ -59,9 +60,10 @@ function step(s) {
     if (p.hurt > 0) p.hurt--;
     if (p.duck) { if (p.ammo < AMMO && ++p.pack >= PACK) { p.ammo++; p.pack = 0; } } else p.pack = 0;
     if (p.q > 0 && !p.cool) {
-      // (a throw while ducking, or with nothing to throw, comes to nothing)
+      // (with nothing to throw it comes to nothing. Ducking since doesn't stop it: on their
+      // screen it's gone already)
       p.q--;
-      if (!p.duck && p.ammo > 0) {
+      if (p.ammo > 0) {
         // from where their browser had them when they threw, if the server's nearly caught up
         if (Math.abs(p.want - p.x) <= 12) p.x = p.want;
         p.ammo--; p.cool = COOL;

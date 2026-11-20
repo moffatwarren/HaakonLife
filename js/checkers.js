@@ -342,10 +342,13 @@ window.CHECKERS = (function engine() {
         for (const m of order) {
           const side = turn;
           make(m);
-          // (anything that can't come within the wobble of the best so far needn't be looked at closely)
-          let score = turn === side ? search(depth - 1, best - L.wobble, INF, 1, L.trades) : -search(depth - 1, -INF, L.wobble - best, 1, L.trades);
           // don't go round in circles while winning: be glad to while losing
           const again = chain < 0 ? seen[posKey()] || 0 : 0;
+          // (anything that can't come within the wobble of the best so far needn't be looked at
+          // closely: but one that's been seen before might be worth 40 more, so it gets a closer look,
+          // or a bad move's rough score could get the 40 and look better than the best)
+          const slack = L.wobble + (again === 1 ? 40 : 0);
+          let score = turn === side ? search(depth - 1, best - slack, INF, 1, L.trades) : -search(depth - 1, -INF, slack - best, 1, L.trades);
           if (again >= 2) score = 0;
           else if (again) score += score > 0 ? -40 : 40;
           unmake();

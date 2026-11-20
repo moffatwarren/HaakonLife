@@ -30,9 +30,10 @@ changing, and update it in the same change.
 - **Server:** Render deploys it from `main` on its own, with `server` as the root directory. That
   restart drops everyone for a moment and loses any game the server was running, so mention it when
   a push touches `server/`.
-- **Rules the server reads from `js/`:** a change to just `js/hockey.js`, `js/chess.js` or `js/checkers.js`
-  does not redeploy the server. Until it does, hockey players get the slower fallback and the board
-  games run the old rules. Deploy by hand, or change something in `server/` too.
+- **Rules the server reads from `js/`:** a change to `js/hockey.js`, `js/chess.js` or `js/checkers.js`
+  also needs `VERSION` updated in `server/tables/hockey.js`, `server/games/chess.js` or
+  `server/games/checkers.js`, which redeploys the server. Until it does, hockey players get the slower
+  fallback and the board games run the old rules. `check_games.mjs` blocks the site deploy until it is.
 - **The card game's rules on the server:** a change to `js/cards.js` or `js/cardlist.js` also needs
   `VERSION` in `server/games/cards.js` updated, which redeploys the server. `check_games.mjs` blocks the
   site deploy until it is, and says what to set it to.

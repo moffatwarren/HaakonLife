@@ -124,6 +124,22 @@ test('getting up out of turn: the one left thinking wins straight away', () => {
   assert.equal(s.ph, 'result');
 });
 
+test('getting up while the next card is coming: the one left takes the pot, with no more cards', () => {
+  const s = table();
+  poker.sit(s, 'a', 'Ann'); poker.sit(s, 'b', 'Bob');
+  until(s, () => s.toAct >= 0);
+  poker.input(s, turn(s), { a: 'call' });
+  until(s, () => s.toAct >= 0);
+  poker.input(s, turn(s), { a: 'call' });
+  until(s, () => s.next === 'street');
+  poker.stand(s, 'a');
+  until(s, () => s.ph === 'result');
+  assert.equal(s.board.length, 0, 'no flop for one player');
+  assert.equal(s.snd, 'win:1', 'the win is Bob\'s');
+  assert.match(poker.view(s, 'b').log[0], /^You take the pot of 8/);
+  assert.equal(s.seats[1].stack, poker.BUY_IN + poker.BB);
+});
+
 test('running out of time checks or folds you, and twice in a row gets you up', () => {
   const s = table();
   poker.sit(s, 'a', 'Ann'); poker.sit(s, 'b', 'Bob'); poker.sit(s, 'c', 'Cat');

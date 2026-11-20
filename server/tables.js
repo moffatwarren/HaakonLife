@@ -60,7 +60,7 @@ export class Table {
     try { got = this.game.sit(this.state, pid, name); } catch (e) { this.crash(e); return 'error'; }
     if (got !== true) return got || false;
     this.sent.delete(pid);
-    this.show(pid);
+    try { this.show(pid); } catch (e) { this.crash(e); return 'error'; }
     return true;
   }
 
@@ -86,7 +86,7 @@ export class Table {
     clearTimeout(this.away.get(pid));
     this.away.delete(pid);
     this.sent.delete(pid); // they need to be told everything again
-    this.show(pid);
+    try { this.show(pid); } catch (e) { this.crash(e); }
   }
 
   // let the game know their connection dropped or came back, if it wants to

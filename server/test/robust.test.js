@@ -8,13 +8,16 @@ import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 import { start } from '../index.js';
 
-// a table game whose sit throws, one whose view does, and the rest of what a table needs
+// a table game whose sit throws, one whose view does, one whose seated does once nobody could
+// sit down (which nothing catches before the server's last net for a message, see safely() in
+// index.js), and the rest of what a table needs
 const table = {
   create: () => ({}), stand() {}, input() {}, tick() {}, seated: () => [], brief: () => ({}), view: () => ({}),
 };
 const tables = {
   boom: { ...table, sit() { throw new Error('oops'); } },
   blind: { ...table, sit: () => true, view() { throw new Error('oops'); } },
+  deaf: { ...table, sit: () => false, seated() { throw new Error('oops'); } },
 };
 const PORT = 19080 + Math.floor(Math.random() * 400);
 const srv = start({ port: PORT, tables, statusPassword: 'letmein' });
@@ -117,22 +120,24 @@ test('asking to connect at an address that makes no sense gets turned away, not 
 });
 
 test('a bug in a table game as you sit down tells you and leaves no table behind', async () => {
-  const other = await connect(), c = await connect();
-  me(c);
-  await pause(30);
-  say(c, { k: 'sit', t: 'boom' });
-  await pause(50);
-  assert.ok(c.got.some((d) => d.k === 'tb' && d.s === null && d.r === 'error'));
-  assert.ok(!srv.worlds.test.tables.has('boom'));
-  await stillUp(other);
-  other.ws.close(); c.ws.close();
+  for (const t of ['boom', 'blind']) {
+    const other = await connect(), c = await connect();
+    me(c);
+    await pause(30);
+    say(c, { k: 'sit', t });
+    await pause(50);
+    assert.ok(c.got.some((d) => d.k === 'tb' && d.s === null && d.r === 'error'), t);
+    assert.ok(!srv.worlds.test.tables.has(t), t);
+    await stillUp(other);
+    other.ws.close(); c.ws.close();
+  }
 });
 
 test('a bug while handling a message goes in the log, and the server carries on', async () => {
   const other = await connect(), c = await connect();
   me(c);
   await pause(30);
-  say(c, { k: 'sit', t: 'blind' });
+  say(c, { k: 'sit', t: 'deaf' });
   await pause(50);
   assert.ok(errors.some((e) => e.startsWith('message from ' + c.id + ' failed:')), 'it was logged');
   await stillUp(other);

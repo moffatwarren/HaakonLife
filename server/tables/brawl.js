@@ -21,7 +21,7 @@ import vm from 'node:vm';
 // js/brawl.js's VERSION: tools/check_games.mjs stops the site deploying until this matches, so a
 // change to the rules always changes this folder too, which is what makes Render deploy the
 // server again (a browser only fights live when its rules are the server's)
-export const VERSION = '1hhvgc4';
+export const VERSION = 'lw9t82';
 
 export const hz = 30; // each tick is STEPS of the fight's (it runs at 60 a second)
 const STEPS = 2;

@@ -1105,11 +1105,12 @@ at the bottom of the page, and each one is kept for 90 days. **Run workflow** th
 now, and `node tools/backup_boards.mjs` makes one in `backup/` on your own computer. If a run
 can't read everything it fails rather than saving part of it, and GitHub emails you.
 
-It has every board's scores, and the saved character and special items of every name on a
-board. The database's rules don't let anybody list all the names, so somebody with a saved
-character who has never posted a score isn't in it. Card decks aren't in it: anybody who lost
-theirs would play the best one their cards can make until they built another. It does have everybody's
-play time (see "Play time"), once the rules let it be read; until then it's left out, with a note. It's nothing the game doesn't already show
+It has every board's scores, everybody's play time (see "Play time") and Secret Lair (see
+**Other people's lairs**), and the saved character and special items of every name on a board,
+with play time or with a lair. Play time and lairs are each left out, with a note, until the
+rules let all of that part be read at once. The database's rules don't let anybody list all the
+names, so somebody with a saved character but none of those isn't in it. Card decks aren't in it:
+anybody who lost theirs would play the best one their cards can make until they built another. It's nothing the game doesn't already show
 or fetch, but the repository is public, so any GitHub user can download these files.
 
 To put something back, go to the Data tab in the Firebase console and pick the place to restore
@@ -1520,7 +1521,9 @@ table (`interact` and `clickUse` in `js/game.js`).
   browsers run, a move that was on its way as the connection dropped gets sent again. If it doesn't come back, the one still there is told the other player left, and
   the one who dropped out is told it was them. A tab left in the background or a laptop closed
   counts too: the game pauses after about 6 seconds with nothing from them, and it's over at 12.
-  Closing the tab on purpose ends it straight away. It's `mpWaiting` and `mpUpdate` in
+  Closing the tab on purpose ends it straight away. If it ends while you're dropped out (they resign,
+  say), you're told how it ended when you're back. A challenge accepted just after the challenger's
+  connection dropped starts paused like this, waiting for them. It's `mpWaiting` and `mpUpdate` in
   `js/game.js`, `mpDropNote` for the note, and `step` in `server/rooms.js` for a game the server runs.
 
   The treadmill, Snake, the control panel and mini golf carry on until you're both done.
@@ -1671,8 +1674,9 @@ program has to get. The server reads those files when the first game starts, so 
 needs the whole repository there. If it can't read them, the game stops as soon as it starts and
 nobody wins. Your own move shows the moment you make it and is sent to the server, which checks it:
 if it ever disagrees, the board goes back to what the server says. On Render a change to just
-`js/chess.js` or `js/checkers.js` doesn't redeploy the server, so deploy it by hand then (or change
-something in `server/` too). To try one, open `tools/test.html#play&server=ws://localhost:8080` in two
+`js/chess.js` or `js/checkers.js` wouldn't redeploy the server, so `VERSION` in
+`server/games/chess.js` and `server/games/checkers.js` is what does that: `tools/check_games.mjs`
+stops the site deploying until each is the same as its rules say, and tells you what to set it to. To try one, open `tools/test.html#play&server=ws://localhost:8080` in two
 windows, walk up to each other and pick CHESS or CHECKERS from CHALLENGE.
 
 Morale Madness (`server/games/cards.js`) is another, with its own module rather than `table.js`
@@ -1709,7 +1713,9 @@ up whenever they like. `server/tables.js` describes what a table game exports, a
 `tools/test.html#play&game=pokerlive&server=ws://localhost:8080` in two tabs.
 
 A world can have any number of tables of each kind at once, up to `TABLES_MAX` (40) in all;
-past that, starting another is refused until one's put away, and joining one still works. A
+past that, starting another is refused until one's put away, and joining one still works. Games
+the server runs between two players are kept the same way: one at a time for each player, and up
+to `ROOMS_MAX` (40) in a world. A
 table starts when the first person sits down and goes when the last one has got up. Its
 name is its kind's key, on its own or followed by `:` and whatever the browser that started
 it made up (`hockey2:x3kf9a`). That way a browser knows what to call a table before it's
@@ -1734,10 +1740,11 @@ game (`save()` from `js/hockey.js`) and the last of your ticks it had taken. The
 loads that into a game of its own and plays your later ticks on top, with everyone else
 carrying on as they were. It only does this when the server's `js/hockey.js` is exactly
 the same file as its own (`HOCKEY.VERSION`, a fingerprint of the file); otherwise it
-falls back to drawing the server's views a little behind, as before. So on Render with
-`server` as the root directory, where a change to just `js/hockey.js` doesn't redeploy
-the server on its own, deploy it by hand then (or change something in `server/` too):
-until you do, players get the slower fallback. To try it, open
+falls back to drawing the server's views a little behind, as before. On Render, with
+`server` as the root directory, a change to just `js/hockey.js` wouldn't redeploy the server,
+and players would get the slower fallback until it did. So `VERSION` in `server/tables/hockey.js`
+is what does that, as for racing (below): `tools/check_games.mjs` stops the site deploying until
+it's the same as the rules say, and tells you what to set it to. To try it, open
 `tools/test.html#play&yard=1&christmas=1&game=hockey1&server=ws://localhost:8080`
 (or `hockey2`, or `hockey3`) in two tabs (four for two on two and six for three on three, or
 two and wait for the computer). These all sit down at the one table with the plain name;

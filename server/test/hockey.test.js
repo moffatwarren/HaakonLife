@@ -22,6 +22,7 @@ const until = (kind, s, ok, max = 20000) => {
 test('the engine loads from the site\'s files', () => {
   const e = hockey.load();
   assert.ok(e && e.HOCKEY && e.yard, 'js/hockey.js and the parking lot from js/maps.js');
+  assert.equal(hockey.VERSION, e.HOCKEY.VERSION, 'VERSION in server/tables/hockey.js is js/hockey.js\'s (node tools/check_games.mjs says what to set it to)');
 });
 
 test('a game saved and loaded into another carries on exactly the same', () => {
@@ -41,6 +42,22 @@ test('a game saved and loaded into another carries on exactly the same', () => {
   for (let i = 0; i < 2000; i++) { const ins = inputs(); play(g, ins); play(h, ins); }
   assert.ok(same(), 'the same 2000 ticks later');
   assert.deepEqual(h.score, g.score);
+});
+
+test('a puck that runs into a skater comes off softer, however close in it got', () => {
+  const { HOCKEY, yard } = hockey.load();
+  for (const d of [0.3, 0.2, 0.1]) {
+    const g = HOCKEY.create(yard, { seed: 1, players: [{ name: 'A', team: 0 }, { name: 'B', team: 1 }] });
+    for (let i = 0; i < 2000 && g.phase !== 'play'; i++) g.step([{}, {}]);
+    const [p, q] = g.players, R = g.rink;
+    Object.assign(p, { x: R.cx, y: R.cy, vx: 0, vy: 0 });
+    p.cool.grab = 5; // (just knocked off their stick, so it bounces off them)
+    Object.assign(q, { x: R.cx + 6, y: R.cy + 3, vx: 0, vy: 0 });
+    Object.assign(g.puck, { x: R.cx + d, y: R.cy, vx: -5, vy: 0, owner: null, past: [] });
+    g.step([{}, {}]);
+    const speed = Math.hypot(g.puck.vx, g.puck.vy);
+    assert.ok(speed < 5, d + ' away it came off at ' + speed.toFixed(2) + ', faster than it went in');
+  }
 });
 
 test('players fill the lobby a team at a time, and the next is told it\'s full', () => {

@@ -219,6 +219,18 @@ test('getting hit while charging loses the charge', () => {
   assert.equal(a.chg, 0, 'and the charge is gone');
 });
 
+test('two hits landing on the same tick both count as the moves they were', () => {
+  // an uppercut from below and a stomp from above, at once: the stomp still pops up whoever's
+  // standing, though the uppercut has just knocked the stomper out of it
+  const g = fight(), [a, v] = g.fighters;
+  Object.assign(a, { x: 9, face: 1, mv: 'up', mt: 5, vx: 0, vy: 0 });
+  Object.assign(v, { x: 9.05, y: a.y - 0.6, ground: -1, vx: 0, vy: 0, face: -1, mv: 'dair', mt: 8 });
+  g.step([{}, {}]);
+  const hits = g.events.filter((e) => e.e === 'hit');
+  assert.equal(hits.map((e) => e.f.i + ' ' + e.m).join(', '), '0 up, 1 dair');
+  assert.ok(a.ky < 0 && a.ground < 0, 'up in the air, not pushed into the floor');
+});
+
 test('knocked off the screen: a life gone, damage back to nothing, back in from above, and nobody can hit you for a moment', () => {
   const g = fight(), [a, v] = g.fighters;
   Object.assign(v, { x: 25 });

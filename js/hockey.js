@@ -409,9 +409,11 @@ window.HOCKEY = (function engine() {
         if (pk.past.includes(p)) { if (Math.min(db, dp) > 0.8) pk.past.splice(pk.past.indexOf(p), 1); continue; }
         if ((db < 0.42 || dp < PR + 0.1) && !p.cool.grab && db < bestD) { best = p; bestD = db; }
         else if (dp < PR + PUCK && dp > 1e-6 && !(p === pk.from && p.cool.grab)) {
-          pk.x = p.x + ((pk.x - p.x) / dp) * (PR + PUCK); pk.y = p.y + ((pk.y - p.y) / dp) * (PR + PUCK);
+          // which way's out, worked out before the puck's moved (after, it's not 1 long)
+          const nx = (pk.x - p.x) / dp, ny = (pk.y - p.y) / dp;
+          pk.x = p.x + nx * (PR + PUCK); pk.y = p.y + ny * (PR + PUCK);
           pk.vx -= p.vx; pk.vy -= p.vy;
-          bounce(pk, [(pk.x - p.x) / dp, (pk.y - p.y) / dp], 0.3, 0.7);
+          bounce(pk, [nx, ny], 0.3, 0.7);
           pk.vx += p.vx; pk.vy += p.vy;
         }
       }

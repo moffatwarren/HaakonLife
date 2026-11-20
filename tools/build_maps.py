@@ -155,7 +155,12 @@ class Floor:
         self.put(cx, my - 1, 'c')
 
     def l_desk(self, cells, mon, chair):
-        """Desk made of the given tiles, a computer at `mon` and a chair."""
+        """Desk made of the given tiles, a computer at `mon` and a chair.
+
+        Keep bare floor right beside the computer, not just diagonally from it: facing it on the
+        diagonal, A goes to the desk or chair straight ahead first (they have something to say),
+        so a computer with only a diagonal way up works with the mouse alone, and one tucked
+        into the desk's corner, past the chair, not at all."""
         for x, y in cells:
             self.put(x, y, 'd')
         self.put(*mon, 'm')
@@ -440,9 +445,9 @@ f2.hline(0, 106, 3); f2.hline(0, 106, 36); f2.vline(0, 3, 36); f2.vline(106, 3, 
 f2.vline(7, 3, 10); f2.hline(0, 7, 10)
 f2.office('130 Davisson', 1, 4, 6, 9, 'E'); f2.door((7, 9))
 # Davisson's room is a mess of computer parts and boxes
-for row, line in enumerate(('HddmHB',   # L-shaped desk: along the top, then down
+for row, line in enumerate(('HdddHB',   # L-shaped desk: along the top, then down
                             'BjcdJB',
-                            'Hj.d.j',
+                            'Hj.m.j',
                             'BJjd.B',
                             'Hj.dj.',
                             'BBj.j.')):
@@ -514,12 +519,12 @@ for (y1, y2), left, right in (((12, 14), '111 Jordan', '138 Jimmy'),
     for name, x1, x2 in ((left, 11, 14), (right, 16, 19)):
         f2.rooms.append({'name': name, 'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2, 'parent': 'Open Office'})
 # L-shaped desks running along the centre partition
-f2.l_desk([(x, 12) for x in range(11, 15)] + [(14, 13), (14, 14)], (14, 12), (13, 13))  # Jordan
-f2.l_desk([(16, 12), (16, 13)] + [(x, 14) for x in range(16, 20)], (16, 14), (17, 13))  # Jimmy
-f2.l_desk([(x, 16) for x in range(11, 15)] + [(14, 17), (14, 18)], (14, 16), (13, 17))  # Kyle
-f2.l_desk([(x, 16) for x in range(16, 20)] + [(16, 17), (16, 18)], (16, 16), (17, 17))  # Maya J
-f2.l_desk([(14, y) for y in range(20, 23)] + [(x, 23) for x in range(11, 15)], (14, 23), (13, 22))  # Tainah
-f2.l_desk([(16, y) for y in range(20, 23)] + [(x, 23) for x in range(16, 20)], (16, 23), (17, 22))  # Diane
+f2.l_desk([(x, 12) for x in range(11, 15)] + [(14, 13), (14, 14)], (14, 14), (13, 13))  # Jordan
+f2.l_desk([(16, 12), (16, 13)] + [(x, 14) for x in range(16, 20)], (16, 12), (17, 13))  # Jimmy
+f2.l_desk([(x, 16) for x in range(11, 15)] + [(14, 17), (14, 18)], (14, 18), (13, 17))  # Kyle
+f2.l_desk([(x, 16) for x in range(16, 20)] + [(16, 17), (16, 18)], (16, 18), (17, 17))  # Maya J
+f2.l_desk([(14, y) for y in range(20, 23)] + [(x, 23) for x in range(11, 15)], (14, 21), (13, 22))  # Tainah
+f2.l_desk([(16, y) for y in range(20, 23)] + [(x, 23) for x in range(16, 20)], (16, 21), (17, 22))  # Diane
 f2.vline(22, 12, 16, '=')
 
 # washroom / Walker / Hudson
@@ -539,7 +544,7 @@ f2.fill(39, 11, 39, 13, 'd')  # desk turns down the room
 
 # Jenn + west stairwell + electrical / Zin / Jules
 f2.hline(19, 25, 26)
-f2.rooms.append({'name': '140 Jenn', 'x1': 20, 'y1': 20, 'x2': 24, 'y2': 25})
+f2.rooms.append({'name': '140 Jenn', 'x1': 20, 'y1': 20, 'x2': 24, 'y2': 25, 'parent': 'Open Office'})
 f2.fill(20, 20, 24, 25, '.')
 f2.put(22, 25, 'm'); f2.put(23, 25, 'd'); f2.put(22, 24, 'c'); f2.put(24, 20, 'p')
 f2.hline(25, 30, 19); f2.vline(25, 19, 26); f2.vline(30, 19, 26)
@@ -556,7 +561,7 @@ f2.fill(36, 22, 36, 25, 'd')  # L-shaped desk up the right wall
 f2.put(34, 25, 'd'); f2.put(35, 25, 'm')  # computer in the middle of the desk, clear of the chair
 f2.rooms[-1]['computer'] = 'poker'
 f2.office('133 Jules', 38, 20, 41, 25, 'N'); f2.door((39, 19), (40, 19))
-f2.fill(38, 22, 38, 25, 'd'); f2.put(39, 25, 'd'); f2.put(38, 25, 'm')  # L-shaped desk up the left wall
+f2.fill(38, 22, 38, 25, 'd'); f2.put(39, 25, 'd'); f2.put(40, 25, 'm')  # L-shaped desk up the left wall, computer clear of the chair
 
 # centre pod (Dalia / Avery / Marcus / Muhammad)
 f2.rooms.append({'name': 'Open Office', 'x1': 43, 'y1': 14, 'x2': 63, 'y2': 26})
@@ -608,7 +613,7 @@ f2.hline(101, 106, 13); f2.hline(101, 106, 18); f2.hline(101, 106, 22)
 f2.room("Boys' Bathroom", 102, 14, 105, 17, ':'); f2.rooms[-1]['gender'] = 'male'
 f2.door((101, 15), (101, 16)); f2.put(105, 14, 'w'); f2.put(102, 14, 'n')
 f2.room("Girls' Bathroom", 102, 19, 105, 21, ':'); f2.rooms[-1]['gender'] = 'female'
-f2.door((101, 19), (101, 20)); f2.put(105, 20, 'w'); f2.put(102, 19, 'n')
+f2.door((101, 19), (101, 20)); f2.put(105, 20, 'w'); f2.put(103, 19, 'n')
 f2.room('East Stairwell', 102, 23, 105, 28, ',')
 f2.door((101, 25), (101, 26))
 f2.fill(104, 24, 105, 27, 'S')
@@ -655,7 +660,7 @@ f2.l_desk(col(28, 31, 35) + row(35, 28, 33), (31, 35), (31, 34))        # Mike F
 f2.l_desk(col(37, 31, 35) + row(35, 37, 42), (40, 35), (40, 34))        # Stephen
 f2.l_desk(col(49, 31, 35) + row(35, 49, 53), (49, 35), (50, 34))        # Dave
 f2.l_desk(col(58, 31, 35) + row(35, 58, 62), (59, 35), (59, 34))        # Desirae
-f2.l_desk(col(67, 31, 35) + row(35, 67, 70), (67, 35), (68, 34))        # Wade
+f2.l_desk(col(67, 31, 35) + row(35, 67, 70), (69, 35), (68, 34))        # Wade
 f2.l_desk(col(78, 31, 35) + row(35, 75, 78), (75, 35), (75, 34))        # Visitor
 f2.l_desk(col(82, 31, 35) + row(35, 82, 86), (83, 35), (83, 34))        # Kim
 f2.l_desk(col(95, 31, 35) + row(35, 91, 95), (91, 35), (91, 34))        # Matthew
@@ -668,7 +673,7 @@ f2.l_desk(col(50, 5, 8) + row(8, 48, 49), (50, 8), (49, 7))             # Michae
 f2.clear((53, 4), (54, 4), (53, 5))
 f2.l_desk(col(56, 5, 8) + row(8, 54, 55), (56, 8), (55, 7))             # Lauren
 f2.clear((59, 4), (60, 4), (59, 5))
-f2.l_desk(col(58, 6, 9) + row(9, 59, 60), (58, 9), (59, 8))             # Gigi
+f2.l_desk(col(58, 6, 9) + row(9, 59, 60), (58, 7), (59, 8))             # Gigi
 f2.clear((67, 4), (68, 4), (67, 5))
 f2.fill(66, 7, 71, 8, 'd'); f2.put(68, 7, 'm'); f2.put(68, 6, 'c')      # Joe
 f2.put(66, 7, '%'); f2.put(71, 7, '%'); f2.put(69, 8, '%')            # ...with his Lego on it
@@ -692,18 +697,18 @@ f2.l_desk(col(67, 23, 25), (67, 24), (68, 24))                           # Nik
 # centre pod
 f2.l_desk(col(52, 16, 19) + row(19, 48, 51), (52, 16), (51, 16))        # Dalia
 f2.l_desk(col(54, 16, 19) + row(19, 55, 57), (54, 16), (55, 16))        # Avery
-f2.l_desk(row(21, 48, 52) + col(52, 22, 24), (52, 21), (51, 22))        # Marcus
-f2.l_desk(col(54, 21, 24) + row(21, 55, 57), (54, 21), (55, 22))        # Muhammad
+f2.l_desk(row(21, 48, 52) + col(52, 22, 24), (52, 23), (51, 22))        # Marcus
+f2.l_desk(col(54, 21, 24) + row(21, 55, 57), (54, 23), (55, 22))        # Muhammad
 
 # east pod
 f2.clear((82, 16), (88, 16), (92, 16), (93, 16), (92, 17),
          (82, 24), (87, 24), (88, 24), (87, 23), (92, 24), (93, 24), (92, 23))
 f2.l_desk(col(81, 16, 19) + row(19, 82, 85), (81, 16), (82, 17))        # Cody
 f2.l_desk(col(87, 16, 19) + row(19, 88, 90), (87, 16), (88, 17))        # John
-f2.l_desk(col(96, 16, 19) + row(19, 92, 95), (96, 19), (95, 18))        # Dmitriy
+f2.l_desk(col(96, 16, 19) + row(19, 92, 95), (96, 17), (95, 18))        # Dmitriy
 f2.l_desk(row(21, 81, 85) + col(81, 22, 24), (81, 24), (82, 23))        # Leo
-f2.l_desk(row(21, 87, 90) + col(90, 22, 24), (90, 21), (89, 22))        # Leon
-f2.l_desk(row(21, 92, 96) + col(96, 22, 24), (96, 21), (95, 22))        # Romano
+f2.l_desk(row(21, 87, 90) + col(90, 22, 24), (90, 23), (89, 22))        # Leon
+f2.l_desk(row(21, 92, 96) + col(96, 22, 24), (96, 23), (95, 22))        # Romano
 
 
 # ---------------------------------------------------------------------
@@ -713,7 +718,7 @@ f2.l_desk(row(21, 92, 96) + col(96, 22, 24), (96, 21), (95, 22))        # Romano
 f1.clear((35, 37), (36, 37), (35, 36))
 f1.l_desk(row(30, 34, 37) + col(37, 31, 33), (37, 30), (36, 31))       # Howard
 f1.clear((43, 37), (44, 37), (43, 36))
-f1.l_desk(row(31, 43, 47) + col(47, 32, 35), (47, 31), (46, 32))       # Nathan
+f1.l_desk(row(31, 43, 47) + col(47, 32, 35), (45, 31), (46, 32))       # Nathan
 f1.put(46, 32, 'o')                                                     # ...on his exercise ball
 f1.fill(44, 30, 47, 30, 't')                                            # Nathan's trophy shelves
 f1.l_desk(col(49, 32, 37) + row(37, 50, 53), (51, 37), (51, 36))       # Sidney
@@ -737,15 +742,13 @@ f1.l_desk(row(21, 40, 43) + col(43, 22, 24), (41, 21), (41, 22))
 f1.l_desk(row(17, 52, 55) + col(55, 18, 21), (53, 17), (53, 18))       # Eric
 f1.l_desk(row(17, 57, 60) + col(60, 18, 21), (58, 17), (58, 18))       # Carlos
 f1.clear((62, 12))
-f1.l_desk(col(62, 11, 15) + row(15, 63, 64), (62, 11), (63, 12))       # Lam
-f1.put(63, 11, 'd')
+f1.l_desk(col(62, 11, 15) + row(15, 63, 64), (63, 11), (63, 12))       # Lam
 f1.clear((62, 18))
-f1.l_desk(col(62, 17, 21) + row(21, 63, 64), (62, 17), (63, 18))       # Lia
-f1.put(63, 17, 'd')
+f1.l_desk(col(62, 17, 21) + row(21, 63, 64), (63, 17), (63, 18))       # Lia
 f1.l_desk(col(72, 11, 15) + row(15, 69, 71), (70, 11), (70, 12))       # Charles
 f1.l_desk(col(72, 17, 21) + row(21, 69, 71), (70, 17), (70, 18))       # Yeunie
 f1.clear((63, 4), (64, 4), (63, 5))
-f1.l_desk(col(62, 6, 9) + row(9, 63, 65), (62, 9), (63, 8))            # Jonathan
+f1.l_desk(col(62, 5, 8) + row(8, 63, 65), (64, 8), (63, 7))            # Jonathan
 f1.l_desk(row(4, 69, 72) + col(72, 5, 8), (69, 4), (69, 5))            # Sharon
 
 # first aid station: curtain across the doorway, stretcher instead of a desk
@@ -871,7 +874,9 @@ fp.room('Sub-Assembly', 35, 1, 46, 7, ';')
 for x in (36, 37, 39, 40):
     fp.put(x, 1, 'L')
 fp.fill(40, 3, 40, 5, 'a')                      # damper sections waiting to go in
-fp.rooms[-1]['people'] = ['Mark Lake']
+# (Mark Lake keeps clear of the paint booth, walled off in this room's east corner further down: put
+# down in there, he'd never get out, since the people here don't walk through doorways)
+fp.rooms[-1].update(person='Mark Lake', area=[35, 1, 40, 7])
 
 # --- the assembly line: a row of work tables, heading for shipping ---
 fp.room('Assembly Line', 1, 8, 46, 13, ';')

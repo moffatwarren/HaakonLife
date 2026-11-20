@@ -100,6 +100,18 @@ test('wheels turn a notch a press, and straighten on A', () => {
   for (const bad of [null, 'x', { h: 'up' }, { e: 5 }]) fl.input(s, 0, bad);
 });
 
+test('turning the wheels during "Get ready" does nothing, as on your own', () => {
+  const s = fl.create({ seats: 2, rng: seeded(1), soft: false });
+  fl.input(s, 0, { h: 0, e: 'lll' });
+  run(s, 40);
+  assert.equal(s.ready, 75);
+  run(s, 1);
+  assert.equal(s.lifts[0].wheel, 0);
+  fl.input(s, 0, { h: 0, e: 'lll' });
+  run(s, 1);
+  assert.equal(s.lifts[0].wheel, -3);
+});
+
 test('A sets the pallet down where you are, and the forks can pick it back up', () => {
   const s = game();
   const L = s.lifts[0];

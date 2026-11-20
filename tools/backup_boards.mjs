@@ -2,12 +2,13 @@
 //
 //   node tools/backup_boards.mjs [folder]     (default: backup/)
 //
-// That's every board's scores, plus the saved character and special items of every name on
-// any board, and everybody's play time. .github/workflows/backup-data.yml runs this every night. It only reads, using
+// That's every board's scores, everybody's play time and Secret Lair, and the saved character and
+// special items of every name on any board, with play time or with a lair.
+// .github/workflows/backup-data.yml runs this every night. It only reads, using
 // the same public access as the game, so it needs no password. The rules only let anyone read
 // one board or one name at a time, so the boards come from BOARDS in js/game.js and the
-// names from the boards: somebody who has a saved character but has never posted a score
-// isn't in it. The file has the same shape as the database, so any part of it can go back
+// names from the boards, play time and lairs: somebody who has a saved character but none of
+// those isn't in it. The file has the same shape as the database, so any part of it can go back
 // in (see "Backups" in the README).
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -65,11 +66,14 @@ async function readAll(names, pathOf) {
 
 const keys = boards();
 const scores = await readAll(keys, (k) => 'scores/' + k);
-const names = [...new Set(Object.values(scores).flatMap((rows) => Object.keys(rows)))].sort();
+// everybody's play time and lair, each in one go (left out until the rules have their .read: see
+// "Play time" and "Leaderboards" in the README)
+const playtime = await read('playtime/live', true);
+const lairs = await read('lairs/live', true);
+const names = [...new Set(Object.values(scores).flatMap((rows) => Object.keys(rows))
+  .concat(Object.keys(playtime || {}), Object.keys(lairs || {})))].sort();
 const looks = await readAll(names, (n) => 'looks/live/' + n);
 const items = await readAll(names, (n) => 'items/live/' + n);
-// everybody's play time, in one go (left out until the rules have its .read: see "Play time" in the README)
-const playtime = await read('playtime/live', true);
 
 if (failures) { console.error(failures + ' reads failed, so no backup was written'); process.exit(1); }
 const rows = Object.values(scores).reduce((sum, b) => sum + Object.keys(b).length, 0);
@@ -78,5 +82,5 @@ if (!rows) { console.error('every board came back empty, so no backup was writte
 const folder = process.argv[2] || join(HERE, '../backup');
 const day = new Date().toISOString().slice(0, 10), file = join(folder, 'haakonlife-data-' + day + '.json');
 mkdirSync(folder, { recursive: true });
-writeFileSync(file, JSON.stringify({ scores, looks: { live: looks }, items: { live: items }, playtime: playtime ? { live: playtime } : undefined }, null, 1) + '\n');
-console.log(`${file}: ${keys.length} boards checked, ${Object.keys(scores).length} with scores, ${rows} rows, ${names.length} names, ${Object.keys(looks).length} characters, ${Object.keys(items).length} with items, ${playtime ? Object.keys(playtime).length : 0} with play time`);
+writeFileSync(file, JSON.stringify({ scores, looks: { live: looks }, items: { live: items }, playtime: playtime ? { live: playtime } : undefined, lairs: lairs ? { live: lairs } : undefined }, null, 1) + '\n');
+console.log(`${file}: ${keys.length} boards checked, ${Object.keys(scores).length} with scores, ${rows} rows, ${names.length} names, ${Object.keys(looks).length} characters, ${Object.keys(items).length} with items, ${playtime ? Object.keys(playtime).length : 0} with play time, ${lairs ? Object.keys(lairs).length : 0} with a lair`);

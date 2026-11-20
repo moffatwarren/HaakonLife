@@ -119,6 +119,8 @@ test('records that break the rules are ignored', async () => {
   a.send({ k: 'me', r: { n: 'Al', f: 0, x: 0, y: 0, p: 1, junk: 'y'.repeat(17) } }); // long string
   a.send({ k: 'me', r: { n: 'Al', x: 0, y: 0, p: 1 } }); // no floor
   a.send({ k: 'me', r: { n: 'Al', f: 0, x: 0, y: 0, p: 1, o: { nested: 1 } } });
+  a.send({ k: 'me', r: { n: 'Al', f: 0, x: 0, y: 0, p: 1, constructor: 1 } }); // a key every object has
+  a.ws.send('{"k":"me","r":{"n":"Al","f":0,"x":0,"y":0,"p":1,"__proto__":1}}');
   await pause(100);
   assert.ok(!b.got.some((d) => d.k === 'p' && d.id === a.id));
   a.ws.close(); b.ws.close();
@@ -164,7 +166,7 @@ test('nobody else can take an id that is in use', async () => {
 });
 
 test('a bad connection address is turned away', async () => {
-  for (const q of ['w=nowhere&id=a&key=b', 'w=test&id=has space&key=b', 'w=test&id=a', 'w=__proto__&id=a&key=b']) {
+  for (const q of ['w=nowhere&id=a&key=b', 'w=test&id=has space&key=b', 'w=test&id=a', 'w=__proto__&id=a&key=b', 'w=test&id=toString&key=b']) {
     const ws = new WebSocket(`ws://localhost:${PORT}/?${q}`);
     await new Promise((done) => ws.on('error', done));
   }
@@ -402,6 +404,96 @@ test('a connection goes inactive after 12 seconds with no record, and keeps its 
   assert.deepEqual(world.connections(), { active: [], inactive: ['Ann'] });
   world.leave(sock);
   assert.deepEqual(world.connections(), { active: [], inactive: [] });
+  world.close();
+});
+
+// a World on its own, with stand-in connections that keep what they're sent
+function lone(games = {}, kinds = {}) {
+  const world = new World('test', games, Date.now, kinds), socks = {};
+  const join = (id) => {
+    const sock = socks[id] = { readyState: 1, got: [], send(str) { sock.got.push(JSON.parse(str)); }, close() { sock.readyState = 3; } };
+    world.join(id, 'k' + id, sock);
+    return sock;
+  };
+  const say = (id, d) => world.hear(socks[id], d);
+  const me = (...ids) => ids.forEach((id) => say(id, { k: 'me', r: { n: 'P' + id, f: 0, x: 1, y: 2, p: 1 } }));
+  // a challenge, and its answer
+  const ask = (from, to, m, g = 'count') => say(from, { k: 'to', to, m: { k: 'ask', m, g, seed: 1 } });
+  const yes = (from, to, m) => say(from, { k: 'to', to, m: { k: 'yes', m } });
+  return { world, socks, join, say, me, ask, yes };
+}
+
+test('a game that ends while you\'re away: you hear how it ended when you\'re back', () => {
+  const { world, socks, join, say, me, ask, yes } = lone({ count });
+  join('a'); join('b'); me('a', 'b');
+  ask('a', 'b', 'g1'); yes('b', 'a', 'g1');
+  assert.ok(world.rooms.has('g1'));
+  world.leave(socks.b);
+  say('a', { k: 'to', to: 'b', m: { k: 'quit', m: 'g1' } });
+  const b = join('b');
+  assert.deepEqual(b.got[0].rooms, ['g1'], 'still yours, so it doesn\'t look like you dropped out');
+  assert.deepEqual(b.got.find((d) => d.k === 'end'), { k: 'end', m: 'g1', r: { quit: 0 } });
+  world.close();
+});
+
+test('a challenge said yes to once the challenger has dropped out: it waits for them as in a game', async () => {
+  const { world, socks, join, me, ask, yes } = lone({ count });
+  join('a'); join('b'); me('a', 'b');
+  ask('a', 'b', 'g1');
+  world.leave(socks.a);
+  yes('b', 'a', 'g1');
+  await pause(60);
+  const st = socks.b.got.filter((d) => d.k === 'st');
+  assert.ok(st.length && st.every((d) => d.w === 1), 'waiting for the other player');
+  join('a');
+  assert.deepEqual(socks.a.got[0].rooms, ['g1']);
+  world.close();
+});
+
+test('one server game at a time each, only so many at once, and only games the server has', () => {
+  const { world, join, me, ask, yes } = lone({ count });
+  for (let i = 0; i < 84; i++) { join('p' + i); me('p' + i); }
+  ask('p0', 'p1', 'g1'); yes('p1', 'p0', 'g1');
+  ask('p0', 'p2', 'g2'); yes('p2', 'p0', 'g2');
+  ask('p3', 'p1', 'g3'); yes('p1', 'p3', 'g3');
+  assert.deepEqual([...world.rooms.keys()], ['g1']);
+  for (let i = 2; i < 84; i += 2) { ask('p' + i, 'p' + (i + 1), 'r' + i); yes('p' + (i + 1), 'p' + i, 'r' + i); }
+  assert.equal(world.rooms.size, 40);
+  ask('p82', 'p83', 'g4', 'toString');
+  assert.ok(!world.asks.has('g4'));
+  world.close();
+});
+
+test('shutting down stops the server\'s games, and nobody leaving after that starts a wait', () => {
+  const { world, socks, join, me, ask, yes } = lone({ count });
+  join('a'); join('b'); me('a', 'b');
+  ask('a', 'b', 'g1'); yes('b', 'a', 'g1');
+  const room = world.rooms.get('g1');
+  world.close();
+  assert.equal(room.over, true);
+  assert.equal(world.rooms.size, 0);
+  world.leave(socks.a);
+  assert.equal(room.away.size, 0);
+});
+
+test('a table that breaks as you sit down sends you away, and you can sit down again', () => {
+  let boom = true;
+  const flaky = {
+    create: () => ({ ids: [] }), sit(s, id) { s.ids.push(id); return true; }, stand(s, id) { s.ids = s.ids.filter((x) => x !== id); },
+    input() {}, tick: () => [], seated: (s) => s.ids, brief: () => ({}),
+    view() { if (boom) { boom = false; throw new Error('oops'); } return { ok: 1 }; },
+  };
+  const { world, socks, join, say, me } = lone({}, { flaky });
+  join('a'); me('a');
+  const orig = console.error;
+  console.error = () => {};
+  try { say('a', { k: 'sit', t: 'flaky' }); } finally { console.error = orig; }
+  assert.equal(socks.a.got.find((d) => d.k === 'tb').r, 'error');
+  assert.equal(world.tables.size, 0);
+  assert.equal(world.players.get('a').table, null);
+  say('a', { k: 'sit', t: 'flaky' });
+  assert.deepEqual(socks.a.got.at(-1), { k: 'tb', t: 'flaky', s: { ok: 1 } });
+  assert.equal(world.players.get('a').table, 'flaky');
   world.close();
 });
 

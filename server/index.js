@@ -51,9 +51,11 @@ export function start({ port = 8080, origins = [], games = defaultGames, tables 
     let q = new URLSearchParams();
     try { q = new URL(req.url, 'http://localhost').searchParams; } catch { /* refused below */ }
     const world = Object.hasOwn(worlds, q.get('w')) ? worlds[q.get('w')] : null;
+    // (not an id every object already has, like toString: a browser looking someone up by it
+    // would find that instead)
     const id = q.get('id') || '', key = q.get('key') || '';
     if (!world || (origins.length && !origins.includes(req.headers.origin)) ||
-      !/^[A-Za-z0-9]{1,16}$/.test(id) || !key || key.length > 32) {
+      !/^[A-Za-z0-9]{1,16}$/.test(id) || id in Object.prototype || !key || key.length > 32) {
       socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');
       return;
     }

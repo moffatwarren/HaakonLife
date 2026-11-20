@@ -112,6 +112,15 @@ export class Room {
     this.away.delete(pid);
   }
 
+  // the server is shutting down: stop ticking, with no result (the browsers hear the game's gone
+  // when they reconnect to the new one)
+  close() {
+    this.over = true;
+    clearInterval(this.timer);
+    for (const t of this.away.values()) clearTimeout(t);
+    this.away.clear();
+  }
+
   // a bug in a game ends that game, not the server
   crash(e) {
     console.error('game', this.id, 'crashed:', e);

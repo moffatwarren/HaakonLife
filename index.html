@@ -220,7 +220,7 @@
       document.body.appendChild(s);
     });
     started();
-  }).catch(function () { plain(0); });
+  }, function () { plain(0); }); // (only for a file that wouldn't come: not for anything after)
 })();
 </script>
 </body>
