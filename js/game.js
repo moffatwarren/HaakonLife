@@ -9159,8 +9159,9 @@
     if (visit && !crew && (window.VISITORS || []).some((v) => v.name === who)) return beat + ' when they visit office ' + parseInt(visit.room.name, 10) + ', ' + MAPS.floors[visit.npc.floor].name + '.';
     const n = npcs.find((k) => k.name === who), room = n && roomAt(n.floor, n.x, n.y);
     if (!n) return beat + ' to win this.';
-    const num = room ? parseInt(room.name, 10) : NaN, here = !room ? '' : num ? 'office ' + num + ', ' : room.name + ', ';
-    return beat + ' in ' + here + MAPS.floors[n.floor].name + '.';
+    const floor = MAPS.floors[n.floor].name;
+    const num = room ? parseInt(room.name, 10) : NaN, here = !room || room.name === floor ? '' : num ? 'office ' + num + ', ' : room.name + ', ';
+    return beat + ' in ' + (n.floor === YARD && !here ? 'the ' : '') + here + floor + '.';
   }
   // MY CARDS in the Start menu: everything you've won, and the 20 you play with.
   function DeckApp(open) {
@@ -16520,7 +16521,7 @@
   const stapler = (function hideStapler() {
     const spots = [];
     MAPS.floors.forEach((f, fi) => f.tiles.forEach((rowStr, y) => [...rowStr].forEach((c, x) => {
-      if (!STAPLER_ON.includes(c) || fi === PLANT) return;
+      if (!STAPLER_ON.includes(c) || f.plant || f.outdoor || f.casino || f.lair) return;
       // it has to be reachable: next to floor you can stand on, in a room you can walk into
       for (const [dx, dy] of Object.values(DIRS)) {
         const r = roomAt(fi, x + dx, y + dy);
@@ -19127,10 +19128,10 @@
   // doors open onto the parking lot (YARD), painted by js/lot.js: a rink, a fire pit, a hot
   // chocolate stand and falling snow.
   const xmas = (function () {
-    const office = (fi) => fi !== PLANT && fi !== CASINO && fi !== YARD;
+    const office = (fi) => fi !== PLANT && fi !== CASINO && fi !== YARD && fi !== LAIR;
     const each = (test, where) => MAPS.floors.map((f, fi) => {
       const list = [];
-      if ((where || ((i) => i !== YARD))(fi)) f.tiles.forEach((row, y) => [...row].forEach((ch, x) => { if (test(ch, x, y, f)) list.push({ x, y }); }));
+      if ((where || ((i) => i !== YARD && i !== LAIR))(fi)) f.tiles.forEach((row, y) => [...row].forEach((ch, x) => { if (test(ch, x, y, f)) list.push({ x, y }); }));
       return list;
     });
     const at = (f, x, y) => (f.tiles[y] || '')[x] || ' ';
