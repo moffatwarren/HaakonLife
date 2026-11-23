@@ -2003,6 +2003,9 @@ From November 27 to December 31 (by your device's date) the office does Christma
   `lightsTwinkle` in `js/game.js`, and `SHIRT32.lights` in `js/art.js`.
 - The music changes too: indoors the office tune gives way to Deck the Halls, outside
   it's Jingle Bells, and out on the ice a slow skating waltz.
+- The first time your name comes in during that year's Christmas event (remembered in this
+  browser), a welcome note lets you know the office is decked out and points you out to the
+  parking lot through the fitness room's side doors.
 - The fitness room's side doors (on its left wall) open onto the **parking lot**, a map
   of its own in the same pixels as the office: snow falling, lights strung round the rink,
   the office's brick front along the top, a rink running down the middle, and room to

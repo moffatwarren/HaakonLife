@@ -17494,7 +17494,15 @@
     mode = 'play'; roomName = null; curRoom = null; updateRoom();
     questTell();
     if (HALLOWEEN) questQueue.push('It\'s Halloween at Haakon! When you\'re ready for the party, go and take a seat in the downstairs boardroom.');
-    if (CHRISTMAS) questQueue.push('Happy holidays from Haakon! The office is all decked out, and somebody has flooded a rink in the parking lot. Head out through the fitness room\'s side doors.');
+    if (CHRISTMAS) {
+      const seen = (BOARD_POSTS ? '' : 'test.') + 'xmas.seen.' + new Date().getFullYear() + '.' + boardKey(playerName || 'New Hire');
+      if (!store.get(seen)) {
+        questQueue.push(() => {
+          store.set(seen, '1');
+          say('Happy holidays from Haakon! The office is all decked out, and somebody has flooded a rink in the parking lot. Head out through the fitness room\'s side doors.');
+        });
+      }
+    }
     awayTell(); // (who's gone past you on the boards since last time)
   }
   // a key while a message is up over the name (or the password's being checked): any key puts the
