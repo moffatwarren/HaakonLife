@@ -3695,6 +3695,14 @@ window.CARD_ART = (function () {
   const deptOf = (card) => DEPTS[card.dept] || (card.rarity === 'S' ? DEPTS.starter : DEPTS.none);
   const INK = '#2a2230';
   const GOLD = '#e8b030', SILVER = '#b8c4d4';
+  // Your own card is in lights: purple, with a row of bulbs round the edge of the big card (BULBS,
+  // which shine() makes chase each other) and a star at the bottom.
+  const STAR = '#9048c8', STAR_PINK = '#ffc0ec', BULB = '#b8862c', BULB_HI = '#e0b048';
+  const BULBS = [];
+  for (let x = 14; x <= 116; x += 6) BULBS.push([x, 2]);
+  for (let y = 14; y <= 166; y += 6) BULBS.push([126, y]);
+  for (let x = 116; x >= 14; x -= 6) BULBS.push([x, 178]);
+  for (let y = 166; y >= 14; y -= 6) BULBS.push([2, y]);
   // the small colour a card's rarity is marked with, and the line round its art
   const RARITY = {
     S: { trim: '#3c3440', gem: null },
@@ -3702,6 +3710,7 @@ window.CARD_ART = (function () {
     U: { trim: SILVER, gem: '#a8d0f0' },
     R: { trim: GOLD, gem: '#f0c040' },
     L: { trim: GOLD, gem: '#ff9830' },
+    Y: { trim: '#f078c0', gem: null },
   };
   // Letters at the size the game draws them, on a picture at full screen size: the same smoothed
   // letters as everything else in the game. Starting at x, each 12 across. size 2 is the big numbers.
@@ -3754,36 +3763,47 @@ window.CARD_ART = (function () {
   }
   // the whole card at half size, without its words
   function cardShell(card) {
-    const p = Pic(130, 182), dept = deptOf(card), rar = RARITY[card.rarity] || RARITY.C, legend = card.rarity === 'L', rare = card.rarity === 'R';
+    const p = Pic(130, 182), dept = deptOf(card), rar = RARITY[card.rarity] || RARITY.C, legend = card.rarity === 'L', rare = card.rarity === 'R', star = card.rarity === 'Y';
     const m = () => M(p);
     const shell = m().rbox(1, 1, 128, 180, 8);
-    fig(p, shell, legend ? GOLD : dept.c, { sh: [3, 3], hi: [2, 2], deep: [1, 1] });
+    fig(p, shell, legend ? GOLD : star ? STAR : dept.c, { sh: [3, 3], hi: [2, 2], deep: [1, 1] });
     if (legend) { // a darker bed inside the gold, in its department's colour
       flat(p, m().rbox(4, 4, 122, 174, 6), ramp(GOLD).deep);
       flat(p, m().rbox(5, 5, 120, 172, 5), ramp(dept.c).deep);
       for (let y = 6; y < 176; y += 4) for (let x = 6 + (y % 8 ? 2 : 0); x < 124; x += 4) p.set(x, y, ramp(dept.c).shade);
     }
+    if (star) { // a night sky inside the purple, and the bulbs round the edge
+      flat(p, m().rbox(4, 4, 122, 174, 6), ramp(STAR).deep);
+      flat(p, m().rbox(5, 5, 120, 172, 5), '#24163c');
+      for (let i = 0; i < 90; i++) p.set(6 + (i * 53) % 118, 6 + (i * 89) % 170, i % 4 ? '#5a3c88' : '#e8d8ff');
+      for (const [x, y] of BULBS) { p.box(x, y, 2, 2, BULB); p.set(x, y, BULB_HI); }
+    }
     // the art, in its trim
     fig(p, m().box(6, 22, ART_W, ART_H), rar.trim, { sh: 0, hi: 0, line: LINE });
     flat(p, m().box(5, 21, 120, 77), rar.trim);
     p.put(artPic(card.art || card.id), 6, 22);
-    if (rare || card.rarity === 'U' || legend) { // rivets on the trim's corners
+    if (rare || card.rarity === 'U' || legend || star) { // rivets on the trim's corners
       for (const [x, y] of [[5, 21], [124, 21], [5, 97], [124, 97]]) p.box(x, y, 1, 1, '#ffffff');
     }
     // the name
-    fig(p, m().rbox(25, 5, 100, 14, 3), legend ? '#2a2030' : '#f4ecd8', { sh: legend ? 0 : [1, 1], hi: 0, line: legend || rare ? GOLD : LINE });
+    fig(p, m().rbox(25, 5, 100, 14, 3), legend || star ? '#2a2030' : '#f4ecd8', { sh: legend || star ? 0 : [1, 1], hi: 0, line: legend || rare || star ? GOLD : LINE });
     // the ribbon with the department on it
-    fig(p, m().rbox(13, 96, 104, 12, 2), legend ? ramp(GOLD).shade : ramp(dept.c).shade, { sh: 0, hi: [0, 1] });
+    fig(p, m().rbox(13, 96, 104, 12, 2), legend ? ramp(GOLD).shade : star ? ramp(STAR).shade : ramp(dept.c).shade, { sh: 0, hi: [0, 1] });
     // the words
     fig(p, m().rbox(8, 110, 114, 54, 3), '#f4ecd8', { sh: [1, 1], hi: 0 });
     // gold round the words, for rare cards and up, and stars either side of a legendary's ribbon
-    if (rare || legend) flat(p, m().rbox(7, 109, 116, 56, 3).rbox(8, 110, 114, 54, 3, 0), GOLD);
+    if (rare || legend || star) flat(p, m().rbox(7, 109, 116, 56, 3).rbox(8, 110, 114, 54, 3, 0), GOLD);
     if (legend) {
       for (const [x, y] of [[8, 102], [122, 102]]) { fig(p, burst(m(), x, y, 2, 6, 4), '#fff0b0', { sh: 0, hi: 0 }); }
       fig(p, burst(m(), 65, 171, 6, 11, 8), GOLD, { sh: [1, 1], hi: [1, 1] });
     }
+    if (star) { // a star of its own at the bottom, and little pink ones either side of the ribbon
+      for (const [x, y] of [[8, 102], [122, 102]]) { fig(p, burst(m(), x, y, 2, 6, 4), STAR_PINK, { sh: 0, hi: 0 }); }
+      fig(p, burst(m(), 65, 170, 5, 12, 5), GOLD, { sh: [1, 1], hi: [1, 1] });
+      flat(p, burst(m(), 65, 170, 2, 5, 5), STAR_PINK);
+    }
     // bottom corners for rare cards and up
-    if (rare || legend) {
+    if (rare || legend || star) {
       for (const [x, y] of [[3, 172], [122, 172], [3, 3], [122, 3]]) fig(p, m().rbox(x, y, 5, 5, 1), GOLD, { sh: [1, 1], hi: [1, 1] });
     }
     if (rar.gem) {
@@ -3802,13 +3822,14 @@ window.CARD_ART = (function () {
   // The big card: 260 x 364, the size you read it at.
   const bigs = new Map();
   function big(card) {
-    let p = bigs.get(card.id);
+    const key = card.art || card.id; // (your own card has a name and a picture for each player)
+    let p = bigs.get(key);
     if (p) return p;
     p = Pic(260, 364);
-    bigs.set(card.id, p);
+    bigs.set(key, p);
     p.put(cardShell(card), 0, 0, 2);
     const dept = deptOf(card), legend = card.rarity === 'L';
-    letters(p, card.name, Math.round(150 - wide(card.name) / 2), 18, legend ? GOLD : INK);
+    letters(p, card.name, Math.round(150 - wide(card.name) / 2), 18, legend ? GOLD : card.rarity === 'Y' ? STAR_PINK : INK);
     const label = card.style || (card.kind === 'task' ? 'TASK' : dept.name);
     letters(p, label, Math.round(130 - wide(label) / 2), 197, legend ? '#2a2030' : '#ffffff');
     // the rule, then in a quieter colour what they said
@@ -3842,10 +3863,11 @@ window.CARD_ART = (function () {
   // what's printed, { hurt: true, up: true } to colour Patience that's down or Power that's up, and
   // { cost: true } to show what it costs, in your hand.
   function small(card, o = {}) {
-    const half = Pic(44, 58), dept = deptOf(card), rar = RARITY[card.rarity] || RARITY.C, legend = card.rarity === 'L';
-    fig(half, Mask(44, 58).rbox(1, 1, 42, 56, 4), legend ? GOLD : dept.c, { sh: [2, 2], hi: [1, 1] });
+    const half = Pic(44, 58), dept = deptOf(card), rar = RARITY[card.rarity] || RARITY.C, legend = card.rarity === 'L', star = card.rarity === 'Y';
+    fig(half, Mask(44, 58).rbox(1, 1, 42, 56, 4), legend ? GOLD : star ? STAR : dept.c, { sh: [2, 2], hi: [1, 1] });
     flat(half, Mask(44, 58).box(3, 3, 38, 38), rar.trim);
     if (card.kind !== 'task') {
+      if (star) fig(half, burst(Mask(44, 58), 22, 48, 2, 5, 5), GOLD, { sh: 0, hi: 0 }); // (its star, between the numbers)
       fig(half, burst(Mask(44, 58), 11, 47, 6, 9, 7), '#e04838', { sh: [1, 1], hi: [1, 1] });
       fig(half, Mask(44, 58).ell(33, 47, 8), '#38a0a8', { sh: [1, 1], hi: [1, 1] });
     } else {
@@ -3909,8 +3931,10 @@ window.CARD_ART = (function () {
     return cv;
   }
   // Light running across a card lying at x, y (w x h on the screen). t counts frames. Rare cards get a
-  // gold glint now and then; legendaries a slower band with colours in it, and twinkles.
+  // gold glint now and then; legendaries a slower band with colours in it, and twinkles. Your own card
+  // has its own (starShine).
   function shine(ctx, x, y, w, h, t, rarity, corner = 14) {
+    if (rarity === 'Y') { starShine(ctx, x, y, w, h, t, corner); return; }
     if (rarity !== 'R' && rarity !== 'L') return;
     const legend = rarity === 'L', period = legend ? 150 : 210, at = (t % period) / period;
     const span = w + h + 60, pos = -30 + at * span * (legend ? 1 : 1.4);
@@ -3932,6 +3956,37 @@ window.CARD_ART = (function () {
           ctx.fillStyle = '#fff8d0';
           ctx.fillRect(x + px - n * 2, y + py, n * 4 + 2, 2); ctx.fillRect(x + px, y + py - n * 2, 2, n * 4 + 2);
         }
+      }
+    }
+  }
+  // Your own card: a pink sheen across it now and then, pink twinkles, and on a card big enough to see
+  // them, its bulbs lighting up one after another round the edge, like a theatre's sign.
+  const STAR_SHINE = 180; // (how long the sheen takes to come round again)
+  function starShine(ctx, x, y, w, h, t, corner) {
+    const at = (t % STAR_SHINE) / STAR_SHINE, pos = -30 + at * (w + h + 60) * 1.2;
+    const bands = [[0, 8, 'rgba(255,150,220,0.26)'], [8, 10, 'rgba(255,255,255,0.42)'], [18, 8, 'rgba(190,150,255,0.26)']];
+    for (let j = 0; j < h; j += 2) {
+      const inset = j < corner ? corner - j : j > h - corner ? corner - (h - j) : 0, k = Math.max(0, Math.round(inset * 0.4 / 2) * 2);
+      for (const [a, b, c] of bands) {
+        const x0 = Math.max(k, Math.round(pos + a - j / 1.2)), x1 = Math.min(w - k, x0 + b);
+        if (x1 > x0) { ctx.fillStyle = c; ctx.fillRect(x + x0, y + j, x1 - x0, 2); }
+      }
+    }
+    if (w >= 120) {
+      const sx = w / 130, sy = h / 182, on = Math.floor(t / 5), n = Math.max(2, Math.round(sx * 2));
+      BULBS.forEach(([bx, by], k) => {
+        if (((k - on) % 3 + 3) % 3) return; // (every third one's lit, and that moves on round)
+        const px = x + Math.round(bx * sx), py = y + Math.round(by * sy);
+        ctx.fillStyle = 'rgba(255,236,160,0.35)'; ctx.fillRect(px - n / 2, py - n / 2, n * 2, n * 2);
+        ctx.fillStyle = '#fff6d0'; ctx.fillRect(px, py, n, n);
+      });
+    }
+    for (let i = 0; i < 4; i++) {
+      const phase = (t + i * 43) % 90, px = 16 + (i * 89) % (w - 32), py = 18 + (i * 67) % (h - 36);
+      if (phase < 24) {
+        const n = phase < 8 || phase > 16 ? 2 : 4;
+        ctx.fillStyle = '#ffd8f4';
+        ctx.fillRect(x + px - n * 2, y + py, n * 4 + 2, 2); ctx.fillRect(x + px, y + py - n * 2, 2, n * 4 + 2);
       }
     }
   }
@@ -3957,7 +4012,7 @@ window.CARD_ART = (function () {
   // A legendary is alive: its art keeps moving, wherever you see it. frames: how many pictures in
   // its loop. every: how many ticks each one lasts. Its painter in ART gets how far round it is, 0 to 1.
   const LIVE = { forklift: { frames: 16, every: 3 }, officedog: { frames: 16, every: 5 }, truck: { frames: 16, every: 3 }, printer: { frames: 16, every: 4 }, humbug: { frames: 16, every: 4 }, linda: { frames: 16, every: 5 }, airhandler: { frames: 16, every: 2 } };
-  // ---------- your own legendary ----------
+  // ---------- your own card ----------
   // Each version has a room of its own. In the game the character standing in it is whoever's card it
   // is, walking on the spot (ownArt, with pictures of them from js/game.js, since only the game knows
   // what they look like). Anywhere else, like a page of samples, it's an outline. k is how far round
@@ -4071,5 +4126,5 @@ window.CARD_ART = (function () {
   }
 
   // (painted: whether a card has a picture of its own, rather than the stand-in)
-  return { ART_W, ART_H, LIVE, Pic, big, small, back, artPic, artFrame, cropOf, label, toCanvas, canvasOf, shine, sparkle, ownArt, RARITY, DEPTS, painted: (id) => Object.prototype.hasOwnProperty.call(ART, id) };
+  return { ART_W, ART_H, LIVE, Pic, big, small, back, artPic, artFrame, cropOf, label, toCanvas, canvasOf, shine, sparkle, ownArt, RARITY, DEPTS, STAR_SHINE, painted: (id) => Object.prototype.hasOwnProperty.call(ART, id) };
 })();

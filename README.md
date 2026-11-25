@@ -505,7 +505,8 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   they're playing for. Beat them and their card is yours. Some are holding something rarer as well, which
   you'll see played against you, and it's yours if you beat them again (`heldBy` in `js/cardlist.js`).
   You can't lose a card. To give one out some other way, call `cardEarned(id)`.
-- **Your deck:** any 20 of your cards, one of each and at most one legendary. In MY CARDS the D-pad moves
+- **Your deck:** any 20 of your cards, one of each and at most one legendary, and once you've earned it, one
+  version of your own card as well. In MY CARDS the D-pad moves
   round the page (hold a direction and it keeps going, though going up to the tabs takes a press of its
   own) and Up reaches the tabs, and A puts a card in or takes it out. While your deck isn't full, the
   MY DECK page has a FILL button after DECKS, which tops it up with the best of what you have. Go
@@ -533,7 +534,7 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
   and R&D (keeps everything running). Team-up cards reward sticking to one or two, and things that belong
   to everyone, like Pizza Friday, go in any deck.
 - **The cards:** everyone who works in the game has one, plus the things they're known for, 159 in all, and 6
-  versions of your own legendary. 7 of the 159 are legendaries, which keep moving and land in their own way (`LANDS` in `CardsGame`).
+  versions of your own card. 7 of the 159 are legendaries, which keep moving and land in their own way (`LANDS` in `CardsGame`).
   A card that asks you to pick can be kept to one department, as Jack's is: he makes another Office worker a
   Gatekeeper (`dept` on the pick in `js/cardlist.js`). Giving a worker Keen lets it attack this turn even if it
   already has, so Max and Gran Fondo can give a worker a second go.
@@ -544,15 +545,23 @@ card is one line of `js/cardlist.js`, its rules are in `js/cards.js`, and its pi
 - **Rewards:** winning cards earns you these, out of the 135 you can win (`CARD_PRIZES`). A quarter, 34, gives
   your cards sparkling gold backs, for you and whoever you play (`goldOf`, `sparkle`). Half, 68, gives you the card
   crown. Three quarters, 102, gives you the card storm, a flair of five cards going round you that other players
-  see too (`deckOrbit`). All 135 gives you your own legendary. MY CARDS and each new card say how far off the next one is.
+  see too (`deckOrbit`). All 135 gives you your own card. MY CARDS and each new card say how far off the next one is.
   They're special items (see "Special items"), so adding cards later moves where they come but doesn't take any away.
-- **Your own legendary:** it has your name on it and your character in it, as you look now, big head things and all
+- **Your own card:** it has your name on it and your character in it, as you look now, big head things and all
   (`faceOf`, `ownFrames`), and other players see it that way too. Your picture is made from your look's pixels
   (`Art.lookPixels`), not read back off a canvas, because Brave, and Firefox with fingerprinting protection, add
   noise to what a page reads back. There are six versions, cards like any other
   in `js/cardlist.js` (`own`, `style`): pick one under YOU in MY CARDS, and pick another whenever you like. Which you
-  play is just which is in your deck, so it's kept with your deck. It counts as your one legendary and
-  takes the place of any other. Nobody can win it, and coworkers and decks built for you never use it. Everywhere the
+  play is just which is in your deck, so it's kept with your deck. It isn't a legendary: it's a rarity of its own
+  (`Y` in `js/cardlist.js`), so it goes in a deck with a legendary, and picking another version takes the place of
+  the one in your deck. Because the two can go together, each version is only about as strong as a good rare. Its
+  numbers were tuned with the computer players (as for the legendaries: the same 19 cards with only one changed, at
+  levels 3 and 4), to win about as often as Reorg or The Big Order do, and less than any legendary. It looks like no
+  other card: purple, with a star at the bottom and a row of light bulbs round the big card that chase each other
+  (`starShine` in `js/cardart.js`). Playing it is a show of its own (`starAnim` in `CardsGame`): the lights go down
+  and it comes up face down to a drumroll, a spotlight clunks on, it turns over to a fanfare with confetti from both
+  corners while a sign drops in with your name going up in lights, it takes a bow to applause, and it steps down
+  onto the table in a pink flash (`landStar`, with a bit more for each version in `LANDS`). Nobody can win it, and coworkers and decks built for you never use it. Everywhere the
   game draws a card it goes through a face id (`faceOf`), because two players can have the same version. Adding a
   version is a line in `js/cardlist.js` and a room in `OWN_ROOMS` in `js/cardart.js`.
 - **Leaderboards:** the Hall of Fame has CARDS COLLECTED and MORALE MADNESS WINS, under Board and Card Games.
@@ -1179,7 +1188,7 @@ items/live/warren/antlers: 0
 ```
 
 `santa` is the Santa hat, `candycane` the candy cane, `lights` the tangled lights, `antlers` the humbug antlers, `sweeper` the Sweeper, `crown` the crown,
-`startrail` the star trail, `ghostmask` the ghost mask, `ribbon` the ribbon, `goldbacks` the gold card backs, `cardcrown` the card crown, `cardstorm` the card storm and `owncard` your own legendary. 1 means it's theirs, so it's one of their choices in the character editor (gold backs and your own legendary aren't worn: the backs are simply on, and the card goes in your deck). 0 means it
+`startrail` the star trail, `ghostmask` the ghost mask, `ribbon` the ribbon, `goldbacks` the gold card backs, `cardcrown` the card crown, `cardstorm` the card storm and `owncard` your own card. 1 means it's theirs, so it's one of their choices in the character editor (gold backs and your own card aren't worn: the backs are simply on, and the card goes in your deck). 0 means it
 isn't, and the game won't offer it to them, even at Christmas, from the elf, the present, the cup or a quest. No number
 means they've never been given it.
 
@@ -1188,7 +1197,7 @@ giant coffee mug, `f_helmet` the racing helmet, and so on (the ids are in `LAIR_
 A 1 puts it in their catalogue, and a 0 takes it out, and out of their lair (see **Your Secret Lair**).
 
 In the game the Santa hat comes from coming in over Christmas, the candy cane from the elf in the
-parking lot, the tangled lights from opening the present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, the gold backs, card crown, card storm and your own legendary from winning cards in
+parking lot, the tangled lights from opening the present on Christmas Day, the antlers and the Sweeper from winning the Christmas Cup, the gold backs, card crown, card storm and your own card from winning cards in
 Morale Madness, and the mask and the ribbon from the quests (see
 **Linda's list** and **Employee of the Month**), which add a 1 where there's no number. The game
 never sets a number for the crown or the star trail: the Office Champion wears them with no
@@ -1695,7 +1704,7 @@ does that: `tools/check_games.mjs` stops the site deploying until it's the same 
 tells you what to set it to. The browser checks it too, so a browser whose rules aren't the same as
 the server's (while the server's still updating, say) says so instead of starting. To try it, open
 `tools/test.html#play&server=ws://localhost:8080&deck=sales` in two windows, side by side so that
-neither is in the background: `&deck=` is `plant`, `sales`, `office`, `engineering` or `starter`.
+neither is in the background: `&deck=` is `plant`, `sales`, `office`, `engineering`, `starter` or a version of your own card (`youwall`, say).
 Give the entry `christmas: true` as well (as the snowball fight has) and it's only in the
 list from the day Christmas first starts (`SEASON_FROM`), then for good.
 
@@ -2380,7 +2389,7 @@ pants and their colours.
 | TVs and computers | `pong`, `snake`, `galaxy` (Galaxy Guard), `poker`, `blackjack`, `computer` (the desktop) |
 | Boardroom and 2nd floor | `fan`, `coil`, `damper`, `parts`, `cable`, `cpr`, `engrave`, `golf`, `build` (Joe's Lego shelf) |
 | Coworkers | `dark` (Damir), `battle` (Richard), `dance` (Patrick), `nathan`, `wade`, `jar` (Kiki), `forms` (Jhonna), `wok` (Nik), `carrot` (Dmitriy), `lego` (Joe) |
-| Morale Madness | `deck` (MY CARDS), and `cards` (a game). `&deck=` is your deck (`plant`, `sales`, `office`, `engineering` or `starter`, the usual), `&foe=` who you play, `&level=` how good they are (1 to 4), `&first=0` or `1` who goes first, `&seed=` the same deal every time |
+| Morale Madness | `deck` (MY CARDS), and `cards` (a game). `&deck=` is your deck (`plant`, `sales`, `office`, `engineering` or `starter`, the usual, or a version of your own card, like `youwall`, for the best deck of every card with that and a legendary in it), `&foe=` who you play, `&level=` how good they are (1 to 4), `&first=0` or `1` who goes first, `&seed=` the same deal every time |
 | Dogs | `catch`, `dogs` (the dogs' leaderboard) |
 | Kingston plant | `forklift`, `paint` (Even Coat) |
 | Leaderboards | `board` with `&key=snake` (or any name from `BOARDS` in `js/game.js`), `fame` (the Hall of Fame) |
@@ -2437,7 +2446,7 @@ or `eotm` opens those screens. `&stapler=found` gives Linda her stapler back,
 and `&stapler=near` puts it right in front of you. `&helped=5` counts the
 first 5 coworkers as helped, and `&eotm=1` hands you the award, `&kikilist=1` gives you Kiki's list, and
 `game=kiki` opens it.
-`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=33` makes the first 33 you can win yours, so that winning one more earns the gold backs (67 for the card crown, 101 for the card storm, 134 for your own legendary). `&have=owncard&game=deck` makes your own legendary yours, under YOU. `&have=cardcrown&look=m100e0000000` wears the card crown, `&have=cardstorm&look=m10000000030` wears the card storm, and with `&have=goldbacks&game=cards` your cards have gold backs. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
+`&havecards=all` or `&havecards=markv,steve` makes those cards yours in the card game, just for that visit, and `&havecards=33` makes the first 33 you can win yours, so that winning one more earns the gold backs (67 for the card crown, 101 for the card storm, 134 for your own card). `&have=owncard&game=deck` makes your own card yours, under YOU, and `&deck=youbruiser&game=cards&look=m100e0000000` (or any other version) gives you a deck with it in, to see it played. `&have=cardcrown&look=m100e0000000` wears the card crown, `&have=cardstorm&look=m10000000030` wears the card storm, and with `&have=goldbacks&game=cards` your cards have gold backs. `&have=ghostmask,ribbon` makes those special items yours for the character editor (`&santahat=1`
 the Santa hat), and `&top=linda,eotm` puts you on top of those boards, whoever you are.
 `&look=m100c00001` wears the mask and the ribbon, so with `&top=` that's them haunted and gold.
 `&crown=1` makes you the Office Champion, in the crown and the star trail.

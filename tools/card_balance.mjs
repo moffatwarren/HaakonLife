@@ -103,12 +103,13 @@ function randomDeck(s) {
   const pool = every.slice();
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   const deck = [];
-  let legend = false;
+  let legend = false, own = false; // (at most one legendary, and one of your own card)
   for (const id of pool) {
     if (deck.length === CARDS.RULES.DECK) break;
-    const L = CARDS.card(id).rarity === 'L';
-    if (L && legend) continue;
+    const L = CARDS.card(id).rarity === 'L', Y = !!CARDS.card(id).own;
+    if ((L && legend) || (Y && own)) continue;
     if (L) legend = true;
+    if (Y) own = true;
     deck.push(id);
   }
   return deck;

@@ -525,9 +525,9 @@
     o.connect(g); g.connect(sfxBus);
     o.start(t); o.stop(t + dur + 0.02);
   }
-  // Short burst of filtered noise (the "splash" part of a pour).
-  function noise(dur, freq, vol) {
-    const t = actx.currentTime, n = Math.floor(actx.sampleRate * dur);
+  // Short burst of filtered noise (the "splash" part of a pour), delay seconds from now.
+  function noise(dur, freq, vol, delay = 0) {
+    const t = actx.currentTime + delay, n = Math.floor(actx.sampleRate * dur);
     const buf = actx.createBuffer(1, n, actx.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
     const src = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
@@ -636,6 +636,15 @@
     chomp: () => { noise(0.05, 1100, 0.07); tone(190, 0.05, 'square', 0.03, -70); },
     cough: () => { noise(0.12, 800, 0.08); tone(170, 0.08, 'sawtooth', 0.04, -70); tone(150, 0.08, 'sawtooth', 0.04, -60, 0.14); tone(140, 0.1, 'sawtooth', 0.035, -50, 0.28); },
     gulp: () => { tone(330, 0.09, 'sine', 0.08, -130); tone(270, 0.1, 'sine', 0.07, -110, 0.13); },
+    // Morale Madness, your own card coming on: a drumroll, the spotlight going on (or off), a fanfare and a
+    // round of applause
+    drumroll: () => { for (let i = 0; i < 16; i++) { noise(0.04, 520, 0.025 + i * 0.003, i * 0.028); tone(96, 0.03, 'triangle', 0.04, -20, i * 0.028); } },
+    spot: () => { tone(58, 0.09, 'square', 0.07, -20); noise(0.05, 2400, 0.05); },
+    fanfare: () => {
+      tone(784, 0.1, 'square', 0.04); tone(988, 0.1, 'square', 0.04, 0, 0.11);
+      for (const f of [1175, 1568, 587]) tone(f, 0.55, f > 1000 ? 'square' : 'triangle', 0.035, 0, 0.22);
+    },
+    applause: () => { for (let i = 0; i < 30; i++) noise(0.03 + Math.random() * 0.02, 1100 + Math.random() * 1500, 0.025 + Math.random() * 0.03, Math.random() * 0.9); },
     // the bell on the Santa hat, which goes with every other stride, so it's very quiet
     bell: () => {
       const k = 1 + Math.random() * 0.05;
@@ -7444,7 +7453,7 @@
   const cardPics = new Map();
   const cardPic = (key, make) => { let v = cardPics.get(key); if (!v) { v = make(); cardPics.set(key, v); } return v; };
   const cardFace = (id) => cardPic('face' + id, () => { const c = ownFaces.get(id) || CARDS.card(id); return Object.assign({}, c, { text: CARDS.text(c) }); });
-  // Your own legendary looks different for everybody, so to draw one there's a face id, which goes
+  // Your own card looks different for everybody, so to draw one there's a face id, which goes
   // wherever an id does for the pictures (never for the rules). who: { name, look }, whose card it is. For
   // any other card, or if nobody knows what they look like, it's just the id.
   const ownFaces = new Map();
@@ -7472,6 +7481,7 @@
     });
   }
   const bigCard = (id) => cardPic('big' + id, () => CARD_ART.toCanvas(CARD_ART.big(cardFace(id))));
+  const cardLives = (c) => c.rarity === 'L' || !!c.own; // (its art keeps moving, wherever you see it)
   const backOfCard = (gold) => cardPic(gold ? 'backGold' : 'back', () => CARD_ART.toCanvas(CARD_ART.back(gold)));
   const cardWord = (s, c, n = 1) => cardPic('w' + s + '/' + c + '/' + n, () => CARD_ART.toCanvas(CARD_ART.label(s, c, n)));
   const smallCard = (id, o = {}) => cardPic('s' + id + '/' + JSON.stringify(o), () => CARD_ART.toCanvas(CARD_ART.small(cardFace(id), o)));
@@ -7528,7 +7538,9 @@
     const foeDept = deptOf(foe) || Object.keys(CARDS.DEPTS)[Math.abs(seed) % 4];
     // (on a test address, &deck= picks your deck in a game against a player too)
     const deckName = vs ? (/[#&]deck=(\w+)/.exec(location.hash) || [])[1] : o.deck;
-    const myDeck = o.mine || (deckName && deckName !== 'starter' ? CARDS.buildDeck(every, { dept: deckName, seed: seed + 1 }) : vs && !deckName ? cardDeck() : CARDS.STARTER);
+    // (and a version of your own card, like &deck=youwall, is the best deck of everything with that in it)
+    const ownDeck = deckName && CARDS.card(deckName) && CARDS.card(deckName).own ? CARDS.buildDeck(every, { must: [deckName], seed: seed + 1 }) : null;
+    const myDeck = o.mine || ownDeck || (deckName && deckName !== 'starter' ? CARDS.buildDeck(every, { dept: deckName, seed: seed + 1 }) : vs && !deckName ? cardDeck() : CARDS.STARTER);
     // Against a coworker the rules run here (g). Against a player they run on the game server
     // (server/games/cards.js), and all there is here is what it says you can see.
     const g = vs ? null : CARDS.create({ decks: [myDeck, o.foeDeck || CARDS.buildDeck(every, { dept: foeDept, seed: seed + 2 })], seed, names: [playerName || 'You', foe], ai: [0, level], first: o.first });
@@ -7550,6 +7562,7 @@
     const swapping = new Set();
     let bits = [], pops = [], gone = [];
     let fly = null, big = null, dim = 0, halo = null, rings = [], flare = null, legend = null, alarm = 0, shake = 0, jolt = 0, mover = null, banner = null, glint = null, drawn = null;
+    let spot = null, marquee = null; // (your own card's spotlight, and the sign with your name in lights)
     const blink = new Map(), bounce = new Map();
     let landed = -1; // the worker that's just landed, who doesn't jump at their own shockwave
 
@@ -7602,6 +7615,10 @@
       }
     };
     const hearts = (x, y, n) => { for (let i = 0; i < n; i++) { const a = Math.PI * 2 * i / n; bits.push({ x, y, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3 - 1, life: 42, max: 42, heart: true }); } };
+    // Confetti: thrown out from x, y (vx, vy give the way it's thrown, with some spread), it slows, then
+    // flutters down, turning over as it goes.
+    const CONFETTI = ['#f05868', '#f8d850', '#58c8f0', '#90f070', '#f078c0', '#b090ff', '#ffffff'];
+    const confetti = (x, y, n, vx, vy, spread = 1) => { for (let i = 0; i < n; i++) bits.push({ x, y, vx: vx * (0.4 + Math.random() * 0.8) + (Math.random() - 0.5) * 4 * spread, vy: vy * (0.6 + Math.random() * 0.5) - Math.random() * 2 * spread, life: 90 + Math.floor(Math.random() * 60), max: 150, conf: true, ph: Math.floor(Math.random() * 60), c: CONFETTI[i % CONFETTI.length] }); };
     const pop = (x, y, str, c) => pops.push({ x, y, str, c, t: 0 });
     const easeOut = (u) => 1 - Math.pow(1 - u, 3);
     const arcTo = (a, b, u, lift) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u - Math.sin(u * Math.PI) * lift];
@@ -7664,14 +7681,22 @@
       rings.push({ x: x + 44, y: y + 58, t: 0 }, { x: x + 44, y: y + 58, t: -7 });
       stars(x + 44, y + 58, 30, 6.5); dust(x + 44, y + 112, 22); sfx('thump');
     }
+    // Your own card isn't a legendary: it steps down from the spotlight into a pink flash and a puff of
+    // confetti, to the cheers (see starAnim).
+    function landStar(x, y) {
+      shake = 8; jolt = 8; flare = { c: '255,170,230', a: 0.4, fade: 0.04 };
+      rings.push({ x: x + 44, y: y + 58, t: 0, c: '#f890d8' });
+      stars(x + 44, y + 58, 20, 5.5); confetti(x + 44, y + 40, 30, 0, -5, 1.6);
+      sfx('thump'); sfx('tink');
+    }
     const LANDS = {
-      // your own legendary: each comes down in its own way
-      youbruiser(x, y) { landHard(x, y); shake = 18; scraps(x + 44, y + 100, 12, '#f07858', 4, 2, 22); },
-      youwall(x, y) { landHard(x, y); shake = 24; dust(x + 44, y + 112, 34); },
-      youboss(x, y) { landHard(x, y); flare = { c: '255,224,120', a: 0.4, fade: 0.03 }; stars(x + 44, y + 58, 16); },
-      youlead(x, y) { landHard(x, y); stars(x + 44, y + 58, 20, 2.6); },
-      youmorale(x, y) { landHard(x, y); hearts(x + 44, y + 50, 22); },
-      youplanner(x, y) { landHard(x, y); scraps(x + 44, y + 90, 14, '#f4f4f0', 3.5, 2, 26); },
+      // your own card: each version comes down in its own way
+      youbruiser(x, y) { landStar(x, y); shake = 14; scraps(x + 44, y + 100, 12, '#f07858', 4, 2, 22); },
+      youwall(x, y) { landStar(x, y); shake = 18; dust(x + 44, y + 112, 30); },
+      youboss(x, y) { landStar(x, y); flare = { c: '255,224,120', a: 0.4, fade: 0.03 }; stars(x + 44, y + 58, 16); },
+      youlead(x, y) { landStar(x, y); stars(x + 44, y + 58, 20, 2.6); },
+      youmorale(x, y) { landStar(x, y); hearts(x + 44, y + 50, 22); },
+      youplanner(x, y) { landStar(x, y); scraps(x + 44, y + 90, 14, '#f4f4f0', 3.5, 2, 26); },
       officedog(x, y, u) { shake = 6; flare = { c: '255,190,170', a: 0.35, fade: 0.04 }; bounce.set(u, 44); hearts(x + 44, y + 50, 20); stars(x + 44, y + 50, 16, 5); sfx('bark'); },
       // the heaviest thing in the building, setting its forks down
       forklift(x, y) { landHard(x, y); shake = 22; dust(x + 44, y + 112, 30); scraps(x + 44, y + 100, 14, '#e8b820', 4.5, 2, 24); sfx('beep'); },
@@ -7690,7 +7715,8 @@
       const side = sideOf(e.s), i = side.table.length, x = slotX(i), y = rowY(e.s), c = CARDS.card(e.id);
       side.table.push(newUnit(e.id, e.u, e.s));
       landed = e.u;
-      if (c.rarity === 'L') (LANDS[e.id] || landHard)(x, y, e.u);
+      if (c.own) (LANDS[e.id] || landStar)(x, y, e.u);
+      else if (c.rarity === 'L') (LANDS[e.id] || landHard)(x, y, e.u);
       else {
         dust(x + 44, y + 112, c.rarity === 'R' ? 14 : 10);
         shake = c.rarity === 'R' ? 6 : 4;
@@ -7714,6 +7740,7 @@
       // (it isn't in the last moves until it's finished coming in, so it can't give away the reveal)
       const move = moveNow, arrived = () => { if (move) { move.waiting = false; move.t = 0; } };
       if (move) move.waiting = true;
+      if (c.own) return starAnim(e, from, to, mid, arrived);
       sfx('swish');
       if (c.rarity === 'L') {
         // A legendary's entrance. It's all the card: the table stays there behind it. Up out of the hand,
@@ -7788,6 +7815,59 @@
           else dust(mid[0], mid[1] + 30, 12);
           if (e.id === 'firedrill') { alarm = 70; sfx('bell'); }
         },
+      };
+    }
+    // Your own card's entrance: you're the star of the show. The lights go down and it comes up out of the
+    // hand face down, to a drumroll. A spotlight clunks on, it turns over in the light to a fanfare, with
+    // confetti from both corners and your name going up in lights at the top, a letter at a time. It
+    // stays there with you walking on the spot, takes a bow to applause, and the spotlight goes off as it
+    // steps down onto the table. A hurries it along, like everything else.
+    function starAnim(e, from, to, mid, arrived) {
+      const UP = 26, LIT = 34, FLIP = 46, BOW = 128, DOWN = 146, END = 160;
+      const face = F(e.id, e.s), star = e.s === me ? playerName || 'You' : foe;
+      sfx('drumroll');
+      return {
+        len: END, step(f) {
+          big = null;
+          if (f < UP) { // up out of the hand, face down, as the lights go down
+            const u = easeOut(f / UP);
+            dim = 0.8 * u;
+            bigAt(face, from[0] + 44 + (mid[0] - from[0] - 44) * u, from[1] + 58 + (mid[1] - from[1] - 58) * u, 0.34 + u * 0.56, { back: true, gold: goldOf(e.s) });
+            return;
+          }
+          dim = 0.8;
+          if (f === UP) { spot = { x: mid[0], y: mid[1] + 186, w: 260, t: 0 }; sfx('spot'); }
+          if (f < LIT) { bigAt(face, mid[0], mid[1], 0.9, { back: true, gold: goldOf(e.s) }); return; } // (a moment in the light, still face down)
+          if (f < FLIP) { // turning over
+            const u = (f - LIT) / (FLIP - LIT), turn = Math.cos(u * Math.PI);
+            if (f === LIT + 6) {
+              flare = { c: '255,200,240', a: 0.7, fade: 0.06 };
+              confetti(24, H + 8, 50, 9, -22); confetti(W - 24, H + 8, 50, -9, -22);
+              stars(mid[0], mid[1], 24, 7);
+              shake = 8; marquee = { str: star, t: 0 }; sfx('fanfare');
+            }
+            bigAt(face, mid[0], mid[1], 0.9 + u * 0.1, { squash: Math.abs(turn), back: turn > 0, gold: goldOf(e.s), live: turn <= 0 });
+            return;
+          }
+          const since = f - FLIP;
+          if (f < BOW) { // in the spotlight
+            if (f % 4 === 0) confetti(40 + Math.random() * (W - 80), -8, 1, 0, 1, 0.4); // (still coming down)
+            bigAt(face, mid[0], mid[1] + Math.round(Math.sin(since / 10) * 3), 1, { live: true, glow: 'star', shine: since });
+            return;
+          }
+          if (f < DOWN) { // a bow: the top dips towards you and comes back up
+            if (f === BOW) sfx('applause');
+            const u = Math.sin((f - BOW) / (DOWN - BOW) * Math.PI);
+            bigAt(face, mid[0], mid[1], 1, { live: true, glow: 'star', shine: f - FLIP, bow: 1 - u * 0.2 });
+            return;
+          }
+          // and down onto the table, as the lights come back up
+          if (f === DOWN) { spot = null; marquee = null; sfx('spot'); }
+          const u = Math.pow((f - DOWN) / (END - DOWN), 2);
+          dim = 0.8 * (1 - u);
+          bigAt(face, mid[0] + (to[0] + 44 - mid[0]) * u, mid[1] + (to[1] + 58 - mid[1]) * u - Math.sin(u * Math.PI) * 30, 1 - u * 0.66, { live: true });
+        },
+        end() { big = null; dim = 0; spot = null; marquee = null; arrived(); put(e); },
       };
     }
     function attackAnim(e) {
@@ -8312,10 +8392,10 @@
       const face = F(x.id, x.seat);
       ctx.drawImage(smallCard(face, o), Math.round(X), Math.round(Y));
       X = Math.round(X); Y = Math.round(Y);
-      if (c.rarity === 'L') { // a legendary's art keeps moving, on the table too
+      if (cardLives(c)) { // a legendary's art keeps moving, on the table too, and so does your own card's
         const [cx, cy] = A.cropOf(face);
         ctx.drawImage(A.canvasOf(A.artFrame(face, t)), cx, cy, 72, 72, X + 8, Y + 8, 72, 72);
-        A.shine(ctx, X, Y, 88, 116, t, 'L', 6);
+        A.shine(ctx, X, Y, 88, 116, c.own ? t + x.u * 37 : t, c.rarity, 6);
       } else if (c.rarity === 'R') A.shine(ctx, X, Y, 88, 116, t + x.u * 37, 'R', 6);
       // on your turn, one of yours who can't attack (any more, or yet) is greyed out
       if (view.can && shown.turn === me && !aim && shown.you.table.includes(x) && !has(view.can.attack, x.u) && !(mover && mover.who === x)) {
@@ -8479,7 +8559,7 @@
     function closeUp(id, X, Y, x, seat) {
       const face = F(id, seat);
       ctx.drawImage(bigCard(face), X, Y);
-      if (CARDS.card(id).rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(face, t)), X + 12, Y + 44, 236, 150);
+      if (cardLives(CARDS.card(id))) ctx.drawImage(A.canvasOf(A.artFrame(face, t)), X + 12, Y + 44, 236, 150);
       A.shine(ctx, X, Y, 260, 364, t, CARDS.card(id).rarity);
       drawMeanings(meaningsOf(id, x), X, Y + 366, 260);
     }
@@ -8490,6 +8570,58 @@
       panel(x, y, 288, 16 + (said.length + did.length) * 20 + (did.length ? 6 : 0));
       said.forEach((l, i) => ctx.drawImage(cardWord(l, INK), x + 12, y + 8 + i * 20));
       did.forEach((l, i) => ctx.drawImage(cardWord(l, '#8a2018'), x + 12, y + 14 + (said.length + i) * 20));
+    }
+    // The spotlight on your own card: a beam down from a lamp above the screen, brighter in the middle,
+    // with dust turning in it, and the pool of light it makes on the table.
+    function drawSpot() {
+      const { x, y, w } = spot, on = Math.min(1, spot.t / 3), flick = spot.t < 3 ? 0.5 : 1;
+      const beam = (top, bottom, a) => {
+        ctx.fillStyle = 'rgba(255,246,214,' + (a * on * flick).toFixed(3) + ')';
+        ctx.beginPath(); ctx.moveTo(x - top, -4); ctx.lineTo(x + top, -4); ctx.lineTo(x + bottom, y); ctx.lineTo(x - bottom, y); ctx.closePath(); ctx.fill();
+      };
+      beam(34, w / 2 + 56, 0.14);
+      beam(20, w / 2 + 20, 0.12);
+      ctx.fillStyle = 'rgba(255,246,214,' + (0.22 * on).toFixed(2) + ')';
+      ctx.beginPath(); ctx.ellipse(x, y, w / 2 + 60, 20, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,252,236,0.7)';
+      for (let i = 0; i < 14; i++) { // (dust, drifting down through the light)
+        const k = ((spot.t * (0.6 + (i % 3) * 0.25) + i * 37) % 420) / 420, my = k * y, half = 30 + (w / 2 + 30) * k;
+        ctx.fillRect(Math.round((x + Math.sin(i * 2.1 + spot.t / 40) * half * 0.8) / 2) * 2, Math.round(my / 2) * 2, 2, 2);
+      }
+    }
+    // The sign along the top with the star's name on it in lights: it drops in and bounces, the bulbs round
+    // it chase each other, and the name comes on a letter at a time.
+    function drawMarquee() {
+      const str = marquee.str, size = str.length > 10 ? 1 : 2, full = cardWord(str, '#fff0a8', size);
+      const w = Math.max(340, full.width + 120), x = Math.round((W - w) / 2 / 2) * 2, h = 44;
+      // (down from above the screen to the top of it, then a little bounce)
+      const u = Math.min(1, marquee.t / 12), y = Math.round(-48 + 50 * (1 - Math.pow(1 - u, 3)) - (u < 1 ? 0 : Math.sin(Math.min(1, (marquee.t - 12) / 10) * Math.PI) * 4));
+      ctx.fillStyle = INK; ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+      ctx.fillStyle = '#5a2c8c'; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = '#7c48b4'; ctx.fillRect(x, y, w, 2); ctx.fillRect(x, y, 2, h);
+      ctx.fillStyle = '#3c1c60'; ctx.fillRect(x, y + h - 2, w, 2); ctx.fillRect(x + w - 2, y, 2, h);
+      ctx.fillStyle = '#24123c'; ctx.fillRect(x + 10, y + 8, w - 20, h - 16);
+      // the bulbs, every third one lit, going round
+      const spots = [];
+      for (let i = 6; i < w - 6; i += 12) spots.push([x + i, y + 4]);
+      for (let j = 16; j < h - 6; j += 12) spots.push([x + w - 5, y + j]);
+      for (let i = w - 6 - ((w - 12) % 12); i >= 6; i -= 12) spots.push([x + i, y + h - 4]);
+      for (let j = h - 16; j >= 16; j -= 12) spots.push([x + 5, y + j]);
+      const go = Math.floor(t / 4);
+      spots.forEach(([bx, by], k) => {
+        const lit = ((k - go) % 3 + 3) % 3 === 0;
+        if (lit) { ctx.fillStyle = 'rgba(255,236,160,0.4)'; ctx.fillRect(bx - 4, by - 4, 8, 8); }
+        ctx.fillStyle = lit ? '#fff6d0' : '#a07428'; ctx.fillRect(bx - 2, by - 2, 4, 4);
+      });
+      // a star either side, and the name, lighting up a letter at a time
+      const n = Math.max(0, Math.min(str.length, Math.floor((marquee.t - 8) / 2)));
+      const top = y + Math.round((h - full.height) / 2) + (size === 2 ? 2 : 1), left = Math.round((W - full.width) / 2);
+      if (n) ctx.drawImage(cardWord(str.slice(0, n), Math.floor(t / 8) % 2 ? '#fff0a8' : '#ffd0f0', size), left, top);
+      for (const sx of [x + 24, x + w - 24]) {
+        ctx.fillStyle = '#f8d850';
+        ctx.fillRect(sx - 6, y + 20, 14, 4); ctx.fillRect(sx - 1, y + 15, 4, 14);
+        ctx.fillStyle = '#fff6d0'; ctx.fillRect(sx - 1, y + 20, 4, 4);
+      }
     }
     function drawTable() {
       ctx.drawImage(cardTable(), 0, 0);
@@ -8564,17 +8696,23 @@
         for (let i = 0; i < 16; i++) ray(at * 0.018 + i * Math.PI / 8, 0.11 * grow, 520 * grow, i % 2 ? 'rgba(232,160,40,' + beat + ')' : 'rgba(255,232,150,' + beat + ')');
         for (let i = 0; i < 8; i++) ray(-at * 0.03 + i * Math.PI / 4, 0.05 * grow, 420 * grow, 'rgba(255,250,220,0.3)');
       }
+      if (spot) drawSpot();
       if (flare) { ctx.fillStyle = 'rgba(' + flare.c + ',' + Math.max(0, flare.a).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H); }
       if (big) {
+        // (squash: it's turning, so it's narrower. bow: it's bowing, so it's shorter, with its feet where they were)
         const b = big, w = Math.max(4, Math.round(b.w * (b.squash === undefined ? 1 : b.squash) / 2) * 2), x = b.x + Math.round((b.w - w) / 2), sc = b.w / 260;
-        if (b.glow) for (const [r, a] of [[30, 0.1], [22, 0.14], [14, 0.2], [8, 0.3]]) { ctx.fillStyle = 'rgba(255,224,120,' + a + ')'; ctx.fillRect(b.x - r, b.y - r, b.w + r * 2, b.h + r * 2); } // (a glow round it)
+        const h = b.bow ? Math.round(b.h * b.bow / 2) * 2 : b.h, y = b.y + b.h - h, sx = w / b.w, sy = h / b.h;
+        const glow = b.glow === 'star' ? '255,170,230' : '255,224,120';
+        if (b.glow) for (const [r, a] of [[30, 0.1], [22, 0.14], [14, 0.2], [8, 0.3]]) { ctx.fillStyle = 'rgba(' + glow + ',' + a + ')'; ctx.fillRect(x - r, y - r, w + r * 2, h + r * 2); } // (a glow round it)
         if (b.alpha !== undefined) ctx.globalAlpha = b.alpha;
-        ctx.drawImage(b.back ? backOfCard(b.gold) : bigCard(b.id), x, b.y, w, b.h);
-        if (b.back && b.gold) A.sparkle(ctx, x, b.y, w, b.h, t, 5);
+        ctx.drawImage(b.back ? backOfCard(b.gold) : bigCard(b.id), x, y, w, h);
+        if (b.back && b.gold) A.sparkle(ctx, x, y, w, h, t, 5);
         ctx.globalAlpha = 1;
-        if (b.live) ctx.drawImage(A.canvasOf(A.artFrame(b.id, t)), b.x + Math.round(12 * sc), b.y + Math.round(44 * sc), Math.round(236 * sc), Math.round(150 * sc));
-        if (b.shine >= 0) A.shine(ctx, x, b.y, w, b.h, Math.min(cardFace(b.id).rarity === 'L' ? 149 : 209, b.shine), cardFace(b.id).rarity);
+        if (b.live) ctx.drawImage(A.canvasOf(A.artFrame(b.id, t)), x + Math.round(12 * sc * sx), y + Math.round(44 * sc * sy), Math.round(236 * sc * sx), Math.round(150 * sc * sy));
+        const rarity = cardFace(b.id).rarity;
+        if (b.shine >= 0) A.shine(ctx, x, y, w, h, rarity === 'Y' ? b.shine : Math.min(rarity === 'L' ? 149 : 209, b.shine), rarity);
       }
+      if (marquee) drawMarquee();
       if (legend) { // the word across the top, opening out from the middle
         const w = Math.round(W * Math.min(1, legend.t / 10) / 2) * 2;
         ctx.save();
@@ -8588,7 +8726,7 @@
         if (ring.t < 0) continue;
         const r = ring.t * 11, n = 40;
         ctx.globalAlpha = Math.max(0, 1 - ring.t / 26);
-        ctx.fillStyle = '#f8d860';
+        ctx.fillStyle = ring.c || '#f8d860';
         for (let i = 0; i < n; i++) { const a = i * Math.PI * 2 / n; ctx.fillRect(Math.round((ring.x + Math.cos(a) * r) / 2) * 2 - 3, Math.round((ring.y + Math.sin(a) * r * 0.8) / 2) * 2 - 3, 6, 6); }
         ctx.globalAlpha = 1;
       }
@@ -8596,6 +8734,11 @@
         const a = Math.max(0, b.life / b.max), x = Math.round(b.x / 2) * 2, y = Math.round(b.y / 2) * 2;
         if (b.heart) {
           heart(x - 8, y - 6, INK); heart(x - 6, y - 4, '#f05868');
+        } else if (b.conf) { // (turning over as it falls, so it's sometimes thin)
+          const turn = Math.abs(Math.sin((t + b.ph) / 5)), cw = turn < 0.35 ? 2 : turn < 0.75 ? 4 : 6;
+          ctx.globalAlpha = Math.min(1, b.life / 20); ctx.fillStyle = b.c;
+          ctx.fillRect(x - cw / 2, y - 2, cw, 4);
+          ctx.globalAlpha = 1;
         } else if (b.star) {
           const n = b.life > 18 ? 6 : 3;
           ctx.fillStyle = b.c; ctx.fillRect(x - n, y - 1, n * 2 + 2, 2); ctx.fillRect(x, y - n - 1, 2, n * 2 + 2);
@@ -8678,7 +8821,15 @@
         if (noteT > 0) noteT--;
         rest++;
         // everything that's moving
-        for (const b of bits) { b.x += b.vx; b.y += b.vy; if (!b.star && !b.heart) b.vy += 0.05; b.life--; }
+        for (const b of bits) {
+          if (b.conf) { // (confetti: slows quickly, then drifts down, swaying)
+            b.vx *= 0.95;
+            b.vy = Math.min(1.3, b.vy * (b.vy < 0 ? 0.92 : 1) + 0.06);
+            b.x += b.vx + Math.sin((t + b.ph) / 9) * 0.8; b.y += b.vy; b.life--;
+            continue;
+          }
+          b.x += b.vx; b.y += b.vy; if (!b.star && !b.heart) b.vy += 0.05; b.life--;
+        }
         bits = bits.filter((b) => b.life > 0);
         for (const m of moves) m.t++;
         for (const w of gone) w.t++;
@@ -8694,6 +8845,8 @@
         rings = rings.filter((r) => r.t <= 26);
         if (flare) { flare.a -= flare.fade; if (flare.a <= 0) flare = null; }
         if (legend) legend.t++;
+        if (spot) spot.t++;
+        if (marquee) marquee.t++;
         if (glint) { glint.t += 6; if (glint.t > 240) glint = null; }
         if (banner && ++banner.t > (banner.len || 36)) banner = null;
         if (mover && !mover.pos && ++mover.t > 16) mover = null;
@@ -8732,7 +8885,7 @@
             if (a.start) a.start();
             if (a.end) a.end();
           }
-          mover = null; fly = null; big = null; dim = 0; halo = null; drawn = null; legend = null;
+          mover = null; fly = null; big = null; dim = 0; halo = null; drawn = null; legend = null; spot = null; marquee = null;
           return; // (that press was for hurrying, so it doesn't also pick whatever's under the cursor)
         }
         // whatever's next to show
@@ -8930,13 +9083,14 @@
   const DECK_SLOTS = 5, DECK_NAME_MAX = 12, DECK_NAME_OK = /[A-Za-z0-9 .,!?'\-&#()+]/;
   const deckLabel = (k, i) => k.n || 'Deck ' + (i + 1);
   // the cards in a saved list, as far as they can be a deck: real cards, one of each, at most one
-  // legendary and no more than 20 (and with mine, only the ones you have)
+  // legendary and one of your own, and no more than 20 (and with mine, only the ones you have)
   function deckCards(str, mine) {
     const out = [];
     for (const id of String(str || '').split(',')) {
       const c = CARDS.card(id);
       if (!c || c.rarity === 'T' || out.includes(id) || out.length >= CARDS.RULES.DECK || (mine && !cardHave(id))) continue;
       if (c.rarity === 'L' && out.some((x) => CARDS.card(x).rarity === 'L')) continue;
+      if (c.own && out.some((x) => CARDS.card(x).own)) continue;
       out.push(id);
     }
     return out;
@@ -9055,7 +9209,7 @@
       tell() {
         sfx('cup');
         itemToldMark('owncard');
-        ask('You\'ve won every card in Morale Madness. Now you\'re playing with a full deck! So here\'s one more, all your own: a legendary with you on it. Pick what it does under YOU in MY CARDS, and change it whenever you like.', ['PICK NOW', 'LATER'], (i) => {
+        ask('You\'ve won every card in Morale Madness. Now you\'re playing with a full deck! So here\'s one more, all your own, with you on it. It goes in your deck as well as a legendary. Pick what it does under YOU in MY CARDS, and change it whenever you like.', ['PICK NOW', 'LATER'], (i) => {
           if (i === 0) { sfx('menu'); ui.push(DeckApp('you')); }
         }, { above: ownPanel() });
       } },
@@ -9081,7 +9235,7 @@
       ctx.restore();
     };
   }
-  // The picture above the message about your own legendary: you, on it.
+  // The picture above the message about your own card: you, on it.
   function ownPanel() {
     const w = 120, h = 100, x = (SW - w) >> 1, y = 16, face = faceOf('youbruiser', { name: cardsWho(), look: wornLook(myLook) }), from = tick;
     return () => {
@@ -9093,7 +9247,7 @@
       ctx.drawImage(smallCard(face), SW - 44, (y + 33) * 2);
       const [cx, cy] = CARD_ART.cropOf(face);
       ctx.drawImage(CARD_ART.canvasOf(CARD_ART.artFrame(face, tick - from)), cx, cy, 72, 72, SW - 36, (y + 33) * 2 + 8, 72, 72);
-      CARD_ART.shine(ctx, SW - 44, (y + 33) * 2, 88, 116, tick - from, 'L', 6);
+      CARD_ART.shine(ctx, SW - 44, (y + 33) * 2, 88, 116, tick - from, 'Y', 6);
       ctx.restore();
     };
   }
@@ -9199,10 +9353,11 @@
         sfx('select');
         return;
       }
-      // (your own legendary takes the place of whichever legendary you had, so swapping is one press)
+      // (a version of your own card takes the place of the one you had, so changing it is one press. It
+      // isn't a legendary, so it goes in alongside one)
       if (c.own) {
-        const was = draft.find((x) => CARDS.card(x).rarity === 'L');
-        if (was) { draft = draft.filter((x) => x !== was).concat(id); sfx('blip'); if (!CARDS.card(was).own) flash('It took the place of ' + CARDS.card(was).name + '.'); return; }
+        const was = draft.find((x) => CARDS.card(x).own);
+        if (was) { draft = draft.filter((x) => x !== was).concat(id); sfx('blip'); return; }
       }
       if (draft.length >= SIZE) { sfx('bump'); flash('Your deck is full. Take one out first.'); return; }
       if (c.rarity === 'L' && draft.some((x) => CARDS.card(x).rarity === 'L')) { sfx('bump'); flash('A deck can only have one legendary.'); return; }
@@ -9393,7 +9548,7 @@
         else if (id === DECKS) decksButton(6, 40, 260, 364, 3);
         else if (id) {
           ctx.drawImage(yours ? bigCard(F(id)) : backOfCard(), 6, 40, 260, 364);
-          if (yours && c.rarity === 'L') ctx.drawImage(A.canvasOf(A.artFrame(F(id), t)), 18, 84, 236, 150);
+          if (yours && cardLives(c)) ctx.drawImage(A.canvasOf(A.artFrame(F(id), t)), 18, 84, 236, 150);
           if (yours) A.shine(ctx, 6, 40, 260, 364, t, c.rarity);
           else {
             const nm = cardWord(c.style || c.name, '#f8d850');
@@ -9408,7 +9563,7 @@
           else if (cid === DECKS) decksButton(x, y, 88, 116, 1);
           else if (have) {
             ctx.drawImage(smallCard(F(cid), { cost: true }), x, y);
-            if (k.rarity === 'L') { const [cx, cy] = A.cropOf(F(cid)); ctx.drawImage(A.canvasOf(A.artFrame(F(cid), t)), cx, cy, 72, 72, x + 8, y + 8, 72, 72); }
+            if (cardLives(k)) { const [cx, cy] = A.cropOf(F(cid)); ctx.drawImage(A.canvasOf(A.artFrame(F(cid), t)), cx, cy, 72, 72, x + 8, y + 8, 72, 72); }
             A.shine(ctx, x, y, 88, 116, t, k.rarity, 8);
           } else ctx.drawImage(backOfCard(), x, y);
           if (TABS[tab][1] && draft.includes(cid)) { fr(x + 60, y + 2, 26, 22, '#1a1622'); fr(x + 62, y + 4, 22, 18, '#48a048'); say2('IN', x + 62, y + 5, '#ffffff'); }
@@ -25044,7 +25199,7 @@
   // To add one, mark it in js/art.js with `item`. Anything that isn't for everyone has to be: that's
   // what gives it its number. Where it's earned, call itemEarned, then itemOffer if that says to tell
   // them. Never decide to tell somebody by looking at their number. See "To add one" in the README.
-  // (gold backs and your own legendary aren't worn, so they're not in any list of looks, and have no part)
+  // (gold backs and your own card aren't worn, so they're not in any list of looks, and have no part)
   const ITEMS = Object.assign({ goldbacks: {}, owncard: {} }, Art.LOOK_ITEMS), TOLD = 'Told';
   const ITEM_URL = LOOK_URL.replace('/looks/', '/items/');
   const DECK_URL = LOOK_URL.replace('/looks/', '/decks/'); // (your card deck: see deckPull)

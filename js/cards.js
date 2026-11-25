@@ -62,7 +62,7 @@ window.CARDS = (function engine() {
     last: 'Last word: happens when it goes home.',
     team: 'Team-up: only with that department on the table.',
   };
-  const RARITIES = new Set(['S', 'C', 'U', 'R', 'L', 'T']);
+  const RARITIES = new Set(['S', 'C', 'U', 'R', 'L', 'Y', 'T']);
 
   // ---------- the words on a card ----------
   function whatItDoes(e) {
@@ -150,6 +150,7 @@ window.CARDS = (function engine() {
       if (!/^[a-z0-9]{1,14}$/.test(c.id)) say(c, 'an id is lower case letters and numbers, 14 at most, so it fits in the database');
       if (typeof c.name !== 'string' || c.name.length > 16) say(c, 'a name is 16 letters at most, or it runs off the card');
       if (!RARITIES.has(c.rarity)) say(c, 'no such rarity as ' + c.rarity);
+      if (!!c.own !== (c.rarity === 'Y')) say(c, 'your own card, and only that, is rarity Y');
       if (!named(c.dept)) say(c, 'no such department as ' + c.dept);
       if (!Number.isInteger(c.cost) || c.cost < 0 || c.cost > 10) say(c, 'its cost should be 0 to 10');
       if (c.kind !== undefined && c.kind !== 'task') say(c, 'kind is task or left out');
@@ -200,14 +201,17 @@ window.CARDS = (function engine() {
   function deckProblem(ids) {
     if (!Array.isArray(ids) || ids.length !== DECK) return 'A deck is exactly ' + DECK + ' cards.';
     const seen = new Set();
-    let legends = 0;
+    let legends = 0, own = 0;
     for (const id of ids) {
       if (typeof id !== 'string' || !collectable(CARD.get(id))) return 'There\'s no such card as ' + String(id).slice(0, 20) + '.';
       if (seen.has(id)) return 'A deck can only have one of each card.';
       seen.add(id);
       if (CARD.get(id).rarity === 'L') legends++;
+      if (CARD.get(id).own) own++;
     }
     if (legends > 1) return 'A deck can only have one legendary.';
+    // (your own card isn't a legendary, so it can go in with one, but there's only one of you)
+    if (own > 1) return 'A deck can only have one of your own cards.';
     return null;
   }
   const seededRand = (o) => () => {
@@ -218,7 +222,7 @@ window.CARDS = (function engine() {
   };
   // How good a card is for its coffee, roughly, for building a deck.
   function rough(c) {
-    let v = c.rarity === 'L' ? 6 : c.rarity === 'R' ? 3 : c.rarity === 'U' ? 2 : c.rarity === 'C' ? 1 : 0;
+    let v = c.rarity === 'L' ? 6 : c.rarity === 'Y' || c.rarity === 'R' ? 3 : c.rarity === 'U' ? 2 : c.rarity === 'C' ? 1 : 0;
     if (c.kind !== 'task') v += (c.power + c.patience - c.cost * 2 - 1) * 0.7;
     return v + (c.words || []).length * 0.8 + (c.does || []).length * 1.2;
   }
@@ -235,14 +239,15 @@ window.CARDS = (function engine() {
     };
     const ranked = pool.map((id) => [score(id), id]).sort((a, b) => b[0] - a[0]).map((x) => x[1]);
     const deck = [], want = { low: 8, mid: 8, high: 4 };
-    let legend = false, tasks = 0; // (a task only happens once, so a deck wants mostly workers)
+    let legend = false, own = false, tasks = 0; // (a task only happens once, so a deck wants mostly workers)
     const band = (c) => (c.cost <= 2 ? 'low' : c.cost <= 4 ? 'mid' : 'high');
     const take = (id) => {
       const c = CARD.get(id);
-      if (deck.includes(id) || deck.length >= DECK || (c.rarity === 'L' && legend)) return false;
+      if (deck.includes(id) || deck.length >= DECK || (c.rarity === 'L' && legend) || (c.own && own)) return false;
       deck.push(id);
       want[band(c)]--;
       if (c.rarity === 'L') legend = true;
+      if (c.own) own = true;
       if (c.kind === 'task') tasks++;
       return true;
     };

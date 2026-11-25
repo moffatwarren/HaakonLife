@@ -89,6 +89,9 @@ test('only a legal deck is a deck', () => {
   assert.ok(CARDS.deckProblem(swapIn('legobrick')), 'a card only another card can bring in');
   assert.ok(CARDS.deckProblem(swapIn(...every.filter(legend).slice(0, 2))), 'two legendaries');
   assert.equal(CARDS.deckProblem(swapIn(every.filter(legend)[0])), null, 'one legendary');
+  const own = every.filter((id) => CARDS.card(id).own);
+  assert.equal(CARDS.deckProblem(swapIn(every.filter(legend)[0], own[0])), null, 'a legendary and your own card');
+  assert.ok(CARDS.deckProblem(swapIn(own[0], own[1])), 'two versions of your own card');
   for (const junk of [null, 'deck', 20, {}, [null], swapIn('__proto__'), swapIn('constructor'), swapIn(5), swapIn({})]) {
     assert.ok(CARDS.deckProblem(junk), 'junk: ' + JSON.stringify(junk));
   }
@@ -687,8 +690,15 @@ test('thousands of random games all finish, and nothing ever goes out of bounds'
     const pick = (a) => a[Math.floor(rand() * a.length)];
     const deck = () => {
       const pool = every.slice().sort(() => rand() - 0.5), out = [];
-      let L = false;
-      for (const id of pool) { if (out.length === DECK) break; const isL = CARDS.card(id).rarity === 'L'; if (isL && L) continue; if (isL) L = true; out.push(id); }
+      let L = false, Y = false; // (at most one legendary, and one of your own)
+      for (const id of pool) {
+        if (out.length === DECK) break;
+        const isL = CARDS.card(id).rarity === 'L', isY = !!CARDS.card(id).own;
+        if ((isL && L) || (isY && Y)) continue;
+        if (isL) L = true;
+        if (isY) Y = true;
+        out.push(id);
+      }
       return out;
     };
     const g = CARDS.create({ decks: [deck(), deck()], seed });
@@ -914,7 +924,7 @@ for (const who of Object.values(staffCtx.window.PLANT_CREW || {})) staff.add(who
 for (const who of Object.values(staffCtx.window.VISITORS || {})) staff.add(who.name);
 const opponents = [...new Set(CARDS.LIST.map((c) => CARDS.wonFrom(c.id)).filter(Boolean))];
 
-test('your own legendary is never won, dealt to a coworker or picked for you, but it can go in a deck', () => {
+test('your own card is never won, dealt to a coworker or picked for you, but it can go in a deck, with a legendary too', () => {
   const own = CARDS.LIST.filter((c) => c.own);
   assert.equal(own.length, 6);
   const others = CARDS.LIST.filter((c) => c.rarity !== 'T').map((c) => c.id);
@@ -922,13 +932,16 @@ test('your own legendary is never won, dealt to a coworker or picked for you, bu
   assert.ok(!CARDS.buildDeck(others, { seed: 3 }).some(isOwn), 'a deck that\'s built for you');
   for (const who of opponents) for (const level of [1, 2, 3, 4]) assert.ok(!CARDS.foeDeck(who, level).some(isOwn), who);
   for (const c of own) {
-    assert.equal(c.rarity, 'L', c.id);
+    assert.equal(c.rarity, 'Y', c.id);
     const deck = plain(CARDS.buildDeck(others, { seed: 3, must: [c.id] }));
     assert.ok(deck.includes(c.id), c.id + ' stays in when you ask for it');
+    assert.ok(deck.some((id) => CARDS.card(id).rarity === 'L'), c.id + ' leaves room for a legendary');
     assert.equal(CARDS.deckProblem(deck), null, c.id + ' makes a legal deck');
   }
   const two = plain(CARDS.STARTER).slice(0, 18).concat(own[0].id, own[1].id);
-  assert.ok(CARDS.deckProblem(two), 'two versions of it are two legendaries');
+  assert.ok(CARDS.deckProblem(two), 'there\'s only one of you in a deck');
+  const both = plain(CARDS.buildDeck(others, { seed: 3, must: [own[0].id, own[1].id] }));
+  assert.equal(both.filter(isOwn).length, 1, 'even when you ask for two');
 });
 
 test('every card can be won from somebody who works there, or is yours from the start', () => {
@@ -1010,8 +1023,8 @@ test('no two cards look the same', () => {
   }
 });
 
-test('a legendary keeps moving, all the way round its loop', () => {
-  for (const c of CARDS.LIST.filter((x) => x.rarity === 'L')) {
+test('a legendary keeps moving, all the way round its loop, and so does your own card', () => {
+  for (const c of CARDS.LIST.filter((x) => x.rarity === 'L' || x.own)) {
     const live = ART.LIVE[c.id];
     assert.ok(live, c.id + ' needs an entry in LIVE');
     const frames = new Set();
