@@ -1820,7 +1820,16 @@ browser problem {"m":"the error","at":"play / laundry / floor 0 / touch","v":179
 `at` is what they were doing, then which floor and whether they were on a touch screen; `ua` is
 their browser and device; `v` is which version of the game they had, in milliseconds since
 1970, the same date as "Updated ..." on the title screen; and `s` lists the code they were in, with line
-numbers. It doesn't say who it was. A browser sends each different error once, and at most five
+numbers. It doesn't say who it was.
+
+A script that wouldn't load at all reads like `js/chess.js would not load. First try: js/maps.js, HTTP 503`.
+The page first fetches every script at once, and if one doesn't come it loads them one by one
+the ordinary way, so the report names the file that stopped each try. After "First try", `HTTP` and
+a number means the site answered with an error. Anything else (`Load failed` on an iPhone, `Failed
+to fetch` on Chrome) means the browser couldn't reach the site at all, which is usually their
+connection, and "The browser says it is offline" on the end means it knew.
+
+A browser sends each different error once, and at most five
 a page load, and the server logs at most 60 a minute. For a quick look, open
 https://play.haakonlife.com/status: `problems:3` on the end of the first line is how many have come in
 since the server last restarted. Only the hosted copy with nothing after a `#` in the address

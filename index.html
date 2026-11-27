@@ -183,6 +183,11 @@
 (function () {
   var FILES = ['font', 'art', 'lot', 'maps', 'people', 'music', 'hockey', 'race', 'track', 'brawl', 'chess', 'checkers', 'sweeper', 'cookies', 'cardlist', 'cards', 'cardart', 'game'];
   var RETRIES = 3, RETRY_MS = 5000;
+  // Why the first way of loading failed, if it did: which file, and either the site's answer
+  // ("HTTP 503") or the browser's own words for a lost connection ("Load failed" on an iPhone).
+  // It goes in the report for a file that then wouldn't load the ordinary way either, so the
+  // report says whether the site turned the browser away or the browser couldn't reach it.
+  var why = '';
   // Has the game started? js/game.js says so last thing, as window.GAME. If not (a file that
   // wouldn't load, or one caught halfway through being uploaded, or old files mixed with new
   // ones during a deploy), wait a moment and try again, a few times, before asking.
@@ -200,17 +205,21 @@
     var s = document.createElement('script');
     s.src = 'js/' + FILES[i] + '.js';
     s.onload = function () { plain(i + 1); };
-    s.onerror = function () { window.reportProblem('js/' + FILES[i] + '.js would not load'); started(); };
+    s.onerror = function () {
+      window.reportProblem('js/' + FILES[i] + '.js would not load' + (why ? '. First try: ' + why : '') +
+        (navigator.onLine === false ? '. The browser says it is offline' : ''));
+      started();
+    };
     document.body.appendChild(s);
   }
   if (location.protocol === 'file:' || !window.fetch) { plain(0); return; }
   Promise.all(FILES.map(function (f) {
     return fetch('js/' + f + '.js', { cache: 'no-cache' }).then(function (r) {
-      if (!r.ok) throw new Error(f);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       // the newest file's date doubles as the version shown on the title screen
       var mod = Date.parse(r.headers.get('last-modified'));
       return r.text().then(function (code) { return { f: f, code: code, mod: mod }; });
-    });
+    }).catch(function (e) { throw new Error('js/' + f + '.js, ' + ((e && e.message) || e)); });
   })).then(function (all) {
     var newest = Math.max.apply(null, all.map(function (x) { return x.mod || 0; }));
     if (newest) window.GAME_VERSION = new Date(newest);
@@ -220,7 +229,7 @@
       document.body.appendChild(s);
     });
     started();
-  }, function () { plain(0); }); // (only for a file that wouldn't come: not for anything after)
+  }, function (e) { why = String((e && e.message) || e).slice(0, 150); plain(0); }); // (only for a file that wouldn't come: not for anything after)
 })();
 </script>
 </body>
